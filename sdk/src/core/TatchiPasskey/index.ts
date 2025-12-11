@@ -644,7 +644,7 @@ export class TatchiPasskey {
         });
         // Emit completion
         const txIds = (res || []).map(r => r?.transactionId).filter(Boolean).join(', ');
-        options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `All transactions sent: ${txIds}` });
+        options?.onEvent?.({ step: 8, phase: ActionPhase.STEP_8_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `All transactions sent: ${txIds}` });
         await options?.afterCall?.(true, res);
         return res;
       } catch (error: unknown) {
@@ -663,8 +663,8 @@ export class TatchiPasskey {
     }).then(txResults => {
       const txIds = txResults.map(txResult => txResult.transactionId).join(', ');
       options?.onEvent?.({
-        step: 9,
-        phase: ActionPhase.STEP_9_ACTION_COMPLETE,
+        step: 8,
+        phase: ActionPhase.STEP_8_ACTION_COMPLETE,
         status: ActionStatus.SUCCESS,
         message: `All transactions sent: ${txIds}`
       });
@@ -832,7 +832,7 @@ export class TatchiPasskey {
           }
         });
         await options?.afterCall?.(true, res);
-        options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${res?.transactionId} broadcasted` });
+        options?.onEvent?.({ step: 8, phase: ActionPhase.STEP_8_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${res?.transactionId} broadcasted` });
         return res;
       } catch (error: unknown) {
         const e = toError(error);
@@ -844,7 +844,7 @@ export class TatchiPasskey {
 
     return sendTransaction({ context: this.getContext(), signedTransaction, options })
       .then(txResult => {
-        options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${txResult.transactionId} broadcasted` });
+        options?.onEvent?.({ step: 8, phase: ActionPhase.STEP_8_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${txResult.transactionId} broadcasted` });
         return txResult;
       });
   }

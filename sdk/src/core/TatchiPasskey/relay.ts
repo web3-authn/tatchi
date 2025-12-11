@@ -27,8 +27,8 @@ export async function sendDelegateActionViaRelayer(args: {
   };
 
   emit({
-    step: 8,
-    phase: ActionPhase.STEP_8_BROADCASTING,
+    step: 7,
+    phase: ActionPhase.STEP_7_BROADCASTING,
     status: ActionStatus.PROGRESS,
     message: 'Submitting delegate to relayer...',
   });
@@ -86,8 +86,8 @@ export async function sendDelegateActionViaRelayer(args: {
   const success = response.ok !== false;
   if (success) {
     emit({
-      step: 9,
-      phase: ActionPhase.STEP_9_ACTION_COMPLETE,
+      step: 8,
+      phase: ActionPhase.STEP_8_ACTION_COMPLETE,
       status: ActionStatus.SUCCESS,
       message: 'Delegate relayed successfully',
     });

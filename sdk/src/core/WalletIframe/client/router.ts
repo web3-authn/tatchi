@@ -1,31 +1,64 @@
-/**
+/*
  * WalletIframeRouter - Client-Side Communication Layer
  *
- * This is the main communication manager that handles all interaction between
- * the parent application and the wallet iframe. It provides a high-level RPC
- * interface while managing the complex details of iframe communication.
+ * Owns all iframe overlay show/hide behavior for WebAuthn activation. It is the
+ * single place that decides *how* the wallet iframe is displayed (fullscreen vs
+ * anchored, sticky mode, force-fullscreen during registration, etc.).
  *
- * Key Responsibilities:
- * - Request/Response Correlation: Tracks pending requests with unique IDs
- * - Progress Event Bridging: Routes progress events from iframe to parent callbacks
- * - Overlay Management: Controls iframe visibility for user activation
- * - Timeout Handling: Manages request timeouts and cleanup
- * - Message Serialization: Strips non-serializable functions from messages
- * - Error Handling: Converts iframe errors to parent-appropriate errors
+ * Responsibilities:
+ * - Request/Response Correlation: Tracks pending requests with unique IDs.
+ * - Progress Event Bridging: Receives PROGRESS from the wallet iframe and forwards
+ *   them to app `onEvent` handlers.
+ * - Overlay Ownership:
+ *   - Delegates *when* to show/hide to OnEventsProgressBus (based on progress events).
+ *   - Executes *how* to show/hide via OverlayController (DOM / CSS / ARIA).
+ *   - Also reacts to wallet-host UI messages (e.g., WALLET_UI_CLOSED) and export flows.
+ * - Timeout Handling: Manages request timeouts and cleanup.
+ * - Message Serialization: Strips non-serializable functions from messages.
+ * - Error Handling: Converts iframe errors to parent-appropriate errors.
  *
- * Architecture:
- * - Uses IframeTransport for low-level iframe management
- * - Uses ProgressBus for overlay visibility control
- * - Maintains pending request registry for correlation
- * - Provides typed RPC methods for all TatchiPasskey operations
+ * High-level flow:
  *
- * Communication Flow:
- * 1. Parent calls RPC method (e.g., registerPasskey)
- * 2. Router creates unique request ID and pending entry
- * 3. Message sent to iframe via MessagePort
- * 4. Progress events bridged back to parent callbacks
- * 5. Final result resolves the pending promise
- * 6. Cleanup removes pending entry and hides overlay
+ *   Step legend
+ *   -----------
+ *   (1) App calls a router RPC (executeAction, registerPasskey, etc).
+ *   (2) Router posts request to iframe and tracks a pending entry.
+ *   (3) Wallet iframe sends PROGRESS messages back to the router.
+ *   (4) Router forwards ProgressPayloads into OnEventsProgressBus.
+ *   (5) OnEventsProgressBus decides 'show' | 'hide' and calls router adapters.
+ *   (6) Router delegates to OverlayController to show|hide the iframe.
+ *   (7) Router receives final result, resolves the pending promise, unregisters,
+ *       and may hide the overlay if no other request still needs it.
+ *
+ *   +-----------+         +--------------------+         +----------------------+         +----------------------+
+ *   |   App     |         | WalletIframeRouter |         | OnEventsProgressBus  |         | OverlayController    |
+ *   +-----+-----+         +---------+----------+         +----------+-----------+         +----------+-----------+
+ *         |   (1) RPC call (executeAction, etc.)                    |                                  |
+ *         |-------------------------------------------------------->|                                  |
+ *         |                                                        |                                  |
+ *         |                           (2) post(): send request to iframe                              |
+ *         |                                                        |                                  |
+ *         |                           (3) PROGRESS from iframe via onPortMessage()                    |
+ *         |<-------------------------------------------------------|                                  |
+ *         |                                                        |                                  |
+ *         |                           (4) ProgressPayload → heuristic                                 |
+ *         |                                                        |-- (5) 'show' | 'hide' intent --->|
+ *         |                                                        |                                  |
+ *         |                           (6) showFrameForActivation() | hideFrameForActivation()         |
+ *         |                                                        |                                  |
+ *         |                                                        |                 (6) show()|hide() |
+ *         |                                                        |---------------------------------->|
+ *         |                                                        |                                  |
+ *         |                           (7) PM_RESULT/ERROR → resolve pending, maybe hide overlay       |
+ *         |<-------------------------------------------------------|                                  |
+ *
+ * Communication Flow (requests):
+ * 1. Parent calls RPC method (e.g., registerPasskey).
+ * 2. Router creates unique request ID and pending entry.
+ * 3. Message sent to iframe via MessagePort.
+ * 4. Progress events bridged back to parent callbacks and fed into OnEventsProgressBus.
+ * 5. OnEventsProgressBus emits show/hide intents; router invokes OverlayController.
+ * 6. Final result resolves the pending promise; router unregisters and may hide overlay.
  */
 
 import {
@@ -34,7 +67,7 @@ import {
   type ProgressPayload,
 } from '../shared/messages';
 import { SignedTransaction } from '../../NearClient';
-import { ProgressBus, defaultPhaseHeuristics } from './progress-bus';
+import { OnEventsProgressBus, defaultPhaseHeuristics } from './on-events-progress-bus';
 import type {
   RegistrationResult,
   LoginResult,
@@ -152,7 +185,7 @@ export class WalletIframeRouter {
   private vrfStatusListeners: Set<(status: { active: boolean; nearAccountId: string | null; sessionDuration?: number }) => void> = new Set();
   // Coalesce duplicate Device2 start calls (e.g., React StrictMode double-effects)
   private device2StartPromise: Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> | null = null;
-  private progressBus: ProgressBus;
+  private progressBus: OnEventsProgressBus;
   private debug = false;
   private readonly walletOriginUrl: URL;
   private readonly walletOriginOrigin: string;
@@ -215,11 +248,14 @@ export class WalletIframeRouter {
       },
     });
 
-    // Centralize overlay sizing/visibility
+    // Centralize overlay sizing/visibility. The router is the single owner of
+    // "how" the iframe is shown/hidden (fullscreen vs anchored, sticky, etc).
     this.overlay = new OverlayController({ ensureIframe: () => this.transport.ensureIframeMounted() });
 
-    // Initialize progress router with overlay control and phase heuristics
-    this.progressBus = new ProgressBus(
+    // Initialize progress router with overlay control and phase heuristics.
+    // OnEventsProgressBus only decides *when* to show/hide based on events; it calls
+    // these adapter functions, and the router delegates to OverlayController.
+    this.progressBus = new OnEventsProgressBus(
       {
         show: () => this.showFrameForActivation(),
         hide: () => this.hideFrameForActivation()
@@ -227,7 +263,7 @@ export class WalletIframeRouter {
       defaultPhaseHeuristics,
       this.debug
         ? (msg: string, data?: Record<string, unknown>) => {
-            console.debug('[WalletIframeRouter][ProgressBus]', msg, data || {});
+            console.debug('[WalletIframeRouter][OnEventsProgressBus]', msg, data || {});
           }
         : undefined
     );
@@ -1141,11 +1177,11 @@ export class WalletIframeRouter {
    *
    * How it differs from other components:
    *
-   * vs ProgressBus (lifecycle and close decision):
+   * vs OnEventsProgressBus (lifecycle and close decision):
    * - computeOverlayIntent: "SHOW" decision - runs before sending request
-   * - ProgressBus: "CLOSE" decision - runs during operation lifecycle
-   * - ProgressBus drives ongoing UI phases and manages sticky behavior
-   * - ProgressBus handles PM_RESULT/ERROR and decides when to hide overlay
+   * - OnEventsProgressBus: "CLOSE" decision - runs during operation lifecycle
+   * - OnEventsProgressBus drives ongoing UI phases and manages sticky behavior
+   * - OnEventsProgressBus handles PM_RESULT/ERROR and decides when to hide overlay
    *
    * vs OverlayController (single executor):
    * - computeOverlayIntent: DECIDES what to do (show/hide decision logic)
@@ -1157,8 +1193,8 @@ export class WalletIframeRouter {
    * 1. computeOverlayIntent() → decides to show overlay
    * 2. OverlayController.showFullscreen() → executes the decision
    * 3. Request sent to iframe → operation begins
-   * 4. ProgressBus manages lifecycle → handles progress events
-   * 5. ProgressBus decides to hide → when operation completes
+   * 4. OnEventsProgressBus manages lifecycle → handles progress events
+   * 5. OnEventsProgressBus decides to hide → when operation completes
    * 6. OverlayController.hide() → executes the hide decision
    *
    * Special Cases:
@@ -1169,7 +1205,7 @@ export class WalletIframeRouter {
    *
    * Future Evolution:
    * - If host always emits early PROGRESS for a type, this can be reduced
-   * - Intent is to move toward ProgressBus-driven lifecycle management
+   * - Intent is to move toward OnEventsProgressBus-driven lifecycle management
    * - This provides predictable, glitch-free activation without hardcoding
    */
   private computeOverlayIntent(type: ParentToChildEnvelope['type']): { mode: 'hidden' | 'fullscreen' } {

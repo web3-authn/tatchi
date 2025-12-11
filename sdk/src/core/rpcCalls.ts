@@ -165,7 +165,7 @@ export async function executeDeviceLinkingContractCalls({
       // can expand during user confirmation in wallet-iframe mode.
       try { onEvent?.(progress as any); } catch {}
       // Keep existing success mapping for device linking semantics
-      if (progress.phase == ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE) {
+      if (progress.phase == ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE) {
         onEvent?.({
           step: 3,
           phase: DeviceLinkingPhase.STEP_3_AUTHORIZATION,

@@ -64,8 +64,8 @@ export async function signDelegateAction(args: {
     };
 
     options?.onEvent?.({
-      step: 9,
-      phase: ActionPhase.STEP_9_ACTION_COMPLETE,
+      step: 8,
+      phase: ActionPhase.STEP_8_ACTION_COMPLETE,
       status: ActionStatus.SUCCESS,
       message: 'Delegate action signed',
       data: { hash: result.hash },

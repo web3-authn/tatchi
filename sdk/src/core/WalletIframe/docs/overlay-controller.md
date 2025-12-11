@@ -50,7 +50,7 @@ Minimal wiring without changing external behavior:
   - `hideFrameForActivation` → `overlay.hide()`.
   - `setOverlayBounds(rect)` → `overlay.showAnchored(rect)` and mark as last anchored.
   - `setAnchoredOverlayBounds/clearAnchoredOverlay` → delegate to controller.
-- Keep ProgressBus callbacks intact; they will call the router which delegates to the controller.
+- Keep OnEventsProgressBus callbacks intact; they will call the router which delegates to the controller.
 
 ## Router Integration (phase 2)
 

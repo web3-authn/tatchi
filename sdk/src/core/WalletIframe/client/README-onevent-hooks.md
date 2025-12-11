@@ -34,7 +34,7 @@ No functions cross `postMessage`; the SDK handles bridging for you.
 - For each request, the client registers an `onProgress` handler created via `wrapOnEvent(onEvent, isXxxSSEEvent)`.
 - When a `PROGRESS` message arrives, the client:
   - correlates by `requestId`
-  - routes through a small `ProgressBus`
+  - routes through a small `OnEventsProgressBus`
   - invokes the stored `onProgress`, which safely narrows and forwards to your `onEvent`.
 
 4) Completion
@@ -56,7 +56,7 @@ Ordering is FIFO per `requestId`.
 - Client receives PROGRESS and invokes app `onEvent` via wrapper:
   - `src/core/WalletIframe/client/router.ts`
     - `post()` registers `{ onProgress }` per request
-    - `onPortMessage()` dispatches `PROGRESS` to `ProgressBus`
+    - `onPortMessage()` dispatches `PROGRESS` to `OnEventsProgressBus`
     - `wrapOnEvent(onEvent, isXxxSSEEvent)` narrows `ProgressPayload` before calling `onEvent`
 - Message contracts:
   - `src/core/WalletIframe/shared/messages.ts` (`ProgressPayload`, PROGRESS/PM_RESULT/ERROR envelopes, `options.sticky`)
