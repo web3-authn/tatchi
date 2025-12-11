@@ -95,17 +95,16 @@ export const EmbeddedTxButton: React.FC<EmbeddedTxButtonProps> = ({  }) => {
             switch (event.phase) {
               case ActionPhase.STEP_1_PREPARATION:
               case ActionPhase.STEP_2_USER_CONFIRMATION:
-              case ActionPhase.STEP_3_CONTRACT_VERIFICATION:
                 toast.loading(event.message, { id: 'embedded' });
                 break;
-              case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
-              case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
-              case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
-              case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
-              case ActionPhase.STEP_8_BROADCASTING:
+              case ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION:
+              case ActionPhase.STEP_4_AUTHENTICATION_COMPLETE:
+              case ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS:
+              case ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE:
+              case ActionPhase.STEP_7_BROADCASTING:
                 toast.loading(event.message, { id: 'embedded' });
                 break;
-              case ActionPhase.STEP_9_ACTION_COMPLETE:
+              case ActionPhase.STEP_8_ACTION_COMPLETE:
                 toast.success(event.message, { id: 'embedded' });
                 break;
               case ActionPhase.ACTION_ERROR:

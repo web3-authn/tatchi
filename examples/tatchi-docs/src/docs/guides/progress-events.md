@@ -199,13 +199,12 @@ await passkeyManager.signAndSendTransactions({
 
 - `STEP_1_PREPARATION` -> input validation, NonceManager pre‑warm.
 - `STEP_2_USER_CONFIRMATION` -> iframe modal visible, waiting for click.
-- `STEP_3_CONTRACT_VERIFICATION` -> VRF challenge + contract checks in worker.
-- `STEP_4_WEBAUTHN_AUTHENTICATION` -> WebAuthn ceremony inside wallet origin.
-- `STEP_5_AUTHENTICATION_COMPLETE` -> contract‑side auth finished.
-- `STEP_6_TRANSACTION_SIGNING_PROGRESS` -> WASM worker signing transactions.
-- `STEP_7_TRANSACTION_SIGNING_COMPLETE` -> signatures ready.
-- `STEP_8_BROADCASTING` -> transaction(s) sent to NEAR RPC.
-- `STEP_9_ACTION_COMPLETE` -> final success event.
+- `STEP_3_WEBAUTHN_AUTHENTICATION` -> WebAuthn ceremony inside wallet origin.
+- `STEP_4_AUTHENTICATION_COMPLETE` -> contract‑side auth finished.
+- `STEP_5_TRANSACTION_SIGNING_PROGRESS` -> WASM worker signing transactions.
+- `STEP_6_TRANSACTION_SIGNING_COMPLETE` -> signatures ready.
+- `STEP_7_BROADCASTING` -> transaction(s) sent to NEAR RPC.
+- `STEP_8_ACTION_COMPLETE` -> final success event.
 - `ACTION_ERROR` / `WASM_ERROR` -> failure.
 
 **Typical UI mapping:**

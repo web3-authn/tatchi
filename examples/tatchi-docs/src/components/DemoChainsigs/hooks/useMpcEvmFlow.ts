@@ -137,7 +137,7 @@ export function useMpcEvmFlow() {
         options: {
           onEvent: (event) => {
             switch (event.phase) {
-              case ActionPhase.STEP_9_ACTION_COMPLETE:
+              case ActionPhase.STEP_8_ACTION_COMPLETE:
                 toast.success('MPC signature retrieved', { id: 'chainsig:erc20', description: '' });
                 break;
               case ActionPhase.ACTION_ERROR:
@@ -192,7 +192,7 @@ export function useMpcEvmFlow() {
 
       const tryViemFinalize = async (): Promise<string> => {
         const viemUnsigned: TransactionSerializableEIP1559 = buildEip1559FromTransaction(unsignedTx, chainId, token);
-        const { txHashResp, v } = await finalizeViaViem(viem, publicClient, viemUnsigned, rsvSignatures);
+        const { txHashResp, v } = await finalizeViaViem(publicClient, viemUnsigned, rsvSignatures);
         return announceBroadcast(txHashResp, 'viem', v);
       };
 
@@ -282,7 +282,7 @@ export function useMpcEvmFlow() {
         options: {
           onEvent: (event) => {
             switch (event.phase) {
-              case ActionPhase.STEP_9_ACTION_COMPLETE:
+              case ActionPhase.STEP_8_ACTION_COMPLETE:
                 toast.success('MPC signature retrieved', { id: 'chainsig', description: '' });
                 break;
               case ActionPhase.ACTION_ERROR:
@@ -337,7 +337,7 @@ export function useMpcEvmFlow() {
 
       const tryViemFinalize = async (): Promise<string> => {
         const viemUnsigned: TransactionSerializableEIP1559 = buildEip1559FromTransaction(unsignedTx, chainId, toAddr);
-        const { txHashResp, v } = await finalizeViaViem(viem, publicClient, viemUnsigned, rsvSignatures);
+        const { txHashResp, v } = await finalizeViaViem(publicClient, viemUnsigned, rsvSignatures);
         return announceBroadcast(txHashResp, 'viem', v);
       };
 
