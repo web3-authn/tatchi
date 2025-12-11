@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 // === ACTION TYPES AND HANDLERS ===
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "action_type")]
 pub enum ActionParams {
     CreateAccount,
@@ -13,7 +13,7 @@ pub enum ActionParams {
     },
     FunctionCall {
         method_name: String,
-        args: String, // JSON string
+        args: String, // Expecting JSON string from TS
         gas: String,
         deposit: String,
     },
@@ -26,7 +26,7 @@ pub enum ActionParams {
     },
     AddKey {
         public_key: String,
-        access_key: String, // JSON serialized AccessKey
+        access_key: String, // Expecting JSON string from TS
     },
     DeleteKey {
         public_key: String,
@@ -52,19 +52,19 @@ pub enum ActionParams {
     },
 }
 
-/// Trait for handling different NEAR action types
-pub trait ActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String>;
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String>;
-}
+impl ActionParams {
+    /// Validate the current params and convert into a concrete NEAR `NearAction`.
+    pub fn to_action(&self) -> Result<NearAction, String> {
+        match self {
+            ActionParams::CreateAccount => Ok(NearAction::CreateAccount),
 
-// === ACTION HANDLER IMPLEMENTATIONS ===
+            ActionParams::DeployContract { code } => {
+                if code.is_empty() {
+                    return Err("Contract code cannot be empty".to_string());
+                }
+                Ok(NearAction::DeployContract { code: code.clone() })
+            }
 
-pub struct FunctionCallActionHandler;
-
-impl ActionHandler for FunctionCallActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
             ActionParams::FunctionCall {
                 method_name,
                 args,
@@ -75,108 +75,74 @@ impl ActionHandler for FunctionCallActionHandler {
                     return Err("Method name cannot be empty".to_string());
                 }
 
-                // Validate gas amount
-                gas.parse::<Gas>()
+                let gas_amount = gas
+                    .parse::<Gas>()
                     .map_err(|_| "Invalid gas amount".to_string())?;
 
-                // Validate deposit amount
-                deposit
+                let deposit_amount = deposit
                     .parse::<Balance>()
                     .map_err(|_| "Invalid deposit amount".to_string())?;
 
-                // Validate args is valid JSON
-                serde_json::from_str::<serde_json::Value>(args)
-                    .map_err(|_| "Invalid JSON in args".to_string())?;
+                let args_vec = args.as_bytes().to_vec();
 
-                Ok(())
-            }
-            _ => Err("Invalid params for FunctionCall action".to_string()),
-        }
-    }
-
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
-            ActionParams::FunctionCall {
-                method_name,
-                args,
-                gas,
-                deposit,
-            } => {
-                let gas_amount = gas
-                    .parse::<Gas>()
-                    .map_err(|e| format!("Failed to parse gas: {}", e))?;
-                let deposit_amount = deposit
-                    .parse::<Balance>()
-                    .map_err(|e| format!("Failed to parse deposit: {}", e))?;
-
-                Ok(Action::FunctionCall(Box::new(FunctionCallAction {
+                Ok(NearAction::FunctionCall(Box::new(FunctionCallAction {
                     method_name: method_name.clone(),
-                    args: args.as_bytes().to_vec(),
+                    args: args_vec,
                     gas: gas_amount,
                     deposit: deposit_amount,
                 })))
             }
-            _ => Err("Invalid params for FunctionCall action".to_string()),
-        }
-    }
-}
 
-pub struct TransferActionHandler;
-
-impl ActionHandler for TransferActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
             ActionParams::Transfer { deposit } => {
                 if deposit.is_empty() {
                     return Err("Transfer deposit cannot be empty".to_string());
                 }
-                deposit
-                    .parse::<Balance>()
-                    .map_err(|_| "Invalid deposit amount".to_string())?;
-                Ok(())
-            }
-            _ => Err("Invalid params for Transfer action".to_string()),
-        }
-    }
-
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
-            ActionParams::Transfer { deposit } => {
                 let deposit_amount = deposit
                     .parse::<Balance>()
-                    .map_err(|e| format!("Failed to parse deposit: {}", e))?;
-                Ok(Action::Transfer {
+                    .map_err(|_| "Invalid deposit amount".to_string())?;
+                Ok(NearAction::Transfer {
                     deposit: deposit_amount,
                 })
             }
-            _ => Err("Invalid params for Transfer action".to_string()),
-        }
-    }
-}
 
-pub struct CreateAccountActionHandler;
+            ActionParams::Stake { stake, public_key } => {
+                if stake.is_empty() {
+                    return Err("Stake amount cannot be empty".to_string());
+                }
+                let stake_amount = stake
+                    .parse::<Balance>()
+                    .map_err(|_| "Invalid stake amount".to_string())?;
 
-impl ActionHandler for CreateAccountActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
-            ActionParams::CreateAccount => Ok(()),
-            _ => Err("Invalid params for CreateAccount action".to_string()),
-        }
-    }
+                if public_key.is_empty() {
+                    return Err("Public key cannot be empty".to_string());
+                }
+                if !public_key.starts_with("ed25519:") && public_key.len() < 32 {
+                    return Err("Invalid public key format".to_string());
+                }
 
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
-            ActionParams::CreateAccount => Ok(Action::CreateAccount),
-            _ => Err("Invalid params for CreateAccount action".to_string()),
-        }
-    }
-}
+                let parsed_public_key = if public_key.starts_with("ed25519:") {
+                    let key_str = &public_key[8..];
+                    let key_bytes = bs58::decode(key_str)
+                        .into_vec()
+                        .map_err(|e| format!("Failed to decode public key: {}", e))?;
 
-pub struct AddKeyActionHandler;
+                    if key_bytes.len() != 32 {
+                        return Err("Public key must be 32 bytes".to_string());
+                    }
 
-impl ActionHandler for AddKeyActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
+                    let mut key_array = [0u8; 32];
+                    key_array.copy_from_slice(&key_bytes);
+                    crate::types::PublicKey::from_ed25519_bytes(&key_array)
+                } else {
+                    return Err("Public key must start with 'ed25519:'".to_string());
+                };
+
+                Ok(NearAction::Stake {
+                    stake: stake_amount,
+                    public_key: parsed_public_key,
+                })
+            }
+
             ActionParams::AddKey {
                 public_key,
                 access_key,
@@ -184,8 +150,40 @@ impl ActionHandler for AddKeyActionHandler {
                 if public_key.is_empty() {
                     return Err("Public key cannot be empty".to_string());
                 }
-                if access_key.is_empty() {
-                    return Err("Access key cannot be empty".to_string());
+
+                if !public_key.starts_with("ed25519:") && public_key.len() < 32 {
+                    return Err("Invalid public key format".to_string());
+                }
+
+                let parsed_public_key = if public_key.starts_with("ed25519:") {
+                    let key_str = &public_key[8..];
+                    let key_bytes = bs58::decode(key_str)
+                        .into_vec()
+                        .map_err(|e| format!("Failed to decode public key: {}", e))?;
+
+                    if key_bytes.len() != 32 {
+                        return Err("Public key must be 32 bytes".to_string());
+                    }
+
+                    let mut key_array = [0u8; 32];
+                    key_array.copy_from_slice(&key_bytes);
+                    crate::types::PublicKey::from_ed25519_bytes(&key_array)
+                } else {
+                    return Err("Public key must start with 'ed25519:'".to_string());
+                };
+
+                // Parse access_key using helper (handles WASM vs Native)
+                let parsed_access_key = parse_access_key_from_json(&access_key)?;
+
+                Ok(NearAction::AddKey {
+                    public_key: parsed_public_key,
+                    access_key: parsed_access_key,
+                })
+            }
+
+            ActionParams::DeleteKey { public_key } => {
+                if public_key.is_empty() {
+                    return Err("Public key cannot be empty".to_string());
                 }
 
                 // Validate public key format (should be "ed25519:..." or raw base58)
@@ -193,22 +191,6 @@ impl ActionHandler for AddKeyActionHandler {
                     return Err("Invalid public key format".to_string());
                 }
 
-                // Validate access key is valid JSON
-                serde_json::from_str::<serde_json::Value>(access_key)
-                    .map_err(|_| "Invalid JSON in access_key".to_string())?;
-
-                Ok(())
-            }
-            _ => Err("Invalid params for AddKey action".to_string()),
-        }
-    }
-
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
-            ActionParams::AddKey {
-                public_key,
-                access_key,
-            } => {
                 // Parse the public key
                 let parsed_public_key = if public_key.starts_with("ed25519:") {
                     let key_str = &public_key[8..]; // Remove "ed25519:" prefix
@@ -227,149 +209,25 @@ impl ActionHandler for AddKeyActionHandler {
                     return Err("Public key must start with 'ed25519:'".to_string());
                 };
 
-                // Parse the access key JSON
-                let access_key_data: serde_json::Value = serde_json::from_str(access_key)
-                    .map_err(|e| format!("Failed to parse access key JSON: {}", e))?;
-
-                // Build AccessKey struct from JSON
-                let nonce = access_key_data["nonce"].as_u64().unwrap_or(0);
-                let permission = if access_key_data["permission"]["FullAccess"].is_object() {
-                    crate::types::AccessKeyPermission::FullAccess
-                } else if let Some(function_call) =
-                    access_key_data["permission"]["FunctionCall"].as_object()
-                {
-                    let allowance = function_call["allowance"]
-                        .as_str()
-                        .and_then(|s| s.parse::<crate::types::Balance>().ok());
-                    let receiver_id = function_call["receiver_id"]
-                        .as_str()
-                        .ok_or("Missing receiver_id in FunctionCall permission")?
-                        .to_string();
-                    let method_names = function_call["method_names"]
-                        .as_array()
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                                .collect()
-                        })
-                        .unwrap_or_default();
-
-                    crate::types::AccessKeyPermission::FunctionCall(
-                        crate::types::FunctionCallPermission {
-                            allowance,
-                            receiver_id,
-                            method_names,
-                        },
-                    )
-                } else {
-                    return Err("Invalid access key permission format".to_string());
-                };
-
-                let access_key_struct = crate::types::AccessKey { nonce, permission };
-
-                Ok(Action::AddKey {
-                    public_key: parsed_public_key,
-                    access_key: access_key_struct,
-                })
-            }
-            _ => Err("Invalid params for AddKey action".to_string()),
-        }
-    }
-}
-
-pub struct DeleteKeyActionHandler;
-
-impl ActionHandler for DeleteKeyActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
-            ActionParams::DeleteKey { public_key } => {
-                if public_key.is_empty() {
-                    return Err("Public key cannot be empty".to_string());
-                }
-
-                // Validate public key format (should be "ed25519:..." or raw base58)
-                if !public_key.starts_with("ed25519:") && public_key.len() < 32 {
-                    return Err("Invalid public key format".to_string());
-                }
-
-                Ok(())
-            }
-            _ => Err("Invalid params for DeleteKey action".to_string()),
-        }
-    }
-
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
-            ActionParams::DeleteKey { public_key } => {
-                // Parse the public key
-                let parsed_public_key = if public_key.starts_with("ed25519:") {
-                    let key_str = &public_key[8..]; // Remove "ed25519:" prefix
-                    let key_bytes = bs58::decode(key_str)
-                        .into_vec()
-                        .map_err(|e| format!("Failed to decode public key: {}", e))?;
-
-                    if key_bytes.len() != 32 {
-                        return Err("Public key must be 32 bytes".to_string());
-                    }
-
-                    let mut key_array = [0u8; 32];
-                    key_array.copy_from_slice(&key_bytes);
-                    crate::types::PublicKey::from_ed25519_bytes(&key_array)
-                } else {
-                    return Err("Public key must start with 'ed25519:'".to_string());
-                };
-
-                Ok(Action::DeleteKey {
+                Ok(NearAction::DeleteKey {
                     public_key: parsed_public_key,
                 })
             }
-            _ => Err("Invalid params for DeleteKey action".to_string()),
-        }
-    }
-}
 
-pub struct DeleteAccountActionHandler;
-
-impl ActionHandler for DeleteAccountActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
             ActionParams::DeleteAccount { beneficiary_id } => {
                 if beneficiary_id.is_empty() {
                     return Err("Beneficiary ID cannot be empty".to_string());
                 }
 
-                // Validate beneficiary account ID format
-                beneficiary_id
-                    .parse::<crate::types::AccountId>()
-                    .map_err(|_| "Invalid beneficiary account ID".to_string())?;
-
-                Ok(())
-            }
-            _ => Err("Invalid params for DeleteAccount action".to_string()),
-        }
-    }
-
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
-            ActionParams::DeleteAccount { beneficiary_id } => {
                 let beneficiary = beneficiary_id
                     .parse::<crate::types::AccountId>()
                     .map_err(|e| format!("Failed to parse beneficiary account ID: {}", e))?;
 
-                Ok(Action::DeleteAccount {
+                Ok(NearAction::DeleteAccount {
                     beneficiary_id: beneficiary,
                 })
             }
-            _ => Err("Invalid params for DeleteAccount action".to_string()),
-        }
-    }
-}
 
-pub struct SignedDelegateActionHandler;
-
-impl ActionHandler for SignedDelegateActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
             ActionParams::SignedDelegate {
                 delegate_action,
                 signature,
@@ -389,229 +247,47 @@ impl ActionHandler for SignedDelegateActionHandler {
                 if signature.signature_data.len() != 64 {
                     return Err("delegate signature must be 64 bytes".to_string());
                 }
-                Ok(())
-            }
-            _ => Err("Invalid params for SignedDelegate action".to_string()),
-        }
-    }
 
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
-            ActionParams::SignedDelegate {
-                delegate_action,
-                signature,
-            } => {
-                // Map our internal SignedDelegate into the on-chain
-                // Action::Delegate(Box<SignedDelegateAction>) representation.
                 let signed = SignedDelegate {
                     delegate_action: delegate_action.clone(),
                     signature: signature.clone(),
                 };
-                Ok(Action::SignedDelegate(Box::new(signed)))
+                Ok(NearAction::SignedDelegate(Box::new(signed)))
             }
-            _ => Err("Invalid params for SignedDelegate action".to_string()),
-        }
-    }
-}
 
-/// Get the appropriate action handler for the given action parameters
-pub fn get_action_handler(params: &ActionParams) -> Result<Box<dyn ActionHandler>, String> {
-    match params {
-        ActionParams::FunctionCall { .. } => Ok(Box::new(FunctionCallActionHandler)),
-        ActionParams::Transfer { .. } => Ok(Box::new(TransferActionHandler)),
-        ActionParams::CreateAccount => Ok(Box::new(CreateAccountActionHandler)),
-        ActionParams::DeployContract { .. } => Ok(Box::new(DeployContractActionHandler)),
-        ActionParams::Stake { .. } => Ok(Box::new(StakeActionHandler)),
-        ActionParams::AddKey { .. } => Ok(Box::new(AddKeyActionHandler)),
-        ActionParams::DeleteKey { .. } => Ok(Box::new(DeleteKeyActionHandler)),
-        ActionParams::DeleteAccount { .. } => Ok(Box::new(DeleteAccountActionHandler)),
-        ActionParams::SignedDelegate { .. } => Ok(Box::new(SignedDelegateActionHandler)),
-        ActionParams::DeployGlobalContract { .. } => {
-            Ok(Box::new(DeployGlobalContractActionHandler))
-        }
-        ActionParams::UseGlobalContract { .. } => Ok(Box::new(UseGlobalContractActionHandler)),
-    }
-}
-
-// === NEW: DeployContract and Stake action handlers ===
-
-pub struct DeployContractActionHandler;
-
-impl ActionHandler for DeployContractActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
-            ActionParams::DeployContract { code } => {
-                if code.is_empty() {
-                    return Err("Contract code cannot be empty".to_string());
-                }
-                Ok(())
-            }
-            _ => Err("Invalid params for DeployContract action".to_string()),
-        }
-    }
-
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
-            ActionParams::DeployContract { code } => {
-                Ok(Action::DeployContract { code: code.clone() })
-            }
-            _ => Err("Invalid params for DeployContract action".to_string()),
-        }
-    }
-}
-
-pub struct StakeActionHandler;
-
-impl ActionHandler for StakeActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
-            ActionParams::Stake { stake, public_key } => {
-                if stake.is_empty() {
-                    return Err("Stake amount cannot be empty".to_string());
-                }
-                stake
-                    .parse::<Balance>()
-                    .map_err(|_| "Invalid stake amount".to_string())?;
-
-                if public_key.is_empty() {
-                    return Err("Public key cannot be empty".to_string());
-                }
-                if !public_key.starts_with("ed25519:") && public_key.len() < 32 {
-                    return Err("Invalid public key format".to_string());
-                }
-                Ok(())
-            }
-            _ => Err("Invalid params for Stake action".to_string()),
-        }
-    }
-
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
-            ActionParams::Stake { stake, public_key } => {
-                let stake_amount = stake
-                    .parse::<Balance>()
-                    .map_err(|e| format!("Failed to parse stake amount: {}", e))?;
-
-                // Parse the public key (expecting ed25519:<base58>)
-                let parsed_public_key = if public_key.starts_with("ed25519:") {
-                    let key_str = &public_key[8..];
-                    let key_bytes = bs58::decode(key_str)
-                        .into_vec()
-                        .map_err(|e| format!("Failed to decode public key: {}", e))?;
-
-                    if key_bytes.len() != 32 {
-                        return Err("Public key must be 32 bytes".to_string());
-                    }
-
-                    let mut key_array = [0u8; 32];
-                    key_array.copy_from_slice(&key_bytes);
-                    crate::types::PublicKey::from_ed25519_bytes(&key_array)
-                } else {
-                    return Err("Public key must start with 'ed25519:'".to_string());
-                };
-
-                Ok(Action::Stake {
-                    stake: stake_amount,
-                    public_key: parsed_public_key,
-                })
-            }
-            _ => Err("Invalid params for Stake action".to_string()),
-        }
-    }
-}
-
-// === NEP-0591 GLOBAL CONTRACT HANDLERS ===
-
-pub struct DeployGlobalContractActionHandler;
-
-impl ActionHandler for DeployGlobalContractActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
             ActionParams::DeployGlobalContract { code, deploy_mode } => {
                 if code.is_empty() {
                     return Err("Global contract code cannot be empty".to_string());
                 }
-                if deploy_mode != "CodeHash" && deploy_mode != "AccountId" {
-                    return Err(format!("Invalid deploy_mode: {}", deploy_mode));
-                }
-                Ok(())
-            }
-            _ => Err("Invalid params for DeployGlobalContract action".to_string()),
-        }
-    }
-
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
-            ActionParams::DeployGlobalContract { code, deploy_mode } => {
                 let mode = match deploy_mode.as_str() {
                     "CodeHash" => GlobalContractDeployMode::CodeHash,
                     "AccountId" => GlobalContractDeployMode::AccountId,
                     other => return Err(format!("Invalid deploy_mode: {}", other)),
                 };
-                Ok(Action::DeployGlobalContract {
+                Ok(NearAction::DeployGlobalContract {
                     code: code.clone(),
                     deploy_mode: mode,
                 })
             }
-            _ => Err("Invalid params for DeployGlobalContract action".to_string()),
-        }
-    }
-}
 
-pub struct UseGlobalContractActionHandler;
-
-impl ActionHandler for UseGlobalContractActionHandler {
-    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
-        match params {
-            ActionParams::UseGlobalContract {
-                account_id,
-                code_hash,
-            } => {
-                match (account_id, code_hash) {
-                    (Some(id), None) => {
-                        if id.is_empty() {
-                            return Err("account_id cannot be empty".to_string());
-                        }
-                        id.parse::<crate::types::AccountId>()
-                            .map_err(|e| format!("Invalid account_id: {}", e))?;
-                        Ok(())
-                    }
-                    (None, Some(hash_str)) => {
-                        if hash_str.is_empty() {
-                            return Err("code_hash cannot be empty".to_string());
-                        }
-                        let bytes = bs58::decode(hash_str)
-                            .into_vec()
-                            .map_err(|e| format!("Invalid code_hash: {}", e))?;
-                        if bytes.len() != 32 {
-                            return Err("code_hash must be 32 bytes".to_string());
-                        }
-                        Ok(())
-                    }
-                    _ => Err(
-                        "UseGlobalContract requires exactly one of account_id or code_hash"
-                            .to_string(),
-                    ),
-                }
-            }
-            _ => Err("Invalid params for UseGlobalContract action".to_string()),
-        }
-    }
-
-    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
-        match params {
             ActionParams::UseGlobalContract {
                 account_id,
                 code_hash,
             } => {
                 let identifier = match (account_id, code_hash) {
                     (Some(id), None) => {
+                        if id.is_empty() {
+                            return Err("account_id cannot be empty".to_string());
+                        }
                         let acc = id
                             .parse::<crate::types::AccountId>()
                             .map_err(|e| format!("Invalid account_id: {}", e))?;
                         GlobalContractIdentifier::AccountId(acc)
                     }
                     (None, Some(hash_str)) => {
+                        if hash_str.is_empty() {
+                            return Err("code_hash cannot be empty".to_string());
+                        }
                         let bytes = bs58::decode(hash_str)
                             .into_vec()
                             .map_err(|e| format!("Invalid code_hash: {}", e))?;
@@ -630,11 +306,38 @@ impl ActionHandler for UseGlobalContractActionHandler {
                     }
                 };
 
-                Ok(Action::UseGlobalContract {
+                Ok(NearAction::UseGlobalContract {
                     contract_identifier: identifier,
                 })
             }
-            _ => Err("Invalid params for UseGlobalContract action".to_string()),
         }
+    }
+
+    /// Lightweight validator used by tests and callers that only care about
+    /// parameter validity, not the constructed action.
+    pub fn validate(&self) -> Result<(), String> {
+        self.to_action().map(|_| ())
+    }
+}
+
+// Helper for parsing JSON string to AccessKey without serde_json dependency on WASM
+fn parse_access_key_from_json(json_str: &str) -> Result<crate::types::AccessKey, String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // Parse JSON string to JsValue
+        let val = js_sys::JSON::parse(json_str)
+            .map_err(|e| format!("JSON parse failed: {:?}", e))?;
+
+        // Deserialize JsValue to AccessKey
+        serde_wasm_bindgen::from_value(val)
+            .map_err(|e| format!("AccessKey deserialization failed: {}", e))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // Native fallback - requires serde_json or manual parsing.
+        // Since we don't have serde_json in dependencies, we return error.
+        let _ = json_str;
+        Err("Parsing JSON string AccessKey not supported on native target without serde_json".to_string())
     }
 }

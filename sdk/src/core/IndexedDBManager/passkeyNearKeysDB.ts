@@ -78,7 +78,7 @@ export class PasskeyNearKeysDBManager {
   /**
    * Retrieve encrypted key data
    */
-  async getEncryptedKey(nearAccountId: string, deviceNumber?: number): Promise<EncryptedKeyData | null> {
+  async getEncryptedKey(nearAccountId: string, deviceNumber: number): Promise<EncryptedKeyData | null> {
     const db = await this.getDB();
     if (typeof deviceNumber === 'number') {
       const res = await db.get(this.config.storeName, [nearAccountId, deviceNumber]);
@@ -116,7 +116,7 @@ export class PasskeyNearKeysDBManager {
   /**
    * Verify key storage by attempting retrieval
    */
-  async verifyKeyStorage(nearAccountId: string, deviceNumber?: number): Promise<boolean> {
+  async verifyKeyStorage(nearAccountId: string, deviceNumber: number): Promise<boolean> {
     const retrievedKey = await this.getEncryptedKey(nearAccountId, deviceNumber);
     return !!retrievedKey;
   }
@@ -153,7 +153,7 @@ export class PasskeyNearKeysDBManager {
   /**
    * Check if a key exists for the given account
    */
-  async hasEncryptedKey(nearAccountId: string, deviceNumber?: number): Promise<boolean> {
+  async hasEncryptedKey(nearAccountId: string, deviceNumber: number): Promise<boolean> {
     const keyData = await this.getEncryptedKey(nearAccountId, deviceNumber);
     return !!keyData;
   }

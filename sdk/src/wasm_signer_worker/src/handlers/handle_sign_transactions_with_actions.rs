@@ -15,6 +15,7 @@ use crate::types::{
         send_completion_message, send_progress_message,
         ProgressMessageType,
         ProgressStep,
+        ProgressData,
     },
     wasm_to_json::WasmSignedTransaction,
     DecryptionPayload,
@@ -22,60 +23,31 @@ use crate::types::{
 };
 use bs58;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignTransactionsWithActionsRequest {
-    #[wasm_bindgen(getter_with_clone, js_name = "rpcCall")]
     pub rpc_call: RpcCallPayload,
-    #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     pub session_id: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "createdAt")]
     pub created_at: Option<f64>,
-    #[wasm_bindgen(getter_with_clone)]
     pub decryption: DecryptionPayload,
-    #[wasm_bindgen(getter_with_clone, js_name = "txSigningRequests")]
     pub tx_signing_requests: Vec<TransactionPayload>,
     /// Unified confirmation configuration for controlling the confirmation flow
-    #[wasm_bindgen(getter_with_clone, js_name = "confirmationConfig")]
     pub confirmation_config: Option<ConfirmationConfig>,
-    #[wasm_bindgen(getter_with_clone, js_name = "intentDigest")]
     pub intent_digest: Option<String>,
-    #[wasm_bindgen(getter_with_clone, js_name = "transactionContext")]
     pub transaction_context: Option<crate::types::handlers::TransactionContext>,
-    #[wasm_bindgen(getter_with_clone)]
     pub credential: Option<String>,
 }
 
-#[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionPayload {
-    #[wasm_bindgen(getter_with_clone, js_name = "nearAccountId")]
     pub near_account_id: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "receiverId")]
     pub receiver_id: String,
-    // JSON string of ActionParams[]
-    // WASM does not support complex Enums, so it's passed in as a JSON string
-    #[wasm_bindgen(getter_with_clone, js_name = "actions")]
-    pub actions: String,
+    pub actions: Vec<ActionParams>,
 }
 
-impl TransactionPayload {
-    /// Parse the actions JSON string into a typed Vec<ActionParams>
-    pub fn parsed_actions(&self) -> Result<Vec<ActionParams>, serde_json::Error> {
-        serde_json::from_str(&self.actions)
-    }
-
-    /// Parse the actions JSON string into serde_json::Value
-    /// Returns an empty array on parse failure
-    pub fn parsed_actions_value(&self) -> serde_json::Value {
-        serde_json::from_str(&self.actions).unwrap_or_else(|_| serde_json::json!([]))
-    }
-}
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Serialize)]
@@ -223,35 +195,21 @@ pub async fn handle_sign_transactions_with_actions(
             i + 1,
             tx.near_account_id,
             tx.receiver_id,
-            tx.actions
+            tx.actions.len()
         ));
     }
     send_progress_message(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::UserConfirmation,
         "Using pre-confirmed signing session from VRF flow...",
-        Some(&serde_json::json!({
-            "step": 1,
-            "total": 4,
-            "transaction_count": tx_batch_request.tx_signing_requests.len()
-        }).to_string()),
+        Some(&ProgressData::new(1, 4)
+            .with_transaction_count(tx_batch_request.tx_signing_requests.len())),
     );
 
     let intent_digest = tx_batch_request
         .intent_digest
         .clone()
         .ok_or_else(|| "Missing intent digest from pre-confirmed session".to_string())?;
-
-    // let vrf_challenge = tx_batch_request
-    //     .vrf_challenge
-    //     .clone()
-    //     .ok_or_else(|| "Missing VRF challenge from confirmation".to_string())?;
-
-    // let credential_json_value: serde_json::Value = tx_batch_request
-    //     .credential
-    //     .clone()
-    //     .ok_or_else(|| "Missing authentication credential from confirmation".to_string())
-    //     .and_then(|v| serde_json::from_str(&v).map_err(|e| format!("Invalid credential payload: {}", e)))?;
 
     let transaction_context = tx_batch_request
         .transaction_context
@@ -269,29 +227,8 @@ pub async fn handle_sign_transactions_with_actions(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::Preparation,
         "Extracting credentials for verification...",
-        Some(&serde_json::json!({"step": 2, "total": 4}).to_string()),
+        Some(&ProgressData::new(2, 4)),
     );
-
-    // If credential is serde_json::Value, convert; else assume structured already
-    // let credential = if let Ok(c) = serde_json::from_value::<WebAuthnAuthenticationCredentialStruct>(
-    //     credential_json_value.clone(),
-    // ) {
-    //     c
-    // } else {
-    //     // Fall back to extracting fields if we received the old structured type
-    //     let c: WebAuthnAuthenticationCredential = serde_json::from_value(credential_json_value)
-    //         .map_err(|e| format!("Invalid authentication credential: {}", e))?;
-    //     WebAuthnAuthenticationCredentialStruct::new(
-    //         c.id,
-    //         c.raw_id,
-    //         c.auth_type,
-    //         c.authenticator_attachment,
-    //         c.response.client_data_json,
-    //         c.response.authenticator_data,
-    //         c.response.signature,
-    //         c.response.user_handle,
-    //     )
-    // };
 
     // Step 3: Batch transaction signing (confirmation and verification already completed in VRF/confirmTxFlow)
     logs.push(format!(
@@ -304,7 +241,7 @@ pub async fn handle_sign_transactions_with_actions(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::TransactionSigningProgress,
         "Decrypting private key and signing transactions...",
-        Some(&serde_json::json!({"step": 4, "total": 4, "transaction_count": tx_batch_request.tx_signing_requests.len()}).to_string())
+        Some(&ProgressData::new(4, 4).with_transaction_count(tx_batch_request.tx_signing_requests.len()))
     );
 
     // Process all transactions using the shared verification and decryption
@@ -333,14 +270,11 @@ pub async fn handle_sign_transactions_with_actions(
         ProgressStep::TransactionSigningComplete,
         &format!("{} transactions signed successfully", tx_count),
         Some(
-            &serde_json::json!({
-                "step": 4,
-                "total": 4,
-                "success": result.success,
-                "transaction_count": tx_count,
-                "logs": result.logs
-            })
-            .to_string(),
+            &ProgressData::new(4, 4)
+                .with_success(result.success)
+                .with_transaction_count(tx_count)
+                .with_logs(result.logs.clone())
+            ,
         ),
     );
 
@@ -431,21 +365,14 @@ async fn sign_near_transactions_with_actions_impl(
         ));
 
         // Parse and build actions for this transaction
-        let action_params: Vec<ActionParams> = match tx_data.parsed_actions() {
-            Ok(params) => {
-                logs.push(format!(
-                    "Transaction {}: Parsed {} actions",
-                    index + 1,
-                    params.len()
-                ));
-                params
-            }
-            Err(e) => {
-                let error_msg =
-                    format!("Transaction {}: Failed to parse actions: {}", index + 1, e);
-                logs.push(error_msg.clone());
-                return Ok(TransactionSignResult::failed(logs, error_msg));
-            }
+        let action_params: Vec<ActionParams> = {
+            let params = tx_data.actions.clone();
+            logs.push(format!(
+                "Transaction {}: Parsed {} actions",
+                index + 1,
+                params.len()
+            ));
+            params
         };
 
         let actions = match build_actions_from_params(action_params) {

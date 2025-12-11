@@ -10,22 +10,28 @@ mod tests;
 mod transaction;
 mod types;
 
-use serde_json;
-use wasm_bindgen::prelude::*;
+use std::cell::RefCell;
+use std::collections::HashMap;
+
+use crate::types::worker_messages::{
+    parse_typed_payload,
+    parse_worker_request_envelope,
+    worker_request_type_name,
+    worker_response_type_name,
+    SignerWorkerMessage,
+    SignerWorkerResponse,
+    WorkerRequestType,
+    WorkerResponseType,
+};
+use crate::types::*;
 use log::debug;
+use wasm_bindgen::prelude::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::closure::Closure;
 #[cfg(target_arch = "wasm32")]
 use web_sys::{MessageEvent, MessagePort};
-use std::cell::RefCell;
-use std::collections::HashMap;
-
-use crate::types::worker_messages::{
-    SignerWorkerMessage, SignerWorkerResponse, WorkerRequestType, WorkerResponseType,
-};
-use crate::types::*;
 
 pub use handlers::handle_decrypt_private_key_with_prf::{
     handle_decrypt_private_key_with_prf,
@@ -209,10 +215,7 @@ pub fn attach_wrap_key_seed_port(session_id: String, port_val: JsValue) {
 /// Progress messaging function that sends messages back to main thread
 /// Used by handlers to provide real-time updates during long operations
 /// Now includes both numeric enum values AND string names for better debugging
-pub fn send_progress_message(message_type: u32, step: u32, message: &str, _data: &str) {
-    // Create structured logs array (empty for now, can be enhanced later)
-    let _logs_json = "[]";
-
+pub fn send_progress_message(message_type: u32, step: u32, message: &str, data: JsValue) {
     // Call the TypeScript sendProgressMessage function that was made globally available
     // This replaces the direct postMessage approach
     #[wasm_bindgen]
@@ -224,8 +227,8 @@ pub fn send_progress_message(message_type: u32, step: u32, message: &str, _data:
             step: u32,
             step_name: &str,
             message: &str,
-            data: &str,
-            logs: &str,
+            data: JsValue,
+            logs: JsValue,
         );
     }
 
@@ -243,19 +246,21 @@ pub fn send_progress_message(message_type: u32, step: u32, message: &str, _data:
     // Only try to send message in WASM context
     #[cfg(target_arch = "wasm32")]
     {
+        let logs = JsValue::from(js_sys::Array::new());
         send_progress_message_js(
             message_type,
             message_type_name,
             step,
             step_name,
             message,
-            _data,
-            _logs_json,
+            data,
+            logs,
         );
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     {
+        let _ = data;
         // In non-WASM context (like tests), just log the progress
         println!(
             "Progress: {} ({}) - {} ({}) - {}",
@@ -270,26 +275,28 @@ pub fn send_progress_message(message_type: u32, step: u32, message: &str, _data:
 /// This replaces the TypeScript-based message dispatching with a Rust-based approach
 /// for better type safety and performance
 #[wasm_bindgen]
-pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue> {
+pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsValue> {
     init_worker();
 
-    // Parse the JSON message
-    let msg: SignerWorkerMessage = serde_json::from_str(message_json)
-        .map_err(|e| JsValue::from_str(&format!("Failed to parse message: {:?}", e)))?;
-
-    // Convert numeric enum to WorkerRequestType using From trait
-    let request_type = WorkerRequestType::from(msg.msg_type);
+    // Parse the outer `{ type, payload }` envelope from JS into a strongly
+    // typed `WorkerRequestType` and raw `payload` value.
+    let SignerWorkerMessage {
+        request_type,
+        request_type_raw: msg_type_num,
+        payload: payload_js,
+    } = parse_worker_request_envelope(message_val)?;
 
     debug!(
         "WASM Worker: Received message type: {} ({})",
         worker_request_type_name(request_type),
-        msg.msg_type
+        msg_type_num
     );
 
     // Route message to appropriate handler
     let response_payload = match request_type {
         WorkerRequestType::DeriveNearKeypairAndEncrypt => {
-            let request = msg.parse_payload::<DeriveNearKeypairAndEncryptRequest>(request_type)?;
+            let request: DeriveNearKeypairAndEncryptRequest =
+                parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
             let prf_second_b64u = lookup_prf_second(&request.session_id, request_type)?;
             let result = handlers::handle_derive_near_keypair_and_encrypt(
@@ -298,70 +305,80 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 prf_second_b64u,
             )
             .await?;
-            result.to_json()
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::RecoverKeypairFromPasskey => {
-            let request = msg.parse_payload::<RecoverKeypairRequest>(request_type)?;
+            let request: RecoverKeypairRequest =
+                parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
             let result = handlers::handle_recover_keypair_from_passkey(request, wrap_key).await?;
-            result.to_json()
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::DecryptPrivateKeyWithPrf => {
-            let request = msg.parse_payload::<DecryptPrivateKeyRequest>(request_type)?;
+            let request: DecryptPrivateKeyRequest =
+                parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
             let result = handlers::handle_decrypt_private_key_with_prf(
                 request,
                 wrap_key,
             )
             .await?;
-            result.to_json()
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::SignTransactionsWithActions => {
-            let request =
-                msg.parse_payload::<SignTransactionsWithActionsRequest>(request_type)?;
+            let request: SignTransactionsWithActionsRequest =
+                parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
             let result = handlers::handle_sign_transactions_with_actions(
                 request,
                 wrap_key,
             )
             .await?;
-            result.to_json()
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::SignDelegateAction => {
-            let request = msg.parse_payload::<SignDelegateActionRequest>(request_type)?;
+            let request: SignDelegateActionRequest =
+                parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
             let result = handlers::handle_sign_delegate_action(request, wrap_key).await?;
-            result.to_json()
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::ExtractCosePublicKey => {
-            let request = msg.parse_payload::<ExtractCoseRequest>(request_type)?;
+            let request: ExtractCoseRequest =
+                parse_typed_payload(&payload_js, request_type)?;
             let result = handlers::handle_extract_cose_public_key(request).await?;
-            result.to_json()
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         // NOTE: Does not need wrapKeySeed, wrapKeySalt -> MessagePort
         // The only method that does not require VRF Worker to sign
         WorkerRequestType::SignTransactionWithKeyPair => {
-            let request = msg.parse_payload::<SignTransactionWithKeyPairRequest>(request_type)?;
+            let request: SignTransactionWithKeyPairRequest =
+                parse_typed_payload(&payload_js, request_type)?;
             let result = handlers::handle_sign_transaction_with_keypair(request).await?;
-            result.to_json()
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::SignNep413Message => {
-            let request = msg.parse_payload::<SignNep413Request>(request_type)?;
+            let request: SignNep413Request =
+                parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
             let result = handlers::handle_sign_nep413_message(
                 request,
                 wrap_key,
             )
             .await?;
-            result.to_json()
-        }
-        WorkerRequestType::ExportNearKeypairUI => {
-            let request = msg.parse_payload::<handlers::ExportNearKeypairUiRequest>(request_type)?;
-            let result = handlers::handle_export_near_keypair_ui(request).await?;
-            result.to_json()
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::RegisterDevice2WithDerivedKey => {
-            let request = msg.parse_payload::<handlers::RegisterDevice2WithDerivedKeyRequest>(request_type)?;
+            let request: handlers::RegisterDevice2WithDerivedKeyRequest =
+                parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
             let prf_second_b64u = lookup_prf_second(&request.session_id, request_type)?;
             let result = handlers::handle_register_device2_with_derived_key(
@@ -370,96 +387,50 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 prf_second_b64u,
             )
             .await?;
-            result.to_json()
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
     };
 
-    // Handle the result and determine response type
-    let (response_type, response_payload) = match response_payload {
-        Ok(message) => {
-            // Success case - map request type to success response type
-            let success_response_type = match request_type {
-                WorkerRequestType::DeriveNearKeypairAndEncrypt => {
-                    WorkerResponseType::DeriveNearKeypairAndEncryptSuccess
-                }
-                WorkerRequestType::RecoverKeypairFromPasskey => {
-                    WorkerResponseType::RecoverKeypairFromPasskeySuccess
-                }
-                WorkerRequestType::DecryptPrivateKeyWithPrf => {
-                    WorkerResponseType::DecryptPrivateKeyWithPrfSuccess
-                }
-                WorkerRequestType::SignTransactionsWithActions => {
-                    WorkerResponseType::SignTransactionsWithActionsSuccess
-                }
-                WorkerRequestType::SignDelegateAction => {
-                    WorkerResponseType::SignDelegateActionSuccess
-                }
-                WorkerRequestType::ExtractCosePublicKey => {
-                    WorkerResponseType::ExtractCosePublicKeySuccess
-                }
-                WorkerRequestType::SignTransactionWithKeyPair => {
-                    WorkerResponseType::SignTransactionWithKeyPairSuccess
-                }
-                WorkerRequestType::SignNep413Message => {
-                    WorkerResponseType::SignNep413MessageSuccess
-                }
-                WorkerRequestType::ExportNearKeypairUI => {
-                    WorkerResponseType::ExportNearKeypairUiSuccess
-                }
-                WorkerRequestType::RegisterDevice2WithDerivedKey => {
-                    WorkerResponseType::RegisterDevice2WithDerivedKeySuccess
-                }
-            };
-            (success_response_type, message)
+    // At this point, response_payload is the successful JsValue result.
+    // Errors would have been propagated early via `?` operator and caught by the TypeScript wrapper.
+
+    // Determine the success response type based on the request type
+    let response_type = match request_type {
+        WorkerRequestType::DeriveNearKeypairAndEncrypt => {
+            WorkerResponseType::DeriveNearKeypairAndEncryptSuccess
         }
-        Err(error) => {
-            // Failure case - map request type to failure response type
-            let failure_response_type = match request_type {
-                WorkerRequestType::DeriveNearKeypairAndEncrypt => {
-                    WorkerResponseType::DeriveNearKeypairAndEncryptFailure
-                }
-                WorkerRequestType::RecoverKeypairFromPasskey => {
-                    WorkerResponseType::RecoverKeypairFromPasskeyFailure
-                }
-                WorkerRequestType::DecryptPrivateKeyWithPrf => {
-                    WorkerResponseType::DecryptPrivateKeyWithPrfFailure
-                }
-                WorkerRequestType::SignTransactionsWithActions => {
-                    WorkerResponseType::SignTransactionsWithActionsFailure
-                }
-                WorkerRequestType::SignDelegateAction => {
-                    WorkerResponseType::SignDelegateActionFailure
-                }
-                WorkerRequestType::ExtractCosePublicKey => {
-                    WorkerResponseType::ExtractCosePublicKeyFailure
-                }
-                WorkerRequestType::SignTransactionWithKeyPair => {
-                    WorkerResponseType::SignTransactionWithKeyPairFailure
-                }
-                WorkerRequestType::SignNep413Message => {
-                    WorkerResponseType::SignNep413MessageFailure
-                }
-                WorkerRequestType::ExportNearKeypairUI => {
-                    WorkerResponseType::ExportNearKeypairUiFailure
-                }
-                WorkerRequestType::RegisterDevice2WithDerivedKey => {
-                    WorkerResponseType::RegisterDevice2WithDerivedKeyFailure
-                }
-            };
-            let error_payload = serde_json::json!({
-                "error": error,
-                "context": { "type": msg.msg_type }
-            });
-            (failure_response_type, error_payload)
+        WorkerRequestType::RecoverKeypairFromPasskey => {
+            WorkerResponseType::RecoverKeypairFromPasskeySuccess
+        }
+        WorkerRequestType::DecryptPrivateKeyWithPrf => {
+            WorkerResponseType::DecryptPrivateKeyWithPrfSuccess
+        }
+        WorkerRequestType::SignTransactionsWithActions => {
+            WorkerResponseType::SignTransactionsWithActionsSuccess
+        }
+        WorkerRequestType::SignDelegateAction => {
+            WorkerResponseType::SignDelegateActionSuccess
+        }
+        WorkerRequestType::ExtractCosePublicKey => {
+            WorkerResponseType::ExtractCosePublicKeySuccess
+        }
+        WorkerRequestType::SignTransactionWithKeyPair => {
+            WorkerResponseType::SignTransactionWithKeyPairSuccess
+        }
+        WorkerRequestType::SignNep413Message => {
+            WorkerResponseType::SignNep413MessageSuccess
+        }
+        WorkerRequestType::RegisterDevice2WithDerivedKey => {
+            WorkerResponseType::RegisterDevice2WithDerivedKeySuccess
         }
     };
 
     // Debug logging for response type
     debug!(
-        "WASM Worker: Determined response type: {} ({}) - {:?}",
+        "WASM Worker: Determined response type: {} ({})",
         worker_response_type_name(response_type),
-        u32::from(response_type),
-        response_type
+        u32::from(response_type)
     );
 
     // Create the final response
@@ -468,8 +439,8 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
         payload: response_payload,
     };
 
-    // Return JSON string
-    serde_json::to_string(&response)
+    // Return JsValue directly
+    serde_wasm_bindgen::to_value(&response)
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize response: {:?}", e)))
 }
 
@@ -495,83 +466,4 @@ fn lookup_prf_second(session_id: &str, _request_type: WorkerRequestType) -> Resu
     };
 
     Ok(prf)
-}
-
-// === DEBUGGING HELPERS ===
-// Convert numeric enum values to readable strings for debugging
-// Makes Rust logs much easier to read when dealing with wasm-bindgen numeric enums
-
-/// Convert WorkerRequestType enum to readable string for debugging
-pub fn worker_request_type_name(request_type: WorkerRequestType) -> &'static str {
-    match request_type {
-        WorkerRequestType::DeriveNearKeypairAndEncrypt => "DERIVE_NEAR_KEYPAIR_AND_ENCRYPT",
-        WorkerRequestType::RecoverKeypairFromPasskey => "RECOVER_KEYPAIR_FROM_PASSKEY",
-        WorkerRequestType::DecryptPrivateKeyWithPrf => "DECRYPT_PRIVATE_KEY_WITH_PRF",
-        WorkerRequestType::SignTransactionsWithActions => "SIGN_TRANSACTIONS_WITH_ACTIONS",
-        WorkerRequestType::SignDelegateAction => "SIGN_DELEGATE_ACTION",
-        WorkerRequestType::ExtractCosePublicKey => "EXTRACT_COSE_PUBLIC_KEY",
-        WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
-        WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
-        WorkerRequestType::ExportNearKeypairUI => "EXPORT_NEAR_KEYPAIR_UI",
-        WorkerRequestType::RegisterDevice2WithDerivedKey => "REGISTER_DEVICE2_WITH_DERIVED_KEY",
-    }
-}
-
-/// Convert WorkerResponseType enum to readable string for debugging
-pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static str {
-    match response_type {
-        // Success responses
-        WorkerResponseType::DeriveNearKeypairAndEncryptSuccess => {
-            "DERIVE_NEAR_KEYPAIR_AND_ENCRYPT_SUCCESS"
-        }
-        WorkerResponseType::RecoverKeypairFromPasskeySuccess => {
-            "RECOVER_KEYPAIR_FROM_PASSKEY_SUCCESS"
-        }
-        WorkerResponseType::DecryptPrivateKeyWithPrfSuccess => {
-            "DECRYPT_PRIVATE_KEY_WITH_PRF_SUCCESS"
-        }
-        WorkerResponseType::SignTransactionsWithActionsSuccess => {
-            "SIGN_TRANSACTIONS_WITH_ACTIONS_SUCCESS"
-        }
-        WorkerResponseType::SignDelegateActionSuccess => "SIGN_DELEGATE_ACTION_SUCCESS",
-        WorkerResponseType::ExtractCosePublicKeySuccess => "EXTRACT_COSE_PUBLIC_KEY_SUCCESS",
-        WorkerResponseType::SignTransactionWithKeyPairSuccess => {
-            "SIGN_TRANSACTION_WITH_KEYPAIR_SUCCESS"
-        }
-        WorkerResponseType::SignNep413MessageSuccess => "SIGN_NEP413_MESSAGE_SUCCESS",
-        WorkerResponseType::ExportNearKeypairUiSuccess => "EXPORT_NEAR_KEYPAIR_UI_SUCCESS",
-        WorkerResponseType::RegisterDevice2WithDerivedKeySuccess => {
-            "REGISTER_DEVICE2_WITH_DERIVED_KEY_SUCCESS"
-        }
-
-        // Failure responses
-        WorkerResponseType::DeriveNearKeypairAndEncryptFailure => {
-            "DERIVE_NEAR_KEYPAIR_AND_ENCRYPT_FAILURE"
-        }
-        WorkerResponseType::RecoverKeypairFromPasskeyFailure => {
-            "RECOVER_KEYPAIR_FROM_PASSKEY_FAILURE"
-        }
-        WorkerResponseType::DecryptPrivateKeyWithPrfFailure => {
-            "DECRYPT_PRIVATE_KEY_WITH_PRF_FAILURE"
-        }
-        WorkerResponseType::SignTransactionsWithActionsFailure => {
-            "SIGN_TRANSACTIONS_WITH_ACTIONS_FAILURE"
-        }
-        WorkerResponseType::SignDelegateActionFailure => "SIGN_DELEGATE_ACTION_FAILURE",
-        WorkerResponseType::ExtractCosePublicKeyFailure => "EXTRACT_COSE_PUBLIC_KEY_FAILURE",
-        WorkerResponseType::SignTransactionWithKeyPairFailure => {
-            "SIGN_TRANSACTION_WITH_KEYPAIR_FAILURE"
-        }
-        WorkerResponseType::SignNep413MessageFailure => "SIGN_NEP413_MESSAGE_FAILURE",
-        WorkerResponseType::ExportNearKeypairUiFailure => "EXPORT_NEAR_KEYPAIR_UI_FAILURE",
-        WorkerResponseType::RegisterDevice2WithDerivedKeyFailure => {
-            "REGISTER_DEVICE2_WITH_DERIVED_KEY_FAILURE"
-        }
-
-        // Progress responses - for real-time updates during operations
-        WorkerResponseType::RegistrationProgress => "REGISTRATION_PROGRESS",
-        WorkerResponseType::RegistrationComplete => "REGISTRATION_COMPLETE",
-        WorkerResponseType::ExecuteActionsProgress => "EXECUTE_ACTIONS_PROGRESS",
-        WorkerResponseType::ExecuteActionsComplete => "EXECUTE_ACTIONS_COMPLETE",
-    }
 }

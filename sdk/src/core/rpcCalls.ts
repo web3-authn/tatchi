@@ -129,9 +129,11 @@ export async function executeDeviceLinkingContractCalls({
           action_type: ActionType.AddKey,
           public_key: device2PublicKey,
           access_key: JSON.stringify({
+            // NEAR-style AccessKey JSON shape, matching near-api-js:
+            // { nonce: number, permission: { FullAccess: {} } }
+            nonce: 0,
             permission: { FullAccess: {} },
-            // FullAccess required to addkey
-          })
+          }),
         }],
         nonce: nextNonce,
       },
@@ -163,7 +165,7 @@ export async function executeDeviceLinkingContractCalls({
     onEvent: (progress) => {
       // Bridge all action progress events to the parent so the wallet iframe overlay
       // can expand during user confirmation in wallet-iframe mode.
-      try { onEvent?.(progress as any); } catch {}
+      try { onEvent?.(progress as any); } catch { }
       // Keep existing success mapping for device linking semantics
       if (progress.phase == ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE) {
         onEvent?.({
@@ -192,7 +194,7 @@ export async function executeDeviceLinkingContractCalls({
   try {
     console.debug('LinkDeviceFlow: AddKey transaction details:', {
       receiverId: signedTransactions[0].signedTransaction.transaction.receiverId,
-      actions: JSON.parse(signedTransactions[0].signedTransaction.transaction.actionsJson || '[]'),
+      actions: signedTransactions[0].signedTransaction.transaction.actions || [],
       transactionKeys: Object.keys(signedTransactions[0].signedTransaction.transaction),
     });
 
@@ -214,7 +216,7 @@ export async function executeDeviceLinkingContractCalls({
     const contractTx = signedTransactions[1].signedTransaction;
     console.log('LinkDeviceFlow: Contract mapping transaction details:', {
       receiverId: contractTx.transaction.receiverId,
-      actions: JSON.parse(contractTx.transaction.actionsJson || '[]').length
+      actions: (contractTx.transaction.actions || []).length
     });
 
     // Standard timeout since nonce conflict should be resolved by the 2s delay

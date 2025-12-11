@@ -20,18 +20,11 @@
 
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
-use crate::types::worker_messages::WorkerResponseType;
 
-/// Progress message types that can be sent during WASM operations
-/// Values align with TypeScript WorkerResponseType enum for proper mapping
-///
-/// Should match the Progress WorkerResponseTypes in worker_messages.rs:
-/// - WorkerResponseType::RegistrationProgress
-/// - WorkerResponseType::RegistrationComplete,
-/// - WorkerResponseType::WebauthnAuthenticationProgress
-/// - WorkerResponseType::AuthenticationComplete
-/// - WorkerResponseType::TransactionSigningProgress
-/// - WorkerResponseType::TransactionSigningComplete
+/// Progress message types that can be sent during WASM operations.
+/// Values MUST align with the progress variants of WorkerResponseType in
+/// `worker_messages.rs` so that TypeScript can treat them as progress
+/// responses (not success/failure) based on the shared numeric codes.
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProgressMessageType {
@@ -144,50 +137,41 @@ impl WorkerProgressMessage {
 /// Type-safe helper for sending progress messages from WASM
 /// This ensures all progress messages use the correct types
 /// Now uses numeric enum values directly for better type safety
-pub fn send_progress_message(
-    message_type: ProgressMessageType,
+pub fn send_progress_message<T: Serialize + ?Sized>(
+    msg_type: ProgressMessageType,
     step: ProgressStep,
-    message: &str,
-    data: Option<&str>,
+    log: &str,
+    data: Option<&T>,
 ) {
-    // Map ProgressMessageType -> WorkerResponseType so the main thread
-    // can recognize these as typed progress responses.
-    let response_type = match message_type {
-        ProgressMessageType::RegistrationProgress => WorkerResponseType::RegistrationProgress,
-        ProgressMessageType::RegistrationComplete => WorkerResponseType::RegistrationComplete,
-        ProgressMessageType::ExecuteActionsProgress => WorkerResponseType::ExecuteActionsProgress,
-        ProgressMessageType::ExecuteActionsComplete => WorkerResponseType::ExecuteActionsComplete,
+    let data_js = if let Some(_d) = data {
+        #[cfg(target_arch = "wasm32")]
+        {
+            serde_wasm_bindgen::to_value(_d).unwrap_or(JsValue::UNDEFINED)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            JsValue::UNDEFINED
+        }
+    } else {
+        JsValue::UNDEFINED
     };
 
     crate::send_progress_message(
-        response_type.into(),
+        msg_type as u32,
         step as u32,
-        message,
-        data.unwrap_or("{}"),
+        log,
+        data_js,
     );
 }
 
 /// Type-safe helper for sending completion messages from WASM
-pub fn send_completion_message(
-    message_type: ProgressMessageType,
+pub fn send_completion_message<T: Serialize + ?Sized>(
+    msg_type: ProgressMessageType,
     step: ProgressStep,
-    message: &str,
-    data: Option<&str>,
+    log: &str,
+    data: Option<&T>,
 ) {
-    let response_type = match message_type {
-        ProgressMessageType::RegistrationProgress => WorkerResponseType::RegistrationProgress,
-        ProgressMessageType::RegistrationComplete => WorkerResponseType::RegistrationComplete,
-        ProgressMessageType::ExecuteActionsProgress => WorkerResponseType::ExecuteActionsProgress,
-        ProgressMessageType::ExecuteActionsComplete => WorkerResponseType::ExecuteActionsComplete,
-    };
-
-    // Completion messages have the same structure as progress, just different status
-    crate::send_progress_message(
-        response_type.into(),
-        step as u32,
-        message,
-        data.unwrap_or("{}"),
-    );
+    send_progress_message(msg_type, step, log, data);
 }
 
 /// Convert ProgressMessageType enum to readable string for debugging
@@ -210,5 +194,70 @@ pub fn progress_step_name(step: ProgressStep) -> &'static str {
         ProgressStep::TransactionSigningProgress => "transaction-signing-progress",
         ProgressStep::TransactionSigningComplete => "transaction-signing-complete",
         ProgressStep::Error => "error",
+    }
+}
+
+/// Structured data payload for progress messages.
+/// Used to replace generic JSON objects to remove serde_json dependency.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProgressData {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub step: Option<u32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transaction_count: Option<usize>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub success: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logs: Option<Vec<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
+}
+
+impl ProgressData {
+    pub fn new(step: u32, total: u32) -> Self {
+        Self {
+            step: Some(step),
+            total: Some(total),
+            transaction_count: None,
+            success: None,
+            logs: None,
+            context: None,
+            hash: None,
+        }
+    }
+
+    pub fn with_context(mut self, context: &str) -> Self {
+        self.context = Some(context.to_string());
+        self
+    }
+
+    pub fn with_transaction_count(mut self, count: usize) -> Self {
+        self.transaction_count = Some(count);
+        self
+    }
+
+    pub fn with_success(mut self, success: bool) -> Self {
+        self.success = Some(success);
+        self
+    }
+
+    pub fn with_logs(mut self, logs: Vec<String>) -> Self {
+        self.logs = Some(logs);
+        self
+    }
+
+    pub fn with_hash(mut self, hash: String) -> Self {
+        self.hash = Some(hash);
+        self
     }
 }

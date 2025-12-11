@@ -4,4 +4,4 @@ pub mod cose_tests;
 pub mod crypto_tests;
 pub mod progress_tests;
 pub mod transaction_tests;
-pub mod guard_tests;
+

@@ -1,4 +1,4 @@
-
+import { base64UrlDecode } from '../../../../utils';
 import type { EncryptedKeyData } from '../../../IndexedDBManager/passkeyNearKeysDB';
 import {
   WorkerRequestType,
@@ -69,6 +69,36 @@ export async function registerDevice2WithDerivedKey({
       deviceNumber,
     });
 
+    // Helper to convert base64url string to byte array (number[])
+    const b64ToBytes = (s: string | undefined): number[] => {
+      if (!s) return [];
+      return Array.from(base64UrlDecode(s));
+    };
+    // Construct contractArgs in TypeScript and use JSON.stringify() here.
+    // This is native to JS, extremely fast, and means the Rust worker just receives a "dumb" string that it can blindly convert to bytes
+    const finalContractArgs = {
+      vrf_data: {
+        vrf_input_data: b64ToBytes(vrfChallenge.vrfInput),
+        vrf_output: b64ToBytes(vrfChallenge.vrfOutput),
+        vrf_proof: b64ToBytes(vrfChallenge.vrfProof),
+        public_key: b64ToBytes(vrfChallenge.vrfPublicKey),
+        user_id: vrfChallenge.userId,
+        rp_id: vrfChallenge.rpId,
+        block_height: Number(vrfChallenge.blockHeight),
+        block_hash: b64ToBytes(vrfChallenge.blockHash),
+      },
+      webauthn_registration: credential,
+      deterministic_vrf_public_key: b64ToBytes(deterministicVrfPublicKey),
+      authenticator_options: {
+        userVerification: toEnumUserVerificationPolicy(UserVerificationPolicy.Preferred),
+        originPolicy: {
+          single: undefined,
+          all_subdomains: true,
+          multiple: undefined,
+        },
+      },
+    };
+
     // Build request payload for combined Device2 registration
     const response = await ctx.sendMessage<WorkerRequestType.RegisterDevice2WithDerivedKey>({
       message: {
@@ -82,30 +112,8 @@ export async function registerDevice2WithDerivedKey({
             txBlockHeight: transactionContext.txBlockHeight,
             baseNonce: transactionContext.nextNonce,
           },
-          contractArgs: {
-            contractId,
-            vrfData: {
-              vrfInputB64: vrfChallenge.vrfInput,
-              vrfOutputB64: vrfChallenge.vrfOutput,
-              vrfProofB64: vrfChallenge.vrfProof,
-              vrfPublicKeyB64: vrfChallenge.vrfPublicKey,
-              userId: vrfChallenge.userId,
-              rpId: vrfChallenge.rpId,
-              blockHeight: vrfChallenge.blockHeight,
-              blockHash: vrfChallenge.blockHash,
-            },
-            webauthnRegistration: credential,
-            // Use the deterministic VRF public key derived from PRF.second
-            deterministicVrfPublicKeyB64: deterministicVrfPublicKey,
-            authenticatorOptions: {
-              userVerification: toEnumUserVerificationPolicy(UserVerificationPolicy.Preferred),
-              originPolicy: {
-                single: undefined,
-                all_subdomains: true,
-                multiple: undefined,
-              },
-            },
-          },
+          contractId,
+          contractArgsJson: JSON.stringify(finalContractArgs),
         }, sessionId),
       },
       sessionId,

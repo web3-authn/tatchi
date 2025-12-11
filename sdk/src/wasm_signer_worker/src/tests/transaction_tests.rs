@@ -8,7 +8,7 @@ use crate::transaction::{
     sign_transaction,
 };
 use crate::actions::ActionParams;
-use crate::types::{Action, Transaction};
+use crate::types::{NearAction, Transaction};
 
 /// Build a simple transaction with a single transfer action and sign it end-to-end.
 #[test]
@@ -21,7 +21,7 @@ fn build_and_sign_transaction_round_trip() {
     let params = vec![ActionParams::Transfer {
         deposit: "1".to_string(),
     }];
-    let actions: Vec<Action> = build_actions_from_params(params).expect("actions should build");
+    let actions: Vec<NearAction> = build_actions_from_params(params).expect("actions should build");
 
     // Dummy 32-byte block hash.
     let block_hash_bytes = [5u8; 32];

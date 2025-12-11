@@ -211,7 +211,7 @@ export async function executeSignedDelegateWithRelayer(params: {
       throw new Error('invalid_delegate_action');
     }
 
-    let delegateForWorker: any = rawDelegate;
+    let delegateForWorker = rawDelegate;
     if (rawDelegate && !('actions' in rawDelegate) && 'actionsJson' in rawDelegate) {
       let parsedActions: any[] = [];
       try {
@@ -276,7 +276,7 @@ export async function executeSignedDelegateWithRelayer(params: {
     // to validate delegate_action.nonce and delegate_action.public_key.
     const delegateSenderId = String(
       delegateForWorker?.senderId ||
-      (signedDelegate as any)?.delegateAction?.senderId || ''
+      signedDelegate?.delegateAction?.senderId || ''
     ).trim();
 
     if (!delegateSenderId) {
@@ -292,7 +292,6 @@ export async function executeSignedDelegateWithRelayer(params: {
       actions,
     });
 
-    console.debug("Sending signed delegateAction: ", signedTx?.transaction?.actionsJson);
     const outcome = await nearClient.sendTransaction(signedTx);
 
     const txHash = outcome?.transaction?.hash || null;

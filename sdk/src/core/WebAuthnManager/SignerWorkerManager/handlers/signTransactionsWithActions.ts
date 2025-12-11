@@ -100,7 +100,7 @@ export async function signTransactionsWithActions({
     const txSigningRequests: TransactionPayload[] = transactions.map(tx => ({
       nearAccountId: rpcCall.nearAccountId,
       receiverId: tx.receiverId,
-      actions: JSON.stringify(tx.actions)
+      actions: tx.actions
     }));
 
     // Send batch signing request to WASM worker

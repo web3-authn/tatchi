@@ -53,7 +53,7 @@ export async function signTransactionWithKeyPair({
           receiverId,
           nonce,
           blockHash: blockHash,
-          actions: JSON.stringify(actions)
+          actions: actions
         }
       }
     });

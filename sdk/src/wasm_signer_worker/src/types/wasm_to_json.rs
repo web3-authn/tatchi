@@ -3,17 +3,6 @@ use wasm_bindgen::prelude::*;
 
 // === WASM-FRIENDLY WRAPPER TYPES ===
 
-// Trait for converting response types to JSON
-pub trait ToJson {
-    fn to_json(&self) -> Result<serde_json::Value, String>;
-}
-
-impl<T: Serialize> ToJson for T {
-    fn to_json(&self) -> Result<serde_json::Value, String> {
-        serde_json::to_value(self).map_err(|e| format!("Failed to serialize to JSON: {}", e))
-    }
-}
-
 #[wasm_bindgen]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -91,8 +80,9 @@ pub struct WasmTransaction {
     pub receiver_id: String,
     #[wasm_bindgen(getter_with_clone, js_name = "blockHash")]
     pub block_hash: Vec<u8>,
-    #[wasm_bindgen(getter_with_clone, js_name = "actionsJson")]
-    pub actions_json: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "actions")]
+    #[serde(with = "serde_wasm_bindgen::preserve")]
+    pub actions: JsValue,
 }
 
 #[wasm_bindgen]
@@ -104,7 +94,7 @@ impl WasmTransaction {
         nonce: u64,
         #[wasm_bindgen(js_name = "receiverId")] receiver_id: String,
         #[wasm_bindgen(js_name = "blockHash")] block_hash: Vec<u8>,
-        #[wasm_bindgen(js_name = "actionsJson")] actions_json: String,
+        #[wasm_bindgen(js_name = "actions")] actions: JsValue,
     ) -> WasmTransaction {
         WasmTransaction {
             signer_id,
@@ -112,7 +102,7 @@ impl WasmTransaction {
             nonce,
             receiver_id,
             block_hash,
-            actions_json,
+            actions,
         }
     }
 }
@@ -120,14 +110,14 @@ impl WasmTransaction {
 // Simplified From implementation that serializes actions to JSON string
 impl From<&crate::types::Transaction> for WasmTransaction {
     fn from(tx: &crate::types::Transaction) -> Self {
-        let actions_json = serde_json::to_string(&tx.actions).unwrap_or_else(|_| "[]".to_string());
+        let actions = serde_wasm_bindgen::to_value(&tx.actions).unwrap_or(JsValue::NULL);
         WasmTransaction {
             signer_id: tx.signer_id.0.clone(),
             public_key: WasmPublicKey::from(&tx.public_key),
             nonce: tx.nonce,
             receiver_id: tx.receiver_id.0.clone(),
             block_hash: tx.block_hash.to_vec(),
-            actions_json,
+            actions,
         }
     }
 }
@@ -160,46 +150,6 @@ impl WasmSignedTransaction {
     }
 }
 
-// No wasm_bindgen macro here because we're not exporting these methods to TypeScript
-impl WasmSignedTransaction {
-    pub fn to_borsh_bytes(&self) -> Result<Vec<u8>, String> {
-        Ok(self.borsh_bytes.clone())
-    }
-
-    /// Create JSON with borsh bytes included
-    pub fn to_json_with_borsh(
-        &self,
-        borsh_bytes: Option<Vec<u8>>,
-    ) -> Result<serde_json::Value, String> {
-        let mut json = serde_json::Map::new();
-
-        // Serialize transaction
-        let tx_json = serde_json::to_value(&self.transaction)
-            .map_err(|e| format!("Failed to serialize transaction: {}", e))?;
-        json.insert("transaction".to_string(), tx_json);
-
-        // Serialize signature
-        let sig_json = serde_json::to_value(&self.signature)
-            .map_err(|e| format!("Failed to serialize signature: {}", e))?;
-        json.insert("signature".to_string(), sig_json);
-
-        // Add borsh bytes if provided
-        if let Some(bytes) = borsh_bytes {
-            json.insert(
-                "borshBytes".to_string(),
-                serde_json::Value::Array(
-                    bytes
-                        .iter()
-                        .map(|&b| serde_json::Value::Number(serde_json::Number::from(b)))
-                        .collect(),
-                ),
-            );
-        }
-
-        Ok(serde_json::Value::Object(json))
-    }
-}
-
 impl From<&crate::types::SignedTransaction> for WasmSignedTransaction {
     fn from(signed_tx: &crate::types::SignedTransaction) -> Self {
         let borsh_bytes = signed_tx.to_borsh_bytes().unwrap_or_default();
@@ -219,8 +169,9 @@ pub struct WasmDelegateAction {
     pub sender_id: String,
     #[wasm_bindgen(getter_with_clone, js_name = "receiverId")]
     pub receiver_id: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "actionsJson")]
-    pub actions_json: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "actions")]
+    #[serde(with = "serde_wasm_bindgen::preserve")]
+    pub actions: JsValue,
     pub nonce: u64,
     #[wasm_bindgen(getter_with_clone, js_name = "maxBlockHeight")]
     pub max_block_height: u64,
@@ -230,14 +181,12 @@ pub struct WasmDelegateAction {
 
 impl From<&crate::types::DelegateAction> for WasmDelegateAction {
     fn from(delegate: &crate::types::DelegateAction) -> Self {
-        let actions_json = delegate
-            .get_actions_json()
-            .unwrap_or_else(|_| "[]".to_string());
+        let actions = serde_wasm_bindgen::to_value(&delegate.actions).unwrap_or(JsValue::NULL);
 
         WasmDelegateAction {
             sender_id: delegate.sender_id.0.clone(),
             receiver_id: delegate.receiver_id.0.clone(),
-            actions_json,
+            actions,
             nonce: delegate.nonce,
             max_block_height: delegate.max_block_height,
             public_key: WasmPublicKey::from(&delegate.public_key),

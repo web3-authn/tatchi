@@ -6,6 +6,7 @@ use crate::types::progress::{
     send_progress_message,
     ProgressMessageType,
     ProgressStep,
+    ProgressData,
 };
 use crate::types::{
     handlers::{ConfirmationConfig, RpcCallPayload},
@@ -23,57 +24,29 @@ use ed25519_dalek::Signer;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DelegatePayload {
-    #[wasm_bindgen(getter_with_clone, js_name = "senderId")]
     pub sender_id: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "receiverId")]
     pub receiver_id: String,
-    /// JSON string of ActionParams[]
-    #[wasm_bindgen(getter_with_clone)]
-    pub actions: String,
-    #[wasm_bindgen(getter_with_clone)]
+    pub actions: Vec<ActionParams>,
     pub nonce: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "maxBlockHeight")]
     pub max_block_height: String,
     /// Expected ed25519 public key for the device (string, with or without ed25519: prefix)
-    #[wasm_bindgen(getter_with_clone, js_name = "publicKey")]
     pub public_key: String,
 }
 
-impl DelegatePayload {
-    pub fn parsed_actions(&self) -> Result<Vec<ActionParams>, serde_json::Error> {
-        serde_json::from_str(&self.actions)
-    }
-
-    pub fn parsed_actions_value(&self) -> serde_json::Value {
-        serde_json::from_str(&self.actions).unwrap_or_else(|_| serde_json::json!([]))
-    }
-}
-
-#[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignDelegateActionRequest {
-    #[wasm_bindgen(getter_with_clone, js_name = "rpcCall")]
     pub rpc_call: RpcCallPayload,
-    #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     pub session_id: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "createdAt")]
     pub created_at: Option<f64>,
-    #[wasm_bindgen(getter_with_clone)]
     pub decryption: DecryptionPayload,
-    #[wasm_bindgen(getter_with_clone)]
     pub delegate: DelegatePayload,
-    #[wasm_bindgen(getter_with_clone, js_name = "confirmationConfig")]
     pub confirmation_config: Option<ConfirmationConfig>,
-    #[wasm_bindgen(getter_with_clone, js_name = "intentDigest")]
     pub intent_digest: Option<String>,
-    #[wasm_bindgen(getter_with_clone, js_name = "transactionContext")]
     pub transaction_context: Option<crate::types::handlers::TransactionContext>,
-    #[wasm_bindgen(getter_with_clone)]
     pub credential: Option<String>,
 }
 
@@ -137,8 +110,7 @@ pub async fn handle_sign_delegate_action(
         ProgressStep::UserConfirmation,
         "Using pre-confirmed VRF/WebAuthn session for delegate signing...",
         Some(
-            &serde_json::json!({"step": 1, "total": 4, "context": "delegate"})
-                .to_string(),
+            &ProgressData::new(1, 4).with_context("delegate"),
         ),
     );
 
@@ -166,20 +138,11 @@ pub async fn handle_sign_delegate_action(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::Preparation,
         "Preparing delegate inputs...",
-        Some(&serde_json::json!({"step": 2, "total": 4, "context": "delegate"}).to_string()),
+        Some(&ProgressData::new(2, 4).with_context("delegate")),
     );
 
-    let action_params: Vec<ActionParams> = match request.delegate.parsed_actions() {
-        Ok(params) => {
-            logs.push(format!("Parsed {} delegate actions", params.len()));
-            params
-        }
-        Err(e) => {
-            let error_msg = format!("Failed to parse delegate actions: {}", e);
-            logs.push(error_msg.clone());
-            return Ok(DelegateSignResult::failed(logs, error_msg));
-        }
-    };
+    let action_params = request.delegate.actions.clone();
+    logs.push(format!("Using {} delegate actions", action_params.len()));
 
     let actions = match build_actions_from_params(action_params) {
         Ok(actions) => actions,
@@ -280,7 +243,7 @@ pub async fn handle_sign_delegate_action(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::TransactionSigningProgress,
         "Decrypting private key and signing delegate action...",
-        Some(&serde_json::json!({"step": 3, "total": 4, "context": "delegate"}).to_string()),
+        Some(&ProgressData::new(3, 4).with_context("delegate")),
     );
 
     let kek = wrap_key.derive_kek()?;
@@ -379,14 +342,10 @@ pub async fn handle_sign_delegate_action(
         ProgressStep::TransactionSigningComplete,
         "Delegate action signed",
         Some(
-            &serde_json::json!({
-                "step": 4,
-                "total": 4,
-                "context": "delegate",
-                "success": true,
-                "hash": delegate_hash_hex
-            })
-            .to_string(),
+            &ProgressData::new(4, 4)
+                .with_context("delegate")
+                .with_success(true)
+                .with_hash(delegate_hash_hex.clone())
         ),
     );
 

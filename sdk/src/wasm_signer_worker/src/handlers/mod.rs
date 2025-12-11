@@ -10,7 +10,6 @@ pub mod handle_sign_transactions_with_actions;
 
 // Handler functions
 pub use handle_decrypt_private_key_with_prf::handle_decrypt_private_key_with_prf;
-pub use handle_decrypt_private_key_with_prf::handle_export_near_keypair_ui;
 pub use handle_derive_near_keypair_and_encrypt::handle_derive_near_keypair_and_encrypt;
 pub use handle_extract_cose_public_key::handle_extract_cose_public_key;
 pub use handle_recover_keypair_from_passkey::handle_recover_keypair_from_passkey;
@@ -21,7 +20,6 @@ pub use handle_sign_transaction_with_keypair::handle_sign_transaction_with_keypa
 pub use handle_sign_transactions_with_actions::handle_sign_transactions_with_actions;
 
 // Request/Result types
-pub use handle_decrypt_private_key_with_prf::ExportNearKeypairUiRequest;
 pub use handle_extract_cose_public_key::{CoseExtractionResult, ExtractCoseRequest};
 pub use handle_recover_keypair_from_passkey::{RecoverKeypairRequest, RecoverKeypairResult};
 pub use handle_register_device2_with_derived_key::{

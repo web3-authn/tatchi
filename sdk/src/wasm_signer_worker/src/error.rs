@@ -5,11 +5,11 @@ use wasm_bindgen::JsValue;
 #[derive(Debug)]
 pub struct ParsePayloadError {
     pub message_name: String,
-    pub serde_error: serde_json::Error,
+    pub serde_error: serde_wasm_bindgen::Error,
 }
 
 impl ParsePayloadError {
-    pub fn new(message_name: &str, serde_error: serde_json::Error) -> Self {
+    pub fn new(message_name: &str, serde_error: serde_wasm_bindgen::Error) -> Self {
         Self {
             message_name: message_name.to_string(),
             serde_error,

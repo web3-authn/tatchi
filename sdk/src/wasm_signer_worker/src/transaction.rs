@@ -2,7 +2,7 @@ use borsh;
 use ed25519_dalek::{Signer, SigningKey};
 use sha2::{Digest, Sha256};
 
-use crate::actions::{get_action_handler, ActionParams};
+use crate::actions::ActionParams;
 use crate::types::*;
 
 /// Build a transaction with multiple actions
@@ -12,7 +12,7 @@ pub fn build_transaction_with_actions(
     nonce: u64,
     block_hash_bytes: &[u8],
     private_key: &SigningKey,
-    actions: Vec<Action>,
+    actions: Vec<NearAction>,
 ) -> Result<Transaction, String> {
     // Parse account IDs
     let signer_id: AccountId = signer_account_id
@@ -46,20 +46,12 @@ pub fn build_transaction_with_actions(
 }
 
 /// Build actions from action parameters
-pub fn build_actions_from_params(action_params: Vec<ActionParams>) -> Result<Vec<Action>, String> {
+pub fn build_actions_from_params(action_params: Vec<ActionParams>) -> Result<Vec<NearAction>, String> {
     let mut actions = Vec::new();
-    for (i, params) in action_params.iter().enumerate() {
-        let handler =
-            get_action_handler(params).map_err(|e| format!("Action {} handler error: {}", i, e))?;
-
-        handler
-            .validate_params(params)
-            .map_err(|e| format!("Action {} validation failed: {}", i, e))?;
-
-        let action = handler
-            .build_action(params)
+    for (i, params) in action_params.into_iter().enumerate() {
+        let action = params
+            .to_action()
             .map_err(|e| format!("Action {} build failed: {}", i, e))?;
-
         actions.push(action);
     }
     Ok(actions)

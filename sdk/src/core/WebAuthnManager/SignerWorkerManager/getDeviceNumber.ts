@@ -14,6 +14,7 @@ export async function getDeviceNumberForAccount(
   let deviceNumber = 1;
   const accountId = toAccountId(nearAccountId);
   const last = await clientDB.getLastUser();
+  // getLastUser returns ClientUserData, which has `nearAccountId`
   if (last && last.nearAccountId === accountId) {
     deviceNumber = last.deviceNumber || 1;
   } else {
