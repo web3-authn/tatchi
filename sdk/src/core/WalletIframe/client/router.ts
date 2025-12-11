@@ -30,27 +30,27 @@
  *   (7) Router receives final result, resolves the pending promise, unregisters,
  *       and may hide the overlay if no other request still needs it.
  *
- *   +-----------+         +--------------------+         +----------------------+         +----------------------+
- *   |   App     |         | WalletIframeRouter |         | OnEventsProgressBus  |         | OverlayController    |
- *   +-----+-----+         +---------+----------+         +----------+-----------+         +----------+-----------+
- *         |   (1) RPC call (executeAction, etc.)                    |                                  |
- *         |-------------------------------------------------------->|                                  |
- *         |                                                        |                                  |
- *         |                           (2) post(): send request to iframe                              |
- *         |                                                        |                                  |
- *         |                           (3) PROGRESS from iframe via onPortMessage()                    |
- *         |<-------------------------------------------------------|                                  |
- *         |                                                        |                                  |
- *         |                           (4) ProgressPayload → heuristic                                 |
- *         |                                                        |-- (5) 'show' | 'hide' intent --->|
- *         |                                                        |                                  |
- *         |                           (6) showFrameForActivation() | hideFrameForActivation()         |
- *         |                                                        |                                  |
- *         |                                                        |                 (6) show()|hide() |
- *         |                                                        |---------------------------------->|
- *         |                                                        |                                  |
- *         |                           (7) PM_RESULT/ERROR → resolve pending, maybe hide overlay       |
- *         |<-------------------------------------------------------|                                  |
+ *  +-----------+       +--------------------+       +----------------------+       +----------------------+
+ *  |   App     |       | WalletIframeRouter |       | OnEventsProgressBus  |       | OverlayController    |
+ *  +-----+-----+       +---------+----------+       +----------+-----------+       +----------+-----------+
+ *        |   (1) RPC call (executeAction, etc.)                |                              |
+ *        |---------------------->|---------------------------->|                              |
+ *        |                                                     |                              |
+ *        |                        (2) post(): send request to iframe                          |
+ *        |                                                     |                              |
+ *        |                        (3) PROGRESS from iframe via onPortMessage()                |
+ *        |<----------------------------------------------------|                              |
+ *        |                                                     |                              |
+ *        |                        (4) ProgressPayload → heuristic                             |
+ *        |                                                     |---(5) 'show'|'hide' intent-->|
+ *        |                                                     |                              |
+ *        |                        (6) showFrameForActivation() | hideFrameForActivation()     |
+ *        |                                                     |                              |
+ *        |                                                     |            (6) show()|hide() |
+ *        |                                                     |----------------------------->|
+ *        |                                                     |                              |
+ *        |                        (7) PM_RESULT/ERROR → resolve pending, maybe hide overlay   |
+ *        |<----------------------------------------------------|                              |
  *
  * Communication Flow (requests):
  * 1. Parent calls RPC method (e.g., registerPasskey).

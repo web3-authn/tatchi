@@ -18,8 +18,8 @@ test.describe('defaultPhaseHeuristics', () => {
       const heuristic = progress.defaultPhaseHeuristics as (p: any) => 'show' | 'hide' | 'none';
 
       const show1 = heuristic({ phase: phases.ActionPhase.STEP_2_USER_CONFIRMATION });
-      const show2 = heuristic({ phase: phases.ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION });
-      const hide1 = heuristic({ phase: phases.ActionPhase.STEP_9_ACTION_COMPLETE });
+      const show2 = heuristic({ phase: phases.ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION });
+      const hide1 = heuristic({ phase: phases.ActionPhase.STEP_8_ACTION_COMPLETE });
       const hide2 = heuristic({ phase: phases.LoginPhase.STEP_4_LOGIN_COMPLETE });
       const hide3 = heuristic({ phase: 'cancelled' });
       const none1 = heuristic({ phase: 'some-unknown-phase' });
