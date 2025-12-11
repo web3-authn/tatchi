@@ -77,7 +77,6 @@ extern "C" {
 // Set up panic hook for better error messages
 #[wasm_bindgen(start)]
 pub fn main() {
-    console_error_panic_hook::set_once();
     // Initialize logger with the configured log level
     wasm_logger::init(wasm_logger::Config::new(config::CURRENT_LOG_LEVEL));
     debug!("VRF WASM Worker starting up...");

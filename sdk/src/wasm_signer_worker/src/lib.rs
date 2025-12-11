@@ -122,7 +122,6 @@ thread_local! {
 
 #[wasm_bindgen]
 pub fn init_worker() {
-    console_error_panic_hook::set_once();
     // Initialize WASM logger respecting configured level
     wasm_logger::init(wasm_logger::Config::new(config::CURRENT_LOG_LEVEL));
 }

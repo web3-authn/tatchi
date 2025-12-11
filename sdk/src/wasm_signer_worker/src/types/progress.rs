@@ -62,12 +62,11 @@ impl TryFrom<u32> for ProgressMessageType {
 pub enum ProgressStep {
     Preparation = 100,
     UserConfirmation = 101,
-    ContractVerification = 102,
-    WebauthnAuthentication = 103,
-    AuthenticationComplete = 104,
-    TransactionSigningProgress = 105,
-    TransactionSigningComplete = 106,
-    Error = 107,
+    WebauthnAuthentication = 102,
+    AuthenticationComplete = 103,
+    TransactionSigningProgress = 104,
+    TransactionSigningComplete = 105,
+    Error = 106,
 }
 
 impl TryFrom<u32> for ProgressStep {
@@ -77,12 +76,11 @@ impl TryFrom<u32> for ProgressStep {
         match value {
             100 => Ok(ProgressStep::Preparation),
             101 => Ok(ProgressStep::UserConfirmation),
-            102 => Ok(ProgressStep::ContractVerification),
-            103 => Ok(ProgressStep::WebauthnAuthentication),
-            104 => Ok(ProgressStep::AuthenticationComplete),
-            105 => Ok(ProgressStep::TransactionSigningProgress),
-            106 => Ok(ProgressStep::TransactionSigningComplete),
-            107 => Ok(ProgressStep::Error),
+            102 => Ok(ProgressStep::WebauthnAuthentication),
+            103 => Ok(ProgressStep::AuthenticationComplete),
+            104 => Ok(ProgressStep::TransactionSigningProgress),
+            105 => Ok(ProgressStep::TransactionSigningComplete),
+            106 => Ok(ProgressStep::Error),
             _ => Err(format!("Invalid ProgressStep value: {}", value)),
         }
     }
@@ -207,7 +205,6 @@ pub fn progress_step_name(step: ProgressStep) -> &'static str {
     match step {
         ProgressStep::Preparation => "preparation",
         ProgressStep::UserConfirmation => "user-confirmation",
-        ProgressStep::ContractVerification => "contract-verification",
         ProgressStep::WebauthnAuthentication => "webauthn-authentication",
         ProgressStep::AuthenticationComplete => "authentication-complete",
         ProgressStep::TransactionSigningProgress => "transaction-signing-progress",
