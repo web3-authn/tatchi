@@ -22,7 +22,7 @@ import {
 } from './common';
 import { serializeAuthenticationCredentialWithPRF, extractPrfFromCredential } from '../../../credentialsHelpers';
 import { toAccountId } from '../../../../types/accountIds';
-import { getDeviceNumberForAccount } from '../../../SignerWorkerManager/getDeviceNumber';
+import { getLastLoggedInDeviceNumber } from '../../../SignerWorkerManager/getDeviceNumber';
 import { authenticatorsToAllowCredentials } from '../../../touchIdPrompt';
 import { toError } from '../../../../../utils/errors';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../../defaultConfigs';
@@ -142,7 +142,7 @@ export async function handleTransactionSigningFlow(
         throw new Error('VRF session is active but bound to a different account than the one being signed. Please log in again on this device.');
       }
 
-      const deviceNumber = await getDeviceNumberForAccount(toAccountId(nearAccountId), ctx.indexedDB.clientDB);
+      const deviceNumber = await getLastLoggedInDeviceNumber(toAccountId(nearAccountId), ctx.indexedDB.clientDB);
       const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
       // For v2+ vaults, wrapKeySalt is the canonical salt. iv fallback is retained
       // only for legacy entries that predate VRF‑owned WrapKeySeed derivation.

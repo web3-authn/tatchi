@@ -12,7 +12,7 @@ import {
   WasmSignedDelegate,
 } from '../../../types/signer-worker';
 import { SignerWorkerManagerContext } from '..';
-import { getDeviceNumberForAccount } from '../getDeviceNumber';
+import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { withSessionId } from './session';
 import { base58Encode } from '../../../../utils/base58';
 
@@ -67,7 +67,7 @@ export async function signDelegateAction({
   });
 
   // Retrieve encrypted key data from IndexedDB in main thread
-  const deviceNumber = await getDeviceNumberForAccount(nearAccountId, ctx.indexedDB.clientDB);
+  const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
   const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
   if (!encryptedKeyData) {
     throw new Error(`No encrypted key found for account: ${nearAccountId}`);

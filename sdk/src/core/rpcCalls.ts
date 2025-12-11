@@ -166,13 +166,13 @@ export async function executeDeviceLinkingContractCalls({
       // Bridge all action progress events to the parent so the wallet iframe overlay
       // can expand during user confirmation in wallet-iframe mode.
       try { onEvent?.(progress as any); } catch { }
-      // Keep existing success mapping for device linking semantics
+      // Keep existing mapping for device linking semantics; surface signing as a loading state
       if (progress.phase == ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE) {
         onEvent?.({
           step: 3,
           phase: DeviceLinkingPhase.STEP_3_AUTHORIZATION,
-          status: DeviceLinkingStatus.SUCCESS,
-          message: `Transactions signed`
+          status: DeviceLinkingStatus.PROGRESS,
+          message: progress.message || 'Transaction signing in progress...'
         })
       }
     }

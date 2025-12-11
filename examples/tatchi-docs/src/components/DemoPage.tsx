@@ -169,11 +169,11 @@ export const DemoPage: React.FC = () => {
             });
             setGreetingInput('');
             // Refresh the greeting after success
-            void fetchGreeting();
+            setTimeout(() => fetchGreeting(), 1000);
           } else if (success) {
             toast.success('Greeting updated (no TxID)');
             setGreetingInput('');
-            void fetchGreeting();
+            setTimeout(() => fetchGreeting(), 1000);
           } else {
             toast.error(`Greeting update failed: ${result?.error || 'Unknown error'}`);
           }
@@ -255,7 +255,7 @@ export const DemoPage: React.FC = () => {
         options: {
           afterCall: (success: boolean, res?: { ok?: boolean }) => {
             if (success && res?.ok !== false) {
-              void fetchGreeting();
+              setTimeout(() => fetchGreeting(), 1000);
             }
           },
         },
@@ -542,7 +542,7 @@ export const DemoPage: React.FC = () => {
                       try { toast.dismiss('embedded'); } catch {}
                       toast.success('Embedded flow complete');
                     }
-                    void fetchGreeting();
+                    setTimeout(() => void fetchGreeting(), 1000);
                   }
                 },
                 onError: (error) => {
@@ -591,7 +591,7 @@ export const DemoPage: React.FC = () => {
                   toast.success('Tx Success');
                 }
                 // Refresh the greeting after success
-                setTimeout(() => { void fetchGreeting(); }, 1000);
+                setTimeout(() => fetchGreeting(), 1000);
               }}
             />
           }

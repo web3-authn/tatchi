@@ -274,13 +274,23 @@ export class WebAuthnManager {
       sessionId: args.sessionId,
     });
     // Resolve deviceNumber consistently with signer paths so both VRF and signer
-    // operate on the same vault entry.
-    const deviceNumber = await IndexedDBManager.clientDB
-      .getLastUser()
-      .then((last) => (last && last.nearAccountId === nearAccountId ? last.deviceNumber || 1 : null))
-      .catch(() => null)
-      ?? (await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, 1).catch(() => null))?.deviceNumber
-      ?? 1;
+    // operate on the same vault entry. Prefer the last logged-in device for this
+    // account; if unavailable, fall back to the most recently updated user row.
+    const [last, latest] = await Promise.all([
+      IndexedDBManager.clientDB.getLastUser().catch(() => null),
+      IndexedDBManager.clientDB.getLastDBUpdatedUser(nearAccountId).catch(() => null)
+    ]);
+
+    const deviceNumber =
+      (last && last.nearAccountId === nearAccountId && typeof last.deviceNumber === 'number')
+        ? last.deviceNumber
+        : (latest && typeof latest.deviceNumber === 'number')
+          ? latest.deviceNumber
+          : null;
+
+    if (deviceNumber === null) {
+      throw new Error(`No deviceNumber found for account ${nearAccountId} (decrypt session)`);
+    }
 
     // Gather encrypted key + wrapKeySalt and public key from IndexedDB for this device
     const encryptedKeyData = await IndexedDBManager.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
@@ -965,18 +975,6 @@ export class WebAuthnManager {
     return await IndexedDBManager.clientDB.hasPasskeyCredential(nearAccountId);
   }
 
-  async getLastUsedNearAccountId(): Promise<{
-    nearAccountId: AccountId;
-    deviceNumber: number;
-  } | null> {
-    const lastUser = await IndexedDBManager.clientDB.getLastUser();
-    if (!lastUser) return null;
-    return {
-      nearAccountId: lastUser.nearAccountId,
-      deviceNumber: lastUser.deviceNumber,
-    };
-  }
-
   /**
    * Atomically store all registration data (user, authenticator, VRF credentials)
    */
@@ -1196,7 +1194,10 @@ export class WebAuthnManager {
   ///////////////////////////////////////
 
   /** Worker-driven export: two-phase V2 (collect PRF → decrypt → show UI) */
-  async exportNearKeypairWithUIWorkerDriven(nearAccountId: AccountId, options?: { variant?: 'drawer'|'modal', theme?: 'dark'|'light' }): Promise<void> {
+  async exportNearKeypairWithUIWorkerDriven(
+    nearAccountId: AccountId,
+    options?: { variant?: 'drawer'|'modal', theme?: 'dark'|'light' }
+  ): Promise<void> {
     await this.withSigningSession('export-session', async (sessionId) => {
       // Phase 1: collect PRF via LocalOnly(DECRYPT_PRIVATE_KEY_WITH_PRF) inside VRF worker
       // and derive WrapKeySeed with the vault-provided wrapKeySalt.
@@ -1215,13 +1216,19 @@ export class WebAuthnManager {
 
   async exportNearKeypairWithUI(
     nearAccountId: AccountId,
-    options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }
+    options?: {
+      variant?: 'drawer' | 'modal';
+      theme?: 'dark' | 'light'
+    }
   ): Promise<{ accountId: string; publicKey: string; privateKey: string }>{
     // Route to worker-driven two-phase flow. UI is shown inside the wallet host; no secrets are returned.
     await this.exportNearKeypairWithUIWorkerDriven(nearAccountId, options);
+    // Surface the freshest device key for this account to the caller.
+    // Prefer last user when it matches the account, else pick the most recently
+    // updated user record for this account.
     let userData = await this.getLastUser();
     if (!userData || userData.nearAccountId !== nearAccountId) {
-      userData = await this.getUserByDevice(nearAccountId, 1);
+      userData = await IndexedDBManager.clientDB.getLastDBUpdatedUser(nearAccountId);
     }
     return {
       accountId: String(nearAccountId),
@@ -1288,8 +1295,6 @@ export class WebAuthnManager {
     stored?: boolean;
   }> {
     try {
-      console.debug('WebAuthnManager: recovering keypair from authentication credential with dual PRF outputs');
-
       // Verify we have an authentication credential (not registration)
       if (!authenticationCredential) {
         throw new Error(
@@ -1326,8 +1331,6 @@ export class WebAuthnManager {
             sessionId,
           }),
       );
-
-      console.debug('WebAuthnManager: Deterministic keypair derivation successful');
       return result;
 
     } catch (error: any) {
@@ -1395,16 +1398,12 @@ export class WebAuthnManager {
   // USER SETTINGS
   // ==============================
 
-  /**
-   * Get user preferences manager
-   */
+  /** * Get user preferences manager */
   getUserPreferences(): UserPreferencesManager {
     return this.userPreferencesManager;
   }
 
-  /**
-   * Clean up resources
-   */
+  /** * Clean up resources */
   destroy(): void {
     if (this.userPreferencesManager) {
       this.userPreferencesManager.destroy();

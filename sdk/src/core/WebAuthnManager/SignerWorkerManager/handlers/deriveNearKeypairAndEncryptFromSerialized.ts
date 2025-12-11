@@ -6,7 +6,7 @@ import {
   isDeriveNearKeypairAndEncryptSuccess,
 } from '../../../types/signer-worker';
 import { AccountId, toAccountId } from "../../../types/accountIds";
-import { getDeviceNumberForAccount } from '../getDeviceNumber';
+import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '@/core/types/webauthn';
 import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOptions';
@@ -69,7 +69,7 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     // Prefer explicitly provided deviceNumber, else derive from IndexedDB state
     const deviceNumber = (typeof options?.deviceNumber === 'number')
       ? options!.deviceNumber!
-      : await getDeviceNumberForAccount(nearAccountId, ctx.indexedDB.clientDB);
+      : await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
     const keyData: EncryptedKeyData = {
       nearAccountId: nearAccountId,
       deviceNumber,
