@@ -1,3 +1,5 @@
+import { DelegateAction, Signature } from './delegate';
+
 // === TRANSACTION INPUT INTERFACES ===
 
 export interface TransactionInput {
@@ -149,34 +151,24 @@ export type ActionArgs =
 export type ActionArgsWasm =
   | { action_type: ActionType.CreateAccount }
   | { action_type: ActionType.DeployContract; code: number[] }
-  | { action_type: ActionType.DeployGlobalContract; code: number[]; deploy_mode: 'CodeHash' | 'AccountId' }
   | {
-      action_type: ActionType.FunctionCall;
-      method_name: string;
-      args: string; // JSON string, not object
-      gas: string;
-      deposit: string;
-    }
+    action_type: ActionType.FunctionCall;
+    method_name: string;
+    args: string; // JSON string
+    gas: string;
+    deposit: string;
+  }
   | { action_type: ActionType.Transfer; deposit: string }
   | { action_type: ActionType.Stake; stake: string; public_key: string }
   | { action_type: ActionType.AddKey; public_key: string; access_key: string }
   | { action_type: ActionType.DeleteKey; public_key: string }
   | { action_type: ActionType.DeleteAccount; beneficiary_id: string }
   | {
-      action_type: ActionType.SignedDelegate;
-      /**
-       * Fully-typed NEP-461 delegate action payload.
-       * This mirrors near-api-js DelegateAction and is serialized to JSON
-       * for the signer worker, which converts it into an on-chain
-       * SignedDelegateAction inside the Action::Delegate variant.
-       */
-      delegate_action: import('./delegate').DelegateAction;
-      /**
-       * Ed25519 signature over the NEP-461 delegateAction hash.
-       * Mirrors near-api-js Signature and the Rust Signature struct.
-       */
-      signature: import('./delegate').Signature;
-    }
+    action_type: ActionType.SignedDelegate;
+    delegate_action: DelegateAction;
+    signature: Signature;
+  }
+  | { action_type: ActionType.DeployGlobalContract; code: number[]; deploy_mode: 'CodeHash' | 'AccountId' }
   | { action_type: ActionType.UseGlobalContract; account_id?: string; code_hash?: string }
 
 export function isActionArgsWasm(a?: any): a is ActionArgsWasm {
@@ -201,12 +193,17 @@ export function toActionArgsWasm(action: ActionArgs): ActionArgsWasm {
       };
 
     case ActionType.AddKey:
-      // Ensure access key has proper format with nonce and permission object
+      // Ensure access key has proper format with nonce and permission object.
+      // For FullAccess we emit the NEAR-style `{ FullAccess: {} }` shape to
+      // match near-api-js and RPC JSON; FunctionCall permissions are passed
+      // through as-is.
+      const rawPermission = action.accessKey.permission;
+      const permission = rawPermission === 'FullAccess'
+          ? { FullAccess: {} }
+          : rawPermission;
       const accessKey = {
         nonce: action.accessKey.nonce || 0,
-        permission: action.accessKey.permission === 'FullAccess'
-          ? { FullAccess: {} }
-          : action.accessKey.permission // For FunctionCall permissions, pass as-is
+        permission,
       };
       return {
         action_type: ActionType.AddKey,
@@ -288,6 +285,9 @@ export function validateActionArgsWasm(actionArgsWasm: ActionArgsWasm): void {
         throw new Error('deposit required for FunctionCall');
       }
       // Validate args is valid JSON string
+      if (typeof actionArgsWasm.args !== 'string') {
+        throw new Error('FunctionCall action args must be a valid JSON string');
+      }
       try {
         JSON.parse(actionArgsWasm.args);
       } catch {
@@ -321,6 +321,15 @@ export function validateActionArgsWasm(actionArgsWasm: ActionArgsWasm): void {
       }
       if (!actionArgsWasm.access_key) {
         throw new Error('access_key required for AddKey');
+      }
+      // Validate access_key is valid JSON string
+      if (typeof actionArgsWasm.access_key !== 'string') {
+        throw new Error('AddKey action access_key must be a valid JSON string');
+      }
+      try {
+        JSON.parse(actionArgsWasm.access_key);
+      } catch {
+        throw new Error('AddKey action access_key must be valid JSON string');
       }
       break;
     case ActionType.DeleteKey:
@@ -370,11 +379,11 @@ export function validateActionArgsWasm(actionArgsWasm: ActionArgsWasm): void {
 // === CONVERSIONS: WASM -> JS ACTIONS ===
 
 interface FunctionCallPermissionView {
-    FunctionCall: {
-        allowance: string;
-        receiver_id: string;
-        method_names: string[];
-    };
+  FunctionCall: {
+    allowance: string;
+    receiver_id: string;
+    method_names: string[];
+  };
 }
 
 /**
@@ -385,7 +394,11 @@ export function fromActionArgsWasm(a: ActionArgsWasm): ActionArgs {
     case ActionType.FunctionCall: {
       let parsedArgs: Record<string, any> = {};
       try {
-        parsedArgs = a.args ? JSON.parse(a.args) : {};
+        if (typeof a.args === 'string') {
+          parsedArgs = a.args ? JSON.parse(a.args) : {};
+        } else {
+          parsedArgs = a.args || {};
+        }
       } catch {
         // leave as empty object if parsing fails
         parsedArgs = {};
@@ -430,7 +443,7 @@ export function fromActionArgsWasm(a: ActionArgsWasm): ActionArgs {
         publicKey: a.public_key
       };
     case ActionType.AddKey: {
-      // access_key is a JSON string of { nonce, permission: { FullAccess: {} } | { FunctionCall: {...} } }
+      // access_key is a JSON string of { nonce, permission: ... }
       let accessKey: { nonce: bigint; permission: 'FullAccess' | FunctionCallPermissionView; }
       try {
         accessKey = JSON.parse(a.access_key);

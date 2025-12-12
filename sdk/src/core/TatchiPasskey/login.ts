@@ -104,7 +104,7 @@ export async function loginPasskey(
         const blockInfo = await context.nearClient.viewBlock({ finality: 'final' });
         const txBlockHash = blockInfo?.header?.hash;
         const txBlockHeight = String(blockInfo.header?.height ?? '');
-        const vrfChallenge = await context.webAuthnManager.generateVrfChallenge({
+        const vrfChallenge = await context.webAuthnManager.generateVrfChallengeOnce({
           userId: nearAccountId,
           rpId: context.webAuthnManager.getRpId(),
           blockHash: txBlockHash,
@@ -224,13 +224,21 @@ async function handleLoginUnlockVRF(
 
   try {
     // Step 1: Get VRF credentials and authenticators, and validate them
-    const [lastUser, authenticators] = await Promise.all([
+    const [lastUser, latestByAccount, authenticators] = await Promise.all([
       webAuthnManager.getLastUser(),
+      IndexedDBManager.clientDB.getLastDBUpdatedUser(nearAccountId),
       webAuthnManager.getAuthenticatorsByUser(nearAccountId),
     ]);
-    let userData = (lastUser && lastUser.nearAccountId === nearAccountId)
-      ? lastUser
-      : await webAuthnManager.getUserByDevice(nearAccountId, 1);
+
+    // Prefer the most recently updated record for this account; fall back to lastUser pointer.
+    let userData = null as (typeof lastUser) | null;
+    if (latestByAccount && latestByAccount.nearAccountId === nearAccountId) {
+      userData = latestByAccount;
+    } else if (lastUser && lastUser.nearAccountId === nearAccountId) {
+      userData = lastUser;
+    } else {
+      userData = await webAuthnManager.getUserByDevice(nearAccountId, 1);
+    }
 
     // Validate user data and authenticators
     if (!userData) {
@@ -483,7 +491,7 @@ export async function getRecentLogins(
   const allUsersData = await webAuthnManager.getAllUsers();
   const accountIds = allUsersData.map(user => user.nearAccountId);
   // Get last used account for initial state
-  const lastUsedAccount = await webAuthnManager.getLastUsedNearAccountId();
+  const lastUsedAccount = await webAuthnManager.getLastUser();
   return {
     accountIds,
     lastUsedAccount,

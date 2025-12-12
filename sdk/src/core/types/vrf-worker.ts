@@ -13,13 +13,11 @@ export type WasmGenerateVrfKeypairBootstrapRequest = StripFree<wasmModule.Genera
 export type WasmGenerateVrfChallengeRequest = StripFree<wasmModule.GenerateVrfChallengeRequest>;
 export type WasmUnlockVrfKeypairRequest = StripFree<wasmModule.UnlockVrfKeypairRequest>;
 export type WasmDeriveVrfKeypairFromPrfRequest = StripFree<wasmModule.DeriveVrfKeypairFromPrfRequest>;
-export type WasmDeriveWrapKeySeedAndSessionRequest = StripFree<wasmModule.DeriveWrapKeySeedAndSessionRequest> & {
-  // Optional contract verification context; when provided, VRF worker will
-  // call verify_authentication_response before deriving WrapKeySeed.
-  vrfChallenge?: VRFChallenge;
-  // Optional credential for PRF.second extraction (registration or authentication)
-  credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
-};
+export type WasmDeriveWrapKeySeedAndSessionRequest =
+  StripFree<wasmModule.DeriveWrapKeySeedAndSessionRequest> & {
+    // Optional credential for PRF.second extraction (registration or authentication)
+    credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+  };
 export type WasmDecryptSessionRequest = StripFree<wasmModule.DecryptSessionRequest>;
 export type WasmRegistrationCredentialConfirmationRequest = StripFree<wasmModule.RegistrationCredentialConfirmationRequest> & {
   confirmationConfig?: ConfirmationConfig;

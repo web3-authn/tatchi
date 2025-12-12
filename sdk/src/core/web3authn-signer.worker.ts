@@ -81,13 +81,13 @@ function sendProgressMessage(
   step: number,
   stepName: string,
   message: string,
-  data: string,
-  logs?: string
+  data: any,
+  logs?: any
 ): void {
   try {
-    // Parse structured data and logs using helper
-    const parsedData = safeJsonParse(data, {});
-    const parsedLogs = safeJsonParse(logs || '', []);
+    // Parse structured data and logs using helper if they are strings
+    const parsedData = (typeof data === 'string') ? safeJsonParse(data, {}) : (data || {});
+    const parsedLogs = (typeof logs === 'string') ? safeJsonParse(logs || '', []) : (logs || []);
 
     // Create onProgressEvents-compatible payload
     const progressPayload = {
@@ -178,10 +178,10 @@ function getFailureResponseType(requestType: WorkerRequestType): WorkerResponseT
       return WorkerResponseType.SignTransactionWithKeyPairFailure;
     case WorkerRequestType.SignNep413Message:
       return WorkerResponseType.SignNep413MessageFailure;
-    case WorkerRequestType.ExportNearKeypairUI:
-      return WorkerResponseType.ExportNearKeypairUiFailure;
     case WorkerRequestType.RegisterDevice2WithDerivedKey:
       return WorkerResponseType.RegisterDevice2WithDerivedKeyFailure;
+    case WorkerRequestType.SignDelegateAction:
+      return WorkerResponseType.SignDelegateActionFailure;
     default:
       // Fallback for unknown request types
       return WorkerResponseType.DeriveNearKeypairAndEncryptFailure;
@@ -198,12 +198,10 @@ async function processWorkerMessage(event: MessageEvent): Promise<void> {
     assertNoPrfOrVrfSecrets(event.data);
     // Initialize WASM
     await initializeWasm();
-    // Convert TypeScript message to JSON and pass to Rust
-    const messageJson = JSON.stringify(event.data);
-    // Call the Rust message handler
-    const responseJson = await handle_signer_message(messageJson);
-    // Parse response and send back to main thread
-    const response = JSON.parse(responseJson);
+    // Pass message object directly to Rust WASM (Zero-Copy)
+    // SignerWorkerMessage in Rust now supports JsValue payload via serde_wasm_bindgen
+    const response = await handle_signer_message(event.data);
+    // Response is already a JS object, send back to main thread
     self.postMessage(response);
     self.close();
   } catch (error: any) {

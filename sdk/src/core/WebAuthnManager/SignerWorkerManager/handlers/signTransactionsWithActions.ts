@@ -13,7 +13,7 @@ import { SignerWorkerManagerContext } from '..';
 import { RpcCallPayload } from '../../../types/signer-worker';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../defaultConfigs';
 import { toAccountId } from '../../../types/accountIds';
-import { getDeviceNumberForAccount } from '../getDeviceNumber';
+import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { isObject } from '../../../WalletIframe/validation';
 import { withSessionId } from './session';
 
@@ -66,7 +66,7 @@ export async function signTransactionsWithActions({
 
     // Retrieve encrypted key data from IndexedDB in main thread
     console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
-    const deviceNumber = await getDeviceNumberForAccount(nearAccountId, ctx.indexedDB.clientDB);
+    const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
     const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
 
     if (!encryptedKeyData) {
@@ -100,7 +100,7 @@ export async function signTransactionsWithActions({
     const txSigningRequests: TransactionPayload[] = transactions.map(tx => ({
       nearAccountId: rpcCall.nearAccountId,
       receiverId: tx.receiverId,
-      actions: JSON.stringify(tx.actions)
+      actions: tx.actions
     }));
 
     // Send batch signing request to WASM worker

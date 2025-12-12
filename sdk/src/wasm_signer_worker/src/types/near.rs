@@ -1,11 +1,7 @@
-// === NEAR BLOCKCHAIN TYPES ===
-// WASM-compatible structs that mirror near-primitives
-
-use crate::types::ToJson;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use serde_bytes;
 use sha2::{Digest, Sha256};
+use super::deserializers::{serde_array_32, serde_array_64};
 
 // === CORE NEAR TYPES ===
 
@@ -34,7 +30,7 @@ impl std::str::FromStr for AccountId {
 #[serde(rename_all = "camelCase")]
 pub struct PublicKey {
     pub key_type: u8, // 0 for ED25519
-    #[serde(with = "serde_bytes")]
+    #[serde(with = "serde_array_32")]
     pub key_data: [u8; 32], // Fixed: back to [u8; 32] for proper borsh serialization
 }
 
@@ -56,8 +52,8 @@ impl PublicKey {
 #[serde(rename_all = "camelCase")]
 pub struct Signature {
     pub key_type: u8, // 0 for ED25519
-    #[serde(with = "serde_bytes")]
-    pub signature_data: [u8; 64], // Fixed: back to [u8; 64] for proper borsh serialization
+    #[serde(with = "serde_array_64")]
+    pub signature_data: [u8; 64], // [u8; 64] for proper borsh serialization
 }
 
 impl Signature {
@@ -76,7 +72,7 @@ impl Signature {
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CryptoHash(#[serde(with = "serde_bytes")] pub [u8; 32]); // [u8; 32] for proper borsh serialization
+pub struct CryptoHash(#[serde(with = "serde_array_32")] pub [u8; 32]); // [u8; 32] for proper borsh serialization
 
 impl CryptoHash {
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
@@ -100,7 +96,7 @@ pub type Balance = u128;
 // non-negative number when deserializing.
 mod serde_balance_as_dec_str {
     use super::Balance;
-    use serde::{Deserialize, Deserializer, Serializer};
+    use serde::{Deserializer, Serializer};
 
     pub fn serialize<S>(value: &Balance, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -238,7 +234,6 @@ pub enum GlobalContractIdentifier {
 #[serde(rename_all = "camelCase")]
 pub struct FunctionCallAction {
     pub method_name: String,
-    #[serde(with = "serde_bytes")]
     pub args: Vec<u8>,
     pub gas: Gas,
     #[serde(with = "serde_balance_as_dec_str")]
@@ -247,10 +242,9 @@ pub struct FunctionCallAction {
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum Action {
+pub enum NearAction {
     CreateAccount,
     DeployContract {
-        #[serde(with = "serde_bytes")]
         code: Vec<u8>,
     },
     FunctionCall(Box<FunctionCallAction>),
@@ -275,7 +269,6 @@ pub enum Action {
     },
     SignedDelegate(Box<SignedDelegate>),
     DeployGlobalContract {
-        #[serde(with = "serde_bytes")]
         code: Vec<u8>,
         deploy_mode: GlobalContractDeployMode,
     },
@@ -288,14 +281,50 @@ pub enum Action {
 #[serde(rename_all = "camelCase")]
 pub struct AccessKey {
     pub nonce: Nonce,
+    #[serde(deserialize_with = "deserialize_access_key_permission_compat")]
     pub permission: AccessKeyPermission,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum AccessKeyPermission {
     FunctionCall(FunctionCallPermission),
     FullAccess,
+}
+
+// Allow only NEAR-style `{ "FullAccess": {} }` and
+// `{"FunctionCall": { ... }}` shapes for AccessKeyPermission. This
+// matches near-api-js and RPC JSON while keeping a single canonical
+// representation at the JSON boundary.
+pub(crate) fn deserialize_access_key_permission_compat<'de, D>(
+    deserializer: D,
+) -> Result<AccessKeyPermission, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    // Helper enum to capture the supported JSON shapes.
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Compat {
+        // NEAR-style unit variant map: { "FullAccess": {} }
+        FullAccessMap {
+            #[serde(rename = "FullAccess")]
+            full_access: serde::de::IgnoredAny,
+        },
+        // NEAR-style function-call map: { "FunctionCall": { ... } }
+        FunctionCallMap {
+            #[serde(rename = "FunctionCall")]
+            function_call: FunctionCallPermission,
+        },
+    }
+
+    let compat = Compat::deserialize(deserializer)?;
+
+    match compat {
+        Compat::FullAccessMap { full_access: _full_access } => Ok(AccessKeyPermission::FullAccess),
+        Compat::FunctionCallMap { function_call: fc } => {
+            Ok(AccessKeyPermission::FunctionCall(fc))
+        }
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -316,7 +345,7 @@ pub struct Transaction {
     pub nonce: Nonce,
     pub receiver_id: AccountId,
     pub block_hash: CryptoHash,
-    pub actions: Vec<Action>,
+    pub actions: Vec<NearAction>,
 }
 
 impl Transaction {
@@ -346,11 +375,6 @@ impl Transaction {
     pub fn get_block_hash(&self) -> Vec<u8> {
         self.block_hash.to_vec()
     }
-
-    pub fn get_actions_json(&self) -> Result<String, String> {
-        serde_json::to_string(&self.actions)
-            .map_err(|e| format!("Failed to serialize actions: {}", e))
-    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -379,36 +403,6 @@ impl SignedTransaction {
     }
 }
 
-// === TO_JSON IMPLEMENTATIONS ===
-// All NEAR types now use the default ToJson implementation since they have Serialize + camelCase
-// This eliminates manual camelCase conversions and reduces code duplication
-
-// Helper method to create JsonSignedTransaction with borsh bytes
-impl SignedTransaction {
-    /// Create a JSON-serializable version with optional borsh bytes
-    pub fn to_json_with_borsh(
-        &self,
-        borsh_bytes: Option<Vec<u8>>,
-    ) -> Result<serde_json::Value, String> {
-        let mut json_map = match self.to_json()? {
-            serde_json::Value::Object(map) => map,
-            _ => return Err("Expected a JSON object".to_string()),
-        };
-
-        if let Some(bytes) = borsh_bytes {
-            let json_bytes = bytes
-                .iter()
-                .map(|&b| serde_json::Value::Number(b.into()))
-                .collect();
-            json_map.insert(
-                "borshBytes".to_string(),
-                serde_json::Value::Array(json_bytes),
-            );
-        }
-        Ok(serde_json::Value::Object(json_map))
-    }
-}
-
 // === DELEGATE ACTION TYPES (NEP-461) ===
 
 #[derive(
@@ -418,17 +412,10 @@ impl SignedTransaction {
 pub struct DelegateAction {
     pub sender_id: AccountId,
     pub receiver_id: AccountId,
-    pub actions: Vec<Action>,
+    pub actions: Vec<NearAction>,
     pub nonce: Nonce,
     pub max_block_height: u64,
     pub public_key: PublicKey,
-}
-
-impl DelegateAction {
-    pub fn get_actions_json(&self) -> Result<String, String> {
-        serde_json::to_string(&self.actions)
-            .map_err(|e| format!("Failed to serialize delegate actions: {}", e))
-    }
 }
 
 #[derive(

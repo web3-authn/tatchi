@@ -10,8 +10,8 @@ This document explains how progress events drive the invisible wallet‑iframe o
 
 The wallet iframe mounts as a hidden 0×0 element in the parent document. When a signing flow reaches phases that need user activation (e.g., TouchID / WebAuthn), we temporarily expand the wallet iframe to a full‑screen, invisible overlay so the WebAuthn call occurs in the wallet document (the correct browsing context). As soon as activation completes, we hide the iframe again to avoid blocking the app.
 
-- Overlay control lives in the wallet iframe client router and its `ProgressBus`:
-  - `sdk/src/core/WalletIframe/client/progress-bus.ts`
+- Overlay control lives in the wallet iframe client router and its `OnEventsProgressBus`:
+  - `sdk/src/core/WalletIframe/client/on-events-progress-bus.ts`
   - `sdk/src/core/WalletIframe/client/router.ts`
 - Progress events are emitted by TatchiPasskey flows and the WASM worker handshake:
   - `sdk/src/core/TatchiPasskey/actions.ts`
@@ -20,33 +20,32 @@ The wallet iframe mounts as a hidden 0×0 element in the parent document. When a
 
 ## Progress → Overlay behavior
 
-The `ProgressBus` class receives typed progress payloads and applies a phase heuristic to decide when to show/hide the overlay. It also aggregates overlay visibility across concurrent requests so one flow cannot prematurely hide the overlay needed by another.
+The `OnEventsProgressBus` class receives typed progress payloads and applies a phase heuristic to decide when to show/hide the overlay. It also aggregates overlay visibility across concurrent requests so one flow cannot prematurely hide the overlay needed by another.
 
 - Show phases (need transient activation):
   - `ActionPhase.STEP_2_USER_CONFIRMATION` (non‑negotiable for requireClick)
-  - `ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION`
+  - `ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION`
   - Device linking and login/recovery phases that gather WebAuthn credentials
     (see the source for the up‑to‑date list)
-  - Source: `sdk/src/core/WalletIframe/client/progress-bus.ts`
+  - Source: `sdk/src/core/WalletIframe/client/on-events-progress-bus.ts`
 
 - Hide phases (post‑activation, non‑interactive work):
-  - `ActionPhase.STEP_5_AUTHENTICATION_COMPLETE`
-  - `ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS`
-  - `ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE`
-  - `ActionPhase.STEP_3_CONTRACT_VERIFICATION`
-  - `ActionPhase.STEP_8_BROADCASTING`
-  - `ActionPhase.STEP_9_ACTION_COMPLETE`
+  - `ActionPhase.STEP_4_AUTHENTICATION_COMPLETE`
+  - `ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS`
+  - `ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE`
+  - `ActionPhase.STEP_7_BROADCASTING`
+  - `ActionPhase.STEP_8_ACTION_COMPLETE`
   - Device linking/registration completion/error phases
-  - Source: `sdk/src/core/WalletIframe/client/progress-bus.ts`
+  - Source: `sdk/src/core/WalletIframe/client/on-events-progress-bus.ts`
 
 When the heuristic returns:
 
-- `show`: ProgressBus records a "show" demand for this `requestId` and calls overlay.show().
-- `hide`: ProgressBus records a "hide" demand; it will only call overlay.hide() when no tracked request still demands "show".
+- `show`: OnEventsProgressBus records a "show" demand for this `requestId` and calls overlay.show().
+- `hide`: OnEventsProgressBus records a "hide" demand; it will only call overlay.hide() when no tracked request still demands "show".
 
 This aggregation ensures that if two flows overlap (e.g., a background broadcast finishing while a new confirmation begins), the overlay stays visible until the last active flow no longer requires it.
 
-Router integration: when a request completes or times out, the router will only hide the overlay if the request wasn’t sticky and `ProgressBus.wantsVisible()` is false (no remaining show demands).
+Router integration: when a request completes or times out, the router will only hide the overlay if the request wasn’t sticky and `OnEventsProgressBus.wantsVisible()` is false (no remaining show demands).
 
 Key points:
 
@@ -86,7 +85,7 @@ The overlay must not close while any request still needs user activation. Progre
 
 API surface:
 
-- `ProgressBus.wantsVisible(): boolean` — returns true if any in‑flight request currently demands `show`. The router uses this to avoid premature hides.
+- `OnEventsProgressBus.wantsVisible(): boolean` — returns true if any in‑flight request currently demands `show`. The router uses this to avoid premature hides.
 
 
 ## Iframe permissions policy
@@ -128,7 +127,7 @@ Notes:
 Even when you call `passkeyManager.executeAction(...)` directly from your app (not from a Lit component), the flow still meets activation without an extra modal click by combining:
 
 1) Overlay activation at the right phases
-   - On `STEP_2_USER_CONFIRMATION` and `STEP_4_WEBAUTHN_AUTHENTICATION`, the `ProgressBus` instructs the router to expand the wallet iframe overlay, so the credential call happens in the wallet document.
+   - On `STEP_2_USER_CONFIRMATION` and `STEP_3_WEBAUTHN_AUTHENTICATION`, the `ProgressBus` instructs the router to expand the wallet iframe overlay, so the credential call happens in the wallet document.
 
 2) Default confirmation config: “modal + autoProceed”
    - `DEFAULT_CONFIRMATION_CONFIG` is `uiMode: 'modal', behavior: 'autoProceed', autoProceedDelay: 0`.
@@ -153,7 +152,7 @@ No additional modal click is required for signing.
 Before merging changes to the progress bus or overlay logic, verify:
 
 - Show list includes `user-confirmation` and `webauthn-authentication`.
-- Hide list includes `authentication-complete`, `transaction-signing-progress`, `transaction-signing-complete`, `contract-verification`, `broadcasting`, `action-complete`, and error/complete phases for login/registration/linking/recovery.
+- Hide list includes `authentication-complete`, `transaction-signing-progress`, `transaction-signing-complete`, `broadcasting`, `action-complete`, and error/complete phases for login/registration/linking/recovery.
 - In iframe mode, a manual test with `setConfirmBehavior('requireClick')` shows the modal and allows clicking Confirm.
 - In autoProceed mode, modal appears briefly with loading then proceeds without extra clicks.
 
@@ -174,7 +173,7 @@ Before merging changes to the progress bus or overlay logic, verify:
   - `tatchi.prefetchBlockheight()` → caches/refreshes block height/hash/nonce ahead of time.
   - Sources: `sdk/src/core/TatchiPasskey/index.ts` and `sdk/src/core/nonceManager.ts`.
 
-- Overlay is intentionally invisible but intercepts clicks while active. Keep the overlay up for the minimum time by limiting “show” to the phases that truly need activation (as implemented in `progress-bus.ts`).
+- Overlay is intentionally invisible but intercepts clicks while active. Keep the overlay up for the minimum time by limiting “show” to the phases that truly need activation (as implemented in `on-events-progress-bus.ts`).
 
 
 ## Rough timeline: direct `executeAction`
@@ -183,7 +182,7 @@ Before merging changes to the progress bus or overlay logic, verify:
 2) SDK emits `STEP_2_USER_CONFIRMATION` → overlay expands.
 3) Wallet host mounts modal (auto‑proceed) and prepares the VRF challenge + tx context.
 4) WebAuthn prompt (`navigator.credentials.get`) runs in the wallet document.
-5) `STEP_5_AUTHENTICATION_COMPLETE` → overlay hides; signing continues.
+5) `STEP_4_AUTHENTICATION_COMPLETE` → overlay hides; signing continues.
 6) Transaction is signed and broadcast; final progress events emitted; modal closed.
 
 This is how we preserve “no popups,” satisfy WebAuthn activation, and avoid extra clicks for signing flows by default.

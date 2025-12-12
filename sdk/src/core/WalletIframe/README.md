@@ -38,7 +38,7 @@ When you call methods like `registerPasskey()` or `signTransaction()`, the reque
   - Handles the CONNECT → READY handshake using MessageChannel
   - Manages iframe permissions and security attributes
   - Waits for iframe load events to avoid race conditions
-- **`client/progress-bus.ts`** - Manages the overlay visibility based on operation phases:
+- **`client/on-events-progress-bus.ts`** - Manages the overlay visibility based on operation phases:
   - Shows overlay during WebAuthn authentication phases
   - Hides overlay during non-interactive phases (signing, broadcasting)
   - Uses heuristics to minimize blocking time
@@ -179,11 +179,11 @@ The wallet iframe mounts as an invisible 0×0 element and temporarily expands to
   - The router calls `hideFrameForActivation()` when a request finishes (success or error) unless the flow is marked sticky (UI-managed lifecycle).
 
 - When the overlay shows/hides automatically (heuristics):
-  - `passkey-sdk/src/core/WalletIframe/client/progress-bus.ts` implements `defaultPhaseHeuristics`, which inspects `payload.phase` values emitted by the host.
+- `passkey-sdk/src/core/WalletIframe/client/on-events-progress-bus.ts` implements `defaultPhaseHeuristics`, which inspects `payload.phase` values emitted by the host.
   - Behavior (tuned to minimize blocking time):
     - Show for phases that require immediate user activation: `user-confirmation`, `webauthn-authentication`, registration `webauthn-verification`, device-linking `authorization`, device-linking `registration`, account-recovery `webauthn-authentication`, and login `webauthn-assertion`.
       - Important: `user-confirmation` must remain in the show list so the modal rendered inside the wallet iframe is visible and can capture a click when `behavior: 'requireClick'`.
-    - Hide for post-activation phases such as `authentication-complete`, `transaction-signing-progress`, `transaction-signing-complete`, `contract-verification`, `broadcasting`, `action-complete`, plus the completion/error phases for registration, login, device linking, and account recovery.
+    - Hide for post-activation phases such as `authentication-complete`, `transaction-signing-progress`, `transaction-signing-complete`, `broadcasting`, `action-complete`, plus the completion/error phases for registration, login, device linking, and account recovery.
 
 ### Why the overlay may block clicks after sending
 
@@ -192,7 +192,7 @@ With the tuned heuristics, the overlay contracts immediately after TouchID compl
 ### Options to adjust behavior
 
 - Tweak heuristics to hide sooner:
-  - The repo now hides on phases that indicate TouchID is done (e.g., `authentication-complete`) and when moving to non-interactive phases. Adjust further in `passkey-sdk/src/core/WalletIframe/progress-bus.ts:101` if needed.
+- The repo now hides on phases that indicate TouchID is done (e.g., `authentication-complete`) and when moving to non-interactive phases. Adjust further in `passkey-sdk/src/core/WalletIframe/on-events-progress-bus.ts:101` if needed.
 
 - Emit a “completion” phase from the host:
   - Update host flows to post a PROGRESS with `phase: 'user-confirmation-complete'` as soon as WebAuthn finishes. The existing heuristic will then hide without further code changes.

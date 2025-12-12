@@ -53,8 +53,6 @@ pub(crate) fn derive_kek_from_wrap_key_seed(
     Ok(kek)
 }
 
-// === UTILITY FUNCTIONS ===
-
 // === CHACHA20POLY1305 ENCRYPTION/DECRYPTION ===
 
 /// Encrypt data using ChaCha20Poly1305

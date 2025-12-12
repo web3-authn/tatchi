@@ -254,7 +254,7 @@ export async function registerPasskeyInternal(
       const blockInfo = await context.nearClient.viewBlock({ finality: 'final' });
       const txBlockHash = blockInfo?.header?.hash;
       const txBlockHeight = String(blockInfo.header?.height ?? '');
-      const vrfChallenge2 = await webAuthnManager.generateVrfChallenge({
+      const vrfChallenge2 = await webAuthnManager.generateVrfChallengeOnce({
         userId: nearAccountId,
         rpId: webAuthnManager.getRpId(),
         blockHash: txBlockHash,

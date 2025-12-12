@@ -2,7 +2,7 @@ import { ActionType, toActionArgsWasm } from '../types/actions';
 import type {
   SendTransactionHooksOptions,
   SignTransactionHooksOptions,
-  VerifyAndSignTransactionResult,
+  SignTransactionResult,
   ActionHooksOptions,
   ActionResult,
   SignAndSendTransactionHooksOptions,
@@ -60,7 +60,7 @@ async function sendTransactionsParallelStaggered({
   staggerMs,
 }: {
   context: PasskeyManagerContext,
-  signedTxs: VerifyAndSignTransactionResult[],
+  signedTxs: SignTransactionResult[],
   options?: SignAndSendTransactionHooksOptions,
   staggerMs: number,
 }): Promise<ActionResult[]> {
@@ -146,7 +146,7 @@ export async function signTransactionsWithActions(args: {
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
   options?: SignTransactionHooksOptions,
-}): Promise<VerifyAndSignTransactionResult[]> {
+}): Promise<SignTransactionResult[]> {
   try {
     return signTransactionsWithActionsInternal({
       context: args.context,
@@ -210,8 +210,8 @@ export async function sendTransaction({
 }): Promise<ActionResult> {
 
   options?.onEvent?.({
-    step: 8,
-    phase: ActionPhase.STEP_8_BROADCASTING,
+    step: 7,
+    phase: ActionPhase.STEP_7_BROADCASTING,
     status: ActionStatus.PROGRESS,
     message: `Broadcasting transaction...`
   });
@@ -252,14 +252,14 @@ export async function sendTransaction({
     });
 
     options?.onEvent?.({
-      step: 8,
-      phase: ActionPhase.STEP_8_BROADCASTING,
+      step: 7,
+      phase: ActionPhase.STEP_7_BROADCASTING,
       status: ActionStatus.SUCCESS,
       message: `Transaction ${txId} sent successfully`
     });
     options?.onEvent?.({
-      step: 9,
-      phase: ActionPhase.STEP_9_ACTION_COMPLETE,
+      step: 8,
+      phase: ActionPhase.STEP_8_ACTION_COMPLETE,
       status: ActionStatus.SUCCESS,
       message: `Transaction ${txId} completed `
     });
@@ -458,7 +458,7 @@ export async function signTransactionsWithActionsInternal({
   transactionInputs: TransactionInput[],
   options?: Omit<ActionHooksOptions, 'afterCall'>,
   confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
-}): Promise<VerifyAndSignTransactionResult[]> {
+}): Promise<SignTransactionResult[]> {
 
   const { onEvent, onError, waitUntil } = options || {};
 
@@ -552,7 +552,7 @@ async function wasmAuthenticateAndSignTransactions(
   transactionInputs: TransactionInput[],
   options?: Omit<ActionHooksOptions, 'afterCall'> & { confirmationConfigOverride?: Partial<ConfirmationConfig> }
   // Per-call override for confirmation behavior (does not persist to IndexedDB)
-): Promise<VerifyAndSignTransactionResult[]> {
+): Promise<SignTransactionResult[]> {
 
   const { onEvent, onError, confirmationConfigOverride } = options || {};
   const { webAuthnManager } = context;
@@ -587,34 +587,34 @@ async function wasmAuthenticateAndSignTransactions(
     confirmationConfigOverride: confirmationConfigOverride,
     // Pass through the onEvent callback for progress updates
     onEvent: onEvent ? (progressEvent: onProgressEvents) => {
-      if (progressEvent.phase === ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION) {
+      if (progressEvent.phase === ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION) {
         onEvent?.({
-          step: 4,
-          phase: ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION,
+          step: 3,
+          phase: ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION,
           status: ActionStatus.PROGRESS,
           message: 'Authenticating with contract...',
         });
       }
-      if (progressEvent.phase === ActionPhase.STEP_5_AUTHENTICATION_COMPLETE) {
+      if (progressEvent.phase === ActionPhase.STEP_4_AUTHENTICATION_COMPLETE) {
         onEvent?.({
-          step: 5,
-          phase: ActionPhase.STEP_5_AUTHENTICATION_COMPLETE,
+          step: 4,
+          phase: ActionPhase.STEP_4_AUTHENTICATION_COMPLETE,
           status: ActionStatus.SUCCESS,
           message: 'WebAuthn verification complete',
         });
       }
-      if (progressEvent.phase === ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS) {
+      if (progressEvent.phase === ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS) {
         onEvent?.({
-          step: 6,
-          phase: ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS,
+          step: 5,
+          phase: ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS,
           status: ActionStatus.PROGRESS,
           message: 'Signing transaction...',
         });
       }
-      if (progressEvent.phase === ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE) {
+      if (progressEvent.phase === ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE) {
         onEvent?.({
-          step: 7,
-          phase: ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE,
+          step: 6,
+          phase: ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE,
           status: ActionStatus.SUCCESS,
           message: 'Transaction signed successfully',
         });

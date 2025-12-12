@@ -19,6 +19,8 @@ use crate::shamir3pass::Shamir3Pass;
 use crate::types::*;
 use crate::types::{EncryptedVrfKeypairResponse, GenerateVrfKeypairBootstrapResponse};
 use crate::utils::{base64_url_decode, base64_url_encode, parse_block_height};
+use serde::Serialize;
+use std::collections::HashMap;
 
 // === SECURE VRF KEYPAIR WRAPPER ===
 
@@ -49,11 +51,20 @@ pub struct VRFKeyManager {
     pub vrf_keypair: Option<SecureVRFKeyPair>,
     pub session_active: bool,
     pub session_start_time: f64,
+    /// Per-session cache of VRF challenges used for contract verification.
+    pub vrf_challenges: HashMap<String, VRFChallengeData>,
     // Shamir 3-pass configs
     pub shamir3pass: Shamir3Pass,
     pub relay_server_url: Option<String>,
     pub apply_lock_route: Option<String>,
     pub remove_lock_route: Option<String>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct VrfStatus {
+    pub active: bool,
+    pub session_duration: f64,
 }
 
 impl VRFKeyManager {
@@ -79,6 +90,7 @@ impl VRFKeyManager {
 
         Self {
             vrf_keypair: None,
+            vrf_challenges: HashMap::new(),
             session_active: false,
             session_start_time: 0.0,
             shamir3pass,
@@ -96,6 +108,23 @@ impl VRFKeyManager {
     /// Get a mutable reference to the Shamir3Pass instance
     pub fn shamir3pass_mut(&mut self) -> &mut Shamir3Pass {
         &mut self.shamir3pass
+    }
+
+    /// Cache a VRF challenge for a given session.
+    pub fn set_challenge(&mut self, session_id: &str, challenge: VRFChallengeData) {
+        self.vrf_challenges
+            .insert(session_id.to_string(), challenge);
+    }
+
+    /// Retrieve a cached VRF challenge for a given session.
+    /// Returns a cloned value to avoid borrowing issues across async boundaries.
+    pub fn get_challenge(&self, session_id: &str) -> Option<VRFChallengeData> {
+        self.vrf_challenges.get(session_id).cloned()
+    }
+
+    /// Clear any cached VRF challenge for the given session.
+    pub fn clear_challenge(&mut self, session_id: &str) {
+        self.vrf_challenges.remove(session_id);
     }
 
     /// Get secret key bytes for the current VRF keypair (error if not unlocked)
@@ -306,22 +335,27 @@ impl VRFKeyManager {
         Ok(result)
     }
 
-    pub fn get_vrf_status(&self) -> serde_json::Value {
+    pub fn get_vrf_status(&self) -> VrfStatus {
         let session_duration = if self.session_active {
             Date::now() - self.session_start_time
         } else {
             0.0
         };
-        serde_json::json!({
-            "active": self.session_active,
-            "sessionDuration": session_duration
-        })
+        VrfStatus {
+            active: self.session_active,
+            session_duration,
+        }
     }
 
     pub fn logout(&mut self) -> VrfResult<()> {
         // Clear VRF keypair (automatic zeroization via ZeroizeOnDrop)
         if self.vrf_keypair.take().is_some() {
             debug!("VRF keypair cleared with zeroization");
+        }
+        // Clear any cached challenges to avoid cross-session reuse
+        if !self.vrf_challenges.is_empty() {
+            self.vrf_challenges.clear();
+            debug!("Cleared cached VRF challenges on logout");
         }
         // Clear session data
         self.session_active = false;

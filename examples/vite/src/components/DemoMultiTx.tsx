@@ -146,7 +146,7 @@ export const DemoMultiTx: React.FC = () => {
               case ActionPhase.STEP_1_PREPARATION:
                 toast.loading('Processing transaction...', { id: 'combinedTx' });
                 break;
-              case ActionPhase.STEP_9_ACTION_COMPLETE:
+              case ActionPhase.STEP_8_ACTION_COMPLETE:
                 toast.success('Transaction completed successfully!', { id: 'combinedTx' });
                 break;
               case ActionPhase.ACTION_ERROR:

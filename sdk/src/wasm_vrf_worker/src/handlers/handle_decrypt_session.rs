@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use serde_wasm_bindgen;
 
 #[wasm_bindgen]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -41,13 +42,32 @@ pub async fn handle_decrypt_session(
     // Build SecureConfirmRequest JSON payload in JS (main thread) rather than Rust.
     // Here we rely on a small JS shim attached to awaitSecureConfirmationV2 that
     // accepts a JSON string and builds the correct request shape.
-    let request_json = match serde_json::to_string(&serde_json::json!({
-        "sessionId": session_id,
-        "nearAccountId": near_account_id,
-        "type": "decryptPrivateKeyWithPrf"
-    })) {
-        Ok(s) => s,
+    #[derive(Serialize)]
+    #[allow(non_snake_case)]
+    struct DecryptConfirmRequest<'a> {
+        sessionId: &'a str,
+        nearAccountId: &'a str,
+        #[serde(rename = "type")]
+        kind: &'static str,
+    }
+
+    let req = DecryptConfirmRequest {
+        sessionId: &session_id,
+        nearAccountId: &near_account_id,
+        kind: "decryptPrivateKeyWithPrf",
+    };
+
+    let request_js = match serde_wasm_bindgen::to_value(&req) {
+        Ok(v) => v,
         Err(e) => return VrfWorkerResponse::fail(message_id, e.to_string()),
+    };
+
+    let request_json = match js_sys::JSON::stringify(&request_js) {
+        Ok(s) => match s.as_string() {
+            Some(str) => str,
+            None => return VrfWorkerResponse::fail(message_id, "Failed to stringify decrypt request".to_string()),
+        },
+        Err(e) => return VrfWorkerResponse::fail(message_id, format!("Failed to stringify decrypt request: {:?}", e)),
     };
 
     let decision: WorkerConfirmationResponse = match vrf_await_secure_confirmation(request_json).await
@@ -85,8 +105,7 @@ pub async fn handle_decrypt_session(
             wrap_key_salt_b64u,
             contract_id: None,
             near_rpc_url: None,
-            vrf_challenge: None,
-            credential: None,
+            credential: wasm_bindgen::JsValue::UNDEFINED,
         },
     )
     .await;
@@ -97,6 +116,9 @@ pub async fn handle_decrypt_session(
 
     VrfWorkerResponse::success(
         message_id,
-        Some(serde_json::to_value(DecryptSessionResult { session_id }).unwrap()),
+        Some(
+            serde_wasm_bindgen::to_value(&DecryptSessionResult { session_id })
+                .unwrap_or(wasm_bindgen::JsValue::UNDEFINED),
+        ),
     )
 }

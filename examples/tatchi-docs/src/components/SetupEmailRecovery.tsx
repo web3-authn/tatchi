@@ -9,6 +9,8 @@ import { LoadingButton } from './LoadingButton';
 import EmailRecoveryFields from './EmailRecoveryFields';
 import { NEAR_EXPLORER_BASE_URL } from '../types';
 
+const POLLING_TOAST_ID = 'email-recovery-polling';
+
 export const SetupEmailRecovery: React.FC = () => {
   const {
     loginState: { isLoggedIn, nearAccountId },
@@ -311,19 +313,49 @@ export const SetupEmailRecovery: React.FC = () => {
     }
   };
 
-  const handleFinalizeEmailRecoveryFlow = async (opts?: { suppressToast?: boolean }) => {
+  const handleFinalizeEmailRecoveryFlow = async () => {
     if (!tatchi || !nearAccountId) return;
     if (!ensureTestnet()) return;
 
-    const toastId = 'email-recovery-finalize';
     setIsBusy(true);
     setPollingElapsedMs(null);
 
-    try {
-      if (!opts?.suppressToast) {
-        toast.loading('Waiting for recovery email and finalizing…', { id: toastId });
+    let completedViaEvent = false;
+    let erroredViaEvent = false;
+
+    const emitFailureToast = (rawMessage?: string) => {
+      erroredViaEvent = true;
+      const message = rawMessage || 'Failed to finalize email recovery';
+      toast.error(message, { id: POLLING_TOAST_ID });
+      setRecoveryStatus(message);
+      setPollingElapsedMs(null);
+    };
+
+    const emitPollingToast = (ev: any) => {
+      const data = (ev as any)?.data || {};
+      const elapsedRaw = data?.elapsedMs ?? data?.elapsed_ms;
+      const elapsed = elapsedRaw == null ? Number.NaN : Number(elapsedRaw);
+      if (!Number.isNaN(elapsed)) setPollingElapsedMs(elapsed);
+      const requestId = data?.requestId || data?.request_id;
+      const pollCount = Number(data?.pollCount ?? data?.poll_count ?? NaN);
+
+      const descriptionParts: string[] = [];
+      if (requestId) descriptionParts.push(`request_id ${requestId}`);
+      if (!Number.isNaN(pollCount) && pollCount > 0) descriptionParts.push(`poll #${pollCount}`);
+      if (!Number.isNaN(elapsed) && elapsed > 0) {
+        descriptionParts.push(`~${Math.round(elapsed / 1000)}s elapsed`);
       }
 
+      toast.loading(ev?.message || 'Waiting for recovery email verification…', {
+        id: POLLING_TOAST_ID,
+        description: descriptionParts.join(' · ') || undefined,
+      });
+    };
+
+    // Show an immediate toast so users see the polling start without waiting for the first event.
+    toast.loading('Waiting for recovery email verification…', { id: POLLING_TOAST_ID });
+
+    try {
       await tatchi.finalizeEmailRecovery({
         accountId: nearAccountId,
         nearPublicKey: pendingEmailRecoveryKey || undefined,
@@ -332,16 +364,31 @@ export const SetupEmailRecovery: React.FC = () => {
             // eslint-disable-next-line no-console
             console.debug('[EmailRecovery][finalize] event', ev);
             setRecoveryStatus(ev?.message || null);
-            if (ev?.phase === 'email-recovery-polling-add-key') {
-              const elapsed = Number((ev as any)?.data?.elapsedMs || 0);
-              if (!Number.isNaN(elapsed)) setPollingElapsedMs(elapsed);
+
+            if (
+              ev?.phase === 'email-recovery-polling-add-key' ||
+              ev?.phase === 'email-recovery-polling-verification-result'
+            ) {
+              emitPollingToast(ev);
+              return;
             }
+
+            if (ev?.phase === 'email-recovery-finalizing-registration') {
+              toast.loading('Recovery email verified. Finalizing on-chain…', { id: POLLING_TOAST_ID });
+              setPollingElapsedMs(null);
+              return;
+            }
+
             if (ev?.phase === 'email-recovery-complete') {
+              completedViaEvent = true;
+              toast.success('Email recovery completed on this device.', { id: POLLING_TOAST_ID });
               setPendingMailtoUrl(null);
               setPendingEmailRecoveryKey(null);
               setPollingElapsedMs(null);
+              return;
             }
-            if (ev?.phase === 'email-recovery-error') {
+
+            if (ev?.phase === 'email-recovery-error' || ev?.status === 'error') {
               const raw =
                 (ev as any)?.error ||
                 ev?.message ||
@@ -352,35 +399,32 @@ export const SetupEmailRecovery: React.FC = () => {
               const friendlyMessage = isTimeout
                 ? 'We did not see your recovery email processed on-chain before the timeout. Please check the subject (including request_id) and try again.'
                 : `Recovery email verification failed: ${raw}`;
-              toast.error(friendlyMessage);
+              toast.error(friendlyMessage, { id: POLLING_TOAST_ID });
               setRecoveryStatus(friendlyMessage);
+              setPollingElapsedMs(null);
+              erroredViaEvent = true;
             }
           },
           onError: (err: Error) => {
             // eslint-disable-next-line no-console
             console.error('[EmailRecovery][finalize] error', err);
-            const message = err?.message || 'Failed to finalize email recovery';
-            toast.error(message);
-            setRecoveryStatus(message);
+            emitFailureToast(err?.message);
           },
           afterCall: async () => {},
         } as any,
       });
 
-      if (!opts?.suppressToast) {
-        toast.dismiss(toastId);
-        toast.success('Email recovery completed on this device.');
+      if (!completedViaEvent) {
+        toast.success('Email recovery completed on this device.', { id: POLLING_TOAST_ID });
+        setPendingEmailRecoveryKey(null);
+        setPendingMailtoUrl(null);
+        setPollingElapsedMs(null);
+        setRecoveryStatus('Email recovery completed on this device.');
       }
-      setPendingEmailRecoveryKey(null);
-      setPendingMailtoUrl(null);
-      setRecoveryStatus('Email recovery completed on this device.');
     } catch (error: any) {
-      if (!opts?.suppressToast) {
-        toast.dismiss(toastId);
+      if (!erroredViaEvent) {
+        emitFailureToast(error?.message);
       }
-      const message = error?.message || 'Failed to finalize email recovery';
-      toast.error(message);
-      setRecoveryStatus(message);
     } finally {
       setIsBusy(false);
     }
@@ -395,7 +439,7 @@ export const SetupEmailRecovery: React.FC = () => {
       setAutoResuming(true);
       setRecoveryStatus('Checking for pending email recovery…');
       try {
-        await handleFinalizeEmailRecoveryFlow({ suppressToast: true });
+        await handleFinalizeEmailRecoveryFlow();
       } catch {
         if (!cancelled) {
           setRecoveryStatus(null);
@@ -413,6 +457,9 @@ export const SetupEmailRecovery: React.FC = () => {
   }, [tatchi, nearAccountId, pendingEmailRecoveryKey]);
 
   const handleResetRecovery = () => {
+    try {
+      toast.dismiss(POLLING_TOAST_ID);
+    } catch {}
     setPendingEmailRecoveryKey(null);
     setPendingMailtoUrl(null);
     setPollingElapsedMs(null);
@@ -570,7 +617,7 @@ export const SetupEmailRecovery: React.FC = () => {
             Status: {recoveryStatus}
             {pollingElapsedMs != null && (
               <span style={{ marginLeft: 6, opacity: 0.75 }}>
-                (waiting {Math.round(pollingElapsedMs / 1000)}s for on-chain add-key)
+                (waiting {Math.round(pollingElapsedMs / 1000)}s for verification result)
               </span>
             )}
           </div>

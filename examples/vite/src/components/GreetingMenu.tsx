@@ -57,20 +57,20 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = () => {
             case ActionPhase.STEP_1_PREPARATION:
               toast.loading(event.message, { id: 'action' });
               break;
-            case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
+            case ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION:
               toast.loading(event.message, { id: 'action' });
               break;
-            case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
+            case ActionPhase.STEP_4_AUTHENTICATION_COMPLETE:
               toast.loading(event.message, { id: 'action' });
               break;
-            case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
-            case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
+            case ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS:
+            case ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE:
               toast.loading(event.message, { id: 'action' });
               break;
-            case ActionPhase.STEP_8_BROADCASTING:
+            case ActionPhase.STEP_7_BROADCASTING:
               toast.success(event.message, { id: 'action' });
               break;
-            case ActionPhase.STEP_9_ACTION_COMPLETE:
+            case ActionPhase.STEP_8_ACTION_COMPLETE:
               toast.success(event.message, { id: 'action' });
               break;
             case ActionPhase.ACTION_ERROR || ActionPhase.WASM_ERROR:

@@ -378,6 +378,31 @@ export class PasskeyClientDBManager {
     return rec as ClientUserData || null;
   }
 
+  /**
+   * Get the most recently updated user record for a given account.
+   * Useful when deviceNumber is unknown but we need the freshest key for the account.
+   */
+  /**
+   * Get the most recently updated user record for a given account.
+   * Useful when deviceNumber is unknown but we need the freshest key for the account.
+   */
+  async getLastDBUpdatedUser(nearAccountId: AccountId): Promise<ClientUserData | null> {
+    const db = await this.getDB();
+    try {
+      const idx = db.transaction(DB_CONFIG.userStore).store.index('nearAccountId');
+      const all = await idx.getAll(toAccountId(nearAccountId));
+      if (Array.isArray(all) && all.length > 0) {
+        const latest = (all as ClientUserData[]).reduce((a, b) =>
+          (a.lastUpdated ?? 0) >= (b.lastUpdated ?? 0) ? a : b
+        );
+        return latest;
+      }
+    } catch {
+      // fall through
+    }
+    return null;
+  }
+
   async hasPasskeyCredential(nearAccountId: AccountId): Promise<boolean> {
     const authenticators = await this.getAuthenticatorsByUser(nearAccountId);
     return !!authenticators[0]?.credentialId;

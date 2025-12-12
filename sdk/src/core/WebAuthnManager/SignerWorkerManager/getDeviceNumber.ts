@@ -1,24 +1,19 @@
-import { PasskeyClientDBManager } from '@/core/IndexedDBManager';
-import type { AccountId } from '../../types/accountIds';
-import { toAccountId } from '../../types/accountIds';
+import type { PasskeyClientDBManager } from '@/core/IndexedDBManager';
+import { toAccountId, type AccountId } from '../../types/accountIds';
 
 /**
- * Returns the deviceNumber for the given account, preferring the last user entry
- * when it matches the account, otherwise falling back to the stored user record.
- * Defaults to 1 if not found.
+ * Return the deviceNumber for the last logged-in user for the given account.
+ * This uses the app-state "last user" pointer only; if it does not match the
+ * requested account, an error is thrown instead of silently falling back.
  */
-export async function getDeviceNumberForAccount(
+export async function getLastLoggedInDeviceNumber(
   nearAccountId: AccountId | string,
   clientDB: PasskeyClientDBManager
 ): Promise<number> {
-  let deviceNumber = 1;
   const accountId = toAccountId(nearAccountId);
   const last = await clientDB.getLastUser();
-  if (last && last.nearAccountId === accountId) {
-    deviceNumber = last.deviceNumber || 1;
-  } else {
-    const userData = await clientDB.getUserByDevice(accountId, 1);
-    deviceNumber = userData?.deviceNumber ?? 1;
+  if (last && last.nearAccountId === accountId && typeof last.deviceNumber === 'number') {
+    return last.deviceNumber;
   }
-  return deviceNumber;
+  throw new Error(`No last user session for account ${accountId}`);
 }

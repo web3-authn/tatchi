@@ -26,7 +26,7 @@ import { AccountId } from "../../types/accountIds";
 import { ConfirmationConfig, WasmSignedDelegate, isDecryptPrivateKeyWithPrfSuccess } from '../../types/signer-worker';
 import { toAccountId } from '../../types/accountIds';
 import { SecureConfirmationType } from '../VrfWorkerManager/confirmTxFlow/types';
-import { getDeviceNumberForAccount } from './getDeviceNumber';
+import { getLastLoggedInDeviceNumber } from './getDeviceNumber';
 import { isObject } from '../../WalletIframe/validation';
 import { runSecureConfirm } from '../VrfWorkerManager/secureConfirmBridge';
 
@@ -702,7 +702,7 @@ export class SignerWorkerManager {
     const sessionId = args.sessionId;
 
     // Gather encrypted key + IV and public key from IndexedDB
-    const deviceNumber = await getDeviceNumberForAccount(accountId, ctx.indexedDB.clientDB);
+    const deviceNumber = await getLastLoggedInDeviceNumber(accountId, ctx.indexedDB.clientDB);
     const [keyData, user] = await Promise.all([
       ctx.indexedDB.nearKeysDB.getEncryptedKey(accountId, deviceNumber),
       ctx.indexedDB.clientDB.getUserByDevice(accountId, deviceNumber),
@@ -713,7 +713,7 @@ export class SignerWorkerManager {
     }
 
     // Decrypt inside signer worker using the reserved session
-    const response = await (ctx as any).sendMessage({
+    const response = await ctx.sendMessage({
       message: {
         type: WorkerRequestType.DecryptPrivateKeyWithPrf,
         payload: withSessionId({
@@ -727,7 +727,7 @@ export class SignerWorkerManager {
 
     if (!isDecryptPrivateKeyWithPrfSuccess(response)) {
       console.error('WebAuthnManager: Export decrypt failed:', response);
-      const payloadError = isObject(response?.payload) && (response as any)?.payload?.error;
+      const payloadError = isObject(response?.payload) && response?.payload?.error;
       const msg = String(payloadError || 'Export decrypt failed');
       // Treat AEAD/KEK mismatches as effectively "missing" local key material so
       // callers (including offline-export) can trigger recovery and rewrite the vault.

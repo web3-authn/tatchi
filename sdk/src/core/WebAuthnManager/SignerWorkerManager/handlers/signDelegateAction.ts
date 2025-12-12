@@ -12,7 +12,7 @@ import {
   WasmSignedDelegate,
 } from '../../../types/signer-worker';
 import { SignerWorkerManagerContext } from '..';
-import { getDeviceNumberForAccount } from '../getDeviceNumber';
+import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { withSessionId } from './session';
 import { base58Encode } from '../../../../utils/base58';
 
@@ -50,17 +50,6 @@ export async function signDelegateAction({
     : `delegate-session-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
   const nearAccountId = rpcCall.nearAccountId || delegate.senderId;
-  try {
-    // eslint-disable-next-line no-console
-    console.debug('[SignerWorkerManager][delegate] start', {
-      sessionId,
-      nearAccountId,
-      receiverId: delegate.receiverId,
-      actions: delegate.actions?.length ?? 0,
-      nonce: delegate.nonce,
-      maxBlockHeight: delegate.maxBlockHeight,
-    });
-  } catch {}
   const resolvedRpcCall = {
     contractId: rpcCall.contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
     nearRpcUrl: rpcCall.nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl),
@@ -78,20 +67,11 @@ export async function signDelegateAction({
   });
 
   // Retrieve encrypted key data from IndexedDB in main thread
-  const deviceNumber = await getDeviceNumberForAccount(nearAccountId, ctx.indexedDB.clientDB);
+  const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
   const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
   if (!encryptedKeyData) {
     throw new Error(`No encrypted key found for account: ${nearAccountId}`);
   }
-  try {
-    // eslint-disable-next-line no-console
-    console.debug('[SignerWorkerManager][delegate] vault loaded', {
-      sessionId,
-      deviceNumber,
-      hasWrapKeySalt: Boolean((encryptedKeyData as any)?.wrapKeySalt),
-    });
-  } catch {}
-
   if (!ctx.vrfWorkerManager) {
     throw new Error('VrfWorkerManager not available for delegate signing');
   }
@@ -112,14 +92,6 @@ export async function signDelegateAction({
     rpcCall: resolvedRpcCall,
     confirmationConfigOverride,
   });
-  try {
-    // eslint-disable-next-line no-console
-    console.debug('[SignerWorkerManager][delegate] confirmation ok', {
-      sessionId,
-      intentDigest: confirmation.intentDigest,
-      txBlockHeight: confirmation.transactionContext?.txBlockHeight,
-    });
-  } catch {}
 
   const response = await ctx.sendMessage({
     message: {
@@ -134,7 +106,7 @@ export async function signDelegateAction({
         delegate: {
           senderId: delegate.senderId || nearAccountId,
           receiverId: delegate.receiverId,
-          actions: JSON.stringify(actionsWasm),
+          actions: actionsWasm,
           nonce: delegate.nonce.toString(),
           maxBlockHeight: delegate.maxBlockHeight.toString(),
           publicKey: toPublicKeyString(delegate.publicKey),
@@ -147,23 +119,24 @@ export async function signDelegateAction({
     onEvent,
     sessionId,
   });
-  try {
-    // eslint-disable-next-line no-console
-    console.debug('[SignerWorkerManager][delegate] signer response', {
-      sessionId,
-      type: (response as any)?.type,
-      success: (response as any)?.payload?.success,
-      error: (response as any)?.payload?.error,
-    });
-  } catch {}
+
+  // Debug logging of raw worker response to trace delegate failures.
+  // This helps correlate Rust-side logs (DelegateSignResult.logs / error)
+  // with the TypeScript path when delegate signing fails.
+  // eslint-disable-next-line no-console
+  console.debug('[WebAuthnManager][delegate] raw worker response', response);
 
   if (!isSignDelegateActionSuccess(response)) {
+    // eslint-disable-next-line no-console
+    console.error('[WebAuthnManager][delegate] non-success worker response', response);
     const payloadError = (response as any)?.payload?.error;
     throw new Error(payloadError || 'Delegate action signing failed');
   }
 
   const payload = response.payload as WasmDelegateSignResult;
   if (!payload.success || !payload.signedDelegate || !payload.hash) {
+    // eslint-disable-next-line no-console
+    console.error('[WebAuthnManager][delegate] invalid delegate payload', payload);
     throw new Error(payload.error || 'Delegate action signing failed');
   }
 

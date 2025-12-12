@@ -1,35 +1,20 @@
 /**
- * ProgressBus - Client-Side Communication Layer
+ * OnEventsProgressBus - Client-Side Communication Layer
  *
- * Manages progress event routing and overlay visibility for the wallet iframe.
- * Uses phase heuristics to decide when the overlay should be visible to capture
- * user activation for WebAuthn operations, and aggregates visibility across
- * multiple concurrent requests.
+ * Manages progress event routing and overlay visibility *intents* for the wallet
+ * iframe. It never manipulates the iframe directly; instead it calls the
+ * injected OverlayController interface (show/hide), and WalletIframeRouter
+ * owns the concrete OverlayController that knows how to display the iframe.
  *
  * Key Responsibilities:
  * - Progress Routing: Dispatches typed progress payloads to per-request subscribers
- * - Overlay Control: Applies SHOW/HIDE based on phase heuristics
+ * - Overlay Intents: Applies SHOW/HIDE based on phase heuristics, leaving actual
+ *   DOM/CSS work to WalletIframeRouter + OverlayController
  * - Concurrent Aggregation: Tracks overlay demand per requestId and only hides
  *   when no request still requires SHOW (multi-request safe)
  * - Sticky Subscriptions: Supports long-running subscriptions that persist after completion
  * - Phase Heuristics: Pluggable logic to map phases → 'show' | 'hide' | 'none'
  * - Event Statistics: Tracks counts/timestamps for debugging
- *
- * Overlay Logic:
- * - Show when phases require user interaction (confirmation, WebAuthn)
- * - Hide when phases are post-activation (signing, broadcasting, completion)
- * - With concurrency, the latest demand per requestId is recorded; the overlay
- *   remains visible if any request demands 'show'.
- *
- * Phase Heuristics:
- * - SHOW_PHASES: Phases that need immediate user interaction (TouchID, confirmation)
- * - HIDE_PHASES: Post-activation phases that are non-interactive
- * - Default behavior: 'none' for unknown phases to avoid unnecessary overlay changes
- *
- * Security Considerations:
- * - Overlay is intentionally invisible but captures pointer events during activation
- * - Uses high z-index to ensure it's above other content when visible
- * - Automatically hides to minimize interaction blocking (subject to aggregation)
  */
 
 import type { ProgressPayload as MessageProgressPayload } from '../shared/messages';
@@ -53,7 +38,8 @@ const SHOW_PHASES = new Set<string>([
   // and can capture the required click when behavior === 'requireClick'.
   ActionPhase.STEP_2_USER_CONFIRMATION,
   DelegateActionPhase.STEP_2_USER_CONFIRMATION,
-  ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION,
+  ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION,
+  DelegateActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION,
   // Registration requires a WebAuthn create() ceremony at step 1
   RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
   // Email recovery: TouchID registration uses WebAuthn create()
@@ -69,14 +55,11 @@ const SHOW_PHASES = new Set<string>([
 
 // Phases that should HIDE the overlay asap (post-activation, non-interactive)
 const HIDE_PHASES = new Set<string>([
-  ActionPhase.STEP_5_AUTHENTICATION_COMPLETE,
-  ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS,
-  DelegateActionPhase.STEP_3_TRANSACTION_SIGNING_PROGRESS,
-  ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE,
-  DelegateActionPhase.STEP_4_TRANSACTION_SIGNING_COMPLETE,
-  ActionPhase.STEP_3_CONTRACT_VERIFICATION,
-  ActionPhase.STEP_8_BROADCASTING,
-  ActionPhase.STEP_9_ACTION_COMPLETE,
+  ActionPhase.STEP_4_AUTHENTICATION_COMPLETE,
+  ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS,
+  ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE,
+  ActionPhase.STEP_7_BROADCASTING,
+  ActionPhase.STEP_8_ACTION_COMPLETE,
   // Device linking: hide when the flow has finished or errored
   DeviceLinkingPhase.STEP_7_LINKING_COMPLETE,
   DeviceLinkingPhase.REGISTRATION_ERROR,
@@ -102,7 +85,10 @@ const HIDE_PHASES = new Set<string>([
 
 export type ProgressPayload = MessageProgressPayload;
 
-export interface OverlayController {
+// Minimal overlay control interface used by ProgressBus.
+// Implemented by WalletIframeRouter via an adapter object that calls
+// into the concrete OverlayToggler (fullscreen/anchored) as needed.
+export interface OverlayToggler {
   show: () => void;
   hide: () => void;
 }
@@ -115,17 +101,17 @@ export interface ProgressSubscriber {
   stats: { count: number; lastPhase: string | null; lastAt: number | null };
 }
 
-export class ProgressBus {
+export class OnEventsProgressBus {
   private subs = new Map<string, ProgressSubscriber>();
   private logger?: (msg: string, data?: Record<string, unknown>) => void;
-  private overlay: OverlayController;
+  private overlay: OverlayToggler;
   private heuristic: PhaseHeuristics;
   // Track the most recent overlay intent per requestId so that we can
   // aggregate visibility across concurrent requests. If any request's
   // latest intent is 'show', we keep the overlay visible.
   private overlayDemands = new Map<string, 'show' | 'hide' | 'none'>();
 
-  constructor(overlay: OverlayController, heuristic: PhaseHeuristics, logger?: (msg: string, data?: Record<string, unknown>) => void) {
+  constructor(overlay: OverlayToggler, heuristic: PhaseHeuristics, logger?: (msg: string, data?: Record<string, unknown>) => void) {
     this.overlay = overlay;
     this.heuristic = heuristic;
     this.logger = logger;

@@ -139,13 +139,13 @@ export const DemoPage: React.FC = () => {
         onEvent: (event) => {
           switch (event.phase) {
             case ActionPhase.STEP_1_PREPARATION:
-            case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
-            case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
-            case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
-            case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
+            case ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION:
+            case ActionPhase.STEP_4_AUTHENTICATION_COMPLETE:
+            case ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS:
+            case ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE:
               toast.loading(event.message, { id: 'greeting' });
               break;
-            case ActionPhase.STEP_8_BROADCASTING:
+            case ActionPhase.STEP_7_BROADCASTING:
               toast.loading(event.message, { id: 'greeting' });
               break;
             case ActionPhase.ACTION_ERROR:
@@ -169,11 +169,11 @@ export const DemoPage: React.FC = () => {
             });
             setGreetingInput('');
             // Refresh the greeting after success
-            setTimeout(() => { void fetchGreeting(); }, 1000);
+            setTimeout(() => fetchGreeting(), 1000);
           } else if (success) {
             toast.success('Greeting updated (no TxID)');
             setGreetingInput('');
-            setTimeout(() => { void fetchGreeting(); }, 1000);
+            setTimeout(() => fetchGreeting(), 1000);
           } else {
             toast.error(`Greeting update failed: ${result?.error || 'Unknown error'}`);
           }
@@ -219,10 +219,10 @@ export const DemoPage: React.FC = () => {
             switch (event.phase) {
               case ActionPhase.STEP_1_PREPARATION:
               case ActionPhase.STEP_2_USER_CONFIRMATION:
-              case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
+              case ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS:
                 toast.loading(event.message, { id: 'delegate-greeting' });
                 break;
-              case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
+              case ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE:
                 toast.success('Delegate action signed', { id: 'delegate-greeting' });
                 break;
               case ActionPhase.ACTION_ERROR:
@@ -252,9 +252,16 @@ export const DemoPage: React.FC = () => {
         // WasmSignedDelegate is shape-compatible with the server-side SignedDelegate
         // and is treated as an opaque blob by the relayer.
         signedDelegate: result.signedDelegate as any,
+        options: {
+          afterCall: (success: boolean, res?: { ok?: boolean }) => {
+            if (success && res?.ok !== false) {
+              setTimeout(() => fetchGreeting(), 1000);
+            }
+          },
+        },
       });
 
-      try { toast.dismiss('delegate-relay'); } catch {}
+      toast.dismiss('delegate-relay');
 
       if (!relayResult.ok) {
         toast.error(`Relayer execution failed: ${relayResult.error || 'Unknown error'}`, {
@@ -283,7 +290,7 @@ export const DemoPage: React.FC = () => {
     } finally {
       setDelegateLoading(false);
     }
-  }, [greetingInput, isLoggedIn, nearAccountId, tatchi, createGreetingAction]);
+  }, [greetingInput, isLoggedIn, nearAccountId, tatchi, createGreetingAction, fetchGreeting]);
 
   const nearToYocto = (nearAmount: string): string => {
     const amount = parseFloat(nearAmount);
@@ -499,12 +506,11 @@ export const DemoPage: React.FC = () => {
                 switch (event.phase) {
                   case ActionPhase.STEP_1_PREPARATION:
                   case ActionPhase.STEP_2_USER_CONFIRMATION:
-                  case ActionPhase.STEP_3_CONTRACT_VERIFICATION:
-                  case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
-                  case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
-                  case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
-                  case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
-                  case ActionPhase.STEP_8_BROADCASTING:
+                  case ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION:
+                  case ActionPhase.STEP_4_AUTHENTICATION_COMPLETE:
+                  case ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS:
+                  case ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE:
+                  case ActionPhase.STEP_7_BROADCASTING:
                     toast.loading(event.message, { id: 'embedded' });
                     break;
                   case ActionPhase.ACTION_ERROR:
@@ -536,7 +542,7 @@ export const DemoPage: React.FC = () => {
                       try { toast.dismiss('embedded'); } catch {}
                       toast.success('Embedded flow complete');
                     }
-                    setTimeout(() => { void fetchGreeting(); }, 1000);
+                    setTimeout(() => void fetchGreeting(), 1000);
                   }
                 },
                 onError: (error) => {
@@ -585,7 +591,7 @@ export const DemoPage: React.FC = () => {
                   toast.success('Tx Success');
                 }
                 // Refresh the greeting after success
-                setTimeout(() => { void fetchGreeting(); }, 1000);
+                setTimeout(() => fetchGreeting(), 1000);
               }}
             />
           }

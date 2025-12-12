@@ -1,16 +1,19 @@
 use hkdf::Hkdf;
 use log::debug;
 use sha2::Sha256;
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsValue;
+use js_sys::Reflect;
+use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 
 use crate::errors::HkdfError;
 use crate::manager::VRFKeyManager;
 use crate::types::{VrfWorkerResponse, WorkerConfirmationResponse};
 use crate::utils::{base64_url_decode, generate_wrap_key_salt_b64u};
 use crate::vrf_await_secure_confirmation;
-use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// Request payload for combined Device2 registration session.
 /// This combines registration credential collection + WrapKeySeed derivation in a single flow.
@@ -44,8 +47,12 @@ pub struct Device2RegistrationSessionRequest {
 
     /// Optional confirmation configuration passed through to confirmTxFlow
     #[wasm_bindgen(skip)]
-    #[serde(rename = "confirmationConfig")]
-    pub confirmation_config: Option<serde_json::Value>,
+    #[serde(
+        rename = "confirmationConfig",
+        default = "js_undefined",
+        with = "serde_wasm_bindgen::preserve"
+    )]
+    pub confirmation_config: JsValue,
 
     /// Optional wrapKeySalt. If empty/null, VRF will generate a fresh one.
     #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
@@ -64,12 +71,12 @@ pub struct Device2RegistrationSessionResult {
     pub request_id: String,
     #[serde(rename = "intentDigest")]
     pub intent_digest: String,
-    #[serde(rename = "credential")]
-    pub credential: Option<serde_json::Value>,
-    #[serde(rename = "vrfChallenge")]
-    pub vrf_challenge: Option<serde_json::Value>,
-    #[serde(rename = "transactionContext")]
-    pub transaction_context: Option<serde_json::Value>,
+    #[serde(rename = "credential", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    pub credential: JsValue,
+    #[serde(rename = "vrfChallenge", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    pub vrf_challenge: JsValue,
+    #[serde(rename = "transactionContext", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    pub transaction_context: JsValue,
     #[serde(rename = "sessionId")]
     pub session_id: String,
     #[serde(rename = "wrapKeySalt")]
@@ -79,41 +86,41 @@ pub struct Device2RegistrationSessionResult {
     pub deterministic_vrf_public_key: Option<String>,
     /// Encrypted deterministic VRF keypair for IndexedDB storage
     #[serde(rename = "encryptedVrfKeypair")]
-    pub encrypted_vrf_keypair: Option<serde_json::Value>,
+    #[serde(with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    pub encrypted_vrf_keypair: JsValue,
     #[serde(rename = "error")]
     pub error: Option<String>,
 }
-
+fn js_undefined() -> JsValue {
+    JsValue::UNDEFINED
+}
 /// Extract PRF.first output from registration credential's client data extension results.
 /// The credential returned from `navigator.credentials.create()` with dual PRF salts
 /// embeds PRF outputs in `response.clientDataJSON` or `clientExtensionResults`.
+
 fn extract_prf_first_from_credential(
-    credential: &serde_json::Value,
+    credential: &JsValue,
 ) -> Result<Vec<u8>, String> {
-    // Try to extract from clientExtensionResults.prf.results.first
-    if let Some(client_ext) = credential.get("clientExtensionResults") {
-        if let Some(prf_ext) = client_ext.get("prf") {
-            if let Some(results) = prf_ext.get("results") {
-                if let Some(first_b64u) = results.get("first").and_then(|v| v.as_str()) {
-                    return base64_url_decode(first_b64u)
-                        .map_err(|e| format!("Failed to decode PRF.first: {}", e));
-                }
+    fn get_nested_str(obj: &JsValue, path: &[&str]) -> Option<String> {
+        let mut current = obj.clone();
+        for key in path {
+            let val = Reflect::get(&current, &JsValue::from_str(key)).ok()?;
+            if val.is_null() || val.is_undefined() {
+                return None;
             }
+            current = val;
         }
+        current.as_string()
     }
 
-    // Try alternate path: response.clientExtensionResults (flattened)
-    if let Some(response) = credential.get("response") {
-        if let Some(client_ext) = response.get("clientExtensionResults") {
-            if let Some(prf_ext) = client_ext.get("prf") {
-                if let Some(results) = prf_ext.get("results") {
-                    if let Some(first_b64u) = results.get("first").and_then(|v| v.as_str()) {
-                        return base64_url_decode(first_b64u)
-                            .map_err(|e| format!("Failed to decode PRF.first: {}", e));
-                    }
-                }
-            }
-        }
+    if let Some(first_b64u) = get_nested_str(credential, &["clientExtensionResults", "prf", "results", "first"]) {
+        return base64_url_decode(&first_b64u)
+            .map_err(|e| format!("Failed to decode PRF.first: {}", e));
+    }
+
+    if let Some(first_b64u) = get_nested_str(credential, &["response", "clientExtensionResults", "prf", "results", "first"]) {
+        return base64_url_decode(&first_b64u)
+            .map_err(|e| format!("Failed to decode PRF.first: {}", e));
     }
 
     Err("PRF.first not found in registration credential extension results".to_string())
@@ -123,32 +130,28 @@ fn extract_prf_first_from_credential(
 /// The credential returned from `navigator.credentials.create()` with dual PRF salts
 /// embeds PRF outputs in `response.clientDataJSON` or `clientExtensionResults`.
 fn extract_prf_second_from_credential(
-    credential: &serde_json::Value,
+    credential: &JsValue,
 ) -> Result<Vec<u8>, String> {
-    // Try to extract from clientExtensionResults.prf.results.second
-    if let Some(client_ext) = credential.get("clientExtensionResults") {
-        if let Some(prf_ext) = client_ext.get("prf") {
-            if let Some(results) = prf_ext.get("results") {
-                if let Some(second_b64u) = results.get("second").and_then(|v| v.as_str()) {
-                    return base64_url_decode(second_b64u)
-                        .map_err(|e| format!("Failed to decode PRF.second: {}", e));
-                }
+    fn get_nested_str(obj: &JsValue, path: &[&str]) -> Option<String> {
+        let mut current = obj.clone();
+        for key in path {
+            let val = Reflect::get(&current, &JsValue::from_str(key)).ok()?;
+            if val.is_null() || val.is_undefined() {
+                return None;
             }
+            current = val;
         }
+        current.as_string()
     }
 
-    // Try alternate path: response.clientExtensionResults (flattened)
-    if let Some(response) = credential.get("response") {
-        if let Some(client_ext) = response.get("clientExtensionResults") {
-            if let Some(prf_ext) = client_ext.get("prf") {
-                if let Some(results) = prf_ext.get("results") {
-                    if let Some(second_b64u) = results.get("second").and_then(|v| v.as_str()) {
-                        return base64_url_decode(second_b64u)
-                            .map_err(|e| format!("Failed to decode PRF.second: {}", e));
-                    }
-                }
-            }
-        }
+    if let Some(second_b64u) = get_nested_str(credential, &["clientExtensionResults", "prf", "results", "second"]) {
+        return base64_url_decode(&second_b64u)
+            .map_err(|e| format!("Failed to decode PRF.second: {}", e));
+    }
+
+    if let Some(second_b64u) = get_nested_str(credential, &["response", "clientExtensionResults", "prf", "results", "second"]) {
+        return base64_url_decode(&second_b64u)
+            .map_err(|e| format!("Failed to decode PRF.second: {}", e));
     }
 
     Err("PRF.second not found in registration credential extension results".to_string())
@@ -183,66 +186,86 @@ pub async fn handle_device2_registration_session(
         .unwrap_or_else(|| format!("device2-reg-{}-{}", near_account_id, device_number));
     let intent_digest = format!("device2-register:{}:{}", near_account_id, device_number);
 
-    let mut root = serde_json::Map::new();
-    root.insert(
-        "schemaVersion".to_string(),
-        serde_json::Value::Number(2.into()),
-    );
-    root.insert(
-        "requestId".to_string(),
-        serde_json::Value::String(request_id.clone()),
-    );
-    // Use REGISTER_ACCOUNT type; the summary deviceNumber distinguishes Device2 from Device1
-    root.insert(
-        "type".to_string(),
-        serde_json::Value::String("registerAccount".to_string()),
-    );
-
-    // Summary shown in UI (Device2-specific)
-    let mut summary = serde_json::Map::new();
-    summary.insert(
-        "nearAccountId".to_string(),
-        serde_json::Value::String(near_account_id.clone()),
-    );
-    summary.insert(
-        "deviceNumber".to_string(),
-        serde_json::Value::Number(device_number.into()),
-    );
-    summary.insert(
-        "contractId".to_string(),
-        serde_json::Value::String(request.contract_id.clone()),
-    );
-    root.insert("summary".to_string(), serde_json::Value::Object(summary));
-
-    // Payload for confirmTxFlow
-    let rpc_call = serde_json::json!({
-        "contractId": request.contract_id,
-        "nearRpcUrl": request.near_rpc_url,
-        "nearAccountId": near_account_id,
-    });
-    let mut payload = serde_json::Map::new();
-    payload.insert(
-        "nearAccountId".to_string(),
-        serde_json::Value::String(near_account_id.clone()),
-    );
-    payload.insert(
-        "deviceNumber".to_string(),
-        serde_json::Value::Number(device_number.into()),
-    );
-    payload.insert("rpcCall".to_string(), rpc_call);
-    root.insert("payload".to_string(), serde_json::Value::Object(payload));
-
-    if let Some(cfg) = request.confirmation_config {
-        root.insert("confirmationConfig".to_string(), cfg);
+    #[derive(Serialize)]
+    #[allow(non_snake_case)]
+    struct Summary<'a> {
+        nearAccountId: &'a str,
+        deviceNumber: u32,
+        contractId: &'a str,
     }
-    root.insert(
-        "intentDigest".to_string(),
-        serde_json::Value::String(intent_digest.clone()),
-    );
 
-    let request_json = match serde_json::to_string(&serde_json::Value::Object(root)) {
-        Ok(s) => s,
-        Err(e) => return VrfWorkerResponse::fail(message_id, format!("Failed to build SecureConfirmRequest: {}", e)),
+    #[derive(Serialize)]
+    #[allow(non_snake_case)]
+    struct RpcCall<'a> {
+        contractId: &'a str,
+        nearRpcUrl: &'a str,
+        nearAccountId: &'a str,
+    }
+
+    #[derive(Serialize)]
+    #[allow(non_snake_case)]
+    struct Payload<'a> {
+        nearAccountId: &'a str,
+        deviceNumber: u32,
+        rpcCall: RpcCall<'a>,
+    }
+
+    #[derive(Serialize)]
+    #[allow(non_snake_case)]
+    struct SecureConfirmRequest<'a> {
+        schemaVersion: u32,
+        requestId: &'a str,
+        #[serde(rename = "type")]
+        request_type: &'static str,
+        summary: Summary<'a>,
+        payload: Payload<'a>,
+        intentDigest: &'a str,
+        #[serde(skip_serializing_if = "is_undefined", with = "serde_wasm_bindgen::preserve")]
+        confirmationConfig: JsValue,
+    }
+
+    fn is_undefined(v: &JsValue) -> bool {
+        v.is_undefined() || v.is_null()
+    }
+
+    let summary = Summary {
+        nearAccountId: &near_account_id,
+        deviceNumber: device_number,
+        contractId: &request.contract_id,
+    };
+    let payload = Payload {
+        nearAccountId: &near_account_id,
+        deviceNumber: device_number,
+        rpcCall: RpcCall {
+            contractId: &request.contract_id,
+            nearRpcUrl: &request.near_rpc_url,
+            nearAccountId: &near_account_id,
+        },
+    };
+
+    let confirm_request = SecureConfirmRequest {
+        schemaVersion: 2,
+        requestId: &request_id,
+        request_type: "registerAccount",
+        summary,
+        payload,
+        intentDigest: &intent_digest,
+        confirmationConfig: request.confirmation_config.clone(),
+    };
+
+    let confirm_request_js = serde_wasm_bindgen::to_value(&confirm_request)
+        .map_err(|e| VrfWorkerResponse::fail(message_id.clone(), format!("Failed to serialize request: {}", e)));
+    let confirm_request_js = match confirm_request_js {
+        Ok(v) => v,
+        Err(err) => return err,
+    };
+
+    let request_json = match js_sys::JSON::stringify(&confirm_request_js) {
+        Ok(s) => match s.as_string() {
+            Some(str) => str,
+            None => return VrfWorkerResponse::fail(message_id.clone(), "Failed to stringify request".to_string()),
+        },
+        Err(e) => return VrfWorkerResponse::fail(message_id, format!("Failed to stringify request: {:?}", e)),
     };
 
     // === STEP 2: Run registration confirmation flow ===
@@ -258,37 +281,33 @@ pub async fn handle_device2_registration_session(
 
     if !decision.confirmed {
         debug!("[VRF] Device2 registration cancelled by user");
-        return VrfWorkerResponse::success(
+        let result = Device2RegistrationSessionResult {
+            confirmed: false,
+            request_id: decision.request_id.clone(),
+            intent_digest: decision.intent_digest.unwrap_or(intent_digest),
+            credential: JsValue::UNDEFINED,
+            vrf_challenge: JsValue::UNDEFINED,
+            transaction_context: JsValue::UNDEFINED,
+            session_id: session_id.clone(),
+            wrap_key_salt: String::new(),
+            deterministic_vrf_public_key: None,
+            encrypted_vrf_keypair: JsValue::UNDEFINED,
+            error: decision.error.clone(),
+        };
+        return VrfWorkerResponse::success_from(message_id, Some(result));
+    }
+
+    let credential = decision.credential.clone();
+    if credential.is_null() || credential.is_undefined() {
+        return VrfWorkerResponse::fail(
             message_id,
-            Some(serde_json::to_value(Device2RegistrationSessionResult {
-                confirmed: false,
-                request_id: decision.request_id.clone(),
-                intent_digest: decision.intent_digest.unwrap_or(intent_digest),
-                credential: None,
-                vrf_challenge: None,
-                transaction_context: None,
-                session_id: session_id.clone(),
-                wrap_key_salt: String::new(),
-                deterministic_vrf_public_key: None,
-                encrypted_vrf_keypair: None,
-                error: decision.error.clone(),
-            }).unwrap()),
+            "No credential returned from Device2 registration confirmation".to_string(),
         );
     }
 
-    let credential = match decision.credential {
-        Some(ref c) => c,
-        None => {
-            return VrfWorkerResponse::fail(
-                message_id,
-                "No credential returned from Device2 registration confirmation".to_string(),
-            )
-        }
-    };
-
     // === STEP 3: Extract PRF.first and PRF.second ===
 
-    let prf_first_bytes = match extract_prf_first_from_credential(credential) {
+    let prf_first_bytes = match extract_prf_first_from_credential(&credential) {
         Ok(bytes) => bytes,
         Err(e) => {
             debug!("[VRF] Failed to extract PRF.first from Device2 credential: {}", e);
@@ -299,7 +318,7 @@ pub async fn handle_device2_registration_session(
         }
     };
 
-    let prf_second_bytes = match extract_prf_second_from_credential(credential) {
+    let prf_second_bytes = match extract_prf_second_from_credential(&credential) {
         Ok(bytes) => bytes,
         Err(e) => {
             debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", e);
@@ -443,12 +462,9 @@ pub async fn handle_device2_registration_session(
         session_id: session_id.clone(),
         wrap_key_salt: wrap_key_salt_b64u,
         deterministic_vrf_public_key: Some(deterministic_vrf_public_key_b64u),
-        encrypted_vrf_keypair: Some(serde_json::to_value(&encrypted_vrf_keypair).unwrap()),
+        encrypted_vrf_keypair: serde_wasm_bindgen::to_value(&encrypted_vrf_keypair).unwrap_or(JsValue::UNDEFINED),
         error: None,
     };
 
-    VrfWorkerResponse::success(
-        message_id,
-        Some(serde_json::to_value(result).unwrap()),
-    )
+    VrfWorkerResponse::success_from(message_id, Some(result))
 }

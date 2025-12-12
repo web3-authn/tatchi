@@ -33,7 +33,7 @@ Playwright config includes wallet‑iframe and lit‑components suites in `testM
 - Lit Confirm UI: host/iframe modal + drawer behavior covered; theme guardrails pending
 
 Status highlights from recent additions:
-- ProgressBus default heuristics for show/hide/none mapping and cancelled → hide
+- OnEventsProgressBus default heuristics for show/hide/none mapping and cancelled → hide
 - Overlay controller CSS/ARIA semantics; sticky prevents hide
 - Router behavior for pre‑show, timeout hide, anchored bounds, sticky lifecycle
 - awaitSecureConfirmationV2 error handling via signer worker global

@@ -57,12 +57,6 @@ pub struct DeterministicVrfKeypairResponse {
     pub success: bool,
 }
 
-impl DeterministicVrfKeypairResponse {
-    pub fn to_json(&self) -> serde_json::Value {
-        serde_json::to_value(self).unwrap()
-    }
-}
-
 /// Handle DERIVE_VRF_KEYPAIR_FROM_PRF message
 ///
 /// Derives a VRF keypair deterministically from PRF output, optionally storing it in memory
@@ -137,5 +131,5 @@ pub async fn handle_derive_vrf_keypair_from_prf(
         success: derivation_result.success,
     };
 
-    VrfWorkerResponse::success(message_id, Some(response_data.to_json()))
+    VrfWorkerResponse::success_from(message_id, Some(response_data))
 }

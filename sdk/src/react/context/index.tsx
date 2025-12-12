@@ -29,12 +29,10 @@ import type {
   ScanAndLinkDeviceOptionsDevice1,
   DeviceLinkingSSEEvent,
 } from '../types';
-import { AccountRecoveryHooksOptions } from '@/core/types/passkeyManager';
-import { TatchiPasskeyConfigs } from '@/core/types/passkeyManager';
+import { AccountRecoveryHooksOptions, TatchiPasskeyConfigs, DelegateActionHooksOptions } from '@/core/types/passkeyManager';
 import { buildConfigsFromEnv } from '@/core/defaultConfigs';
 import { toAccountId } from '@/core/types/accountIds';
 import { DelegateActionInput } from '@/core/types/delegate';
-import { DelegateActionHooksOptions } from '@/core/TatchiPasskey/delegateAction';
 
 // Global singleton to prevent multiple manager instances in StrictMode
 let globalPasskeyManager: TatchiPasskey | null = null;

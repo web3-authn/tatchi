@@ -1,25 +1,15 @@
 import type { PasskeyManagerContext } from './index';
 import type { DelegateActionInput } from '../types/delegate';
-import type { ActionSSEEvent, AfterCall, EventCallback } from '../types/passkeyManager';
+import type {
+  DelegateActionSSEEvent,
+  DelegateActionHooksOptions,
+  SignDelegateActionResult,
+} from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import { toAccountId } from '../types/accountIds';
 import { toError } from '../../utils/errors';
-import type { ConfirmationConfig } from '../types/signer-worker';
 
-export interface DelegateActionHooksOptions {
-  onEvent?: EventCallback<ActionSSEEvent>;
-  onError?: (error: Error) => void;
-  afterCall?: AfterCall<SignDelegateActionResult>;
-  confirmationConfig?: Partial<ConfirmationConfig>;
-}
-
-export interface SignDelegateActionResult {
-  hash: string;
-  signedDelegate: import('../types/signer-worker').WasmSignedDelegate;
-  nearAccountId: string;
-  logs?: string[];
-}
 
 export async function signDelegateAction(args: {
   context: PasskeyManagerContext;
@@ -62,7 +52,7 @@ export async function signDelegateAction(args: {
       },
       confirmationConfigOverride: options?.confirmationConfig,
       onEvent: options?.onEvent
-        ? (ev) => options.onEvent?.(ev as unknown as ActionSSEEvent)
+        ? (ev) => options.onEvent?.(ev as DelegateActionSSEEvent)
         : undefined,
     });
 
@@ -74,8 +64,8 @@ export async function signDelegateAction(args: {
     };
 
     options?.onEvent?.({
-      step: 9,
-      phase: ActionPhase.STEP_9_ACTION_COMPLETE,
+      step: 8,
+      phase: ActionPhase.STEP_8_ACTION_COMPLETE,
       status: ActionStatus.SUCCESS,
       message: 'Delegate action signed',
       data: { hash: result.hash },
@@ -87,7 +77,7 @@ export async function signDelegateAction(args: {
   } catch (error: unknown) {
     const e = toError(error);
     options?.onError?.(e);
-    options?.afterCall?.(false);
+    await options?.afterCall?.(false);
     options?.onEvent?.({
       step: 0,
       phase: ActionPhase.ACTION_ERROR,

@@ -4,7 +4,7 @@
 use base64ct::{Base64, Base64UrlUnpadded, Encoding};
 use sha2::{Digest, Sha256};
 
-use crate::types::{DelegateAction, SignedDelegate};
+use crate::types::DelegateAction;
 
 /// NEP-461 delegate action prefix (2^30 + 366)
 pub const DELEGATE_ACTION_PREFIX: u32 = 1_073_742_190;
@@ -51,11 +51,6 @@ pub fn encode_delegate_action(delegate: &DelegateAction) -> Result<Vec<u8>, Stri
         borsh::to_vec(delegate).map_err(|e| format!("Delegate encode error: {}", e))?;
     encoded.append(&mut delegate_bytes);
     Ok(encoded)
-}
-
-/// Encode SignedDelegate without the NEP-461 prefix (parity with @near-js/transactions encodeSignedDelegate).
-pub fn encode_signed_delegate(sd: &SignedDelegate) -> Result<Vec<u8>, String> {
-    borsh::to_vec(sd).map_err(|e| format!("Signed delegate encode error: {}", e))
 }
 
 /// Compute sha256 over the NEP-461-prefixed delegate action bytes.

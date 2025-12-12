@@ -323,7 +323,10 @@ export class AuthService {
           {
             action_type: ActionType.AddKey,
             public_key: request.publicKey,
-            access_key: JSON.stringify({ nonce: 0, permission: { FullAccess: {} } })
+            access_key: JSON.stringify({
+              nonce: 0,
+              permission: { FullAccess: {} },
+            }),
           }
         ];
 
@@ -678,17 +681,17 @@ export class AuthService {
         receiverId: input.receiverId,
         nonce: input.nonce,
         blockHash: input.blockHash,
-        actions: JSON.stringify(input.actions)
+        actions: input.actions
       }
     };
     // uses wasm signer worker's SignTransactionWithKeyPair action,
     // which doesn't require VRF worker session
-    const responseJson = await handle_signer_message(JSON.stringify(message));
+    const response = await handle_signer_message(message);
     const {
       transaction,
       signature,
       borshBytes
-    } = extractFirstSignedTransactionFromWorkerResponse(responseJson);
+    } = extractFirstSignedTransactionFromWorkerResponse(response);
 
     return new SignedTransaction({
       transaction: transaction,
@@ -795,12 +798,12 @@ interface WorkerSignedTransactionPayload {
   borsh_bytes?: number[];
 }
 
-function extractFirstSignedTransactionFromWorkerResponse(responseJson: string): {
+function extractFirstSignedTransactionFromWorkerResponse(response: any): {
   transaction: WasmTransaction;
   signature: WasmSignature;
   borshBytes: number[];
 } {
-  const res = JSON.parse(responseJson) as {
+  const res = (typeof response === 'string' ? JSON.parse(response) : response) as {
     type?: WorkerResponseType;
     payload?: { signedTransactions?: WorkerSignedTransactionPayload[]; error?: string };
   } | undefined;

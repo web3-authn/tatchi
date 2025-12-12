@@ -28,7 +28,7 @@ import type {
   TatchiPasskeyConfigs,
   RegistrationResult,
   LoginResult,
-  VerifyAndSignTransactionResult,
+  SignTransactionResult,
   LoginState,
   SignNEP413HooksOptions,
   ActionHooksOptions,
@@ -45,13 +45,18 @@ import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types
 import { EmailRecoveryFlowOptions } from '../TatchiPasskey/emailRecovery';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
-import type { RegistrationHooksOptions, LoginHooksOptions, SendTransactionHooksOptions } from '../types/passkeyManager';
+import type {
+  RegistrationHooksOptions,
+  LoginHooksOptions,
+  SendTransactionHooksOptions,
+  DelegateActionHooksOptions,
+  SignDelegateActionResult,
+} from '../types/passkeyManager';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
 import type { RecoveryResult, PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
 import type { WalletUIRegistry } from './host/iframe-lit-element-registry';
 import type { DelegateActionInput } from '../types/delegate';
-import type { DelegateActionHooksOptions, SignDelegateActionResult } from '../TatchiPasskey/delegateAction';
 
 
 export class TatchiPasskeyIframe {
@@ -224,7 +229,7 @@ export class TatchiPasskeyIframe {
     nearAccountId: string;
     transactions: TransactionInput[];
     options?: SignTransactionHooksOptions
-  }): Promise<VerifyAndSignTransactionResult[]> {
+  }): Promise<SignTransactionResult[]> {
     try {
       // Route transaction signing to iframe
       // This will:

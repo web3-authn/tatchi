@@ -12,25 +12,61 @@ use crate::transaction::{
 use crate::types::wasm_to_json::WasmSignedTransaction;
 use bs58;
 use serde::{Deserialize, Serialize};
-use serde_json;
-use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SignTransactionWithKeyPairRequest {
-    #[wasm_bindgen(getter_with_clone, js_name = "nearPrivateKey")]
     pub near_private_key: String, // ed25519:... format
-    #[wasm_bindgen(getter_with_clone, js_name = "signerAccountId")]
     pub signer_account_id: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "receiverId")]
     pub receiver_id: String,
-    #[wasm_bindgen(getter_with_clone)]
     pub nonce: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "blockHash")]
     pub block_hash: String,
-    #[wasm_bindgen(getter_with_clone)]
-    pub actions: String, // JSON string of ActionParams[]
+    #[serde(deserialize_with = "deserialize_actions_flexible")]
+    pub actions: Vec<ActionParams>,
+}
+
+fn deserialize_actions_flexible<'de, D>(deserializer: D) -> Result<Vec<ActionParams>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct ActionsVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for ActionsVisitor {
+        type Value = Vec<ActionParams>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a list of actions or a JSON string containing them")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: serde::de::SeqAccess<'de>,
+        {
+             let mut vec = Vec::new();
+             while let Some(elem) = seq.next_element()? {
+                 vec.push(elem);
+             }
+             Ok(vec)
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            #[cfg(target_arch = "wasm32")]
+            {
+                let js_val = js_sys::JSON::parse(v).map_err(|_| E::custom("Failed to parse actions JSON string"))?;
+                serde_wasm_bindgen::from_value(js_val).map_err(E::custom)
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let _ = v;
+                Err(E::custom("Parsing actions from JSON string is not supported on native targets (requires serde_json)"))
+            }
+        }
+    }
+
+    deserializer.deserialize_any(ActionsVisitor)
 }
 
 /// Signs a transaction using a provided private key without requiring WebAuthn authentication.
@@ -80,11 +116,10 @@ pub async fn handle_sign_transaction_with_keypair(
 
     logs.push("Private key parsed and signing key created".to_string());
 
-    // Parse and build actions
-    let action_params: Vec<ActionParams> = serde_json::from_str(&request.actions)
-        .map_err(|e| format!("Failed to parse actions: {}", e))?;
+    // Use structured actions directly
+    let action_params = request.actions.clone();
 
-    logs.push(format!("Parsed {} actions", action_params.len()));
+    logs.push(format!("Using {} actions", action_params.len()));
 
     let actions = build_actions_from_params(action_params)
         .map_err(|e| format!("Failed to build actions: {}", e))?;

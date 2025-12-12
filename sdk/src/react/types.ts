@@ -35,9 +35,13 @@ import type {
   AccountRecoveryHooksOptions,
   SignAndSendTransactionHooksOptions,
 } from '../core/types/passkeyManager';
-import type { EventCallback, ActionSSEEvent, DelegateActionSSEEvent } from '../core/types/passkeyManager';
+import type {
+  EventCallback,
+  ActionSSEEvent,
+  DelegateActionSSEEvent,
+  DelegateActionHooksOptions,
+} from '../core/types/passkeyManager';
 import type { DelegateActionInput } from '../core/types/delegate';
-import type { DelegateActionHooksOptions } from '../core/TatchiPasskey/delegateAction';
 import type { WasmSignedDelegate } from '../core/types/signer-worker';
 import type { RegistrationResult, LoginResult } from '../core/types/passkeyManager';
 import type { AccessKeyList } from '../core/NearClient';

@@ -8,6 +8,7 @@ import {
   type EncryptedVRFKeypair,
   type ServerEncryptedVrfKeypair
 } from '../types/vrf-worker';
+import { getLoginState } from './login';
 import type { PasskeyManagerContext } from './index';
 import type { WebAuthnRegistrationCredential } from '../types';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
@@ -37,8 +38,6 @@ import type { DeviceLinkingSSEEvent } from '../types/passkeyManager';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import { extractPrfFromCredential } from '../WebAuthnManager/credentialsHelpers';
 
-
-// jsQR is dynamically imported where used (see utils/qrScanner.ts)
 
 /**
  * Device linking flow class - manages the complete device linking process
@@ -101,10 +100,7 @@ export class LinkDeviceFlow {
    * - Generate a temporary NEAR keypair, discover the real account via AddKey mapping,
    *   then swap the temporary key for a deterministic key derived from a passkey.
    */
-  async generateQR(): Promise<{
-    qrData: DeviceLinkingQRData;
-    qrCodeDataURL: string
-  }> {
+  async generateQR(): Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> {
     try {
       // Generate temporary NEAR keypair WITHOUT TouchID/VRF (just for QR generation)
       const tempNearKeyResult = await this.generateTemporaryNearKeypair();
@@ -335,7 +331,7 @@ export class LinkDeviceFlow {
       ) {
         // contract returns current deviceNumber, device should be assigned next number
         const nextDeviceNumber = linkingResult.deviceNumber + 1;
-        console.log(`LinkDeviceFlow: Success! Discovered linked account:`, {
+        console.debug(`LinkDeviceFlow: Success! Discovered linked account:`, {
           linkedAccountId: linkingResult.linkedAccountId,
           currentCounter: linkingResult.deviceNumber,
           nextDeviceNumber: nextDeviceNumber,
@@ -613,7 +609,7 @@ export class LinkDeviceFlow {
         const { nextNonce: _nextNonce, txBlockHash, txBlockHeight } =
           await nonceManager.getNonceBlockHashAndHeight(this.context.nearClient);
 
-        const authChallenge = await this.context.webAuthnManager.generateVrfChallenge({
+        const authChallenge = await this.context.webAuthnManager.generateVrfChallengeOnce({
           userId: accountId,
           rpId: this.context.webAuthnManager.getRpId(),
           blockHash: txBlockHash,
@@ -648,6 +644,9 @@ export class LinkDeviceFlow {
           status: DeviceLinkingStatus.SUCCESS,
           message: `Welcome ${accountId}`
         });
+        // Refresh local login state so downstream consumers pick up the device-specific
+        // public key without requiring a manual re-login.
+        try { await getLoginState(this.context, accountId); } catch {}
       } catch (unlockError: any) {
         console.warn('LinkDeviceFlow: TouchID VRF unlock failed during auto-login:', unlockError);
         // Initialize current user even if VRF unlock fails; transactions will surface
@@ -887,8 +886,9 @@ export class LinkDeviceFlow {
           action_type: ActionType.AddKey,
           public_key: newPublicKey,
           access_key: JSON.stringify({
-            // nonce: 0, // nonce should be 0 for the new key, specifying nonce here does not seem to do anything
-            permission: { FullAccess: {} }
+            // NEAR-style AccessKey JSON shape: { nonce, permission: { FullAccess: {} } }
+            nonce: 0,
+            permission: { FullAccess: {} },
           })
         },
         {

@@ -52,7 +52,7 @@ export class UnifiedIndexedDBManager {
       // This will trigger the getDB() method in both managers and ensure databases are created
       await Promise.all([
         this.clientDB.getAppState('_init_check'),
-        this.nearKeysDB.hasEncryptedKey('_init_check')
+        this.nearKeysDB.hasEncryptedKey('_init_check', 1)
       ]);
 
       this._initialized = true;
@@ -85,7 +85,7 @@ export class UnifiedIndexedDBManager {
       : await this.clientDB.getUserByDevice(nearAccountId, 1);
     const deviceNumber = (last && last.nearAccountId === nearAccountId)
       ? last.deviceNumber
-      : userData?.deviceNumber;
+      : userData?.deviceNumber!;
     const [hasKeys, keyData] = await Promise.all([
       this.nearKeysDB.hasEncryptedKey(nearAccountId, deviceNumber),
       this.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber)
