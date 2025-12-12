@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use serde_wasm_bindgen;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -55,11 +56,18 @@ pub fn handle_shamir3pass_generate_server_keypair(
             );
         }
     };
-    let shamir3pass_exponents = serde_json::json!({
-        "e_s_b64u": encode_biguint_b64u(&keys.e),
-        "d_s_b64u": encode_biguint_b64u(&keys.d),
-    });
-    VrfWorkerResponse::success(message_id, Some(shamir3pass_exponents))
+    #[derive(Serialize)]
+    struct Exponents<'a> {
+        e_s_b64u: &'a str,
+        d_s_b64u: &'a str,
+    }
+    let exponents = Exponents {
+        e_s_b64u: &encode_biguint_b64u(&keys.e),
+        d_s_b64u: &encode_biguint_b64u(&keys.d),
+    };
+    let payload = serde_wasm_bindgen::to_value(&exponents)
+        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    VrfWorkerResponse::success(message_id, Some(payload))
 }
 
 pub fn handle_shamir3pass_apply_server_lock_kek(
@@ -82,10 +90,16 @@ pub fn handle_shamir3pass_apply_server_lock_kek(
         Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid kek_c_b64u"),
     };
     let kek_cs = shamir3pass.add_lock(&kek_c, &e_s);
-    let out = serde_json::json!({
-        "kek_cs_b64u": encode_biguint_b64u(&kek_cs)
-    });
-    VrfWorkerResponse::success(message_id, Some(out))
+    #[derive(Serialize)]
+    struct Resp<'a> {
+        kek_cs_b64u: &'a str,
+    }
+    let resp = Resp {
+        kek_cs_b64u: &encode_biguint_b64u(&kek_cs),
+    };
+    let payload = serde_wasm_bindgen::to_value(&resp)
+        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    VrfWorkerResponse::success(message_id, Some(payload))
 }
 
 pub fn handle_shamir3pass_remove_server_lock_kek(
@@ -108,8 +122,14 @@ pub fn handle_shamir3pass_remove_server_lock_kek(
         Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid kek_cs_b64u"),
     };
     let kek_c = shamir3pass.remove_lock(&kek_cs, &d_s);
-    let out = serde_json::json!({
-        "kek_c_b64u": encode_biguint_b64u(&kek_c)
-    });
-    VrfWorkerResponse::success(message_id, Some(out))
+    #[derive(Serialize)]
+    struct Resp<'a> {
+        kek_c_b64u: &'a str,
+    }
+    let resp = Resp {
+        kek_c_b64u: &encode_biguint_b64u(&kek_c),
+    };
+    let payload = serde_wasm_bindgen::to_value(&resp)
+        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    VrfWorkerResponse::success(message_id, Some(payload))
 }

@@ -8,11 +8,11 @@ export type Result<T, E = PasskeyErrorDetails> =
   | { success: false; error: E };
 
 /**
- * WASM Bindgen generates a `free` method on all structs.
- * This type removes the `free` method from the struct.
+ * WASM Bindgen generates a `free` method and a `[Symbol.dispose]` method on all structs.
+ * This helper strips those so we can use plain object shapes for worker payloads.
  */
 export type StripFree<T> = T extends object
-  ? { [K in keyof T as K extends 'free' ? never : K]: StripFree<T[K]> }
+  ? { [K in keyof T as K extends 'free' | symbol ? never : K]: StripFree<T[K]> }
   : T;
 
 // Export all types

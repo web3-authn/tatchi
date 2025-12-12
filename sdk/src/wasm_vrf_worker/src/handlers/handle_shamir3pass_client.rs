@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use serde_wasm_bindgen;
 
 fn normalize_relay_url(base: &str, route: &str) -> String {
     let base_trimmed = base.trim().trim_end_matches('/');
@@ -98,14 +99,9 @@ pub async fn handle_shamir3pass_client_encrypt_current_vrf_keypair(
     };
 
     // Return ciphertext_vrf (base64url) and KEK_s to save to indexedDB
-    let out = Shamir3PassEncryptVrfKeypairResult {
-        ciphertext_vrf_b64u: result.ciphertext_vrf_b64u,
-        kek_s_b64u: result.kek_s_b64u,
-        vrf_public_key: result.vrf_public_key,
-        server_key_id: result.server_key_id,
-    };
-
-    VrfWorkerResponse::success(message_id, Some(serde_json::to_value(&out).unwrap()))
+    let payload = serde_wasm_bindgen::to_value(&result)
+        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    VrfWorkerResponse::success(message_id, Some(payload))
 }
 
 pub async fn perform_shamir3pass_client_encrypt_current_vrf_keypair(
@@ -296,8 +292,15 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
         return VrfWorkerResponse::fail(message_id, e.to_string());
     }
 
-    VrfWorkerResponse::success(
+    VrfWorkerResponse::success_from(
         message_id,
-        Some(serde_json::json!({ "status": "unlocked" })),
+        Some(ShamirUnlockStatus {
+            status: "unlocked",
+        }),
     )
+}
+
+#[derive(Serialize)]
+struct ShamirUnlockStatus {
+    status: &'static str,
 }

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsValue;
+use serde_wasm_bindgen;
 
 pub mod http;
 pub mod worker_messages;
@@ -75,9 +77,13 @@ pub struct VRFChallengeData {
     pub block_hash: String,
 }
 impl VRFChallengeData {
-    pub fn to_json(&self) -> serde_json::Value {
-        serde_json::to_value(self).unwrap()
+    pub fn to_js_value(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(self).unwrap_or(JsValue::UNDEFINED)
     }
+}
+
+fn js_undefined() -> JsValue {
+    JsValue::UNDEFINED
 }
 
 #[derive(Serialize, Deserialize)]
@@ -99,11 +105,14 @@ pub struct WorkerConfirmationResponse {
     pub request_id: String,
     pub intent_digest: Option<String>,
     pub confirmed: bool,
-    pub credential: Option<serde_json::Value>,
+    #[serde(default = "js_undefined", with = "serde_wasm_bindgen::preserve")]
+    pub credential: JsValue,
     pub prf_output: Option<String>,
     pub wrap_key_seed: Option<String>,
     pub wrap_key_salt: Option<String>,
-    pub vrf_challenge: Option<serde_json::Value>,
-    pub transaction_context: Option<serde_json::Value>,
+    #[serde(default = "js_undefined", with = "serde_wasm_bindgen::preserve")]
+    pub vrf_challenge: JsValue,
+    #[serde(default = "js_undefined", with = "serde_wasm_bindgen::preserve")]
+    pub transaction_context: JsValue,
     pub error: Option<String>,
 }

@@ -1,12 +1,15 @@
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
+use js_sys::{Array, Reflect};
 use web_sys::{Headers, Request, RequestInit, Response};
 
 use crate::types::VRFChallengeData;
 use crate::utils::{base64_url_decode, base64_url_encode};
+
+pub const VERIFY_AUTHENTICATION_RESPONSE_METHOD: &str = "verify_authentication_response";
 
 /// Contract verification result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,7 +119,48 @@ pub struct WebAuthnRegistrationResponse {
     pub transports: Option<Vec<String>>,
 }
 
-pub const VERIFY_AUTHENTICATION_RESPONSE_METHOD: &str = "verify_authentication_response";
+#[derive(Serialize)]
+struct ContractArgs<'a> {
+    vrf_data: &'a VrfData,
+    webauthn_authentication: &'a WebAuthnAuthenticationCredential,
+}
+
+impl<'a> ContractArgs<'a> {
+    /// Serialize to UTF-8 JSON bytes: required format for NEAR RPC calls
+    fn to_json_bytes(&self) -> Result<Vec<u8>, String> {
+        let val = serde_wasm_bindgen::to_value(self)
+            .map_err(|e| format!("Failed to serialize contract args: {}", e))?;
+        let json = js_sys::JSON::stringify(&val)
+            .map_err(|e| format!("Failed to stringify contract args: {:?}", e))?
+            .as_string()
+            .ok_or_else(|| "Failed to stringify contract args".to_string())?;
+        Ok(json.into_bytes())
+    }
+}
+
+#[derive(Serialize)]
+struct RpcParams<'a> {
+    request_type: &'static str,
+    account_id: &'a str,
+    method_name: &'static str,
+    args_base64: String,
+    finality: &'static str,
+}
+
+#[derive(Serialize)]
+struct RpcBody<'a> {
+    jsonrpc: &'static str,
+    id: &'static str,
+    method: &'static str,
+    params: RpcParams<'a>,
+}
+
+impl<'a> RpcBody<'a> {
+    fn to_js_value(&'a mut self) -> Result<JsValue, String> {
+        serde_wasm_bindgen::to_value(self)
+            .map_err(|e| format!("Failed to serialize RPC body: {}", e))
+    }
+}
 
 /// Perform contract verification via NEAR RPC directly from WASM (VRF-owned)
 pub async fn verify_authentication_response_rpc_call(
@@ -125,49 +169,46 @@ pub async fn verify_authentication_response_rpc_call(
     vrf_data: VrfData,
     webauthn_authentication_credential: WebAuthnAuthenticationCredential,
 ) -> Result<ContractVerificationResult, String> {
-    let contract_args = serde_json::json!({
-        "vrf_data": vrf_data,
-        "webauthn_authentication": webauthn_authentication_credential
-    });
-    let rpc_body = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": "verify_from_vrf_worker",
-        "method": "query",
-        "params": {
-            "request_type": "call_function",
-            "account_id": contract_id,
-            "method_name": VERIFY_AUTHENTICATION_RESPONSE_METHOD,
-            "args_base64": base64_standard_encode(contract_args.to_string().as_bytes()),
-            "finality": "final"
-        }
-    });
+
+    let contract_args_bytes = ContractArgs {
+        vrf_data: &vrf_data,
+        webauthn_authentication: &webauthn_authentication_credential,
+    }.to_json_bytes()?;
 
     debug!("[vrf wasm]: Making verification RPC call to: {}", rpc_url);
-    let result = execute_rpc_request(rpc_url, &rpc_body).await?;
+    let result = execute_rpc_request(
+        rpc_url,
+        &RpcBody {
+            jsonrpc: "2.0",
+            id: "verify_from_vrf_worker",
+            method: "query",
+            params: RpcParams {
+                request_type: "call_function",
+                account_id: contract_id,
+                method_name: VERIFY_AUTHENTICATION_RESPONSE_METHOD,
+                args_base64: base64_standard_encode(&contract_args_bytes),
+                finality: "final",
+            },
+        }.to_js_value()?
+    ).await?;
 
-    if let Some(error) = result.get("error") {
-        let error_msg = error
-            .get("message")
-            .and_then(|m| m.as_str())
-            .unwrap_or("Unknown RPC error");
+    // Top-level RPC error
+    if let Some(error_msg) = extract_error_message(&result, "error") {
         return Ok(ContractVerificationResult {
             success: false,
             verified: false,
-            error: Some(error_msg.to_string()),
+            error: Some(error_msg),
             logs: vec![],
         });
     }
 
-    let contract_result = result
-        .get("result")
-        .ok_or("Missing result in RPC response")?;
+    let contract_result = Reflect::get(&result, &JsValue::from_str("result"))
+        .map_err(|e| format!("Failed to read result from RPC response: {:?}", e))?;
+    if contract_result.is_undefined() || contract_result.is_null() {
+        return Err("Missing result in RPC response".to_string());
+    }
 
-    if let Some(error) = contract_result.get("error") {
-        let error_msg = if let Some(error_str) = error.as_str() {
-            error_str.to_string()
-        } else {
-            serde_json::to_string(error).unwrap_or_else(|_| "Unknown contract error".to_string())
-        };
+    if let Some(error_msg) = extract_error_message(&contract_result, "error") {
         warn!("[vrf wasm] Contract execution error: {}", error_msg);
         return Ok(ContractVerificationResult {
             success: false,
@@ -177,37 +218,32 @@ pub async fn verify_authentication_response_rpc_call(
         });
     }
 
-    let result_bytes = contract_result
-        .get("result")
-        .and_then(|r| r.as_array())
-        .ok_or("Missing or invalid result.result array")?;
-
-    let result_u8: Vec<u8> = result_bytes
-        .iter()
-        .map(|v| v.as_u64().unwrap_or(0) as u8)
-        .collect();
+    let result_bytes_js = Reflect::get(&contract_result, &JsValue::from_str("result"))
+        .map_err(|e| format!("Failed to read result.result: {:?}", e))?;
+    let result_bytes_arr = Array::from(&result_bytes_js);
+    if result_bytes_arr.length() == 0 {
+        return Err("Missing or invalid result.result array".to_string());
+    }
+    let mut result_u8: Vec<u8> = Vec::with_capacity(result_bytes_arr.length() as usize);
+    for v in result_bytes_arr.iter() {
+        let byte = v.as_f64().ok_or_else(|| "result.result must be an array of numbers".to_string())?;
+        result_u8.push(byte as u8);
+    }
 
     let result_string = String::from_utf8(result_u8)
         .map_err(|e| format!("Failed to decode result string: {}", e))?;
 
-    let contract_response: Value = serde_json::from_str(&result_string)
-        .map_err(|e| format!("Failed to parse contract response: {}", e))?;
+    let contract_response = js_sys::JSON::parse(&result_string)
+        .map_err(|e| format!("Failed to parse contract response: {:?}", e))?;
 
-    let verified = contract_response
-        .get("verified")
+    let verified = Reflect::get(&contract_response, &JsValue::from_str("verified"))
+        .ok()
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let logs = contract_result
-        .get("logs")
-        .and_then(|l| l.as_array())
-        .map(|logs_array| {
-            logs_array
-                .iter()
-                .filter_map(|log| log.as_str().map(|s| s.to_string()))
-                .collect()
-        })
-        .unwrap_or_default();
+    let logs = extract_string_array(&contract_result, "logs");
+
+    let contract_error = extract_error_message(&contract_response, "error");
 
     debug!(
         "[vrf wasm] Contract verification result: verified={}, logs={:?}",
@@ -217,11 +253,7 @@ pub async fn verify_authentication_response_rpc_call(
     Ok(ContractVerificationResult {
         success: true,
         verified,
-        error: if verified {
-            None
-        } else {
-            Some("Contract verification failed".to_string())
-        },
+        error: if verified { None } else { Some(contract_error.unwrap_or_else(|| "Contract verification failed".to_string())) },
         logs,
     })
 }
@@ -229,8 +261,8 @@ pub async fn verify_authentication_response_rpc_call(
 /// Shared HTTP request execution logic for VRF worker
 async fn execute_rpc_request(
     rpc_url: &str,
-    rpc_body: &serde_json::Value,
-) -> Result<serde_json::Value, String> {
+    rpc_body: &JsValue,
+) -> Result<JsValue, String> {
     let endpoints: Vec<String> = rpc_url
         .split(|c: char| c == ',' || c.is_whitespace())
         .map(|s| s.trim())
@@ -250,7 +282,12 @@ async fn execute_rpc_request(
     let opts = RequestInit::new();
     opts.set_method("POST");
     opts.set_headers(&headers);
-    opts.set_body(&JsValue::from_str(&rpc_body.to_string()));
+
+    let body_str = js_sys::JSON::stringify(rpc_body)
+        .map_err(|e| format!("Failed to stringify RPC body: {:?}", e))?
+        .as_string()
+        .ok_or_else(|| "Failed to stringify RPC body".to_string())?;
+    opts.set_body(&JsValue::from_str(&body_str));
 
     let global = js_sys::global();
     let fetch_fn = js_sys::Reflect::get(&global, &JsValue::from_str("fetch"))
@@ -336,13 +373,7 @@ async fn execute_rpc_request(
             }
         };
 
-        let result: Value = match serde_wasm_bindgen::from_value(json_value) {
-            Ok(r) => r,
-            Err(e) => {
-                last_error = Some(format!("Failed to deserialize JSON: {:?}", e));
-                continue;
-            }
-        };
+        let result = json_value;
 
         if index > 0 {
             warn!(
@@ -359,4 +390,30 @@ async fn execute_rpc_request(
 
 fn base64_standard_encode(data: &[u8]) -> String {
     base64_url_encode(data)
+}
+
+fn extract_error_message(obj: &JsValue, field: &str) -> Option<String> {
+    Reflect::get(obj, &JsValue::from_str(field))
+        .ok()
+        .and_then(|err| {
+            if err.is_undefined() || err.is_null() {
+                None
+            } else if let Some(s) = err.as_string() {
+                Some(s)
+            } else {
+                Some(format!("{:?}", err))
+            }
+        })
+}
+
+fn extract_string_array(obj: &JsValue, field: &str) -> Vec<String> {
+    Reflect::get(obj, &JsValue::from_str(field))
+        .ok()
+        .and_then(|v| v.dyn_into::<js_sys::Array>().ok())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|item| item.as_string())
+                .collect::<Vec<String>>()
+        })
+        .unwrap_or_default()
 }

@@ -26,15 +26,23 @@ use crate::manager::VRFKeyManager;
 use crate::types::VrfWorkerResponse;
 use std::cell::RefCell;
 use std::rc::Rc;
+use serde::Serialize;
+use js_sys::Date;
 
 /// Handle PING message
 pub fn handle_ping(message_id: Option<String>) -> VrfWorkerResponse {
-    VrfWorkerResponse::success(
+    #[derive(Serialize)]
+    struct PingStatus {
+        status: &'static str,
+        timestamp: f64,
+    }
+
+    VrfWorkerResponse::success_from(
         message_id,
-        Some(serde_json::json!({
-            "status": "alive",
-            "timestamp": js_sys::Date::now()
-        })),
+        Some(PingStatus {
+            status: "alive",
+            timestamp: Date::now(),
+        }),
     )
 }
 
@@ -45,7 +53,7 @@ pub fn handle_check_vrf_status(
 ) -> VrfWorkerResponse {
     let manager_ref = manager.borrow();
     let status = manager_ref.get_vrf_status();
-    VrfWorkerResponse::success(message_id, Some(status))
+    VrfWorkerResponse::success_from(message_id, Some(status))
 }
 
 /// Handle LOGOUT message

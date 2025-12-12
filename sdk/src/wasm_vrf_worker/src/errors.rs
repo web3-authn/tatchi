@@ -207,12 +207,6 @@ impl std::error::Error for SerializationError {}
 impl std::error::Error for MessageError {}
 
 // Conversion helpers for common error types
-impl From<serde_json::Error> for VrfWorkerError {
-    fn from(err: serde_json::Error) -> Self {
-        VrfWorkerError::MessageParsingError(MessageError::JsonParsingFailed(err.to_string()))
-    }
-}
-
 impl From<HkdfInvalidLength> for VrfWorkerError {
     fn from(_: HkdfInvalidLength) -> Self {
         VrfWorkerError::HkdfDerivationFailed(HkdfError::KeyDerivationFailed)

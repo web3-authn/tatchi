@@ -1,9 +1,9 @@
 use log::debug;
-use serde_json::Value;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
+use js_sys::{Array, Reflect};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
 #[cfg(target_arch = "wasm32")]
@@ -34,6 +34,7 @@ pub use rpc_calls::{VrfData, ContractVerificationResult, WebAuthnAuthenticationC
 
 // Import specific types to avoid ambiguity
 pub use types::{VrfWorkerMessage, VrfWorkerResponse, WorkerRequestType};
+use types::worker_messages::{parse_typed_payload, parse_worker_request_envelope};
 
 // Import request types from their respective handler files
 pub use handlers::handle_derive_vrf_keypair_from_prf::DeriveVrfKeypairFromPrfRequest;
@@ -60,16 +61,10 @@ use types::WorkerConfirmationResponse;
 use wasm_bindgen_futures::JsFuture;
 use js_sys::Promise;
 
-// Import JSON functions for message serialization
+// JS bridge exposed from web3authn-vrf.worker.ts:
+//   (globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(js_namespace = JSON)]
-    fn stringify(obj: &JsValue) -> JsValue;
-    #[wasm_bindgen(js_namespace = JSON)]
-    fn parse(text: &str) -> JsValue;
-
-    /// JS bridge exposed from web3authn-vrf.worker.ts:
-    ///   (globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
     #[wasm_bindgen(js_name = awaitSecureConfirmationV2)]
     fn await_secure_confirmation_v2(request_json: String) -> Promise;
 }
@@ -94,10 +89,8 @@ pub async fn vrf_await_secure_confirmation(
     let js_val = JsFuture::from(promise)
         .await
         .map_err(|e| format!("awaitSecureConfirmationV2 rejected: {:?}", e))?;
-    let value: serde_json::Value = serde_wasm_bindgen::from_value(js_val)
-        .map_err(|e| format!("Failed to deserialize confirmation response: {}", e))?;
-    serde_json::from_value::<WorkerConfirmationResponse>(value)
-        .map_err(|e| format!("Invalid WorkerConfirmationResponse shape: {}", e))
+    serde_wasm_bindgen::from_value(js_val)
+        .map_err(|e| format!("Failed to deserialize confirmation response: {}", e))
 }
 
 // === GLOBAL STATE ===
@@ -200,62 +193,70 @@ pub mod wrap_key_seed_port {
 
 #[wasm_bindgen]
 pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
-    // Convert JsValue to JSON string first, then parse
-    let message_str = stringify(&message)
-        .as_string()
-        .ok_or_else(|| JsValue::from_str("Failed to stringify message"))?;
+    // Normalize message to a JS object (accept JSON strings for server-side callers)
+    let message_obj = if message.is_string() {
+        let json_str = message.as_string().unwrap_or_default();
+        js_sys::JSON::parse(&json_str)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse message JSON: {:?}", e)))?
+    } else {
+        message
+    };
 
-    let raw_value: Value = serde_json::from_str(&message_str)
-        .map_err(|e| JsValue::from_str(&format!("Failed to parse message: {}", e)))?;
-
-    if let Some(key) = find_forbidden_near_secret(&raw_value) {
+    // Guardrail: reject payloads that contain near_sk anywhere in the tree.
+    if let Some(key) = find_forbidden_near_secret(&message_obj) {
         return Err(JsValue::from_str(&format!(
             "Forbidden secret field in VRF payload: {}",
             key
         )));
     }
 
-    let message: VrfWorkerMessage = serde_json::from_value(raw_value)
-        .map_err(|e| JsValue::from_str(&format!("Failed to parse message: {}", e)))?;
+    let VrfWorkerMessage {
+        request_type,
+        request_type_raw: _,
+        id,
+        payload,
+    } = parse_worker_request_envelope(message_obj)?;
 
-    // Identify the message type using WorkerRequestType
-    debug!("Received message: {}", message.msg_type);
-    let request_type = WorkerRequestType::from(message.msg_type.as_str());
+    debug!("Received message: {}", request_type.name());
 
     let manager_rc = VRF_MANAGER.with(|m| m.clone());
 
     let response = match request_type {
         // Test VRF worker health
-        WorkerRequestType::Ping => handlers::handle_ping(message.id),
+        WorkerRequestType::Ping => handlers::handle_ping(id.clone()),
         // Bootstrap VRF keypair + challenge generation (only for registration)
         WorkerRequestType::GenerateVrfKeypairBootstrap => {
+            let request: GenerateVrfKeypairBootstrapRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_generate_vrf_keypair_bootstrap(
                 manager_rc.clone(),
-                message.id.clone(),
-                message.parse_payload(request_type).map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
         }
-        WorkerRequestType::UnlockVrfKeypair => handlers::handle_unlock_vrf_keypair(
-            manager_rc.clone(),
-            message.id.clone(),
-            message.parse_payload(request_type).map_err(JsValue::from)?,
-        ),
+        WorkerRequestType::UnlockVrfKeypair => {
+            let request: UnlockVrfKeypairRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_unlock_vrf_keypair(manager_rc.clone(), id.clone(), request)
+        }
         WorkerRequestType::CheckVrfStatus => {
-            handlers::handle_check_vrf_status(manager_rc.clone(), message.id.clone())
+            handlers::handle_check_vrf_status(manager_rc.clone(), id.clone())
         }
         WorkerRequestType::Logout => {
-            handlers::handle_logout(manager_rc.clone(), message.id.clone())
+            handlers::handle_logout(manager_rc.clone(), id.clone())
         }
-        WorkerRequestType::GenerateVrfChallenge => handlers::handle_generate_vrf_challenge(
-            manager_rc.clone(),
-            message.id.clone(),
-            message.parse_payload(request_type).map_err(JsValue::from)?,
-        ),
+        WorkerRequestType::GenerateVrfChallenge => {
+            let request: GenerateVrfChallengeRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_generate_vrf_challenge(manager_rc.clone(), id.clone(), request)
+        }
         WorkerRequestType::DeriveVrfKeypairFromPrf => {
+            let request: DeriveVrfKeypairFromPrfRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_derive_vrf_keypair_from_prf(
                 manager_rc.clone(),
-                message.id.clone(),
-                message.parse_payload(request_type).map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
             .await
         }
@@ -263,127 +264,149 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         // Initial VRF encryption is performed in the DERIVE_VRF_KEYPAIR_FROM_PRF handler during registration
         // So this handler is somewhat redundant, but may be useful for future use cases
         WorkerRequestType::Shamir3PassClientEncryptCurrentVrfKeypair => {
+            let request: Shamir3PassClientEncryptCurrentVrfKeypairRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_shamir3pass_client_encrypt_current_vrf_keypair(
                 manager_rc.clone(),
-                message.id.clone(),
-                message.parse_payload(request_type).map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
             .await
         }
         WorkerRequestType::Shamir3PassClientDecryptVrfKeypair => {
+            let request: Shamir3PassClientDecryptVrfKeypairRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_shamir3pass_client_decrypt_vrf_keypair(
                 manager_rc.clone(),
-                message.id.clone(),
-                message.parse_payload(request_type).map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
             .await
         }
         // Server-side helpers used by Node relay-server, they lock and unlock the KEK (key encryption key)
         WorkerRequestType::Shamir3PassGenerateServerKeypair => {
+            let request: Shamir3PassGenerateServerKeypairRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_shamir3pass_generate_server_keypair(
                 manager_rc.clone(),
-                message.id.clone(),
-                message.parse_payload(request_type).map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
         }
         WorkerRequestType::Shamir3PassApplyServerLock => {
+            let request: Shamir3PassApplyServerLockRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_shamir3pass_apply_server_lock_kek(
                 manager_rc.clone(),
-                message.id.clone(),
-                message.parse_payload(request_type).map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
         }
         WorkerRequestType::Shamir3PassRemoveServerLock => {
+            let request: Shamir3PassRemoveServerLockRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_shamir3pass_remove_server_lock_kek(
                 manager_rc.clone(),
-                message.id.clone(),
-                message.parse_payload(request_type).map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
         }
         // Configure Shamir p (global) and server URLs
-        WorkerRequestType::Shamir3PassConfigP => handlers::handle_shamir3pass_config_p(
-            manager_rc.clone(),
-            message.id.clone(),
-            message.parse_payload(request_type).map_err(JsValue::from)?,
-        ),
+        WorkerRequestType::Shamir3PassConfigP => {
+            let request: Shamir3PassConfigPRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_shamir3pass_config_p(manager_rc.clone(), id.clone(), request)
+        }
         WorkerRequestType::Shamir3PassConfigServerUrls => {
+            let request: Shamir3PassConfigServerUrlsRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_shamir3pass_config_server_urls(
                 manager_rc.clone(),
-                message.id.clone(),
-                message.parse_payload(request_type).map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
         }
         WorkerRequestType::DeriveWrapKeySeedAndSession => {
+            let request: DeriveWrapKeySeedAndSessionRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_derive_wrap_key_seed_and_session(
                 manager_rc.clone(),
-                message.id.clone(),
-                message
-                    .parse_payload::<DeriveWrapKeySeedAndSessionRequest>(request_type)
-                    .map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
             .await
         }
         WorkerRequestType::DecryptSession => {
+            let request: DecryptSessionRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_decrypt_session(
                 manager_rc.clone(),
-                message.id.clone(),
-                message
-                    .parse_payload(request_type)
-                    .map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
             .await
         }
         WorkerRequestType::RegistrationCredentialConfirmation => {
+            let request: RegistrationCredentialConfirmationRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_registration_credential_confirmation(
                 manager_rc.clone(),
-                message.id.clone(),
-                message
-                    .parse_payload(request_type)
-                    .map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
             .await
         }
         WorkerRequestType::Device2RegistrationSession => {
+            let request: Device2RegistrationSessionRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_device2_registration_session(
                 manager_rc.clone(),
-                message.id.clone(),
-                message
-                    .parse_payload(request_type)
-                    .map_err(JsValue::from)?,
+                id.clone(),
+                request,
             )
             .await
         }
     };
 
-    // Convert response to JsValue
-    let response_json = serde_json::to_string(&response)
-        .map_err(|e| JsValue::from_str(&format!("Failed to serialize response: {}", e)))?;
-
-    Ok(parse(&response_json))
+    serde_wasm_bindgen::to_value(&response)
+        .map_err(|e| JsValue::from_str(&format!("Failed to serialize response: {}", e)))
 }
 
-fn find_forbidden_near_secret(value: &Value) -> Option<String> {
+fn find_forbidden_near_secret(value: &JsValue) -> Option<String> {
     const FORBIDDEN_KEYS: [&str; 1] = ["near_sk"];
-    match value {
-        Value::Object(map) => {
-            for (k, v) in map {
-                if FORBIDDEN_KEYS.contains(&k.as_str()) {
-                    return Some(k.clone());
-                }
-                if let Some(inner) = find_forbidden_near_secret(v) {
-                    return Some(inner);
-                }
-            }
-            None
-        }
-        Value::Array(arr) => {
-            for v in arr {
-                if let Some(inner) = find_forbidden_near_secret(v) {
-                    return Some(inner);
-                }
-            }
-            None
-        }
-        _ => None,
+
+    if value.is_null() || value.is_undefined() {
+        return None;
     }
+
+    // Check arrays
+    if Array::is_array(value) {
+        let arr = Array::from(value);
+        for elem in arr.iter() {
+            if let Some(inner) = find_forbidden_near_secret(&elem) {
+                return Some(inner);
+            }
+        }
+        return None;
+    }
+
+    // Check plain objects
+    if value.is_object() {
+        let obj = value.unchecked_ref::<js_sys::Object>();
+        let keys = js_sys::Object::keys(obj);
+        for key in keys.iter() {
+            if let Some(k) = key.as_string() {
+                if FORBIDDEN_KEYS.contains(&k.as_str()) {
+                    return Some(k);
+                }
+                if let Ok(child) = Reflect::get(value, &JsValue::from_str(&k)) {
+                    if let Some(inner) = find_forbidden_near_secret(&child) {
+                        return Some(inner);
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }

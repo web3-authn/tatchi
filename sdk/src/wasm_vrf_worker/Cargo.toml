@@ -29,13 +29,12 @@ hkdf = "0.12"
 js-sys = "0.3"
 rand_core = "0.6"
 sha2 = "0.10"
-serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde-wasm-bindgen = "0.6"
 wasm-bindgen = "0.2"
 zeroize = { version = "1.7", features = ["derive"] }
 # VRF and cryptography
-vrf-wasm = { version = "0.8.4", features = ["browser"] }
+vrf-wasm = { version = "0.9.1", features = ["browser"] }
 # Logging dependencies
 log = "0.4"
 wasm-logger = "0.2"

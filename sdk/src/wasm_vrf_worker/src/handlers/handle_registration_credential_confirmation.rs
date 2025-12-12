@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use serde_wasm_bindgen;
 
 /// Request payload for VRF-driven registration credential confirmation.
 /// Mirrors the parameters used by the TypeScript helper while remaining
@@ -26,8 +27,12 @@ pub struct RegistrationCredentialConfirmationRequest {
     pub near_rpc_url: String,
     /// Optional confirmation configuration passed through to confirmTxFlow.
     #[wasm_bindgen(skip)]
-    #[serde(rename = "confirmationConfig")]
-    pub confirmation_config: Option<serde_json::Value>,
+    #[serde(
+        rename = "confirmationConfig",
+        default = "js_undefined",
+        with = "serde_wasm_bindgen::preserve"
+    )]
+    pub confirmation_config: wasm_bindgen::JsValue,
 }
 
 /// Result surface for registration confirmation.
@@ -41,14 +46,18 @@ pub struct RegistrationCredentialConfirmationResult {
     pub request_id: String,
     #[serde(rename = "intentDigest")]
     pub intent_digest: String,
-    #[serde(rename = "credential")]
-    pub credential: Option<serde_json::Value>,
-    #[serde(rename = "vrfChallenge")]
-    pub vrf_challenge: Option<serde_json::Value>,
-    #[serde(rename = "transactionContext")]
-    pub transaction_context: Option<serde_json::Value>,
+    #[serde(rename = "credential", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    pub credential: wasm_bindgen::JsValue,
+    #[serde(rename = "vrfChallenge", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    pub vrf_challenge: wasm_bindgen::JsValue,
+    #[serde(rename = "transactionContext", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    pub transaction_context: wasm_bindgen::JsValue,
     #[serde(rename = "error")]
     pub error: Option<String>,
+}
+
+fn js_undefined() -> wasm_bindgen::JsValue {
+    wasm_bindgen::JsValue::UNDEFINED
 }
 
 /// VRF-side entrypoint to drive registration confirmation via confirmTxFlow.
@@ -71,69 +80,94 @@ pub async fn handle_registration_credential_confirmation(
     let intent_digest = format!("register:{}:{}", near_account_id, device_number);
 
     // Build the SecureConfirmRequest JSON envelope expected by awaitSecureConfirmationV2.
-    let mut root = serde_json::Map::new();
-    root.insert(
-        "schemaVersion".to_string(),
-        serde_json::Value::Number(2.into()),
-    );
-    root.insert(
-        "requestId".to_string(),
-        serde_json::Value::String(request_id.clone()),
-    );
-    // Use the REGISTER_ACCOUNT variant; link-device flows can layer on top later if needed.
-    root.insert(
-        "type".to_string(),
-        serde_json::Value::String("registerAccount".to_string()),
-    );
-
-    // Summary shown in UI.
-    let mut summary = serde_json::Map::new();
-    summary.insert(
-        "nearAccountId".to_string(),
-        serde_json::Value::String(near_account_id.clone()),
-    );
-    summary.insert(
-        "deviceNumber".to_string(),
-        serde_json::Value::Number(device_number.into()),
-    );
-    if !request.contract_id.is_empty() {
-        summary.insert(
-            "contractId".to_string(),
-            serde_json::Value::String(request.contract_id.clone()),
-        );
+    #[derive(Serialize)]
+    #[allow(non_snake_case)]
+    struct Summary<'a> {
+        nearAccountId: &'a str,
+        deviceNumber: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        contractId: Option<&'a str>,
     }
-    root.insert("summary".to_string(), serde_json::Value::Object(summary));
 
-    // Payload consumed by confirmTxFlow / registration handler.
-    let rpc_call = serde_json::json!({
-        "contractId": request.contract_id,
-        "nearRpcUrl": request.near_rpc_url,
-        "nearAccountId": near_account_id,
-    });
-    let mut payload = serde_json::Map::new();
-    payload.insert(
-        "nearAccountId".to_string(),
-        serde_json::Value::String(near_account_id),
-    );
-    payload.insert(
-        "deviceNumber".to_string(),
-        serde_json::Value::Number(device_number.into()),
-    );
-    payload.insert("rpcCall".to_string(), rpc_call);
-    root.insert("payload".to_string(), serde_json::Value::Object(payload));
-
-    // Optional per-call confirmation config passthrough.
-    if let Some(cfg) = request.confirmation_config {
-        root.insert("confirmationConfig".to_string(), cfg);
+    #[derive(Serialize)]
+    #[allow(non_snake_case)]
+    struct RpcCall<'a> {
+        contractId: &'a str,
+        nearRpcUrl: &'a str,
+        nearAccountId: &'a str,
     }
-    root.insert(
-        "intentDigest".to_string(),
-        serde_json::Value::String(intent_digest.clone()),
-    );
 
-    let request_json = match serde_json::to_string(&serde_json::Value::Object(root)) {
-        Ok(s) => s,
-        Err(e) => return VrfWorkerResponse::fail(message_id, e.to_string()),
+    #[derive(Serialize)]
+    #[allow(non_snake_case)]
+    struct Payload<'a> {
+        nearAccountId: &'a str,
+        deviceNumber: u32,
+        rpcCall: RpcCall<'a>,
+    }
+
+    #[derive(Serialize)]
+    #[allow(non_snake_case)]
+    struct SecureConfirmRequest<'a> {
+        schemaVersion: u32,
+        requestId: &'a str,
+        #[serde(rename = "type")]
+        request_type: &'static str,
+        summary: Summary<'a>,
+        payload: Payload<'a>,
+        intentDigest: &'a str,
+        #[serde(skip_serializing_if = "is_undefined", with = "serde_wasm_bindgen::preserve")]
+        confirmationConfig: wasm_bindgen::JsValue,
+    }
+
+    fn is_undefined(v: &wasm_bindgen::JsValue) -> bool {
+        v.is_undefined() || v.is_null()
+    }
+
+    let summary = Summary {
+        nearAccountId: &near_account_id,
+        deviceNumber: device_number,
+        contractId: if request.contract_id.is_empty() {
+            None
+        } else {
+            Some(request.contract_id.as_str())
+        },
+    };
+    let payload = Payload {
+        nearAccountId: &near_account_id,
+        deviceNumber: device_number,
+        rpcCall: RpcCall {
+            contractId: &request.contract_id,
+            nearRpcUrl: &request.near_rpc_url,
+            nearAccountId: &near_account_id,
+        },
+    };
+
+    let confirm_request = SecureConfirmRequest {
+        schemaVersion: 2,
+        requestId: &request_id,
+        request_type: "registerAccount",
+        summary,
+        payload,
+        intentDigest: &intent_digest,
+        confirmationConfig: request.confirmation_config.clone(),
+    };
+
+    let request_js = match serde_wasm_bindgen::to_value(&confirm_request) {
+        Ok(v) => v,
+        Err(e) => return VrfWorkerResponse::fail(message_id, format!("Failed to serialize request: {}", e)),
+    };
+
+    let request_json = match js_sys::JSON::stringify(&request_js) {
+        Ok(s) => match s.as_string() {
+            Some(str) => str,
+            None => return VrfWorkerResponse::fail(message_id, "Failed to stringify request".to_string()),
+        },
+        Err(e) => {
+            return VrfWorkerResponse::fail(
+                message_id,
+                format!("Failed to stringify request: {:?}", e),
+            )
+        }
     };
 
     let decision: WorkerConfirmationResponse =
@@ -152,9 +186,8 @@ pub async fn handle_registration_credential_confirmation(
         error: decision.error.clone(),
     };
 
-    VrfWorkerResponse::success(
+    VrfWorkerResponse::success_from(
         message_id,
-        Some(serde_json::to_value(result).unwrap()),
+        Some(result),
     )
 }
-

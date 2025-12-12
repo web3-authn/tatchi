@@ -8,11 +8,11 @@ import * as wasmModule from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import type { InitInput } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
 
 /**
- * WASM Bindgen generates a `free` method on all structs.
- * This type removes the `free` method from the struct.
+ * WASM Bindgen generates a `free` method and a `[Symbol.dispose]` method on all structs.
+ * Strip both so we can pass plain objects to the worker.
  */
 export type StripFree<T> = T extends object
-  ? { [K in keyof T as K extends 'free' ? never : K]: StripFree<T[K]> }
+  ? { [K in keyof T as K extends 'free' | symbol ? never : K]: StripFree<T[K]> }
   : T;
 
 export type ShamirApplyServerLockRequest = StripFree<wasmModule.Shamir3PassApplyServerLockRequest>;

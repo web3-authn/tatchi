@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use serde_wasm_bindgen;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -23,17 +24,16 @@ pub fn handle_generate_vrf_challenge(
 ) -> VrfWorkerResponse {
     let manager_ref = manager.borrow();
 
-    return match manager_ref.generate_vrf_challenge(payload.vrf_input_data) {
+    match manager_ref.generate_vrf_challenge(payload.vrf_input_data) {
         Ok(challenge_data) => {
             debug!("VRF challenge generated successfully");
-            VrfWorkerResponse::success(
-                message_id,
-                Some(serde_json::to_value(&challenge_data).unwrap()),
-            )
+            let challenge_js = serde_wasm_bindgen::to_value(&challenge_data)
+                .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+            VrfWorkerResponse::success(message_id, Some(challenge_js))
         }
         Err(e) => {
             error!("VRF challenge generation failed: {}", e);
             VrfWorkerResponse::fail(message_id, e.to_string())
         }
-    };
+    }
 }

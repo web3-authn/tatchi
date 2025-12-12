@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use serde_wasm_bindgen;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -42,10 +43,16 @@ pub fn handle_shamir3pass_config_p(
     match crate::shamir3pass::Shamir3Pass::new(&payload.p_b64u) {
         Ok(sp) => {
             mgr.shamir3pass = sp;
-            VrfWorkerResponse::success(
-                message_id,
-                Some(serde_json::json!({ "status": "ok", "p_b64u": payload.p_b64u })),
-            )
+            #[derive(Serialize)]
+            struct Resp<'a> {
+                status: &'static str,
+                p_b64u: &'a str,
+            }
+            let resp = Resp {
+                status: "ok",
+                p_b64u: &payload.p_b64u,
+            };
+            VrfWorkerResponse::success(message_id, Some(serde_wasm_bindgen::to_value(&resp).unwrap_or(wasm_bindgen::JsValue::UNDEFINED)))
         }
         Err(e) => VrfWorkerResponse::fail(message_id, format!("invalid p_b64u: {:?}", e)),
     }
@@ -76,5 +83,12 @@ pub fn handle_shamir3pass_config_server_urls(
     mgr.apply_lock_route = Some(payload.apply_lock_route);
     mgr.remove_lock_route = Some(payload.remove_lock_route);
 
-    VrfWorkerResponse::success(message_id, Some(serde_json::json!({ "status": "ok" })))
+    #[derive(Serialize)]
+    struct Resp {
+        status: &'static str,
+    }
+    VrfWorkerResponse::success(
+        message_id,
+        Some(serde_wasm_bindgen::to_value(&Resp { status: "ok" }).unwrap_or(wasm_bindgen::JsValue::UNDEFINED)),
+    )
 }

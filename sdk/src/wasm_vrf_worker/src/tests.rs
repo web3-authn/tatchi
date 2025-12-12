@@ -6,16 +6,8 @@ use crate::config::{
     VRF_DOMAIN_SEPARATOR, VRF_SEED_SIZE,
 };
 use crate::shamir3pass::{decode_biguint_b64u, encode_biguint_b64u};
-use crate::types::{
-    EncryptedVRFKeypair, VRFChallengeData, VRFInputData, VrfWorkerMessage, VrfWorkerResponse,
-};
 use crate::utils::{base64_url_decode, base64_url_encode};
-use crate::handlers::handle_generate_vrf_keypair_bootstrap::GenerateVrfKeypairBootstrapRequest;
-use crate::handlers::handle_generate_vrf_challenge::GenerateVrfChallengeRequest;
-use crate::handlers::handle_derive_wrap_key_seed_and_session::DeriveWrapKeySeedAndSessionRequest;
-use crate::handlers::handle_derive_vrf_keypair_from_prf::DeriveVrfKeypairFromPrfRequest;
 use num_bigint::BigUint;
-use serde_json;
 
 // Test helper functions
 fn create_test_prf_output() -> Vec<u8> {
@@ -27,13 +19,29 @@ fn create_test_account_id() -> String {
 }
 
 #[test]
+#[cfg(target_arch = "wasm32")]
 fn reject_near_sk_in_payload() {
     // Craft a minimal message with a forbidden field; guard should reject before parsing
-    let msg = serde_json::json!({
-        "type": "PING",
-        "payload": { "near_sk": "should-not-pass" }
-    });
-    let js_val = wasm_bindgen::JsValue::from_str(&msg.to_string());
+    #[derive(Serialize)]
+    struct ForbiddenPayload<'a> {
+        #[serde(rename = "type")]
+        msg_type: &'a str,
+        payload: ForbiddenField<'a>,
+    }
+
+    #[derive(Serialize)]
+    struct ForbiddenField<'a> {
+        #[serde(rename = "near_sk")]
+        near_sk: &'a str,
+    }
+
+    let msg = ForbiddenPayload {
+        msg_type: "PING",
+        payload: ForbiddenField {
+            near_sk: "should-not-pass",
+        },
+    };
+    let js_val = serde_wasm_bindgen::to_value(&msg).expect("serialize forbidden payload");
     let result = futures::executor::block_on(crate::handle_message(js_val));
     assert!(result.is_err(), "VRF worker should reject near_sk in payload");
     let err = result.err().unwrap();
@@ -61,6 +69,7 @@ fn test_base64url_prf_processing_consistency() {
 }
 
 #[test]
+#[cfg(target_arch = "wasm32")]
 fn test_vrf_data_structures_serialization() {
     // Test VRFInputData serialization/deserialization
     let vrf_input = VRFInputData {
@@ -70,9 +79,9 @@ fn test_vrf_data_structures_serialization() {
         block_hash: String::from_utf8(vec![0u8; 32]).unwrap(),
     };
 
-    let json_str = serde_json::to_string(&vrf_input).expect("Should serialize VRFInputData");
+    let js_val = serde_wasm_bindgen::to_value(&vrf_input).expect("Should serialize VRFInputData");
     let deserialized: VRFInputData =
-        serde_json::from_str(&json_str).expect("Should deserialize VRFInputData");
+        serde_wasm_bindgen::from_value(js_val).expect("Should deserialize VRFInputData");
 
     assert_eq!(vrf_input.user_id, deserialized.user_id);
     assert_eq!(vrf_input.rp_id, deserialized.rp_id);
@@ -85,10 +94,10 @@ fn test_vrf_data_structures_serialization() {
         chacha20_nonce_b64u: base64_url_encode(&vec![2u8; 12]),
     };
 
-    let json_str =
-        serde_json::to_string(&encrypted_keypair).expect("Should serialize EncryptedVRFKeypair");
+    let json_val =
+        serde_wasm_bindgen::to_value(&encrypted_keypair).expect("Should serialize EncryptedVRFKeypair");
     let deserialized: EncryptedVRFKeypair =
-        serde_json::from_str(&json_str).expect("Should deserialize EncryptedVRFKeypair");
+        serde_wasm_bindgen::from_value(json_val).expect("Should deserialize EncryptedVRFKeypair");
 
     assert_eq!(
         encrypted_keypair.encrypted_vrf_data_b64u,
@@ -103,37 +112,60 @@ fn test_vrf_data_structures_serialization() {
 }
 
 #[test]
+#[cfg(target_arch = "wasm32")]
 fn test_worker_message_format_consistency() {
-    // Test VRFWorkerMessage structure
-    let test_message = VrfWorkerMessage {
-        msg_type: "PING".to_string(),
-        id: Some("test-123".to_string()),
-        payload: Some(serde_json::json!({"test": "data"})),
+    // Test VrfWorkerMessage parsing from a JS object
+    #[derive(Serialize)]
+    struct TestPayload<'a> {
+        test: &'a str,
+    }
+
+    #[derive(Serialize)]
+    struct TestMessage<'a> {
+        #[serde(rename = "type")]
+        msg_type: &'a str,
+        id: &'a str,
+        payload: TestPayload<'a>,
+    }
+
+    let raw_msg = TestMessage {
+        msg_type: "PING",
+        id: "test-123",
+        payload: TestPayload { test: "data" },
     };
+    let js_val = serde_wasm_bindgen::to_value(&raw_msg).expect("Should serialize test message");
+    let parsed = parse_worker_request_envelope(js_val).expect("Should parse worker envelope");
+    assert_eq!(parsed.request_type, WorkerRequestType::Ping);
+    assert_eq!(parsed.id.as_deref(), Some("test-123"));
+    let payload_val: HashMap<String, String> =
+        serde_wasm_bindgen::from_value(parsed.payload.unwrap()).expect("payload to deserialize");
+    assert_eq!(payload_val.get("test").map(String::as_str), Some("data"));
 
-    let json_str = serde_json::to_string(&test_message).expect("Should serialize VrfWorkerMessage");
-    let deserialized: VrfWorkerMessage =
-        serde_json::from_str(&json_str).expect("Should deserialize VrfWorkerMessage");
+    // Test VrfWorkerResponse serialization round-trip via serde_wasm_bindgen
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+    struct ResultPayload {
+        result: String,
+    }
 
-    assert_eq!(test_message.msg_type, deserialized.msg_type);
-    assert_eq!(test_message.id, deserialized.id);
+    let test_response = VrfWorkerResponse::success_from(
+        Some("test-123".to_string()),
+        Some(ResultPayload {
+            result: "success".to_string(),
+        }),
+    );
 
-    // Test VrfWorkerResponse structure
-    let test_response = VrfWorkerResponse {
-        id: Some("test-123".to_string()),
-        success: true,
-        data: Some(serde_json::json!({"result": "success"})),
-        error: None,
-    };
-
-    let json_str =
-        serde_json::to_string(&test_response).expect("Should serialize VrfWorkerResponse");
+    let js_val = serde_wasm_bindgen::to_value(&test_response)
+        .expect("Should serialize VrfWorkerResponse to JsValue");
     let deserialized: VrfWorkerResponse =
-        serde_json::from_str(&json_str).expect("Should deserialize VrfWorkerResponse");
+        serde_wasm_bindgen::from_value(js_val).expect("Should deserialize VrfWorkerResponse");
 
     assert_eq!(test_response.id, deserialized.id);
     assert_eq!(test_response.success, deserialized.success);
     assert_eq!(test_response.error, deserialized.error);
+
+    let data_val: ResultPayload =
+        serde_wasm_bindgen::from_value(deserialized.data).expect("data to deserialize");
+    assert_eq!(data_val.result, "success");
 
     println!("[Passed] Worker message format consistency test passed");
 }
@@ -294,19 +326,33 @@ fn test_prf_base64url_edge_cases() {
 }
 
 #[test]
+#[cfg(target_arch = "wasm32")]
 fn test_worker_message_prf_field_extraction() {
     // Test that we can extract base64url PRF fields from worker messages
     let test_prf_bytes = create_test_prf_output();
     let test_prf_base64url = base64_url_encode(&test_prf_bytes);
 
     // Test message with prfKey field (for encryption operations)
-    let message_data = serde_json::json!({
-        "prfKey": test_prf_base64url,
-        "expectedPublicKey": "test-public-key",
-        "nearAccountId": "test.testnet"
-    });
+    #[derive(Serialize, Deserialize)]
+    struct PrfKeyMessage<'a> {
+        #[serde(rename = "prfKey")]
+        prf_key: &'a str,
+        #[serde(rename = "expectedPublicKey")]
+        expected_public_key: &'a str,
+        #[serde(rename = "nearAccountId")]
+        near_account_id: &'a str,
+    }
 
-    let prf_key_field = message_data["prfKey"].as_str().unwrap_or("");
+    let message_data = PrfKeyMessage {
+        prf_key: &test_prf_base64url,
+        expected_public_key: "test-public-key",
+        near_account_id: "test.testnet",
+    };
+
+    let prf_map: HashMap<String, String> =
+        serde_wasm_bindgen::from_value(serde_wasm_bindgen::to_value(&message_data).unwrap())
+            .expect("prf map");
+    let prf_key_field = prf_map.get("prfKey").map(String::as_str).unwrap_or("");
     assert_eq!(
         prf_key_field, test_prf_base64url,
         "PRF key field should match original"
@@ -319,12 +365,26 @@ fn test_worker_message_prf_field_extraction() {
     );
 
     // Test message with prfOutput field (for derivation operations)
-    let derivation_data = serde_json::json!({
-        "prfOutput": test_prf_base64url,
-        "nearAccountId": "test.testnet"
-    });
+    #[derive(Serialize, Deserialize)]
+    struct PrfOutputMessage<'a> {
+        #[serde(rename = "prfOutput")]
+        prf_output: &'a str,
+        #[serde(rename = "nearAccountId")]
+        near_account_id: &'a str,
+    }
 
-    let prf_output_field = derivation_data["prfOutput"].as_str().unwrap_or("");
+    let derivation_data = PrfOutputMessage {
+        prf_output: &test_prf_base64url,
+        near_account_id: "test.testnet",
+    };
+
+    let prf_output_map: HashMap<String, String> =
+        serde_wasm_bindgen::from_value(serde_wasm_bindgen::to_value(&derivation_data).unwrap())
+            .expect("prf output map");
+    let prf_output_field = prf_output_map
+        .get("prfOutput")
+        .map(String::as_str)
+        .unwrap_or("");
     assert_eq!(
         prf_output_field, test_prf_base64url,
         "PRF output field should match original"
@@ -340,25 +400,27 @@ fn test_worker_message_prf_field_extraction() {
 }
 
 #[test]
+#[cfg(target_arch = "wasm32")]
 fn test_vrf_challenge_camelcase_deserialization() {
     // Test that VRFChallengeData correctly deserializes from camelCase JSON
     // This verifies the #[serde(rename_all = "camelCase")] attribute works correctly
 
-    // Create a JSON string with camelCase field names (as TypeScript would send)
-    let camelcase_json = r#"{
-        "vrfInput": "dGVzdF9pbnB1dF9kYXRh",
-        "vrfOutput": "dGVzdF9vdXRwdXRfZGF0YQ",
-        "vrfProof": "dGVzdF9wcm9vZl9kYXRh",
-        "vrfPublicKey": "dGVzdF9wdWJsaWNfa2V5X2RhdGE",
-        "userId": "test-user.testnet",
-        "rpId": "example.com",
-        "blockHeight": 12345,
-        "blockHash": "dGVzdF9ibG9ja19oYXNoX2RhdGE"
-    }"#;
+    let mut camelcase_map = BTreeMap::new();
+    camelcase_map.insert("vrfInput".to_string(), "dGVzdF9pbnB1dF9kYXRh".to_string());
+    camelcase_map.insert("vrfOutput".to_string(), "dGVzdF9vdXRwdXRfZGF0YQ".to_string());
+    camelcase_map.insert("vrfProof".to_string(), "dGVzdF9wcm9vZl9kYXRh".to_string());
+    camelcase_map.insert("vrfPublicKey".to_string(), "dGVzdF9wdWJsaWNfa2V5X2RhdGE".to_string());
+    camelcase_map.insert("userId".to_string(), "test-user.testnet".to_string());
+    camelcase_map.insert("rpId".to_string(), "example.com".to_string());
+    camelcase_map.insert("blockHeight".to_string(), "12345".to_string());
+    camelcase_map.insert("blockHash".to_string(), "dGVzdF9ibG9ja19oYXNoX2RhdGE".to_string());
 
-    // Deserialize the JSON into VRFChallengeData
-    let vrf_challenge: VRFChallengeData = serde_json::from_str(camelcase_json)
-        .expect("Should deserialize VRFChallengeData from camelCase JSON");
+    let camelcase_js = serde_wasm_bindgen::to_value(&camelcase_map)
+        .expect("Should serialize camelCase map");
+
+    // Deserialize the JSON-shaped value into VRFChallengeData
+    let vrf_challenge: VRFChallengeData = serde_wasm_bindgen::from_value(camelcase_js.clone())
+        .expect("Should deserialize VRFChallengeData from camelCase map");
 
     // Verify all fields are correctly mapped from camelCase to snake_case
     assert_eq!(vrf_challenge.vrf_input, "dGVzdF9pbnB1dF9kYXRh");
@@ -371,11 +433,12 @@ fn test_vrf_challenge_camelcase_deserialization() {
     assert_eq!(vrf_challenge.block_hash, "dGVzdF9ibG9ja19oYXNoX2RhdGE");
 
     // Test round-trip serialization/deserialization
-    let serialized_json =
-        serde_json::to_string(&vrf_challenge).expect("Should serialize VRFChallengeData to JSON");
+    let serialized_js =
+        serde_wasm_bindgen::to_value(&vrf_challenge).expect("Should serialize VRFChallengeData");
 
-    let round_trip_challenge: VRFChallengeData = serde_json::from_str(&serialized_json)
-        .expect("Should deserialize VRFChallengeData from round-trip JSON");
+    let round_trip_challenge: VRFChallengeData =
+        serde_wasm_bindgen::from_value(serialized_js.clone())
+            .expect("Should deserialize VRFChallengeData from round-trip value");
 
     // Verify round-trip preserves all data
     assert_eq!(vrf_challenge.vrf_input, round_trip_challenge.vrf_input);
@@ -393,39 +456,17 @@ fn test_vrf_challenge_camelcase_deserialization() {
     );
     assert_eq!(vrf_challenge.block_hash, round_trip_challenge.block_hash);
 
-    // Test that the serialized JSON contains camelCase field names (for TypeScript compatibility)
-    assert!(
-        serialized_json.contains("\"vrfInput\""),
-        "Serialized JSON should contain camelCase vrfInput"
-    );
-    assert!(
-        serialized_json.contains("\"vrfOutput\""),
-        "Serialized JSON should contain camelCase vrfOutput"
-    );
-    assert!(
-        serialized_json.contains("\"vrfProof\""),
-        "Serialized JSON should contain camelCase vrfProof"
-    );
-    assert!(
-        serialized_json.contains("\"vrfPublicKey\""),
-        "Serialized JSON should contain camelCase vrfPublicKey"
-    );
-    assert!(
-        serialized_json.contains("\"userId\""),
-        "Serialized JSON should contain camelCase userId"
-    );
-    assert!(
-        serialized_json.contains("\"rpId\""),
-        "Serialized JSON should contain camelCase rpId"
-    );
-    assert!(
-        serialized_json.contains("\"blockHeight\""),
-        "Serialized JSON should contain camelCase blockHeight"
-    );
-    assert!(
-        serialized_json.contains("\"blockHash\""),
-        "Serialized JSON should contain camelCase blockHash"
-    );
+    // Test that the serialized value contains camelCase field names (for TypeScript compatibility)
+    let serialized_map: BTreeMap<String, String> =
+        serde_wasm_bindgen::from_value(serialized_js).expect("map from serialized value");
+    assert!(serialized_map.contains_key("vrfInput"), "Serialized value should contain camelCase vrfInput");
+    assert!(serialized_map.contains_key("vrfOutput"), "Serialized value should contain camelCase vrfOutput");
+    assert!(serialized_map.contains_key("vrfProof"), "Serialized value should contain camelCase vrfProof");
+    assert!(serialized_map.contains_key("vrfPublicKey"), "Serialized value should contain camelCase vrfPublicKey");
+    assert!(serialized_map.contains_key("userId"), "Serialized value should contain camelCase userId");
+    assert!(serialized_map.contains_key("rpId"), "Serialized value should contain camelCase rpId");
+    assert!(serialized_map.contains_key("blockHeight"), "Serialized value should contain camelCase blockHeight");
+    assert!(serialized_map.contains_key("blockHash"), "Serialized value should contain camelCase blockHash");
 
     println!("[Passed] VRFChallenge camelCase deserialization test passed");
 }
@@ -484,6 +525,7 @@ fn test_shamir_biguint_b64u_invalid_inputs() {
 }
 
 #[test]
+#[cfg(target_arch = "wasm32")]
 fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
     // Session id and PRF first auth are arbitrary but well-formed
     let req = DeriveWrapKeySeedAndSessionRequest {
@@ -493,11 +535,11 @@ fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
         contract_id: None,
         near_rpc_url: None,
         vrf_challenge: None,
-        credential: None,
+        credential: JsValue::UNDEFINED,
     };
-    let json = serde_json::to_string(&req).expect("serialize");
+    let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
     let parsed: DeriveWrapKeySeedAndSessionRequest =
-        serde_json::from_str(&json).expect("deserialize");
+        serde_wasm_bindgen::from_value(json).expect("deserialize");
     assert_eq!(
         parsed.wrap_key_salt_b64u, "explicit-salt",
         "wrapKeySalt should round-trip unchanged when provided by caller"
@@ -505,6 +547,7 @@ fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
 }
 
 #[test]
+#[cfg(target_arch = "wasm32")]
 fn derive_wrap_key_seed_and_session_generates_salt_when_empty() {
     let req = DeriveWrapKeySeedAndSessionRequest {
         session_id: "sess-456".to_string(),
@@ -513,12 +556,12 @@ fn derive_wrap_key_seed_and_session_generates_salt_when_empty() {
         contract_id: None,
         near_rpc_url: None,
         vrf_challenge: None,
-        credential: None,
+        credential: JsValue::UNDEFINED,
     };
     // The handler itself runs under wasm32, but the request shape must be JSON-compatible.
-    let json = serde_json::to_string(&req).expect("serialize");
+    let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
     let parsed: DeriveWrapKeySeedAndSessionRequest =
-        serde_json::from_str(&json).expect("deserialize");
+        serde_wasm_bindgen::from_value(json).expect("deserialize");
     assert!(
         parsed.wrap_key_salt_b64u.trim().is_empty(),
         "handler is responsible for generating wrapKeySalt when empty; request struct should preserve caller input"
@@ -526,6 +569,7 @@ fn derive_wrap_key_seed_and_session_generates_salt_when_empty() {
 }
 
 #[test]
+#[cfg(target_arch = "wasm32")]
 fn generate_vrf_keypair_bootstrap_request_allows_optional_input() {
     let req = GenerateVrfKeypairBootstrapRequest {
         vrf_input_data: Some(VRFInputData {
@@ -535,13 +579,14 @@ fn generate_vrf_keypair_bootstrap_request_allows_optional_input() {
             block_hash: "hash".to_string(),
         }),
     };
-    let json = serde_json::to_string(&req).expect("serialize");
+    let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
     let parsed: GenerateVrfKeypairBootstrapRequest =
-        serde_json::from_str(&json).expect("deserialize");
+        serde_wasm_bindgen::from_value(json).expect("deserialize");
     assert!(parsed.vrf_input_data.is_some(), "vrfInputData should survive round-trip");
 }
 
 #[test]
+#[cfg(target_arch = "wasm32")]
 fn generate_vrf_challenge_request_requires_input() {
     let req = GenerateVrfChallengeRequest {
         vrf_input_data: VRFInputData {
@@ -551,13 +596,14 @@ fn generate_vrf_challenge_request_requires_input() {
             block_hash: "hash2".to_string(),
         },
     };
-    let json = serde_json::to_string(&req).expect("serialize");
+    let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
     let parsed: GenerateVrfChallengeRequest =
-        serde_json::from_str(&json).expect("deserialize");
+        serde_wasm_bindgen::from_value(json).expect("deserialize");
     assert_eq!(parsed.vrf_input_data.rp_id, "example.com");
 }
 
 #[test]
+#[cfg(target_arch = "wasm32")]
 fn derive_vrf_keypair_from_prf_request_uses_defaults() {
     let req = DeriveVrfKeypairFromPrfRequest {
         prf_output: base64_url_encode(&create_test_prf_output()),
@@ -565,9 +611,9 @@ fn derive_vrf_keypair_from_prf_request_uses_defaults() {
         save_in_memory: true,
         vrf_input_data: None,
     };
-    let json = serde_json::to_string(&req).expect("serialize");
+    let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
     let parsed: DeriveVrfKeypairFromPrfRequest =
-        serde_json::from_str(&json).expect("deserialize");
+        serde_wasm_bindgen::from_value(json).expect("deserialize");
     assert!(parsed.save_in_memory, "saveInMemory default should be true");
     assert!(parsed.vrf_input_data.is_none(), "vrfInputData can be omitted");
 }

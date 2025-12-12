@@ -19,6 +19,7 @@ use crate::shamir3pass::Shamir3Pass;
 use crate::types::*;
 use crate::types::{EncryptedVrfKeypairResponse, GenerateVrfKeypairBootstrapResponse};
 use crate::utils::{base64_url_decode, base64_url_encode, parse_block_height};
+use serde::Serialize;
 
 // === SECURE VRF KEYPAIR WRAPPER ===
 
@@ -54,6 +55,13 @@ pub struct VRFKeyManager {
     pub relay_server_url: Option<String>,
     pub apply_lock_route: Option<String>,
     pub remove_lock_route: Option<String>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct VrfStatus {
+    pub active: bool,
+    pub session_duration: f64,
 }
 
 impl VRFKeyManager {
@@ -306,16 +314,16 @@ impl VRFKeyManager {
         Ok(result)
     }
 
-    pub fn get_vrf_status(&self) -> serde_json::Value {
+    pub fn get_vrf_status(&self) -> VrfStatus {
         let session_duration = if self.session_active {
             Date::now() - self.session_start_time
         } else {
             0.0
         };
-        serde_json::json!({
-            "active": self.session_active,
-            "sessionDuration": session_duration
-        })
+        VrfStatus {
+            active: self.session_active,
+            session_duration,
+        }
     }
 
     pub fn logout(&mut self) -> VrfResult<()> {

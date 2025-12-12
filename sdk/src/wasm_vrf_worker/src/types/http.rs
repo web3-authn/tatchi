@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use serde_wasm_bindgen;
 
 // === Shamir 3-pass HTTP types (exported to TS via wasm-bindgen) ===
 
@@ -11,7 +12,7 @@ pub struct ShamirApplyServerLockHTTPRequest {
 }
 impl ShamirApplyServerLockHTTPRequest {
     pub fn to_js_value(&self) -> JsValue {
-        JsValue::from_str(&serde_json::to_string(self).unwrap())
+        serde_wasm_bindgen::to_value(self).unwrap_or(JsValue::UNDEFINED)
     }
 }
 
@@ -26,10 +27,13 @@ pub struct ShamirApplyServerLockHTTPResponse {
 }
 impl ShamirApplyServerLockHTTPResponse {
     pub fn from_str(s: &str) -> Result<Self, String> {
-        serde_json::from_str(s).map_err(|e| format!("Failed to parse response JSON: {}", e))
+        let js_val = js_sys::JSON::parse(s)
+            .map_err(|e| format!("Failed to parse response JSON: {:?}", e))?;
+        serde_wasm_bindgen::from_value(js_val)
+            .map_err(|e| format!("Failed to deserialize response JSON: {}", e))
     }
     pub fn to_js_value(&self) -> JsValue {
-        JsValue::from_str(&serde_json::to_string(self).unwrap())
+        serde_wasm_bindgen::to_value(self).unwrap_or(JsValue::UNDEFINED)
     }
 }
 
@@ -44,7 +48,7 @@ pub struct ShamirRemoveServerLockHTTPRequest {
 }
 impl ShamirRemoveServerLockHTTPRequest {
     pub fn to_js_value(&self) -> JsValue {
-        JsValue::from_str(&serde_json::to_string(self).unwrap())
+        serde_wasm_bindgen::to_value(self).unwrap_or(JsValue::UNDEFINED)
     }
 }
 
@@ -56,9 +60,12 @@ pub struct ShamirRemoveServerLockHTTPResponse {
 }
 impl ShamirRemoveServerLockHTTPResponse {
     pub fn from_str(s: &str) -> Result<Self, String> {
-        serde_json::from_str(s).map_err(|e| format!("Failed to parse response JSON: {}", e))
+        let js_val = js_sys::JSON::parse(s)
+            .map_err(|e| format!("Failed to parse response JSON: {:?}", e))?;
+        serde_wasm_bindgen::from_value(js_val)
+            .map_err(|e| format!("Failed to deserialize response JSON: {}", e))
     }
     pub fn to_js_value(&self) -> JsValue {
-        JsValue::from_str(&serde_json::to_string(self).unwrap())
+        serde_wasm_bindgen::to_value(self).unwrap_or(JsValue::UNDEFINED)
     }
 }
