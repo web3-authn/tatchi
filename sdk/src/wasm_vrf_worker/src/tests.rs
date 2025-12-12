@@ -5,6 +5,7 @@ use crate::config::{
     CHACHA20_KEY_SIZE, CHACHA20_NONCE_SIZE, HKDF_CHACHA20_KEY_INFO, HKDF_VRF_KEYPAIR_INFO,
     VRF_DOMAIN_SEPARATOR, VRF_SEED_SIZE,
 };
+use crate::handlers::handle_derive_wrap_key_seed_and_session::verify_authentication_if_needed;
 use crate::shamir3pass::{decode_biguint_b64u, encode_biguint_b64u};
 use crate::utils::{base64_url_decode, base64_url_encode};
 use num_bigint::BigUint;
@@ -16,6 +17,60 @@ fn create_test_prf_output() -> Vec<u8> {
 
 fn create_test_account_id() -> String {
     "test-account.testnet".to_string()
+}
+
+#[test]
+#[cfg(target_arch = "wasm32")]
+fn verify_authentication_fails_when_challenge_missing() {
+    use crate::manager::VRFKeyManager;
+    use crate::rpc_calls::{WebAuthnAuthenticationCredential, WebAuthnAuthenticationResponse};
+    use futures::executor::block_on;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use wasm_bindgen::JsValue;
+
+    // Minimal, syntactically valid WebAuthnAuthenticationCredential
+    let cred = WebAuthnAuthenticationCredential {
+        id: "cred-id".to_string(),
+        raw_id: "raw-id".to_string(),
+        response: WebAuthnAuthenticationResponse {
+            client_data_json: "client-data".to_string(),
+            authenticator_data: "auth-data".to_string(),
+            signature: "signature".to_string(),
+            user_handle: None,
+        },
+        authenticator_attachment: None,
+        auth_type: "public-key".to_string(),
+    };
+    let cred_js: JsValue = serde_wasm_bindgen::to_value(&cred).expect("serialize credential");
+
+    let manager = Rc::new(RefCell::new(VRFKeyManager::new(
+        None, None, None, None,
+    )));
+    let message_id = Some("msg-verify-missing-challenge".to_string());
+    let session_id = "sess-missing-challenge";
+
+    let result = block_on(verify_authentication_if_needed(
+        manager,
+        &message_id,
+        &Some("contract.testnet".to_string()),
+        &Some("https://rpc.testnet.near.org".to_string()),
+        session_id,
+        &cred_js,
+    ));
+
+    assert!(result.is_err(), "expected error when challenge is missing");
+    let resp = result.err().unwrap();
+    assert!(
+        !resp.success,
+        "response should indicate failure when challenge is missing"
+    );
+    let err_msg = resp.error.unwrap_or_default();
+    assert!(
+        err_msg.contains("Missing VRF challenge for session"),
+        "unexpected error message: {}",
+        err_msg
+    );
 }
 
 #[test]
@@ -534,7 +589,6 @@ fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
         wrap_key_salt_b64u: "explicit-salt".to_string(),
         contract_id: None,
         near_rpc_url: None,
-        vrf_challenge: None,
         credential: JsValue::UNDEFINED,
     };
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
@@ -555,7 +609,6 @@ fn derive_wrap_key_seed_and_session_generates_salt_when_empty() {
         wrap_key_salt_b64u: "  ".to_string(),
         contract_id: None,
         near_rpc_url: None,
-        vrf_challenge: None,
         credential: JsValue::UNDEFINED,
     };
     // The handler itself runs under wasm32, but the request shape must be JSON-compatible.
@@ -572,6 +625,7 @@ fn derive_wrap_key_seed_and_session_generates_salt_when_empty() {
 #[cfg(target_arch = "wasm32")]
 fn generate_vrf_keypair_bootstrap_request_allows_optional_input() {
     let req = GenerateVrfKeypairBootstrapRequest {
+        session_id: "sess-bootstrap".to_string(),
         vrf_input_data: Some(VRFInputData {
             user_id: create_test_account_id(),
             rp_id: "example.com".to_string(),
@@ -589,6 +643,7 @@ fn generate_vrf_keypair_bootstrap_request_allows_optional_input() {
 #[cfg(target_arch = "wasm32")]
 fn generate_vrf_challenge_request_requires_input() {
     let req = GenerateVrfChallengeRequest {
+        session_id: "sess-challenge".to_string(),
         vrf_input_data: VRFInputData {
             user_id: create_test_account_id(),
             rp_id: "example.com".to_string(),

@@ -30,7 +30,7 @@ test.describe('confirmTxFlow – success paths', () => {
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
           getAuthenticationCredentialsInternal: async () => ({
-            id: 'cred-id', type: 'public-key', rawId: new Uint8Array([1,2,3]).buffer,
+            id: 'cred-id', type: 'public-key', rawId: new Uint8Array([1, 2, 3]).buffer,
             response: {
               clientDataJSON: new Uint8Array([1]).buffer,
               authenticatorData: new Uint8Array([2]).buffer,
@@ -40,11 +40,16 @@ test.describe('confirmTxFlow – success paths', () => {
             getClientExtensionResults: () => ({ prf: { results: { first: new Uint8Array(32).fill(7) } } })
           }) as any,
         },
-        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+        indexedDB: {
+          clientDB: {
+            getAuthenticatorsByUser: async () => [],
+            ensureCurrentPasskey: async () => ({ authenticatorsForPrompt: [], wrongPasskeyError: undefined })
+          }
+        },
         // not used in LocalOnly branch
-        nonceManager: { },
-        nearClient: { },
-        vrfWorkerManager: { },
+        nonceManager: {},
+        nearClient: {},
+        vrfWorkerManager: {},
       };
 
       const request = {
@@ -105,7 +110,7 @@ test.describe('confirmTxFlow – success paths', () => {
             nonceReserved = Array.from({ length: n }, (_, i) => String(101 + i));
             return nonceReserved;
           },
-          releaseNonce(_n: string) {},
+          releaseNonce(_n: string) { },
         },
         nearClient: {
           async viewBlock() {
@@ -113,7 +118,7 @@ test.describe('confirmTxFlow – success paths', () => {
           }
         },
         vrfWorkerManager: {
-          async generateVrfKeypairBootstrap({ vrfInputData }: any) {
+          async generateVrfKeypairBootstrap({ vrfInputData, sessionId }: any) {
             return {
               vrfChallenge: {
                 vrfOutput: 'out0',
@@ -123,8 +128,8 @@ test.describe('confirmTxFlow – success paths', () => {
               },
               vrfPublicKey: 'vpk0'
             };
-           },
-          async generateVrfChallenge({ blockHeight, blockHash }: any) {
+          },
+          async generateVrfChallengeForSession({ blockHeight, blockHash }: any, _sessionId: string) {
             jitRefreshed++;
             return {
               vrfOutput: 'out1',
@@ -137,7 +142,7 @@ test.describe('confirmTxFlow – success paths', () => {
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
           generateRegistrationCredentialsInternal: async () => ({
-            id: 'reg-cred', type: 'public-key', rawId: new Uint8Array([1,2,3]).buffer,
+            id: 'reg-cred', type: 'public-key', rawId: new Uint8Array([1, 2, 3]).buffer,
             response: {
               clientDataJSON: new Uint8Array([1]).buffer,
               attestationObject: new Uint8Array([4]).buffer,
@@ -147,9 +152,10 @@ test.describe('confirmTxFlow – success paths', () => {
               prf: {
                 results: {
                   first: new Uint8Array(32).fill(8),
-                  second: new Uint8Array(32).fill(9) }
+                  second: new Uint8Array(32).fill(9)
                 }
-              })
+              }
+            })
           }) as any,
         },
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
@@ -173,7 +179,7 @@ test.describe('confirmTxFlow – success paths', () => {
         vrf: resp?.vrfChallenge,
         tx: resp?.transactionContext,
         reserved: nonceReserved, jitRefreshed
-     };
+      };
     }, { paths: IMPORT_PATHS });
 
     expect(result.confirmed).toBe(true);
@@ -218,7 +224,7 @@ test.describe('confirmTxFlow – success paths', () => {
             reserved = Array.from({ length: n }, (_, i) => String(201 + i));
             return reserved;
           },
-          releaseNonce(_n: string) {},
+          releaseNonce(_n: string) { },
         },
         nearClient: {
           async viewBlock() {
@@ -226,7 +232,7 @@ test.describe('confirmTxFlow – success paths', () => {
           }
         },
         vrfWorkerManager: {
-          async generateVrfChallenge({ blockHeight, blockHash }: any) {
+          async generateVrfChallengeForSession({ blockHeight, blockHash }: any, _sessionId: string) {
             refreshed++;
             return {
               vrfOutput: 'v-out',
@@ -345,7 +351,7 @@ test.describe('confirmTxFlow – success paths', () => {
           reserveNonces(_n: number) {
             return ['11'];
           },
-          releaseNonce(_n: string) {},
+          releaseNonce(_n: string) { },
         },
         nearClient: {
           async viewBlock() {
@@ -353,7 +359,7 @@ test.describe('confirmTxFlow – success paths', () => {
           }
         },
         vrfWorkerManager: {
-          async generateVrfChallenge({ blockHeight, blockHash }: any) {
+          async generateVrfChallengeForSession({ blockHeight, blockHash }: any, _sessionId: string) {
             refreshed++;
             return {
               vrfOutput: 'nep-out',

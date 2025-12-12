@@ -52,7 +52,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         nearClient: {},
         vrfWorkerManager: {
-          async generateVrfChallenge({ blockHeight, blockHash }: any) {
+          async generateVrfChallengeForSession({ blockHeight, blockHash }: any, _sessionId: string) {
             return { vrfOutput: 'out', vrfProof: 'proof', blockHeight, blockHash };
           },
         },
@@ -256,7 +256,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         nearClient: {},
         vrfWorkerManager: {
-          async generateVrfChallenge({ blockHeight, blockHash }: any) {
+          async generateVrfChallengeForSession({ blockHeight, blockHash }: any, _sessionId: string) {
             return { vrfOutput: 'nep-out', vrfProof: 'nep-proof', blockHeight, blockHash };
           },
         },
@@ -485,7 +485,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         nearClient: {},
         vrfWorkerManager: {
-          async generateVrfChallenge({ blockHeight, blockHash }: any) {
+          async generateVrfChallengeForSession({ blockHeight, blockHash }: any, _sessionId: string) {
             return { vrfOutput: 'out', vrfProof: 'proof', blockHeight, blockHash };
           },
           async checkVrfStatus() {

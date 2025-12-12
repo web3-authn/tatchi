@@ -601,11 +601,11 @@ test.describe('VRF Worker Manager Integration Test', () => {
           blockHash: testConfig.VRF_INPUT_PARAMS.blockHash,
         };
 
-        const vrfChallenge1 = await vrfWorkerManager.generateVrfChallenge(vrfInputData);
+        const vrfChallenge1 = await vrfWorkerManager.generateVrfChallengeOnce(vrfInputData);
 
         // Test deterministic behavior with same input
         console.log('Generating VRF challenge again with same input...');
-        const vrfChallenge2 = await vrfWorkerManager.generateVrfChallenge(vrfInputData);
+        const vrfChallenge2 = await vrfWorkerManager.generateVrfChallengeOnce(vrfInputData);
 
         // Test different behavior with different input
         console.log('Generating VRF challenge with different input...');
@@ -613,7 +613,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
           ...vrfInputData,
           blockHeight: "99999",
         };
-        const vrfChallenge3 = await vrfWorkerManager.generateVrfChallenge(differentInputData);
+        const vrfChallenge3 = await vrfWorkerManager.generateVrfChallengeOnce(differentInputData);
 
         // Verify challenge properties
         const challenge1Valid = !!(vrfChallenge1?.vrfOutput && vrfChallenge1?.vrfProof && vrfChallenge1?.vrfPublicKey);
@@ -749,12 +749,12 @@ test.describe('VRF Worker Manager Integration Test', () => {
         // Test 1: Try to generate VRF challenge without active session
         console.log('Testing VRF challenge without active session...');
         try {
-          await vrfWorkerManager.generateVrfChallenge({
+          await vrfWorkerManager.generateVrfChallengeForSession({
             userId: testConfig.ACCOUNT_ID,
             rpId: 'localhost',
             blockHeight: "12345",
             blockHash: 'dGVzdC1ibG9jay1oYXNo', // base64url: 'test-block-hash'
-          });
+          }, 'test-session');
           console.log('ERROR: Challenge without session should have failed but succeeded!');
         } catch (error: any) {
           testResults.challengeWithoutSessionError = error.message;

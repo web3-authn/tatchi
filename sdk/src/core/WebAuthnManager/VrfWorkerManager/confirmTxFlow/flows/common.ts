@@ -161,13 +161,17 @@ export async function maybeRefreshVrfChallenge(
             blockHash: latestCtx.txBlockHash,
           },
           saveInMemory: true,
+          sessionId: request.requestId,
         })).vrfChallenge
-      : await vrfWorkerManager.generateVrfChallenge({
-          userId: nearAccountId,
-          rpId,
-          blockHeight: latestCtx.txBlockHeight,
-          blockHash: latestCtx.txBlockHash,
-        });
+      : await vrfWorkerManager.generateVrfChallengeForSession(
+          {
+            userId: nearAccountId,
+            rpId,
+            blockHeight: latestCtx.txBlockHeight,
+            blockHash: latestCtx.txBlockHash,
+          },
+          request.requestId,
+        );
 
     return { vrfChallenge, transactionContext: latestCtx };
   }, {

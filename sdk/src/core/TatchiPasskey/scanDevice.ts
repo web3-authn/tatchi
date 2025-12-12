@@ -80,7 +80,7 @@ export async function linkDeviceWithScannedQRData(
       blockHash: txBlockHash,
     };
 
-    const vrfChallenge = await context.webAuthnManager.generateVrfChallenge(vrfInputData);
+    const vrfChallenge = await context.webAuthnManager.generateVrfChallengeOnce(vrfInputData);
 
     onEvent?.({
       step: 6,

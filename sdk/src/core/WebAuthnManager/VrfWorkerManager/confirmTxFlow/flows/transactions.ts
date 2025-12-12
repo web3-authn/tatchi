@@ -53,12 +53,15 @@ export async function handleTransactionSigningFlow(
   // 2) Initial VRF challenge
   if (!ctx.vrfWorkerManager) throw new Error('VrfWorkerManager not available');
   const rpId = ctx.touchIdPrompt.getRpId();
-  let uiVrfChallenge: VRFChallenge = await ctx.vrfWorkerManager.generateVrfChallenge({
-    userId: nearAccountId,
-    rpId,
-    blockHeight: transactionContext.txBlockHeight,
-    blockHash: transactionContext.txBlockHash,
-  });
+  let uiVrfChallenge: VRFChallenge = await ctx.vrfWorkerManager.generateVrfChallengeForSession(
+    {
+      userId: nearAccountId,
+      rpId,
+      blockHeight: transactionContext.txBlockHeight,
+      blockHash: transactionContext.txBlockHash,
+    },
+    request.requestId,
+  );
 
   // 3) UI confirm
   const { confirmed, confirmHandle, error: uiError } = await renderConfirmUI({
@@ -174,7 +177,6 @@ export async function handleTransactionSigningFlow(
         wrapKeySalt,
         contractId,
         nearRpcUrl,
-        vrfChallenge: uiVrfChallenge,
         credential: serialized,
       });
     } catch (err) {

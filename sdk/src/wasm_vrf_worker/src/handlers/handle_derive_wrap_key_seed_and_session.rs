@@ -8,7 +8,7 @@ use crate::manager::VRFKeyManager;
 use crate::rpc_calls::{
     verify_authentication_response_rpc_call, VrfData, WebAuthnAuthenticationCredential,
 };
-use crate::types::{VRFChallengeData, VrfWorkerResponse};
+use crate::types::VrfWorkerResponse;
 use crate::utils::{base64_url_decode, generate_wrap_key_salt_b64u};
 use serde::{Serialize, Deserialize};
 use serde_wasm_bindgen;
@@ -80,16 +80,15 @@ fn as_authentication_credential(
     }
 }
 
-async fn verify_authentication_if_needed(
+pub(crate) async fn verify_authentication_if_needed(
+    manager: Rc<RefCell<VRFKeyManager>>,
     message_id: &Option<String>,
     contract_id: &Option<String>,
     rpc_url: &Option<String>,
-    vrf_challenge: &Option<VRFChallengeData>,
+    session_id: &str,
     credential: &JsValue,
 ) -> Result<(), VrfWorkerResponse> {
-    let (Some(contract_id), Some(rpc_url), Some(vrf_challenge)) =
-        (contract_id.as_ref(), rpc_url.as_ref(), vrf_challenge.as_ref())
-    else {
+    let (Some(contract_id), Some(rpc_url)) = (contract_id.as_ref(), rpc_url.as_ref()) else {
         return Ok(());
     };
 
@@ -108,7 +107,18 @@ async fn verify_authentication_if_needed(
         return Ok(());
     };
 
-    let vrf_data = match VrfData::try_from(vrf_challenge) {
+    // Look up the VRF challenge for this session from the worker-owned cache.
+    let challenge = match manager.borrow().get_challenge(session_id) {
+        Some(ch) => ch,
+        None => {
+            return Err(VrfWorkerResponse::fail(
+                message_id.clone(),
+                format!("Missing VRF challenge for session {}", session_id),
+            ))
+        }
+    };
+
+    let vrf_data = match VrfData::try_from(&challenge) {
         Ok(data) => {
             let vrf_pk_b64u = crate::utils::base64_url_encode(&data.public_key);
             debug!(
@@ -174,10 +184,6 @@ pub struct DeriveWrapKeySeedAndSessionRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "nearRpcUrl")]
     #[serde(rename = "nearRpcUrl")]
     pub near_rpc_url: Option<String>,
-    /// Optional VRF challenge used to build VrfData for contract verification.
-    #[wasm_bindgen(skip)]
-    #[serde(rename = "vrfChallenge")]
-    pub vrf_challenge: Option<VRFChallengeData>,
     /// Optional WebAuthn credential (registration or authentication) for PRF.second extraction.
     /// PRF extension results are intentionally omitted when forwarding to RPC, so
     /// any PRF outputs present in the JS object are not sent over the network.
@@ -208,10 +214,11 @@ pub async fn handle_derive_wrap_key_seed_and_session(
     // before deriving WrapKeySeed. This ensures that only contract-verified sessions
     // receive WrapKeySeed material.
     if let Err(resp) = verify_authentication_if_needed(
+        manager.clone(),
         &message_id,
         &request.contract_id,
         &request.near_rpc_url,
-        &request.vrf_challenge,
+        &request.session_id,
         &request.credential,
     )
     .await

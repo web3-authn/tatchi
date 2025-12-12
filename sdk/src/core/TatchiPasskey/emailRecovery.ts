@@ -836,7 +836,7 @@ export class EmailRecoveryFlow {
         .getNonceManager()
         .getNonceBlockHashAndHeight(this.context.nearClient);
 
-      const authChallenge = await webAuthnManager.generateVrfChallenge({
+      const authChallenge = await webAuthnManager.generateVrfChallengeOnce({
         userId: accountId,
         rpId: webAuthnManager.getRpId(),
         blockHash: txBlockHash,

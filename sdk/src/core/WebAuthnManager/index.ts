@@ -356,8 +356,25 @@ export class WebAuthnManager {
   // VRF MANAGER FUNCTIONS
   ///////////////////////////////////////
 
-  async generateVrfChallenge(vrfInputData: VRFInputData): Promise<VRFChallenge> {
-    return this.vrfWorkerManager.generateVrfChallenge(vrfInputData);
+  /**
+   * Generate a VRF challenge bound to a specific signing/confirm session.
+   * The challenge will be cached in the VRF worker under this sessionId so
+   * later contract verification (DERIVE_WRAP_KEY_SEED_AND_SESSION) can look it up.
+   */
+  async generateVrfChallengeForSession(
+    sessionId: string,
+    vrfInputData: VRFInputData,
+  ): Promise<VRFChallenge> {
+    return this.vrfWorkerManager.generateVrfChallengeForSession(vrfInputData, sessionId);
+  }
+
+  /**
+   * Generate a one-off VRF challenge without caching it in the VRF worker.
+   * Use this for flows that don't perform contract verification or derive
+   * wrap keys via DERIVE_WRAP_KEY_SEED_AND_SESSION.
+   */
+  async generateVrfChallengeOnce(vrfInputData: VRFInputData): Promise<VRFChallenge> {
+    return this.vrfWorkerManager.generateVrfChallengeOnce(vrfInputData);
   }
 
   /**
@@ -370,15 +387,17 @@ export class WebAuthnManager {
    * @returns VRF public key and optionally VRF challenge data
    */
   async generateVrfKeypairBootstrap(args: {
-    saveInMemory: boolean,
-    vrfInputData: VRFInputData
+    saveInMemory: boolean;
+    vrfInputData: VRFInputData;
+    sessionId?: string;
   }): Promise<{
     vrfPublicKey: string;
     vrfChallenge: VRFChallenge;
   }> {
     return this.vrfWorkerManager.generateVrfKeypairBootstrap({
       vrfInputData: args.vrfInputData,
-      saveInMemory: args.saveInMemory
+      saveInMemory: args.saveInMemory,
+      sessionId: args.sessionId,
     });
   }
 

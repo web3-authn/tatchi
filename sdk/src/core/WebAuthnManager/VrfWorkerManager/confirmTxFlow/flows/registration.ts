@@ -72,6 +72,7 @@ export async function handleRegistrationFlow(
       blockHash: transactionContext.txBlockHash,
     },
     saveInMemory: true,
+    sessionId: request.requestId,
   });
   let uiVrfChallenge: VRFChallenge = bootstrap.vrfChallenge;
   console.debug('[RegistrationFlow] VRF bootstrap ok', { blockHeight: uiVrfChallenge.blockHeight });

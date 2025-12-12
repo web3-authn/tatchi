@@ -64,7 +64,72 @@ export interface VrfWorkerManagerContext {
   nonceManager: NonceManager;
   rpIdOverride?: string;
   nearExplorerUrl?: string;
-  vrfWorkerManager?: VrfWorkerManager;
+  vrfWorkerManager?: SessionVrfWorkerManager;
+}
+
+/**
+ * Narrow VRF manager surface used by confirmTxFlow. This interface only exposes
+ * session-bound operations so confirm flows cannot accidentally call the
+ * low-level helpers that take an optional sessionId.
+ */
+export interface SessionVrfWorkerManager {
+  generateVrfKeypairBootstrap(args: {
+    vrfInputData: VRFInputData;
+    saveInMemory: boolean;
+    sessionId: string;
+  }): Promise<{
+    vrfPublicKey: string;
+    vrfChallenge: VRFChallenge;
+  }>;
+
+  generateVrfChallengeForSession(inputData: VRFInputData, sessionId: string): Promise<VRFChallenge>;
+
+  deriveWrapKeySeedAndSendToSigner(args: {
+    sessionId: string;
+    prfFirstAuthB64u: string;
+    wrapKeySalt?: string;
+    contractId?: string;
+    nearRpcUrl?: string;
+    credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+  }): Promise<{ sessionId: string; wrapKeySalt: string }>;
+
+  prepareDecryptSession(args: {
+    sessionId: string;
+    nearAccountId: AccountId;
+    wrapKeySalt: string;
+  }): Promise<void>;
+
+  requestRegistrationCredentialConfirmation(params: {
+    nearAccountId: string;
+    deviceNumber: number;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+    contractId: string;
+    nearRpcUrl: string;
+  }): Promise<RegistrationCredentialConfirmationPayload>;
+
+  confirmAndDeriveDevice2RegistrationSession(params: {
+    sessionId: string;
+    nearAccountId: AccountId;
+    deviceNumber: number;
+    contractId: string;
+    nearRpcUrl: string;
+    authenticatorOptions?: object;
+    wrapKeySalt?: string;
+  }): Promise<{
+    confirmed: boolean;
+    sessionId: string;
+    credential: WebAuthnRegistrationCredential;
+    vrfChallenge: VRFChallenge;
+    transactionContext: TransactionContext;
+    wrapKeySalt: string;
+    requestId: string;
+    intentDigest: string;
+    deterministicVrfPublicKey: string;
+    encryptedVrfKeypair: EncryptedVRFKeypair;
+    error?: string;
+  }>;
+
+  checkVrfStatus(): Promise<VRFWorkerStatus>;
 }
 
 /**
@@ -141,7 +206,6 @@ export class VrfWorkerManager {
     // verify_authentication_response before deriving WrapKeySeed.
     contractId?: string;
     nearRpcUrl?: string;
-    vrfChallenge?: VRFChallenge;
     // Optional credential for PRF.second extraction (registration or authentication)
     credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
   }): Promise<{ sessionId: string; wrapKeySalt: string }> {
@@ -156,7 +220,6 @@ export class VrfWorkerManager {
         wrapKeySalt: args.wrapKeySalt ?? '',
         contractId: args.contractId,
         nearRpcUrl: args.nearRpcUrl,
-        vrfChallenge: args.vrfChallenge,
         credential: args.credential,
       }
     };
@@ -730,23 +793,29 @@ export class VrfWorkerManager {
     return response;
   }
 
-  /**
-   * Generate VRF challenge using in-memory VRF keypair
-   * This is called during authentication to create WebAuthn challenges
-   */
-  async generateVrfChallenge(inputData: VRFInputData): Promise<VRFChallenge> {
+  async generateVrfChallengeForSession(inputData: VRFInputData, sessionId: string): Promise<VRFChallenge> {
+    return this.generateVrfChallengeInternal(inputData, sessionId);
+  }
+
+  async generateVrfChallengeOnce(inputData: VRFInputData): Promise<VRFChallenge> {
+    return this.generateVrfChallengeInternal(inputData);
+  }
+
+  // Low-level helper: generate VRF challenge using in-memory VRF keypair.
+  private async generateVrfChallengeInternal(inputData: VRFInputData, sessionId?: string): Promise<VRFChallenge> {
     await this.ensureWorkerReady(true);
     const message: VRFWorkerMessage<WasmGenerateVrfChallengeRequest> = {
       type: 'GENERATE_VRF_CHALLENGE',
       id: this.generateMessageId(),
       payload: {
+        sessionId,
         vrfInputData: {
           userId: inputData.userId,
           rpId: inputData.rpId,
           blockHeight: String(inputData.blockHeight),
           blockHash: inputData.blockHash,
-        }
-      }
+        },
+      },
     };
 
     const response = await this.sendMessage(message);
@@ -847,9 +916,11 @@ export class VrfWorkerManager {
   async generateVrfKeypairBootstrap({
     vrfInputData,
     saveInMemory = true,
+    sessionId,
   }: {
-    vrfInputData: VRFInputData,
-    saveInMemory: boolean,
+    vrfInputData: VRFInputData;
+    saveInMemory: boolean;
+    sessionId?: string;
   }): Promise<{
     vrfPublicKey: string;
     vrfChallenge: VRFChallenge;
@@ -861,13 +932,16 @@ export class VrfWorkerManager {
         id: this.generateMessageId(),
         payload: {
           // Include VRF input data if provided for challenge generation
-          vrfInputData: vrfInputData ? {
-            userId: vrfInputData.userId,
-            rpId: vrfInputData.rpId,
-            blockHeight: String(vrfInputData.blockHeight),
-            blockHash: vrfInputData.blockHash,
-          } : undefined
-        }
+          sessionId,
+          vrfInputData: vrfInputData
+            ? {
+                userId: vrfInputData.userId,
+                rpId: vrfInputData.rpId,
+                blockHeight: String(vrfInputData.blockHeight),
+                blockHash: vrfInputData.blockHash,
+              }
+            : undefined,
+        },
       };
 
       const response = await this.sendMessage(message);

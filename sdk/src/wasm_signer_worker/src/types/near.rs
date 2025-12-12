@@ -307,20 +307,21 @@ where
     enum Compat {
         // NEAR-style unit variant map: { "FullAccess": {} }
         FullAccessMap {
-            FullAccess: serde::de::IgnoredAny,
+            #[serde(rename = "FullAccess")]
+            full_access: serde::de::IgnoredAny,
         },
         // NEAR-style function-call map: { "FunctionCall": { ... } }
         FunctionCallMap {
-            FunctionCall: FunctionCallPermission,
+            #[serde(rename = "FunctionCall")]
+            function_call: FunctionCallPermission,
         },
     }
 
     let compat = Compat::deserialize(deserializer)?;
-    use serde::de::Error as _;
 
     match compat {
-        Compat::FullAccessMap { .. } => Ok(AccessKeyPermission::FullAccess),
-        Compat::FunctionCallMap { FunctionCall: fc } => {
+        Compat::FullAccessMap { full_access: _full_access } => Ok(AccessKeyPermission::FullAccess),
+        Compat::FunctionCallMap { function_call: fc } => {
             Ok(AccessKeyPermission::FunctionCall(fc))
         }
     }

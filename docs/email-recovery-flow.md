@@ -338,7 +338,7 @@ Re‑use `LinkDeviceFlow.attemptAutoLogin` logic:
 1. If Shamir 3‑pass is configured and `serverEncryptedVrfKeypair` is present:
    - call `shamir3PassDecryptVrfKeypair`, unlock VRF in memory.
 2. Otherwise, fall back to a TouchID unlock:
-   - build a VRF challenge via `generateVrfChallenge`.
+   - build a VRF challenge via `generateVrfChallengeOnce`.
    - call `getAuthenticationCredentialsSerialized` with allowCredentials set to the newly created authenticator.
    - call `unlockVRFKeypair` with the encrypted VRF keypair.
 

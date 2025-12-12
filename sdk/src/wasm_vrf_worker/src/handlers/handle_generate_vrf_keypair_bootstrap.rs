@@ -11,6 +11,12 @@ use serde_wasm_bindgen;
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GenerateVrfKeypairBootstrapRequest {
+    /// Optional session identifier for caching VRF challenge data.
+    /// When absent, the VRF worker will still generate and return the challenge,
+    /// but will not store it in the per-session cache.
+    #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
+    #[serde(rename = "sessionId")]
+    pub session_id: Option<String>,
     #[wasm_bindgen(getter_with_clone, js_name = "vrfInputData")]
     #[serde(rename = "vrfInputData")]
     pub vrf_input_data: Option<VRFInputData>,
@@ -28,6 +34,13 @@ pub fn handle_generate_vrf_keypair_bootstrap(
     match manager_mut.generate_vrf_keypair_bootstrap(payload.vrf_input_data) {
         Ok(bootstrap_data) => {
             debug!("VRF keypair bootstrap completed successfully");
+            // Cache VRF challenge for this session if present so future contract
+            // verification can rely on worker-owned state instead of JS-provided data.
+            if let (Some(challenge), Some(session_id)) =
+                (bootstrap_data.vrf_challenge_data.clone(), payload.session_id.as_ref())
+            {
+                manager_mut.set_challenge(session_id, challenge);
+            }
             // Structure response to match expected format
             #[derive(Serialize)]
             struct BootstrapResponse<'a> {

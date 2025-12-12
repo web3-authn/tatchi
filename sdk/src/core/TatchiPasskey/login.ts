@@ -104,7 +104,7 @@ export async function loginPasskey(
         const blockInfo = await context.nearClient.viewBlock({ finality: 'final' });
         const txBlockHash = blockInfo?.header?.hash;
         const txBlockHeight = String(blockInfo.header?.height ?? '');
-        const vrfChallenge = await context.webAuthnManager.generateVrfChallenge({
+        const vrfChallenge = await context.webAuthnManager.generateVrfChallengeOnce({
           userId: nearAccountId,
           rpId: context.webAuthnManager.getRpId(),
           blockHash: txBlockHash,

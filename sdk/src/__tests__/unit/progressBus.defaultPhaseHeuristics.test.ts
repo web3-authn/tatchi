@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
-  progressBus: '/sdk/esm/core/WalletIframe/client/progress-bus.js',
+  progressBus: '/sdk/esm/core/WalletIframe/client/on-events-progress-bus.js',
   passkeyManagerTypes: '/sdk/esm/core/types/passkeyManager.js',
 } as const;
 
