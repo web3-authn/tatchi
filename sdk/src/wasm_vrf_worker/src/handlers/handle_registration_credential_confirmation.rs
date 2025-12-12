@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsValue;
 use serde_wasm_bindgen;
 
 /// Request payload for VRF-driven registration credential confirmation.
@@ -32,7 +33,7 @@ pub struct RegistrationCredentialConfirmationRequest {
         default = "js_undefined",
         with = "serde_wasm_bindgen::preserve"
     )]
-    pub confirmation_config: wasm_bindgen::JsValue,
+    pub confirmation_config: JsValue,
 }
 
 /// Result surface for registration confirmation.
@@ -47,17 +48,17 @@ pub struct RegistrationCredentialConfirmationResult {
     #[serde(rename = "intentDigest")]
     pub intent_digest: String,
     #[serde(rename = "credential", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
-    pub credential: wasm_bindgen::JsValue,
+    pub credential: JsValue,
     #[serde(rename = "vrfChallenge", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
-    pub vrf_challenge: wasm_bindgen::JsValue,
+    pub vrf_challenge: JsValue,
     #[serde(rename = "transactionContext", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
-    pub transaction_context: wasm_bindgen::JsValue,
+    pub transaction_context: JsValue,
     #[serde(rename = "error")]
     pub error: Option<String>,
 }
 
-fn js_undefined() -> wasm_bindgen::JsValue {
-    wasm_bindgen::JsValue::UNDEFINED
+fn js_undefined() -> JsValue {
+    JsValue::UNDEFINED
 }
 
 /// VRF-side entrypoint to drive registration confirmation via confirmTxFlow.
@@ -116,10 +117,10 @@ pub async fn handle_registration_credential_confirmation(
         payload: Payload<'a>,
         intentDigest: &'a str,
         #[serde(skip_serializing_if = "is_undefined", with = "serde_wasm_bindgen::preserve")]
-        confirmationConfig: wasm_bindgen::JsValue,
+        confirmationConfig: JsValue,
     }
 
-    fn is_undefined(v: &wasm_bindgen::JsValue) -> bool {
+    fn is_undefined(v: &JsValue) -> bool {
         v.is_undefined() || v.is_null()
     }
 

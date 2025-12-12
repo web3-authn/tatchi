@@ -1,17 +1,19 @@
 use hkdf::Hkdf;
 use log::debug;
 use sha2::Sha256;
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsValue;
+use js_sys::Reflect;
+use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 
 use crate::errors::HkdfError;
 use crate::manager::VRFKeyManager;
 use crate::types::{VrfWorkerResponse, WorkerConfirmationResponse};
 use crate::utils::{base64_url_decode, generate_wrap_key_salt_b64u};
 use crate::vrf_await_secure_confirmation;
-use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
-use std::rc::Rc;
-use serde_wasm_bindgen;
 
 /// Request payload for combined Device2 registration session.
 /// This combines registration credential collection + WrapKeySeed derivation in a single flow.
@@ -50,7 +52,7 @@ pub struct Device2RegistrationSessionRequest {
         default = "js_undefined",
         with = "serde_wasm_bindgen::preserve"
     )]
-    pub confirmation_config: wasm_bindgen::JsValue,
+    pub confirmation_config: JsValue,
 
     /// Optional wrapKeySalt. If empty/null, VRF will generate a fresh one.
     #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
@@ -70,11 +72,11 @@ pub struct Device2RegistrationSessionResult {
     #[serde(rename = "intentDigest")]
     pub intent_digest: String,
     #[serde(rename = "credential", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
-    pub credential: wasm_bindgen::JsValue,
+    pub credential: JsValue,
     #[serde(rename = "vrfChallenge", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
-    pub vrf_challenge: wasm_bindgen::JsValue,
+    pub vrf_challenge: JsValue,
     #[serde(rename = "transactionContext", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
-    pub transaction_context: wasm_bindgen::JsValue,
+    pub transaction_context: JsValue,
     #[serde(rename = "sessionId")]
     pub session_id: String,
     #[serde(rename = "wrapKeySalt")]
@@ -85,24 +87,24 @@ pub struct Device2RegistrationSessionResult {
     /// Encrypted deterministic VRF keypair for IndexedDB storage
     #[serde(rename = "encryptedVrfKeypair")]
     #[serde(with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
-    pub encrypted_vrf_keypair: wasm_bindgen::JsValue,
+    pub encrypted_vrf_keypair: JsValue,
     #[serde(rename = "error")]
     pub error: Option<String>,
 }
-fn js_undefined() -> wasm_bindgen::JsValue {
-    wasm_bindgen::JsValue::UNDEFINED
+fn js_undefined() -> JsValue {
+    JsValue::UNDEFINED
 }
 /// Extract PRF.first output from registration credential's client data extension results.
 /// The credential returned from `navigator.credentials.create()` with dual PRF salts
 /// embeds PRF outputs in `response.clientDataJSON` or `clientExtensionResults`.
 
 fn extract_prf_first_from_credential(
-    credential: &wasm_bindgen::JsValue,
+    credential: &JsValue,
 ) -> Result<Vec<u8>, String> {
-    fn get_nested_str(obj: &wasm_bindgen::JsValue, path: &[&str]) -> Option<String> {
+    fn get_nested_str(obj: &JsValue, path: &[&str]) -> Option<String> {
         let mut current = obj.clone();
         for key in path {
-            let val = js_sys::Reflect::get(&current, &wasm_bindgen::JsValue::from_str(key)).ok()?;
+            let val = Reflect::get(&current, &JsValue::from_str(key)).ok()?;
             if val.is_null() || val.is_undefined() {
                 return None;
             }
@@ -128,12 +130,12 @@ fn extract_prf_first_from_credential(
 /// The credential returned from `navigator.credentials.create()` with dual PRF salts
 /// embeds PRF outputs in `response.clientDataJSON` or `clientExtensionResults`.
 fn extract_prf_second_from_credential(
-    credential: &wasm_bindgen::JsValue,
+    credential: &JsValue,
 ) -> Result<Vec<u8>, String> {
-    fn get_nested_str(obj: &wasm_bindgen::JsValue, path: &[&str]) -> Option<String> {
+    fn get_nested_str(obj: &JsValue, path: &[&str]) -> Option<String> {
         let mut current = obj.clone();
         for key in path {
-            let val = js_sys::Reflect::get(&current, &wasm_bindgen::JsValue::from_str(key)).ok()?;
+            let val = Reflect::get(&current, &JsValue::from_str(key)).ok()?;
             if val.is_null() || val.is_undefined() {
                 return None;
             }
@@ -219,10 +221,10 @@ pub async fn handle_device2_registration_session(
         payload: Payload<'a>,
         intentDigest: &'a str,
         #[serde(skip_serializing_if = "is_undefined", with = "serde_wasm_bindgen::preserve")]
-        confirmationConfig: wasm_bindgen::JsValue,
+        confirmationConfig: JsValue,
     }
 
-    fn is_undefined(v: &wasm_bindgen::JsValue) -> bool {
+    fn is_undefined(v: &JsValue) -> bool {
         v.is_undefined() || v.is_null()
     }
 
@@ -283,13 +285,13 @@ pub async fn handle_device2_registration_session(
             confirmed: false,
             request_id: decision.request_id.clone(),
             intent_digest: decision.intent_digest.unwrap_or(intent_digest),
-            credential: wasm_bindgen::JsValue::UNDEFINED,
-            vrf_challenge: wasm_bindgen::JsValue::UNDEFINED,
-            transaction_context: wasm_bindgen::JsValue::UNDEFINED,
+            credential: JsValue::UNDEFINED,
+            vrf_challenge: JsValue::UNDEFINED,
+            transaction_context: JsValue::UNDEFINED,
             session_id: session_id.clone(),
             wrap_key_salt: String::new(),
             deterministic_vrf_public_key: None,
-            encrypted_vrf_keypair: wasm_bindgen::JsValue::UNDEFINED,
+            encrypted_vrf_keypair: JsValue::UNDEFINED,
             error: decision.error.clone(),
         };
         return VrfWorkerResponse::success_from(message_id, Some(result));
@@ -460,7 +462,7 @@ pub async fn handle_device2_registration_session(
         session_id: session_id.clone(),
         wrap_key_salt: wrap_key_salt_b64u,
         deterministic_vrf_public_key: Some(deterministic_vrf_public_key_b64u),
-        encrypted_vrf_keypair: serde_wasm_bindgen::to_value(&encrypted_vrf_keypair).unwrap_or(wasm_bindgen::JsValue::UNDEFINED),
+        encrypted_vrf_keypair: serde_wasm_bindgen::to_value(&encrypted_vrf_keypair).unwrap_or(JsValue::UNDEFINED),
         error: None,
     };
 

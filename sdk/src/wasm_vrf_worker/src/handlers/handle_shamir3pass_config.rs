@@ -52,7 +52,11 @@ pub fn handle_shamir3pass_config_p(
                 status: "ok",
                 p_b64u: &payload.p_b64u,
             };
-            VrfWorkerResponse::success(message_id, Some(serde_wasm_bindgen::to_value(&resp).unwrap_or(wasm_bindgen::JsValue::UNDEFINED)))
+            VrfWorkerResponse::success(
+                message_id,
+                Some(serde_wasm_bindgen::to_value(&resp)
+                    .unwrap_or(wasm_bindgen::JsValue::UNDEFINED))
+            )
         }
         Err(e) => VrfWorkerResponse::fail(message_id, format!("invalid p_b64u: {:?}", e)),
     }

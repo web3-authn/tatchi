@@ -1,9 +1,9 @@
 use log::debug;
 use std::cell::RefCell;
 use std::rc::Rc;
+use js_sys::Array;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
-use js_sys::{Array, Reflect};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
 #[cfg(target_arch = "wasm32")]
@@ -399,7 +399,7 @@ fn find_forbidden_near_secret(value: &JsValue) -> Option<String> {
                 if FORBIDDEN_KEYS.contains(&k.as_str()) {
                     return Some(k);
                 }
-                if let Ok(child) = Reflect::get(value, &JsValue::from_str(&k)) {
+                if let Ok(child) = js_sys::Reflect::get(value, &JsValue::from_str(&k)) {
                     if let Some(inner) = find_forbidden_near_secret(&child) {
                         return Some(inner);
                     }
