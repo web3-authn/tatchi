@@ -45,13 +45,16 @@ pub(crate) async fn post_apply_server_lock(
     opts.set_method("POST");
     opts.set_headers(&headers);
 
-    // Use strongly typed request structure
-    opts.set_body(
-        &ShamirApplyServerLockHTTPRequest {
-            kek_c_b64u: kek_c_b64u.to_string(),
-        }
-        .to_js_value(),
-    );
+    // Use strongly typed request structure and serialize to JSON string
+    let body_js = ShamirApplyServerLockHTTPRequest {
+        kek_c_b64u: kek_c_b64u.to_string(),
+    }
+    .to_js_value();
+    let body_str = js_sys::JSON::stringify(&body_js)
+        .map_err(|e| format!("Failed to stringify apply-server-lock body: {:?}", e))?
+        .as_string()
+        .ok_or_else(|| "Failed to stringify apply-server-lock body".to_string())?;
+    opts.set_body(&JsValue::from_str(&body_str));
 
     let request = Request::new_with_str_and_init(endpoint_url, &opts)
         .map_err(|e| format!("Failed to create request: {:?}", e))?;
@@ -105,14 +108,17 @@ pub(crate) async fn post_remove_server_lock(
     opts.set_method("POST");
     opts.set_headers(&headers);
 
-    // Use strongly typed request structure
-    opts.set_body(
-        &ShamirRemoveServerLockHTTPRequest {
-            kek_cs_b64u: kek_cs_b64u.to_string(),
-            key_id,
-        }
-        .to_js_value(),
-    );
+    // Use strongly typed request structure and serialize to JSON string
+    let body_js = ShamirRemoveServerLockHTTPRequest {
+        kek_cs_b64u: kek_cs_b64u.to_string(),
+        key_id,
+    }
+    .to_js_value();
+    let body_str = js_sys::JSON::stringify(&body_js)
+        .map_err(|e| format!("Failed to stringify remove-server-lock body: {:?}", e))?
+        .as_string()
+        .ok_or_else(|| "Failed to stringify remove-server-lock body".to_string())?;
+    opts.set_body(&JsValue::from_str(&body_str));
 
     let request = Request::new_with_str_and_init(endpoint_url, &opts)
         .map_err(|e| format!("Failed to create request: {:?}", e))?;
