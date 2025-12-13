@@ -60,6 +60,7 @@ export function usePasskeyAuthMenuController(
   const prefilledFromRecentRef = React.useRef(false);
   const prefilledValueRef = React.useRef<string>('');
   const prevModeRef = React.useRef<AuthMenuMode | null>(null);
+  const lastUserSelectedModeRef = React.useRef<AuthMenuMode | null>(null);
 
   const clearPrefillMarkers = React.useCallback(() => {
     prefilledFromRecentRef.current = false;
@@ -68,6 +69,7 @@ export function usePasskeyAuthMenuController(
 
   const onSegmentChange = React.useCallback(
     (next: AuthMenuMode) => {
+      lastUserSelectedModeRef.current = next;
       if (mode === AuthMenuMode.Login && next !== AuthMenuMode.Login) {
         if (prefilledFromRecentRef.current && currentValue === prefilledValueRef.current) {
           setCurrentValue('');
@@ -105,6 +107,7 @@ export function usePasskeyAuthMenuController(
     if (waiting) return;
     if (mode !== AuthMenuMode.Register) return;
     if (!runtime.accountExists) return;
+    if (lastUserSelectedModeRef.current === AuthMenuMode.Register) return;
     setMode(AuthMenuMode.Login);
   }, [mode, runtime.accountExists, setMode, waiting]);
 
@@ -172,6 +175,7 @@ export function usePasskeyAuthMenuController(
     } else {
       setShowScanDevice(false);
     }
+    lastUserSelectedModeRef.current = null;
     resetToDefault();
     setCurrentValue('');
     clearPrefillMarkers();
