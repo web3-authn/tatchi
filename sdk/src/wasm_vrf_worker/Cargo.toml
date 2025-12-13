@@ -23,7 +23,6 @@ crate-type = ["cdylib"]
 base64ct = { version = "1.6", features = ["alloc"] }
 bincode = "1.3"
 chacha20poly1305 = "0.10"
-ed25519-dalek = "2.0"
 getrandom = { version = "0.2", features = ["js"] }
 hkdf = "0.12"
 js-sys = "0.3"
@@ -36,13 +35,11 @@ zeroize = { version = "1.7", features = ["derive"] }
 # VRF and cryptography
 vrf-wasm = { version = "0.9.1", features = ["browser"] }
 # Logging dependencies
-log = "0.4"
-wasm-logger = "0.2"
+log = { version = "0.4", features = ["release_max_level_info"] }
 # Shamir3Pass
-num-bigint = { version = "0.4", features = ["rand"] }
+num-bigint = "0.4"
 num-traits = "0.2"
 num-integer = "0.1"
-rand = "0.8"
 wasm-bindgen-futures = "0.4" # Async HTTP support
 # Base58 encoding/decoding
 bs58 = "0.5"
@@ -50,13 +47,7 @@ bs58 = "0.5"
 [dependencies.web-sys]
 version = "0.3"
 features = [
-  "console",
   "MessagePort",
-  "Headers",
-  "Request",
-  "RequestInit",
-  "Response",
-  "Window",
 ]
 
 [dev-dependencies]

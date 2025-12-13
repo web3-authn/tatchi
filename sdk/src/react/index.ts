@@ -9,14 +9,14 @@
  *
  * @example
  * ```tsx
- * import { TatchiPasskeyProvider, QRCodeScanner, ProfileSettingsButton } from '@tatchi-xyz/sdk/react';
+ * import { TatchiPasskeyProvider, QRCodeScanner, AccountMenuButton } from '@tatchi-xyz/sdk/react';
  *
  * function App() {
  *   return (
  *     <TatchiPasskeyProvider configs={passkeyConfigs}>
  *       <div>
  *         <QRCodeScanner onDeviceLinked={(result) => console.log(result)} />
- *         <ProfileSettingsButton username="alice" onLogout={() => console.log('logout')} />
+ *         <AccountMenuButton username="alice" onLogout={() => console.log('logout')} />
  *       </div>
  *     </TatchiPasskeyProvider>
  *   );
@@ -87,15 +87,15 @@ export { useDeviceLinking } from './hooks/useDeviceLinking';
 export type { UseDeviceLinkingOptions, UseDeviceLinkingReturn } from './hooks/useDeviceLinking';
 export { useQRFileUpload } from './hooks/useQRFileUpload';
 export type { UseQRFileUploadOptions, UseQRFileUploadReturn } from './hooks/useQRFileUpload';
-export { usePostfixPosition } from './components/PasskeyAuthMenu/usePostfixPosition';
-export type { UsePostfixPositionOptions, UsePostfixPositionReturn } from './components/PasskeyAuthMenu/usePostfixPosition';
+export { usePostfixPosition } from './components/PasskeyAuthMenu/ui/usePostfixPosition';
+export type { UsePostfixPositionOptions, UsePostfixPositionReturn } from './components/PasskeyAuthMenu/ui/usePostfixPosition';
 export { TxExecutionStatus } from '../core/types/actions';
 
 ////////////////////////////
 // === REACT COMPONENTS ===
 ////////////////////////////
 
-export { ProfileSettingsButton } from './components/ProfileSettingsButton';
+export { AccountMenuButton, ProfileSettingsButton } from './components/AccountMenuButton';
 // QR Scanner (jsQR library lazy-loaded in qrScanner.ts utility)
 export { QRCodeScanner } from './components/QRCodeScanner';
 // Show QR Code for device linking
@@ -111,14 +111,21 @@ export {
   type WalletIframeTxButtonHostProps,
 } from './components/WalletIframeTxButtonHost';
 // Sign Up / Sign In menu
-export { PasskeyAuthMenu } from './components/PasskeyAuthMenu';
-export { AuthMenuMode, AuthMenuModeMap } from './components/PasskeyAuthMenu';
-export type { AuthMenuModeLabel, AuthMenuHeadings } from './components/PasskeyAuthMenu';
+export { PasskeyAuthMenu, PasskeyAuthMenuSkeleton } from './components/PasskeyAuthMenu/passkeyAuthMenuCompat';
+export type { PasskeyAuthMenuProps } from './components/PasskeyAuthMenu/passkeyAuthMenuCompat';
+export { AuthMenuMode, AuthMenuModeMap } from './components/PasskeyAuthMenu/authMenuTypes';
+export type { AuthMenuModeLabel, AuthMenuHeadings } from './components/PasskeyAuthMenu/authMenuTypes';
+// SSR-safe shell + explicit client entrypoints
+export {
+  PasskeyAuthMenuClient,
+  PasskeyAuthMenuSkeletonInner,
+  preloadPasskeyAuthMenu,
+} from './components/PasskeyAuthMenu';
 // Small SVG utility icon used in examples
-export { default as TouchIcon } from './components/ProfileSettingsButton/icons/TouchIcon';
+export { default as TouchIcon } from './components/AccountMenuButton/icons/TouchIcon';
 export { default as QRCodeIcon } from './components/QRCodeIcon';
-export { default as SunIcon } from './components/ProfileSettingsButton/icons/SunIcon';
-export { default as MoonIcon } from './components/ProfileSettingsButton/icons/MoonIcon';
+export { default as SunIcon } from './components/AccountMenuButton/icons/SunIcon';
+export { default as MoonIcon } from './components/AccountMenuButton/icons/MoonIcon';
 
 // Theme components
 export { useTheme, Theme } from './components/theme';
@@ -146,11 +153,12 @@ export {
 } from '../core/types/passkeyManager';
 
 // === PROFILE BUTTON TYPES ===
-export { PROFILE_MENU_ITEM_IDS } from './components/ProfileSettingsButton/types';
+export { PROFILE_MENU_ITEM_IDS } from './components/AccountMenuButton/types';
 export type {
   ProfileDimensions,
   ProfileAnimationConfig,
   MenuItem,
+  AccountMenuButtonProps,
   ProfileSettingsButtonProps,
   UserAccountButtonProps,
   ProfileDropdownProps,
@@ -162,4 +170,4 @@ export type {
   ToggleColorProps,
   ProfileSettingsMenuItemId,
   HighlightedProfileMenuItem,
-} from './components/ProfileSettingsButton/types';
+} from './components/AccountMenuButton/types';

@@ -1,3 +1,4 @@
+import React from 'react'
 import {
   useTatchi,
   RegistrationPhase,
@@ -11,6 +12,7 @@ import {
   type DeviceLinkingSSEEvent
 } from '@tatchi-xyz/sdk/react'
 import { PasskeyAuthMenu } from '@tatchi-xyz/sdk/react/passkey-auth-menu'
+import preloadPasskeyAuthMenu from '@tatchi-xyz/sdk/react/passkey-auth-menu/preload'
 
 import toast from 'react-hot-toast'
 import { friendlyWebAuthnMessage } from '../utils/strings'
@@ -170,21 +172,44 @@ export function PasskeyLoginMenu() {
 
   return (
     <div className="passkey-login-container-root">
-      <PasskeyAuthMenu
-        defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
-        onLogin={onLogin}
-        onRegister={onRegister}
-        onRecoverAccount={onRecover}
-        linkDeviceOptions={{
-          onEvent: onLinkDeviceEvents,
-          onError: (error: Error) => {
-            const toastId = 'device-linking';
-            console.error('Device linking error:', error);
-            toast.error(error.message || 'Device linking failed', { id: toastId });
-          },
-          onCancelled: () => { try { toast.dismiss('device-linking'); } catch {} }
-        }}
-      />
+      <PrefetchOnIntent onIntent={() => void preloadPasskeyAuthMenu().catch(() => {})}>
+        <PasskeyAuthMenu
+          defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
+          onLogin={onLogin}
+          onRegister={onRegister}
+          onRecoverAccount={onRecover}
+          linkDeviceOptions={{
+            onEvent: onLinkDeviceEvents,
+            onError: (error: Error) => {
+              const toastId = 'device-linking';
+              console.error('Device linking error:', error);
+              toast.error(error.message || 'Device linking failed', { id: toastId });
+            },
+            onCancelled: () => { try { toast.dismiss('device-linking'); } catch {} }
+          }}
+        />
+      </PrefetchOnIntent>
     </div>
   );
+}
+
+function PrefetchOnIntent(props: { onIntent: () => void; children: React.ReactNode }) {
+  const didPrefetchRef = React.useRef(false)
+  const onIntentOnce = React.useCallback(() => {
+    if (didPrefetchRef.current) return
+    didPrefetchRef.current = true
+    props.onIntent()
+  }, [props.onIntent])
+
+  return (
+    <div
+      style={{ display: 'contents' }}
+      onPointerOver={onIntentOnce}
+      onMouseOver={onIntentOnce}
+      onFocusCapture={onIntentOnce}
+      onTouchStart={onIntentOnce}
+    >
+      {props.children}
+    </div>
+  )
 }

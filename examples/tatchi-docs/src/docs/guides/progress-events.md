@@ -229,7 +229,7 @@ Device linking events are emitted when you:
 - Call low‑level APIs like `tatchi.linkDeviceWithScannedQRData(qrData, { onEvent })`
 - Use the React hook `useDeviceLinking({ onEvent })`
 - Wire `linkDeviceOptions.onEvent` into `PasskeyAuthMenu`
-- Use `ProfileSettingsButton` with `deviceLinkingScannerParams.onEvent`
+- Use `AccountMenuButton` with `deviceLinkingScannerParams.onEvent`
 
 In all cases, the handler receives a `DeviceLinkingSSEEvent`:
 

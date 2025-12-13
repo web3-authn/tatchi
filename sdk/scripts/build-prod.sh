@@ -41,6 +41,13 @@ cd "$SOURCE_WASM_VRF"
 if wasm-pack build --target web --out-dir pkg --release; then print_success "WASM VRF worker built"; else print_error "WASM VRF build failed"; exit 1; fi
 cd ../..
 
+print_step "Optimizing wasm-pack metadata for tree-shaking..."
+if node ./scripts/fix-wasm-pack-sideeffects.mjs "$SOURCE_WASM_SIGNER/pkg" "$SOURCE_WASM_VRF/pkg"; then
+  print_success "WASM package metadata optimized"
+else
+  print_warning "Failed to optimize WASM package metadata; bundler may deoptimize tree-shaking"
+fi
+
 print_step "Building TypeScript..."
 if npx tsc -p tsconfig.build.json; then print_success "TypeScript compilation completed"; else print_error "TypeScript compilation failed"; exit 1; fi
 

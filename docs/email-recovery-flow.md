@@ -522,8 +522,8 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
   - These methods should internally create/reuse a single `EmailRecoveryFlow` and are what the iframe RPC layer will call (wallet host and parent app both rely on this surface).
 - [x] In the React layer:
   - Read reference patterns in:
-    - `sdk/src/react/components/PasskeyAuthMenu/index.tsx` (link device & recovery entrypoints).
-    - `sdk/src/react/components/ProfileSettingsButton/LinkedDevicesModal.tsx` (device list + access keys).
+    - `sdk/src/react/components/PasskeyAuthMenu/client.tsx` (link device & recovery entrypoints).
+    - `sdk/src/react/components/AccountMenuButton/LinkedDevicesModal.tsx` (device list + access keys).
   - Implement a simple “Recover account with email” flow component/hook that:
     - Collects `accountId` and `recoveryEmail`.
     - Calls `tatchi.startEmailRecovery`, then uses the returned/derived `mailto:` URL, then starts polling.

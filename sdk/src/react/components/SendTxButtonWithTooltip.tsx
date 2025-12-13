@@ -17,7 +17,7 @@ import { W3A_TX_BUTTON_ID } from '@/core/WebAuthnManager/LitComponents/tags';
 import type { SendTxButtonWithTooltipBaseProps } from '../types';
 import { useTatchi } from '../context';
 import { useTheme } from './theme';
-import TouchIcon from './ProfileSettingsButton/icons/TouchIcon';
+import TouchIcon from './AccountMenuButton/icons/TouchIcon';
 import { TransactionInput } from '@/core/types/actions';
 import type { EventCallback, ActionSSEEvent } from '@/core/types/passkeyManager';
 

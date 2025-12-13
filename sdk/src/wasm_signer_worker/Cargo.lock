@@ -881,8 +881,6 @@ dependencies = [
  "cfg-if",
  "once_cell",
  "rustversion",
- "serde",
- "serde_json",
  "wasm-bindgen-macro",
 ]
 
@@ -946,17 +944,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-logger"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "074649a66bb306c8f2068c9016395fa65d8e08d2affcbf95acf3c24c3ab19718"
-dependencies = [
- "log",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "wasm_signer_worker"
 version = "0.2.0"
 dependencies = [
@@ -976,7 +963,6 @@ dependencies = [
  "sha2",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-logger",
  "web-sys",
 ]
 

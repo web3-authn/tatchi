@@ -2,7 +2,10 @@
  * VRF WASM Web Worker
  * This Web Worker loads the VRF WASM module and provides VRF keypair management.
  */
-import init, * as vrfWasmModule from '../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
+import init, {
+  attach_wrap_key_seed_port,
+  handle_message,
+} from '../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import { resolveWasmUrl } from './sdkPaths/wasm-loader';
 import type {
   VRFWorkerMessage,
@@ -32,7 +35,6 @@ console.debug(`[vrf-worker] WASM URL resolved to: ${wasmUrl.href}`);
 // awaitSecureConfirmationV2 itself handles both full SecureConfirmRequest JSON
 // and VRF shorthand inputs (e.g. decryptPrivateKeyWithPrf shorthand).
 (globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
-const { handle_message } = vrfWasmModule;
 
 let wasmReady = false;
 let messageQueue: MessageEvent[] = [];
@@ -76,7 +78,7 @@ self.onmessage = async (event: MessageEvent) => {
     if (sessionId && port) {
       try {
         await initializeWasmModule();
-        vrfWasmModule.attach_wrap_key_seed_port(sessionId, port);
+        attach_wrap_key_seed_port(sessionId, port);
       } catch (err) {
         console.error('[vrf-worker]: Failed to attach WrapKeySeed port in WASM', err);
       }

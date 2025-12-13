@@ -8,7 +8,7 @@
 /// Log level for the VRF worker
 /// Change this constant and recompile to adjust logging verbosity
 /// Available levels: Error, Warn, Info, Debug, Trace
-pub const CURRENT_LOG_LEVEL: log::Level = log::Level::Debug;
+pub const CURRENT_LOG_LEVEL: log::Level = log::Level::Info;
 
 /// Whether to include timestamps in log messages
 pub const LOG_INCLUDE_TIMESTAMP: bool = false;

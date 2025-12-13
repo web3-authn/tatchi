@@ -40,7 +40,10 @@ import {
   WasmRequestPayload,
 } from './types/signer-worker';
 // Import WASM binary directly
-import init, * as wasmModule from '../wasm_signer_worker/pkg/wasm_signer_worker.js';
+import init, {
+  attach_wrap_key_seed_port,
+  handle_signer_message,
+} from '../wasm_signer_worker/pkg/wasm_signer_worker.js';
 import { resolveWasmUrl } from './sdkPaths/wasm-loader';
 import { errorMessage } from '../utils/errors';
 
@@ -56,7 +59,6 @@ import { errorMessage } from '../utils/errors';
 
 // Resolve WASM URL using the centralized resolution strategy
 const wasmUrl = resolveWasmUrl('wasm_signer_worker_bg.wasm', 'Signer Worker');
-const { handle_signer_message } = wasmModule;
 // SecureConfirm bridge removed: signer no longer initiates confirmations
 
 let messageProcessed = false;
@@ -295,7 +297,7 @@ async function handleAttachWrapKeySeedPort(
   // Hand the port to WASM; Rust owns WrapKeySeed delivery/storage and session-bound injection.
   try {
     await initializeWasm();
-    wasmModule.attach_wrap_key_seed_port(sessionId, port);
+    attach_wrap_key_seed_port(sessionId, port);
 
     // Emit success ACK to main thread
     self.postMessage({

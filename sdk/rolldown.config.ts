@@ -367,7 +367,11 @@ const configs = [
   },
   // React ESM build
   {
-    input: 'src/react/index.ts',
+    input: [
+      'src/react/index.ts',
+      // Ensure public subpath entrypoints exist in dist even when re-exports are flattened.
+      'src/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.ts',
+    ],
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react`,
       format: 'esm',
@@ -382,7 +386,11 @@ const configs = [
   },
   // React CJS build
   {
-    input: 'src/react/index.ts',
+    input: [
+      'src/react/index.ts',
+      // Ensure public subpath entrypoints exist in dist even when re-exports are flattened.
+      'src/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.ts',
+    ],
     output: {
       dir: `${BUILD_PATHS.BUILD.CJS}/react`,
       format: 'cjs',

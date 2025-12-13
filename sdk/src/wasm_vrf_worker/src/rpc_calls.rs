@@ -2,9 +2,12 @@ use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
 use js_sys::{Array, Reflect};
-use web_sys::{Headers, Request, RequestInit, Response};
+
+use crate::fetch::{
+    build_json_post_init, fetch_with_init, response_json, response_ok, response_status,
+    response_status_text, response_text,
+};
 
 use crate::types::VRFChallengeData;
 use crate::utils::{base64_url_decode, base64_url_encode};
@@ -274,106 +277,56 @@ async fn execute_rpc_request(
         return Err("NEAR RPC URL cannot be empty".to_string());
     }
 
-    let headers = Headers::new().map_err(|e| format!("Failed to create headers: {:?}", e))?;
-    headers
-        .set("Content-Type", "application/json")
-        .map_err(|e| format!("Failed to set Content-Type header: {:?}", e))?;
-
-    let opts = RequestInit::new();
-    opts.set_method("POST");
-    opts.set_headers(&headers);
-
     let body_str = js_sys::JSON::stringify(rpc_body)
         .map_err(|e| format!("Failed to stringify RPC body: {:?}", e))?
         .as_string()
         .ok_or_else(|| "Failed to stringify RPC body".to_string())?;
-    opts.set_body(&JsValue::from_str(&body_str));
-
-    let global = js_sys::global();
-    let fetch_fn = js_sys::Reflect::get(&global, &JsValue::from_str("fetch"))
-        .map_err(|_| "fetch function not available".to_string())?;
-    let fetch_fn = fetch_fn
-        .dyn_into::<js_sys::Function>()
-        .map_err(|_| "fetch is not a function".to_string())?;
+    let fetch_init = build_json_post_init(&body_str)?;
 
     let mut last_error: Option<String> = None;
 
     for (index, endpoint) in endpoints.iter().enumerate() {
-        let request = match Request::new_with_str_and_init(endpoint, &opts) {
-            Ok(req) => req,
-            Err(e) => {
-                last_error = Some(format!("Failed to create request: {:?}", e));
-                continue;
-            }
-        };
-
-        let fetch_promise = match fetch_fn.call1(&global, &request) {
-            Ok(p) => match p.dyn_into::<js_sys::Promise>() {
-                Ok(pr) => pr,
-                Err(_) => {
-                    last_error = Some("fetch did not return a Promise".to_string());
-                    continue;
-                }
-            },
-            Err(e) => {
-                last_error = Some(format!("fetch call failed: {:?}", e));
-                continue;
-            }
-        };
-
-        let resp_value = match JsFuture::from(fetch_promise).await {
+        let resp = match fetch_with_init(endpoint, &fetch_init).await {
             Ok(v) => v,
             Err(e) => {
-                last_error = Some(format!("Fetch request failed: {:?}", e));
+                last_error = Some(e);
                 continue;
             }
         };
 
-        let resp: Response = match resp_value.dyn_into() {
-            Ok(r) => r,
+        let ok = match response_ok(&resp) {
+            Ok(v) => v,
             Err(e) => {
-                last_error = Some(format!("Failed to cast response: {:?}", e));
+                last_error = Some(e);
                 continue;
             }
         };
 
-        if !resp.ok() {
-            let error_text = match resp.text() {
-                Ok(text_promise) => match JsFuture::from(text_promise).await {
-                    Ok(text_value) => text_value
-                        .as_string()
-                        .unwrap_or_else(|| "Unable to get error text".to_string()),
-                    Err(_) => "Failed to read error response".to_string(),
-                },
-                Err(_) => "Could not access error response".to_string(),
-            };
+        if !ok {
+            let error_text = response_text(&resp)
+                .await
+                .unwrap_or_else(|_| "Failed to read error response".to_string());
+            let status = response_status(&resp)
+                .map(|s| s.to_string())
+                .unwrap_or_else(|_| "?".to_string());
+            let status_text = response_status_text(&resp).unwrap_or_default();
             last_error = Some(format!(
                 "HTTP error from {}: {} {} - Response: {}",
                 endpoint,
-                resp.status(),
-                resp.status_text(),
+                status,
+                status_text,
                 error_text
             ));
             continue;
         }
 
-        let json_promise = match resp.json() {
-            Ok(p) => p,
-            Err(e) => {
-                last_error = Some(format!("Failed to get JSON from response: {:?}", e));
-                continue;
-            }
-        };
-
-        let json_value = match JsFuture::from(json_promise).await {
+        let result = match response_json(&resp).await {
             Ok(v) => v,
             Err(e) => {
-                last_error = Some(format!("Failed to parse JSON: {:?}", e));
+                last_error = Some(e);
                 continue;
             }
         };
-
-        let result = json_value;
 
         if index > 0 {
             warn!(
