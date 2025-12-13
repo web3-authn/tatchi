@@ -64,17 +64,10 @@ export function useAuthMenuMode({
 }: UseAuthMenuModeArgs): UseAuthMenuModeResult {
   const preferredDefaultMode = resolveDefaultMode(accountExists, defaultMode);
   const [mode, setMode] = React.useState<AuthMenuMode>(preferredDefaultMode);
-  const [title, setTitle] = React.useState<AuthMenuTitle>(
-    getModeTitle(preferredDefaultMode, headings),
-  );
-
-  React.useEffect(() => {
-    setTitle(getModeTitle(mode, headings));
-  }, [mode, headings]);
+  const title = React.useMemo(() => getModeTitle(mode, headings), [mode, headings]);
 
   const onSegmentChange = (nextMode: AuthMenuMode) => {
     setMode(nextMode);
-    setTitle(getModeTitle(nextMode, headings));
   };
 
   const onInputChange = (val: string) => {
@@ -84,7 +77,6 @@ export function useAuthMenuMode({
   const resetToDefault = () => {
     const nextMode = resolveDefaultMode(accountExists, defaultMode);
     setMode(nextMode);
-    setTitle(getModeTitle(nextMode, headings));
     setCurrentValue('');
   };
 

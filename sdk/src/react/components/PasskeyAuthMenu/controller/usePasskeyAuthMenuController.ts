@@ -99,6 +99,15 @@ export function usePasskeyAuthMenuController(
   const [waiting, setWaiting] = React.useState(false);
   const [showScanDevice, setShowScanDevice] = React.useState(false);
 
+  // If the user is attempting to register but we discover the account already exists,
+  // automatically switch them to the Login tab.
+  React.useEffect(() => {
+    if (waiting) return;
+    if (mode !== AuthMenuMode.Register) return;
+    if (!runtime.accountExists) return;
+    setMode(AuthMenuMode.Login);
+  }, [mode, runtime.accountExists, setMode, waiting]);
+
   // Lazy feature-island: entering Login can prefill the last used account username.
   React.useEffect(() => {
     const prevMode = prevModeRef.current;
