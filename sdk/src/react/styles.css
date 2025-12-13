@@ -1,14 +1,14 @@
 /* React Component Styles for @tatchi-xyz/sdk/react */
 
-/* Import ProfileSettingsButton styles */
-@import './components/ProfileSettingsButton/LinkedDevicesModal.css';
-@import './components/ProfileSettingsButton/MenuItem.css';
-@import './components/ProfileSettingsButton/ProfileDropdown.css';
-@import './components/ProfileSettingsButton/Slider.css';
-@import './components/ProfileSettingsButton/icons/TouchIcon.css';
-@import './components/ProfileSettingsButton/TransactionSettingsSection.css';
-@import './components/ProfileSettingsButton/UserAccountButton.css';
-@import './components/ProfileSettingsButton/Web3AuthProfileButton.css';
+/* Import AccountMenuButton styles */
+@import './components/AccountMenuButton/LinkedDevicesModal.css';
+@import './components/AccountMenuButton/MenuItem.css';
+@import './components/AccountMenuButton/ProfileDropdown.css';
+@import './components/AccountMenuButton/Slider.css';
+@import './components/AccountMenuButton/icons/TouchIcon.css';
+@import './components/AccountMenuButton/TransactionSettingsSection.css';
+@import './components/AccountMenuButton/UserAccountButton.css';
+@import './components/AccountMenuButton/Web3AuthProfileButton.css';
 
 @import './components/PasskeyAuthMenu/PasskeyAuthMenu.css';
 

@@ -5,6 +5,7 @@ mod crypto;
 mod encoders;
 mod error;
 mod handlers;
+mod logger;
 #[cfg(test)]
 mod tests;
 mod transaction;
@@ -91,34 +92,6 @@ pub use types::wasm_to_json::{
     WasmTransaction,
 };
 
-// === CONSOLE LOGGING ===
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    pub fn log(s: &str);
-    #[wasm_bindgen(js_namespace = console, js_name = warn)]
-    pub fn warn(s: &str);
-    #[wasm_bindgen(js_namespace = console, js_name = error)]
-    pub fn error(s: &str);
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn log(s: &str) {
-    println!("{}", s);
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn warn(s: &str) {
-    println!("Warning: {}", s);
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn error(s: &str) {
-    println!("Error: {}", s);
-}
-
 pub use crate::crypto::WrapKey;
 
 thread_local! {
@@ -128,8 +101,7 @@ thread_local! {
 
 #[wasm_bindgen]
 pub fn init_worker() {
-    // Initialize WASM logger respecting configured level
-    wasm_logger::init(wasm_logger::Config::new(config::CURRENT_LOG_LEVEL));
+    logger::init(config::CURRENT_LOG_LEVEL);
 }
 
 /// Alias for init_worker to maintain compatibility with bundlers that auto-generate

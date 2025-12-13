@@ -7,7 +7,7 @@ import {
   useTheme,
   DeviceLinkingSSEEvent,
 } from '@tatchi-xyz/sdk/react';
-import { ProfileSettingsButton } from '@tatchi-xyz/sdk/react/profile';
+import { AccountMenuButton } from '@tatchi-xyz/sdk/react/profile';
 import { useProfileMenuControl } from '../contexts/ProfileMenuControl';
 
 export interface TatchiProfileSettingsButtonProps {
@@ -116,7 +116,7 @@ export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonPr
   } else {
     return (
       <div className="tatchi-profile-button-container" style={style}>
-        <ProfileSettingsButton
+        <AccountMenuButton
           nearAccountId={loginState.nearAccountId!}
           nearExplorerBaseUrl="https://testnet.nearblocks.io"
           hideUsername={isMobile}

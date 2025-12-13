@@ -13,7 +13,7 @@ import {
   AccountRecoveryStatus,
   type DeviceLinkingSSEEvent
 } from '@tatchi-xyz/sdk/react'
-import { PasskeyAuthMenu } from '@tatchi-xyz/sdk/react/passkey-auth-menu'
+import { PasskeyAuthMenu } from '@tatchi-xyz/sdk/react'
 import { toast } from 'sonner'
 
 import { friendlyWebAuthnMessage } from '../utils/strings'
@@ -207,7 +207,7 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
       <PasskeyAuthMenu
         // Keep the key stable across accountExists changes to avoid
         // remounting the menu (which causes input focus + content flashes).
-        key={`pam-${authMenuControl.defaultModeOverride ?? 'auto'}-${authMenuControl.remountKey}`}
+        key={`pam2-${authMenuControl.defaultModeOverride ?? 'auto'}-${authMenuControl.remountKey}`}
         defaultMode={authMenuControl.defaultModeOverride ?? (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)}
         onLogin={onLogin}
         loadingScreenDelayMs={0}

@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { Page, expect } from '@playwright/test';
 import { buildPermissionsPolicy, buildWalletCsp } from '../../plugins/headers';
 import { DEFAULT_TEST_CONFIG } from './config';
 import { formatLog, printLog, printStepLine } from './logging';
@@ -38,6 +38,9 @@ export async function bypassContractVerification(
       ) {
         return route.fallback();
       }
+
+      const contentType = request.headers()['content-type'] || '';
+      expect(contentType).toContain('application/json');
 
       let userId = 'unknown.user';
       let rpId = 'example.localhost';

@@ -1,7 +1,7 @@
 import React from 'react'
 import NavbarStatic from './Navbar/NavbarStatic'
 import NavbarProfileOverlay from './Navbar/NavbarProfileOverlay'
-import { useTatchi } from '@tatchi-xyz/sdk/react'
+import { preloadPasskeyAuthMenu, useTatchi } from '@tatchi-xyz/sdk/react'
 
 import { GlassBorder } from './GlassBorder';
 import { CarouselProvider } from './Carousel2/CarouselProvider'
@@ -13,9 +13,11 @@ import { CarouselPrevButton } from './Carousel2/CarouselPrevButton'
 const PasskeyLoginMenu = React.lazy(() => import('./PasskeyLoginMenu').then(m => ({ default: m.PasskeyLoginMenu })))
 const DemoPage = React.lazy(() => import('./DemoPage').then(m => ({ default: m.DemoPage })))
 const AccountRecovery = React.lazy(() => import('./AccountRecovery').then(m => ({ default: m.AccountRecovery })))
-// DemoChainsigs is relatively heavy and has its own internal async flows.
-// Import it eagerly to avoid first-load quirks from nested lazy + network calls.
-import { DemoChainsigs } from './DemoChainsigs'
+// DemoChainsigs is heavy (viem/chainsigs). Lazy-load so it doesn't affect first load.
+const DemoChainsigs = React.lazy(() => import('./DemoChainsigs').then(m => ({ default: m.DemoChainsigs })))
+const preloadDemoPage = () => import('./DemoPage').then(() => undefined)
+const preloadDemoChainsigs = () => import('./DemoChainsigs').then(() => undefined)
+const preloadAccountRecovery = () => import('./AccountRecovery').then(() => undefined)
 import { AuthMenuControlProvider } from '../contexts/AuthMenuControl';
 import { ProfileMenuControlProvider } from '../contexts/ProfileMenuControl';
 
@@ -23,6 +25,9 @@ import { ProfileMenuControlProvider } from '../contexts/ProfileMenuControl';
 export function DemoPasskeyColumn() {
   const { loginState } = useTatchi()
   const [currentPage, setCurrentPage] = React.useState(0)
+  const prefetchPasskeyMenu = React.useCallback(() => {
+    void preloadPasskeyAuthMenu().catch(() => {})
+  }, [])
 
   // After login, jump to Demo Tx page (index 1). On logout, go back to Login (index 0).
   React.useEffect(() => {
@@ -35,9 +40,11 @@ export function DemoPasskeyColumn() {
       title: 'Demo',
       element: ({ nextSlide, canNext, index }: { nextSlide: () => void; canNext: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<SuspenseFallback />}>
-            <PasskeyLoginMenu onLoggedIn={() => setCurrentPage(1)} />
-          </React.Suspense>
+          <PrefetchOnIntent onIntent={prefetchPasskeyMenu}>
+            <React.Suspense fallback={<SuspenseFallback />}>
+              <PasskeyLoginMenu onLoggedIn={() => setCurrentPage(1)} />
+            </React.Suspense>
+          </PrefetchOnIntent>
           {index > 0 && canNext && (
             <div className="carousel-cta">
               <CarouselNextButton onClick={nextSlide} />
@@ -62,7 +69,13 @@ export function DemoPasskeyColumn() {
               style={{ paddingBottom: '2rem' }} // prevent clipping of ButtonWithTooltip
             >
               <CarouselPrevButton onClick={prevSlide} disabled={!canPrev} />
-              <CarouselNextButton onClick={nextSlide} disabled={!canNext} />
+              <CarouselNextButton
+                onClick={nextSlide}
+                disabled={!canNext}
+                onPointerOver={() => void preloadDemoChainsigs().catch(() => {})}
+                onFocus={() => void preloadDemoChainsigs().catch(() => {})}
+                onTouchStart={() => void preloadDemoChainsigs().catch(() => {})}
+              />
             </div>
           )}
         </>
@@ -81,8 +94,20 @@ export function DemoPasskeyColumn() {
           </GlassBorder>
           {index > 0 && (
             <div className="carousel-cta">
-              <CarouselPrevButton onClick={prevSlide} disabled={!canPrev} />
-              <CarouselNextButton onClick={nextSlide} disabled={!canNext} />
+              <CarouselPrevButton
+                onClick={prevSlide}
+                disabled={!canPrev}
+                onPointerOver={() => void preloadDemoPage().catch(() => {})}
+                onFocus={() => void preloadDemoPage().catch(() => {})}
+                onTouchStart={() => void preloadDemoPage().catch(() => {})}
+              />
+              <CarouselNextButton
+                onClick={nextSlide}
+                disabled={!canNext}
+                onPointerOver={() => void preloadAccountRecovery().catch(() => {})}
+                onFocus={() => void preloadAccountRecovery().catch(() => {})}
+                onTouchStart={() => void preloadAccountRecovery().catch(() => {})}
+              />
             </div>
           )}
         </>
@@ -144,3 +169,24 @@ const SuspenseFallback = () => (
     style={{ height: 320, width: 'min(480px, calc(100vw - 2rem))' }}
   />
 );
+
+function PrefetchOnIntent(props: { onIntent: () => void; children: React.ReactNode }) {
+  const didPrefetchRef = React.useRef(false)
+  const onIntentOnce = React.useCallback(() => {
+    if (didPrefetchRef.current) return
+    didPrefetchRef.current = true
+    props.onIntent()
+  }, [props.onIntent])
+
+  return (
+    <div
+      style={{ display: 'contents' }}
+      onPointerOver={onIntentOnce}
+      onMouseOver={onIntentOnce}
+      onFocusCapture={onIntentOnce}
+      onTouchStart={onIntentOnce}
+    >
+      {props.children}
+    </div>
+  )
+}

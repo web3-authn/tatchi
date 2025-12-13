@@ -8,7 +8,7 @@ import {
   Theme,
   useTheme,
 } from '@tatchi-xyz/sdk/react';
-import { ProfileSettingsButton } from '@tatchi-xyz/sdk/react/profile';
+import { AccountMenuButton } from '@tatchi-xyz/sdk/react/profile';
 import { DebugBanner } from './DebugBanner';
 
 export const Navbar: React.FC = () => {
@@ -55,7 +55,7 @@ export const Navbar: React.FC = () => {
       {
         loginState.isLoggedIn &&
         <div style={{ position: 'fixed', top: '0.5rem', right: '0.5rem' }}>
-          <ProfileSettingsButton
+          <AccountMenuButton
             nearAccountId={loginState.nearAccountId!}
             nearExplorerBaseUrl="https://testnet.nearblocks.io"
             hideUsername={isMobile}
