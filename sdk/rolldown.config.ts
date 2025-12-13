@@ -371,6 +371,11 @@ const configs = [
       'src/react/index.ts',
       // Ensure public subpath entrypoints exist in dist even when re-exports are flattened.
       'src/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.ts',
+      // Public subpath entrypoints (avoid treeshaking away default exports).
+      'src/react/components/PasskeyAuthMenu/preload.ts',
+      'src/react/components/PasskeyAuthMenu/shell.tsx',
+      'src/react/components/PasskeyAuthMenu/skeleton.tsx',
+      'src/react/components/PasskeyAuthMenu/client.tsx',
     ],
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react`,
@@ -390,6 +395,11 @@ const configs = [
       'src/react/index.ts',
       // Ensure public subpath entrypoints exist in dist even when re-exports are flattened.
       'src/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.ts',
+      // Public subpath entrypoints (avoid treeshaking away default exports).
+      'src/react/components/PasskeyAuthMenu/preload.ts',
+      'src/react/components/PasskeyAuthMenu/shell.tsx',
+      'src/react/components/PasskeyAuthMenu/skeleton.tsx',
+      'src/react/components/PasskeyAuthMenu/client.tsx',
     ],
     output: {
       dir: `${BUILD_PATHS.BUILD.CJS}/react`,
