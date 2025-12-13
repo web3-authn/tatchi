@@ -9,6 +9,8 @@ use wasm_bindgen::JsCast;
 #[cfg(target_arch = "wasm32")]
 use web_sys::MessagePort;
 
+mod logger;
+mod fetch;
 mod config;
 mod errors;
 mod handlers;
@@ -73,7 +75,7 @@ extern "C" {
 #[wasm_bindgen(start)]
 pub fn main() {
     // Initialize logger with the configured log level
-    wasm_logger::init(wasm_logger::Config::new(config::CURRENT_LOG_LEVEL));
+    logger::init(config::CURRENT_LOG_LEVEL);
     debug!("VRF WASM Worker starting up...");
     debug!(
         "Logging system initialized with level: {:?}",
