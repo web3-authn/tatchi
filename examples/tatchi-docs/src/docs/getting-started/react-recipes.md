@@ -94,9 +94,9 @@ export function PasskeySection() {
 }
 ```
 
-## ProfileSettingsButton – account menu + device linking
+## AccountMenuButton – account menu + device linking
 
-`ProfileSettingsButton` shows the current account, lets users export keys, link devices, toggle theme, and adjust confirmation settings.
+`AccountMenuButton` shows the current account, lets users export keys, link devices, toggle theme, and adjust confirmation settings.
 
 ```tsx
 import {
@@ -104,7 +104,7 @@ import {
   DeviceLinkingPhase,
   DeviceLinkingStatus,
 } from '@tatchi-xyz/sdk/react'
-import { ProfileSettingsButton } from '@tatchi-xyz/sdk/react/profile'
+import { AccountMenuButton } from '@tatchi-xyz/sdk/react/profile'
 
 export function HeaderProfile() {
   const { loginState } = useTatchi()
@@ -115,7 +115,7 @@ export function HeaderProfile() {
 
   return (
     <header className="app-header">
-      <ProfileSettingsButton
+      <AccountMenuButton
         nearAccountId={loginState.nearAccountId}
         hideUsername={false}
         onLogout={() => {

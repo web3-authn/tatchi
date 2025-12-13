@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import TatchiProfileSettingsButton from '../TatchiProfileSettingsButton'
 
 /**
- * Fixed overlay that renders the real ProfileSettingsButton at top-right
+ * Fixed overlay that renders the real AccountMenuButton at top-right
  * and broadcasts its width so the main Navbar can reserve space with a placeholder.
  */
 export const NavbarProfileOverlay: React.FC = () => {
@@ -86,7 +86,7 @@ export const NavbarProfileOverlay: React.FC = () => {
       <TatchiProfileSettingsButton
         // Attach identifying class to the morphable wrapper via passthrough prop
         // so we can observe size.
-        // TatchiProfileSettingsButton forwards `className` to ProfileSettingsButton wrapper.
+        // TatchiProfileSettingsButton forwards `className` to AccountMenuButton wrapper.
         className="navbar-profile-button"
       />
     </div>

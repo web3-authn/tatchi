@@ -64,14 +64,49 @@
       "types": "./dist/types/src/react/index.d.ts"
     },
     "./react/profile": {
-      "import": "./dist/esm/react/components/ProfileSettingsButton/index.js",
-      "require": "./dist/cjs/react/components/ProfileSettingsButton/index.js",
-      "types": "./dist/types/src/react/components/ProfileSettingsButton/index.d.ts"
+      "import": "./dist/esm/react/components/AccountMenuButton/index.js",
+      "require": "./dist/cjs/react/components/AccountMenuButton/index.js",
+      "types": "./dist/types/src/react/components/AccountMenuButton/index.d.ts"
     },
     "./react/passkey-auth-menu": {
-      "import": "./dist/esm/react/components/PasskeyAuthMenu/index.js",
-      "require": "./dist/cjs/react/components/PasskeyAuthMenu/index.js",
-      "types": "./dist/types/src/react/components/PasskeyAuthMenu/index.d.ts"
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.d.ts"
+    },
+    "./react/passkey-auth-menu/client": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/client.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/client.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/client.d.ts"
+    },
+    "./react/passkey-auth-menu/skeleton": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/skeleton.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/skeleton.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/skeleton.d.ts"
+    },
+    "./react/passkey-auth-menu/preload": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/preload.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/preload.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/preload.d.ts"
+    },
+    "./react/passkey-auth-menu2": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/shell.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/shell.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/shell.d.ts"
+    },
+    "./react/passkey-auth-menu2/client": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/client.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/client.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/client.d.ts"
+    },
+    "./react/passkey-auth-menu2/skeleton": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/skeleton.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/skeleton.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/skeleton.d.ts"
+    },
+    "./react/passkey-auth-menu2/preload": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/preload.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/preload.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/preload.d.ts"
     },
     "./react/embedded": {
       "import": "./dist/esm/react/components/SendTxButtonWithTooltip.js",

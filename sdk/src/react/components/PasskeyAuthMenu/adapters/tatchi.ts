@@ -1,0 +1,28 @@
+import { useTatchi } from '../../../context';
+import type { TatchiPasskey } from '@/core/TatchiPasskey';
+
+export interface PasskeyAuthMenuRuntime {
+  tatchiPasskey: TatchiPasskey;
+  accountExists: boolean;
+  inputUsername: string;
+  setInputUsername: (v: string) => void;
+  displayPostfix?: string;
+  isUsingExistingAccount?: boolean;
+  stopDevice2LinkingFlow?: () => Promise<void>;
+}
+
+export function usePasskeyAuthMenuRuntime(): PasskeyAuthMenuRuntime {
+  const ctx = useTatchi();
+  const accountExists = !!ctx.accountInputState?.accountExists;
+  return {
+    tatchiPasskey: ctx.tatchi,
+    accountExists,
+    inputUsername: ctx.accountInputState?.inputUsername ?? '',
+    setInputUsername: ctx.setInputUsername,
+    displayPostfix: ctx.accountInputState?.displayPostfix,
+    isUsingExistingAccount: ctx.accountInputState?.isUsingExistingAccount,
+    stopDevice2LinkingFlow: ctx.stopDevice2LinkingFlow,
+  };
+}
+
+export default usePasskeyAuthMenuRuntime;

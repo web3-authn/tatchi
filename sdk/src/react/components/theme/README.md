@@ -86,4 +86,4 @@ The following CSS variables are generated from `tokens.colors.*` with the defaul
 
 ## Notes
 
-- `variables.css` in ProfileSettingsButton is legacy and safe to remove if unused.
+- `variables.css` in AccountMenuButton is legacy and safe to remove if unused.
