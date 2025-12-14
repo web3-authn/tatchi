@@ -53,11 +53,45 @@ pub struct VRFKeyManager {
     pub session_start_time: f64,
     /// Per-session cache of VRF challenges used for contract verification.
     pub vrf_challenges: HashMap<String, VRFChallengeData>,
+    /// VRF-owned signing sessions (WrapKeySeed + policy).
+    pub sessions: HashMap<String, VrfSessionData>,
     // Shamir 3-pass configs
     pub shamir3pass: Shamir3Pass,
     pub relay_server_url: Option<String>,
     pub apply_lock_route: Option<String>,
     pub remove_lock_route: Option<String>,
+}
+
+/// VRF-owned session state for reusing WrapKeySeed without re-prompting WebAuthn.
+///
+/// Signer workers remain one-shot; each signing operation attaches a fresh MessagePort and
+/// VRF dispenses WrapKeySeed + wrapKeySalt when policy allows.
+#[derive(ZeroizeOnDrop, Clone)]
+pub struct VrfSessionData {
+    pub wrap_key_seed: Vec<u8>,
+    pub wrap_key_salt_b64u: String,
+    pub created_at_ms: f64,
+    pub expires_at_ms: Option<f64>,
+    pub remaining_uses: Option<u32>,
+}
+
+impl VrfSessionData {
+    pub fn is_expired(&self, now_ms: f64) -> bool {
+        self.expires_at_ms.is_some_and(|exp| now_ms >= exp)
+    }
+
+    pub fn can_consume(&self, uses: u32) -> bool {
+        match self.remaining_uses {
+            None => true,
+            Some(n) => n >= uses,
+        }
+    }
+
+    pub fn decrement_uses(&mut self, uses: u32) {
+        if let Some(n) = self.remaining_uses.as_mut() {
+            *n = n.saturating_sub(uses);
+        }
+    }
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -91,6 +125,7 @@ impl VRFKeyManager {
         Self {
             vrf_keypair: None,
             vrf_challenges: HashMap::new(),
+            sessions: HashMap::new(),
             session_active: false,
             session_start_time: 0.0,
             shamir3pass,
@@ -127,6 +162,50 @@ impl VRFKeyManager {
         self.vrf_challenges.remove(session_id);
     }
 
+    /// Store/replace a VRF-owned session.
+    pub fn upsert_session(&mut self, session_id: &str, session: VrfSessionData) {
+        self.sessions.insert(session_id.to_string(), session);
+    }
+
+    /// Clear session material for a given session id.
+    pub fn clear_session(&mut self, session_id: &str) {
+        self.sessions.remove(session_id);
+    }
+
+    /// Dispense WrapKeySeed + wrapKeySalt for a session, enforcing TTL and usage budget.
+    ///
+    /// Returns base64url-encoded WrapKeySeed and wrapKeySalt for MessagePort delivery.
+    pub fn dispense_session_key(
+        &mut self,
+        session_id: &str,
+        requested_uses: u32,
+        now_ms: f64,
+    ) -> VrfResult<(String, String)> {
+        let uses = requested_uses.max(1);
+        let session = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or_else(|| VrfWorkerError::SessionNotFound(session_id.to_string()))?;
+
+        if session.is_expired(now_ms) {
+            self.sessions.remove(session_id);
+            return Err(VrfWorkerError::SessionExpired);
+        }
+
+        if !session.can_consume(uses) {
+            self.sessions.remove(session_id);
+            return Err(VrfWorkerError::SessionExhausted);
+        }
+
+        session.decrement_uses(uses);
+        // Keep the entry until the current dispense completes successfully.
+        // A subsequent call will return SESSION_EXHAUSTED and clear.
+
+        let wrap_key_seed_b64u = base64_url_encode(&session.wrap_key_seed);
+        let wrap_key_salt_b64u = session.wrap_key_salt_b64u.clone();
+        Ok((wrap_key_seed_b64u, wrap_key_salt_b64u))
+    }
+
     /// Get secret key bytes for the current VRF keypair (error if not unlocked)
     pub fn get_vrf_secret_key_bytes(&self) -> VrfResult<Vec<u8>> {
         if !self.session_active {
@@ -148,6 +227,13 @@ impl VRFKeyManager {
 
         // Clear any existing keypair (zeroization via ZeroizeOnDrop)
         self.vrf_keypair.take();
+        // Clear any cached per-session state bound to the previous VRF keypair.
+        if !self.sessions.is_empty() {
+            self.sessions.clear();
+        }
+        if !self.vrf_challenges.is_empty() {
+            self.vrf_challenges.clear();
+        }
 
         // Generate VRF keypair with cryptographically secure randomness
         let vrf_keypair = self.generate_vrf_keypair()?;
@@ -235,6 +321,13 @@ impl VRFKeyManager {
         debug!("Unlocking VRF keypair for {}", near_account_id);
         // Clear any existing keypair (zeroization via ZeroizeOnDrop)
         self.vrf_keypair.take();
+        // Clear any cached per-session state bound to the previous VRF keypair.
+        if !self.sessions.is_empty() {
+            self.sessions.clear();
+        }
+        if !self.vrf_challenges.is_empty() {
+            self.vrf_challenges.clear();
+        }
 
         // Decrypt VRF keypair using PRF-derived AES key
         let decrypted_keypair = self.decrypt_vrf_keypair(encrypted_vrf_keypair, prf_key)?;
@@ -257,6 +350,13 @@ impl VRFKeyManager {
         debug!("Loading VRF keypair for {}", near_account_id);
         // Clear any existing keypair
         self.vrf_keypair.take();
+        // Clear any cached per-session state bound to the previous VRF keypair.
+        if !self.sessions.is_empty() {
+            self.sessions.clear();
+        }
+        if !self.vrf_challenges.is_empty() {
+            self.vrf_challenges.clear();
+        }
         // Reconstruct ECVRFKeyPair from stored bytes
         let keypair: ECVRFKeyPair = bincode::deserialize(&keypair_data.keypair_bytes)?;
         self.vrf_keypair = Some(SecureVRFKeyPair::new(keypair));
@@ -357,6 +457,11 @@ impl VRFKeyManager {
             self.vrf_challenges.clear();
             debug!("Cleared cached VRF challenges on logout");
         }
+        // Clear any cached sessions to avoid cross-session reuse
+        if !self.sessions.is_empty() {
+            self.sessions.clear();
+            debug!("Cleared cached VRF sessions on logout");
+        }
         // Clear session data
         self.session_active = false;
         self.session_start_time = 0.0;
@@ -424,6 +529,13 @@ impl VRFKeyManager {
         );
         // Clear any existing keypair and save the new one
         self.vrf_keypair.take();
+        // Clear any cached per-session state bound to the previous VRF keypair.
+        if !self.sessions.is_empty() {
+            self.sessions.clear();
+        }
+        if !self.vrf_challenges.is_empty() {
+            self.vrf_challenges.clear();
+        }
         self.vrf_keypair = Some(SecureVRFKeyPair::new(vrf_keypair));
         self.session_active = true;
         self.session_start_time = js_sys::Date::now();

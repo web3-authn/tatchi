@@ -105,6 +105,8 @@ pub async fn handle_decrypt_session(
             wrap_key_salt_b64u,
             contract_id: None,
             near_rpc_url: None,
+            ttl_ms: None,
+            remaining_uses: None,
             credential: wasm_bindgen::JsValue::UNDEFINED,
         },
     )

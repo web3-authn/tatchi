@@ -127,3 +127,14 @@ pub mod error_messages {
 
 /// Number of characters to show when displaying truncated keys/hashes in logs
 pub const DISPLAY_TRUNCATE_LENGTH: usize = 20;
+
+// === VRF SESSION DEFAULTS ===
+
+/// Default VRF session TTL (ms) for reusing a WebAuthn-derived WrapKeySeed.
+/// Session enforcement is VRF-owned; signer workers remain one-shot.
+pub const VRF_SESSION_DEFAULT_TTL_MS: u64 = 5 * 60 * 1000; // 5 minutes
+
+/// Default maximum number of signing "uses" per VRF session.
+/// A "use" is intentionally defined at the VRF boundary (per dispense),
+/// not per signer worker internal loop.
+pub const VRF_SESSION_DEFAULT_MAX_USES: u32 = 5;

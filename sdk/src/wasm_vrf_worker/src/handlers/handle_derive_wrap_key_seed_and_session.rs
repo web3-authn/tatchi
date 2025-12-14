@@ -4,7 +4,7 @@ use sha2::Sha256;
 use wasm_bindgen::prelude::*;
 
 use crate::errors::HkdfError;
-use crate::manager::VRFKeyManager;
+use crate::manager::{VRFKeyManager, VrfSessionData};
 use crate::rpc_calls::{
     verify_authentication_response_rpc_call, VrfData, WebAuthnAuthenticationCredential,
 };
@@ -184,6 +184,17 @@ pub struct DeriveWrapKeySeedAndSessionRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "nearRpcUrl")]
     #[serde(rename = "nearRpcUrl")]
     pub near_rpc_url: Option<String>,
+    /// Optional signing-session TTL in milliseconds.
+    /// When omitted, VRF_SESSION_DEFAULT_TTL_MS is used.
+    #[wasm_bindgen(getter_with_clone, js_name = "ttlMs")]
+    #[serde(rename = "ttlMs")]
+    pub ttl_ms: Option<u32>,
+    /// Optional initial remaining uses budget for the session.
+    /// A "use" is decremented on `DISPENSE_SESSION_KEY`.
+    /// When omitted, VRF_SESSION_DEFAULT_MAX_USES is used.
+    #[wasm_bindgen(getter_with_clone, js_name = "remainingUses")]
+    #[serde(rename = "remainingUses")]
+    pub remaining_uses: Option<u32>,
     /// Optional WebAuthn credential (registration or authentication) for PRF.second extraction.
     /// PRF extension results are intentionally omitted when forwarding to RPC, so
     /// any PRF outputs present in the JS object are not sent over the network.
@@ -271,6 +282,32 @@ pub async fn handle_derive_wrap_key_seed_and_session(
         return VrfWorkerResponse::fail(
             message_id,
             HkdfError::KeyDerivationFailed.to_string(),
+        );
+    }
+
+    // Cache VRF-owned session material for reuse (TTL/uses enforced on dispense).
+    // This does not expose WrapKeySeed to the main thread; it remains in VRF worker memory.
+    {
+        let now_ms = js_sys::Date::now();
+        let ttl_ms: u64 = request
+            .ttl_ms
+            .map(|v| v as u64)
+            .unwrap_or(crate::config::VRF_SESSION_DEFAULT_TTL_MS);
+        let expires_at_ms = Some(now_ms + (ttl_ms as f64));
+        let remaining_uses = Some(
+            request
+                .remaining_uses
+                .unwrap_or(crate::config::VRF_SESSION_DEFAULT_MAX_USES),
+        );
+        manager.borrow_mut().upsert_session(
+            &request.session_id,
+            VrfSessionData {
+                wrap_key_seed: wrap_key_seed.clone(),
+                wrap_key_salt_b64u: wrap_key_salt_b64u.clone(),
+                created_at_ms: now_ms,
+                expires_at_ms,
+                remaining_uses,
+            },
         );
     }
 

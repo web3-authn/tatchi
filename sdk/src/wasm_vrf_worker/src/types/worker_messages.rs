@@ -112,6 +112,9 @@ pub enum WorkerRequestType {
     DecryptSession,
     RegistrationCredentialConfirmation,
     Device2RegistrationSession,
+    DispenseSessionKey,
+    GetSessionStatus,
+    ClearSession,
 }
 
 impl WorkerRequestType {
@@ -143,6 +146,9 @@ impl WorkerRequestType {
                 Some(WorkerRequestType::RegistrationCredentialConfirmation)
             }
             "DEVICE2_REGISTRATION_SESSION" => Some(WorkerRequestType::Device2RegistrationSession),
+            "DISPENSE_SESSION_KEY" => Some(WorkerRequestType::DispenseSessionKey),
+            "GET_SESSION_STATUS" => Some(WorkerRequestType::GetSessionStatus),
+            "CLEAR_SESSION" => Some(WorkerRequestType::ClearSession),
             _ => None,
         }
     }
@@ -189,6 +195,15 @@ impl WorkerRequestType {
             WorkerRequestType::Device2RegistrationSession => {
                 "DEVICE2_REGISTRATION_SESSION"
             }
+            WorkerRequestType::DispenseSessionKey => {
+                "DISPENSE_SESSION_KEY"
+            }
+            WorkerRequestType::GetSessionStatus => {
+                "GET_SESSION_STATUS"
+            }
+            WorkerRequestType::ClearSession => {
+                "CLEAR_SESSION"
+            }
         }
     }
 }
@@ -214,6 +229,9 @@ impl From<u32> for WorkerRequestType {
             15 => WorkerRequestType::DecryptSession,
             16 => WorkerRequestType::RegistrationCredentialConfirmation,
             17 => WorkerRequestType::Device2RegistrationSession,
+            18 => WorkerRequestType::DispenseSessionKey,
+            19 => WorkerRequestType::GetSessionStatus,
+            20 => WorkerRequestType::ClearSession,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }

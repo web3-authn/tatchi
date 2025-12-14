@@ -5,9 +5,12 @@ use crate::config::{
     CHACHA20_KEY_SIZE, CHACHA20_NONCE_SIZE, HKDF_CHACHA20_KEY_INFO, HKDF_VRF_KEYPAIR_INFO,
     VRF_DOMAIN_SEPARATOR, VRF_SEED_SIZE,
 };
+#[cfg(target_arch = "wasm32")]
 use crate::handlers::handle_derive_wrap_key_seed_and_session::verify_authentication_if_needed;
+use crate::manager::{VRFKeyManager, VrfSessionData};
 use crate::shamir3pass::{decode_biguint_b64u, encode_biguint_b64u};
 use crate::utils::{base64_url_decode, base64_url_encode};
+use crate::errors::VrfWorkerError;
 use num_bigint::BigUint;
 
 // Test helper functions
@@ -17,6 +20,93 @@ fn create_test_prf_output() -> Vec<u8> {
 
 fn create_test_account_id() -> String {
     "test-account.testnet".to_string()
+}
+
+#[test]
+fn session_ttl_is_enforced_on_dispense() {
+    let mut mgr = VRFKeyManager::new(None, None, None, None);
+    let session_id = "sess-ttl";
+
+    mgr.upsert_session(
+        session_id,
+        VrfSessionData {
+            wrap_key_seed: vec![7u8; 32],
+            wrap_key_salt_b64u: "salt".to_string(),
+            created_at_ms: 0.0,
+            expires_at_ms: Some(100.0),
+            remaining_uses: Some(5),
+        },
+    );
+
+    let res = mgr.dispense_session_key(session_id, 1, 100.0);
+    assert!(matches!(res, Err(VrfWorkerError::SessionExpired)));
+    assert!(mgr.sessions.get(session_id).is_none());
+}
+
+#[test]
+fn session_remaining_uses_are_enforced_on_dispense() {
+    let mut mgr = VRFKeyManager::new(None, None, None, None);
+    let session_id = "sess-uses";
+
+    mgr.upsert_session(
+        session_id,
+        VrfSessionData {
+            wrap_key_seed: vec![9u8; 32],
+            wrap_key_salt_b64u: "salt".to_string(),
+            created_at_ms: 0.0,
+            expires_at_ms: Some(1_000_000.0),
+            remaining_uses: Some(1),
+        },
+    );
+
+    // First dispense consumes the last use but succeeds (session remains until next attempt).
+    let res1 = mgr.dispense_session_key(session_id, 1, 0.0);
+    assert!(res1.is_ok());
+    assert_eq!(mgr.sessions.get(session_id).unwrap().remaining_uses, Some(0));
+
+    // Second dispense should fail and clear the session.
+    let res2 = mgr.dispense_session_key(session_id, 1, 0.0);
+    assert!(matches!(res2, Err(VrfWorkerError::SessionExhausted)));
+    assert!(mgr.sessions.get(session_id).is_none());
+}
+
+#[test]
+fn logout_clears_cached_sessions_and_challenges() {
+    let mut mgr = VRFKeyManager::new(None, None, None, None);
+
+    // Seed dummy session + challenge state
+    mgr.session_active = true;
+    mgr.session_start_time = 123.0;
+    mgr.vrf_challenges.insert(
+        "sess-chal".to_string(),
+        crate::types::VRFChallengeData {
+            vrf_input: "in".to_string(),
+            vrf_output: "out".to_string(),
+            vrf_proof: "proof".to_string(),
+            vrf_public_key: "pk".to_string(),
+            user_id: "u".to_string(),
+            rp_id: "rp".to_string(),
+            block_height: "1".to_string(),
+            block_hash: "h".to_string(),
+        },
+    );
+    mgr.upsert_session(
+        "sess-logout",
+        VrfSessionData {
+            wrap_key_seed: vec![1u8; 32],
+            wrap_key_salt_b64u: "salt".to_string(),
+            created_at_ms: 0.0,
+            expires_at_ms: Some(1_000_000.0),
+            remaining_uses: Some(5),
+        },
+    );
+
+    mgr.logout().expect("logout should succeed");
+
+    assert!(!mgr.session_active);
+    assert_eq!(mgr.session_start_time, 0.0);
+    assert!(mgr.vrf_challenges.is_empty());
+    assert!(mgr.sessions.is_empty());
 }
 
 #[test]
@@ -589,6 +679,8 @@ fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
         wrap_key_salt_b64u: "explicit-salt".to_string(),
         contract_id: None,
         near_rpc_url: None,
+        ttl_ms: None,
+        remaining_uses: None,
         credential: JsValue::UNDEFINED,
     };
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
@@ -609,6 +701,8 @@ fn derive_wrap_key_seed_and_session_generates_salt_when_empty() {
         wrap_key_salt_b64u: "  ".to_string(),
         contract_id: None,
         near_rpc_url: None,
+        ttl_ms: None,
+        remaining_uses: None,
         credential: JsValue::UNDEFINED,
     };
     // The handler itself runs under wasm32, but the request shape must be JSON-compatible.

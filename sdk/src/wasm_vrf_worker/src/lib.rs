@@ -20,6 +20,8 @@ mod rpc_calls;
 mod shamir3pass;
 mod types;
 mod utils;
+#[cfg(target_arch = "wasm32")]
+pub mod wrap_key_seed_port;
 
 #[cfg(test)]
 mod tests;
@@ -49,6 +51,9 @@ pub use handlers::handle_derive_wrap_key_seed_and_session::DeriveWrapKeySeedAndS
 pub use handlers::handle_decrypt_session::DecryptSessionRequest;
 pub use handlers::handle_registration_credential_confirmation::RegistrationCredentialConfirmationRequest;
 pub use handlers::handle_device2_registration_session::Device2RegistrationSessionRequest;
+pub use handlers::handle_dispense_session_key::DispenseSessionKeyRequest;
+pub use handlers::handle_get_session_status::GetSessionStatusRequest;
+pub use handlers::handle_clear_session::ClearSessionRequest;
 pub use handlers::handle_shamir3pass_config::{
     Shamir3PassConfigPRequest, Shamir3PassConfigServerUrlsRequest,
 };
@@ -141,9 +146,7 @@ pub fn attach_wrap_key_seed_port(session_id: String, port_val: JsValue) {
     #[cfg(target_arch = "wasm32")]
     {
         if let Some(port) = port_val.dyn_into::<MessagePort>().ok() {
-            WRAP_KEY_SEED_PORTS.with(|map| {
-                map.borrow_mut().insert(session_id, port);
-            });
+            wrap_key_seed_port::put_port(&session_id, port);
         }
     }
 
@@ -151,43 +154,6 @@ pub fn attach_wrap_key_seed_port(session_id: String, port_val: JsValue) {
     {
         let _ = session_id;
         let _ = port_val;
-    }
-}
-
-// Helper module for WrapKeySeed and PRF.second delivery from handlers
-#[cfg(target_arch = "wasm32")]
-pub mod wrap_key_seed_port {
-    use super::*;
-
-    pub fn send_wrap_key_seed_to_signer(
-        session_id: &str,
-        wrap_key_seed_b64u: &str,
-        wrap_key_salt_b64u: &str,
-        prf_second_b64u: Option<&str>,
-    ) {
-        WRAP_KEY_SEED_PORTS.with(|map| {
-            if let Some(port) = map.borrow().get(session_id) {
-                let obj = js_sys::Object::new();
-                let _ = js_sys::Reflect::set(
-                    &obj,
-                    &JsValue::from_str("wrap_key_seed"),
-                    &JsValue::from_str(wrap_key_seed_b64u),
-                );
-                let _ = js_sys::Reflect::set(
-                    &obj,
-                    &JsValue::from_str("wrapKeySalt"),
-                    &JsValue::from_str(wrap_key_salt_b64u),
-                );
-                if let Some(prf_second) = prf_second_b64u {
-                    let _ = js_sys::Reflect::set(
-                        &obj,
-                        &JsValue::from_str("prfSecond"),
-                        &JsValue::from_str(prf_second),
-                    );
-                }
-                let _ = port.post_message(&obj);
-            }
-        });
     }
 }
 
@@ -239,18 +205,31 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         WorkerRequestType::UnlockVrfKeypair => {
             let request: UnlockVrfKeypairRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_unlock_vrf_keypair(manager_rc.clone(), id.clone(), request)
+            handlers::handle_unlock_vrf_keypair(
+                manager_rc.clone(),
+                id.clone(),
+                request
+            )
         }
         WorkerRequestType::CheckVrfStatus => {
             handlers::handle_check_vrf_status(manager_rc.clone(), id.clone())
         }
         WorkerRequestType::Logout => {
+            #[cfg(target_arch = "wasm32")]
+            {
+                // Cleanup all attached ports on logout.
+                wrap_key_seed_port::close_all_ports();
+            }
             handlers::handle_logout(manager_rc.clone(), id.clone())
         }
         WorkerRequestType::GenerateVrfChallenge => {
             let request: GenerateVrfChallengeRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_generate_vrf_challenge(manager_rc.clone(), id.clone(), request)
+            handlers::handle_generate_vrf_challenge(
+                manager_rc.clone(),
+                id.clone(),
+                request
+            )
         }
         WorkerRequestType::DeriveVrfKeypairFromPrf => {
             let request: DeriveVrfKeypairFromPrfRequest =
@@ -317,7 +296,11 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         WorkerRequestType::Shamir3PassConfigP => {
             let request: Shamir3PassConfigPRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_shamir3pass_config_p(manager_rc.clone(), id.clone(), request)
+            handlers::handle_shamir3pass_config_p(
+                manager_rc.clone(),
+                id.clone(),
+                request
+            )
         }
         WorkerRequestType::Shamir3PassConfigServerUrls => {
             let request: Shamir3PassConfigServerUrlsRequest =
@@ -367,6 +350,33 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
                 request,
             )
             .await
+        }
+        WorkerRequestType::DispenseSessionKey => {
+            let request: DispenseSessionKeyRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_dispense_session_key(
+                manager_rc.clone(),
+                id.clone(),
+                request
+            ).await
+        }
+        WorkerRequestType::GetSessionStatus => {
+            let request: GetSessionStatusRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_get_session_status(
+                manager_rc.clone(),
+                id.clone(),
+                request,
+            )
+        }
+        WorkerRequestType::ClearSession => {
+            let request: ClearSessionRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_clear_session(
+                manager_rc.clone(),
+                id.clone(),
+                request,
+            )
         }
     };
 
