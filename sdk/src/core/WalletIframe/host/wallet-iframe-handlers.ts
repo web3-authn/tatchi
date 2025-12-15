@@ -13,21 +13,23 @@ import type { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import { OFFLINE_EXPORT_FALLBACK, EXPORT_NEAR_KEYPAIR_CANCELLED, WALLET_UI_CLOSED } from '../../OfflineExport/messages';
 import { isTouchIdCancellationError } from '../../../utils/errors';
 import type {
-  RegistrationHooksOptions,
-  RegistrationResult,
-  LoginHooksOptions,
-  ActionHooksOptions,
-  SignAndSendTransactionHooksOptions,
-  SendTransactionHooksOptions,
-  SignNEP413HooksOptions,
   AccountRecoveryHooksOptions,
-  LoginResult,
-  LoginState,
-  SignTransactionResult,
+  ActionHooksOptions,
+  LoginHooksOptions,
+  RegistrationHooksOptions,
+  SendTransactionHooksOptions,
+  SignAndSendTransactionHooksOptions,
+  SignNEP413HooksOptions,
+  SignTransactionHooksOptions,
+} from '../../types/sdkSentEvents';
+import type {
   ActionResult,
   GetRecentLoginsResult,
-  SignTransactionHooksOptions,
-} from '../../types/passkeyManager';
+  LoginResult,
+  LoginState,
+  RegistrationResult,
+  SignTransactionResult,
+} from '../../types/tatchi';
 import type {
   DeviceLinkingQRData,
   ScanAndLinkDeviceOptionsDevice1,
@@ -85,6 +87,29 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const pm = getTatchiPasskey();
       const state = await pm.getLoginState(req.payload?.nearAccountId);
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result: state } });
+    },
+
+    PM_UNLOCK_SIGNING_SESSION: async (req: Req<'PM_UNLOCK_SIGNING_SESSION'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId, remainingUses, ttlMs } = req.payload!;
+      if (respondIfCancelled(req.requestId)) return;
+      const result = await pm.unlockSigningSession({ nearAccountId, remainingUses, ttlMs });
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_GET_SIGNING_SESSION_STATUS: async (req: Req<'PM_GET_SIGNING_SESSION_STATUS'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId } = req.payload!;
+      const result = await pm.getSigningSessionStatus({ nearAccountId });
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_CLEAR_SIGNING_SESSION: async (req: Req<'PM_CLEAR_SIGNING_SESSION'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId } = req.payload!;
+      const result = await pm.clearSigningSession({ nearAccountId });
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
     PM_REGISTER: async (req: Req<'PM_REGISTER'>) => {

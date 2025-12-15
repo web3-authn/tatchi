@@ -69,30 +69,32 @@ import {
 import { SignedTransaction } from '../../NearClient';
 import { OnEventsProgressBus, defaultPhaseHeuristics } from './on-events-progress-bus';
 import type {
-  RegistrationResult,
-  LoginResult,
-  SignTransactionResult,
-  LoginState,
-  ActionResult,
   ActionSSEEvent,
-  DelegateActionSSEEvent,
-  RegistrationSSEEvent,
-  LoginSSEvent,
-  DeviceLinkingSSEEvent,
-  AccountRecoverySSEEvent,
-  AfterCall,
-  SignAndSendTransactionHooksOptions,
-  SendTransactionHooksOptions,
   ActionHooksOptions,
-  GetRecentLoginsResult,
-} from '../../types/passkeyManager';
+  AfterCall,
+  AccountRecoverySSEEvent,
+  DelegateActionSSEEvent,
+  DeviceLinkingSSEEvent,
+  LoginSSEvent,
+  RegistrationSSEEvent,
+  SendTransactionHooksOptions,
+  SignAndSendTransactionHooksOptions,
+} from '../../types/sdkSentEvents';
 import {
   RegistrationPhase,
   LoginPhase,
   ActionPhase,
   DeviceLinkingPhase,
   AccountRecoveryPhase,
-} from '../../types/passkeyManager';
+} from '../../types/sdkSentEvents';
+import type {
+  ActionResult,
+  GetRecentLoginsResult,
+  LoginResult,
+  LoginState,
+  RegistrationResult,
+  SignTransactionResult,
+} from '../../types/tatchi';
 import {
   ActionArgs,
   TransactionInput,
@@ -620,6 +622,81 @@ export class WalletIframeRouter {
     const res = await this.post<LoginState>({
       type: 'PM_GET_LOGIN_STATE',
       payload: nearAccountId ? { nearAccountId } : undefined
+    });
+    return res.result;
+  }
+
+  async unlockSigningSession(payload: {
+    nearAccountId: string;
+    remainingUses?: number;
+    ttlMs?: number;
+  }): Promise<{
+    sessionId: string;
+    status: 'active' | 'exhausted' | 'expired' | 'not_found';
+    remainingUses?: number;
+    expiresAtMs?: number;
+    createdAtMs?: number;
+  }> {
+    this.showFrameForActivation();
+    try {
+      const res = await this.post<{
+        sessionId: string;
+        status: 'active' | 'exhausted' | 'expired' | 'not_found';
+        remainingUses?: number;
+        expiresAtMs?: number;
+        createdAtMs?: number;
+      }>({
+        type: 'PM_UNLOCK_SIGNING_SESSION',
+        payload: {
+          nearAccountId: payload.nearAccountId,
+          remainingUses: payload.remainingUses,
+          ttlMs: payload.ttlMs,
+        },
+      });
+      return res.result;
+    } finally {
+      this.hideFrameForActivation();
+    }
+  }
+
+  async getSigningSessionStatus(payload: {
+    nearAccountId: string;
+  }): Promise<{
+    sessionId: string;
+    status: 'active' | 'exhausted' | 'expired' | 'not_found';
+    remainingUses?: number;
+    expiresAtMs?: number;
+    createdAtMs?: number;
+  }> {
+    const res = await this.post<{
+      sessionId: string;
+      status: 'active' | 'exhausted' | 'expired' | 'not_found';
+      remainingUses?: number;
+      expiresAtMs?: number;
+      createdAtMs?: number;
+    }>({
+      type: 'PM_GET_SIGNING_SESSION_STATUS',
+      payload: { nearAccountId: payload.nearAccountId },
+    });
+    return res.result;
+  }
+
+  async clearSigningSession(payload: {
+    nearAccountId: string;
+  }): Promise<{
+    sessionId: string;
+    clearedSession: boolean;
+    clearedChallenge: boolean;
+    clearedPort: boolean;
+  }> {
+    const res = await this.post<{
+      sessionId: string;
+      clearedSession: boolean;
+      clearedChallenge: boolean;
+      clearedPort: boolean;
+    }>({
+      type: 'PM_CLEAR_SIGNING_SESSION',
+      payload: { nearAccountId: payload.nearAccountId },
     });
     return res.result;
   }

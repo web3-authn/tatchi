@@ -25,19 +25,27 @@ import { TatchiPasskey } from '../TatchiPasskey';
 import { MinimalNearClient } from '../NearClient';
 import type { NearClient, SignedTransaction, AccessKeyList } from '../NearClient';
 import type {
-  TatchiPasskeyConfigs,
-  RegistrationResult,
-  LoginResult,
-  SignTransactionResult,
-  LoginState,
-  SignNEP413HooksOptions,
-  ActionHooksOptions,
-  AccountRecoveryHooksOptions,
-  GetRecentLoginsResult,
   ActionResult,
+  GetRecentLoginsResult,
+  LoginResult,
+  LoginState,
+  RegistrationResult,
+  SignDelegateActionResult,
+  SignTransactionResult,
+  TatchiConfigs,
+  TatchiConfigsInput,
+} from '../types/tatchi';
+import type {
+  AccountRecoveryHooksOptions,
+  ActionHooksOptions,
+  DelegateActionHooksOptions,
+  LoginHooksOptions,
+  RegistrationHooksOptions,
+  SendTransactionHooksOptions,
   SignAndSendTransactionHooksOptions,
+  SignNEP413HooksOptions,
   SignTransactionHooksOptions,
-} from '../types/passkeyManager';
+} from '../types/sdkSentEvents';
 
 import type { ActionArgs, TransactionInput, TxExecutionStatus } from '../types';
 import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults, StartDeviceLinkingOptionsDevice2 } from '../types/linkDevice';
@@ -45,22 +53,16 @@ import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types
 import { EmailRecoveryFlowOptions } from '../TatchiPasskey/emailRecovery';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
-import type {
-  RegistrationHooksOptions,
-  LoginHooksOptions,
-  SendTransactionHooksOptions,
-  DelegateActionHooksOptions,
-  SignDelegateActionResult,
-} from '../types/passkeyManager';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
 import type { RecoveryResult, PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
 import type { WalletUIRegistry } from './host/iframe-lit-element-registry';
 import type { DelegateActionInput } from '../types/delegate';
+import { buildConfigsFromEnv } from '../defaultConfigs';
 
 
 export class TatchiPasskeyIframe {
-  readonly configs: TatchiPasskeyConfigs;
+  readonly configs: TatchiConfigs;
   private router: WalletIframeRouter;
   private fallbackLocal: TatchiPasskey | null = null;
   private lastConfirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
@@ -92,10 +94,10 @@ export class TatchiPasskeyIframe {
     };
   }
 
-  constructor(configs: TatchiPasskeyConfigs) {
-    this.configs = configs;
+  constructor(configs: TatchiConfigsInput) {
+    this.configs = buildConfigsFromEnv(configs);
 
-    const walletOrigin = configs.iframeWallet?.walletOrigin;
+    const walletOrigin = this.configs.iframeWallet?.walletOrigin;
     if (!walletOrigin) {
       throw new Error('[TatchiPasskeyIframe] iframeWallet.walletOrigin is required to enable the wallet iframe. Configure it to a dedicated origin.');
     }
@@ -116,19 +118,19 @@ export class TatchiPasskeyIframe {
 
     this.router = new WalletIframeRouter({
       walletOrigin: parsedWalletOrigin.toString(),
-      servicePath: configs.iframeWallet?.walletServicePath || '/wallet-service',
+      servicePath: this.configs.iframeWallet?.walletServicePath || '/wallet-service',
       // Lower connect timeout to reduce initial boot-wait window (25% of this).
       // With 3_000ms, boot wait caps at ~750ms; improves sub‑second readiness in dev.
       connectTimeoutMs: 3_000,
       requestTimeoutMs: 60_000,
-      theme: configs.walletTheme,
-      nearRpcUrl: configs.nearRpcUrl,
-      nearNetwork: configs.nearNetwork,
-      contractId: configs.contractId,
+      theme: this.configs.walletTheme,
+      nearRpcUrl: this.configs.nearRpcUrl,
+      nearNetwork: this.configs.nearNetwork,
+      contractId: this.configs.contractId,
       // relayer: configs.relayer,
-      vrfWorkerConfigs: configs.vrfWorkerConfigs,
-      rpIdOverride: configs.iframeWallet?.rpIdOverride,
-      authenticatorOptions: configs.authenticatorOptions,
+      vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
+      rpIdOverride: this.configs.iframeWallet?.rpIdOverride,
+      authenticatorOptions: this.configs.authenticatorOptions,
     });
   }
 
@@ -223,6 +225,47 @@ export class TatchiPasskeyIframe {
       } as LoginState;
     }
     return this.router.getLoginState(nearAccountId);
+  }
+
+  async unlockSigningSession(args: {
+    nearAccountId: string;
+    remainingUses?: number;
+    ttlMs?: number;
+  }): Promise<{
+    sessionId: string;
+    status: 'active' | 'exhausted' | 'expired' | 'not_found';
+    remainingUses?: number;
+    expiresAtMs?: number;
+    createdAtMs?: number;
+  }> {
+    return await this.router.unlockSigningSession({
+      nearAccountId: args.nearAccountId,
+      remainingUses: args.remainingUses,
+      ttlMs: args.ttlMs,
+    });
+  }
+
+  async getSigningSessionStatus(args: {
+    nearAccountId: string;
+  }): Promise<{
+    sessionId: string;
+    status: 'active' | 'exhausted' | 'expired' | 'not_found';
+    remainingUses?: number;
+    expiresAtMs?: number;
+    createdAtMs?: number;
+  }> {
+    return await this.router.getSigningSessionStatus({ nearAccountId: args.nearAccountId });
+  }
+
+  async clearSigningSession(args: {
+    nearAccountId: string;
+  }): Promise<{
+    sessionId: string;
+    clearedSession: boolean;
+    clearedChallenge: boolean;
+    clearedPort: boolean;
+  }> {
+    return await this.router.clearSigningSession({ nearAccountId: args.nearAccountId });
   }
 
   async signTransactionsWithActions(args: {
@@ -554,7 +597,7 @@ export class TatchiPasskeyIframe {
   async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
     return this.router.viewAccessKeyList(accountId);
   }
-  async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options?: ActionHooksOptions): Promise<import('../types/passkeyManager').ActionResult> {
+  async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options?: ActionHooksOptions): Promise<ActionResult> {
     try {
       const res = await this.router.deleteDeviceKey(
         accountId,

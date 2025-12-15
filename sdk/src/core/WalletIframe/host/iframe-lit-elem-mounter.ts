@@ -45,7 +45,7 @@ import { IframeButtonHost as __IframeButtonKeep } from '../../WebAuthnManager/Li
 // Import arrow register button so it's defined and not tree-shaken in wallet origin
 import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import { TatchiPasskey } from '../../TatchiPasskey';
-import { SignAndSendTransactionHooksOptions } from '../../types/passkeyManager';
+import type { SignAndSendTransactionHooksOptions } from '../../types/sdkSentEvents';
 import { BaseSSEEvent, TransactionInput, TransactionInputWasm } from '../../types';
 import { uiBuiltinRegistry, type WalletUIRegistry } from './iframe-lit-element-registry';
 import { errorMessage } from '../../../utils/errors';

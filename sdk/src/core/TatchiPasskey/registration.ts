@@ -2,15 +2,14 @@ import type { NearClient, SignedTransaction } from '../NearClient';
 import { validateNearAccountId } from '../../utils/validation';
 import type {
   RegistrationHooksOptions,
-  RegistrationResult,
   RegistrationSSEEvent,
-} from '../types/passkeyManager';
+} from '../types/sdkSentEvents';
+import type { RegistrationResult, TatchiConfigs } from '../types/tatchi';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
-import { RegistrationPhase, RegistrationStatus } from '../types/passkeyManager';
+import { RegistrationPhase, RegistrationStatus } from '../types/sdkSentEvents';
 import {
   createAccountAndRegisterWithRelayServer
 } from './faucets/createAccountRelayServer';
-import { TatchiPasskeyConfigs } from '../types/passkeyManager';
 import { PasskeyManagerContext } from './index';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { VRFChallenge } from '../types/vrf-worker';
@@ -117,6 +116,7 @@ export async function registerPasskeyInternal(
       webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
         credential,
         nearAccountId,
+        options: { deviceNumber: 1 },
       }),
       webAuthnManager.checkCanRegisterUser({
         contractId: context.configs.contractId,
@@ -409,7 +409,7 @@ export async function generateBootstrapVrfChallenge(
  */
 const validateRegistrationInputs = async (
   context: {
-    configs: TatchiPasskeyConfigs,
+    configs: TatchiConfigs,
     webAuthnManager: WebAuthnManager,
     nearClient: NearClient,
   },

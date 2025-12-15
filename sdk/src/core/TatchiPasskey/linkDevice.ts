@@ -33,8 +33,8 @@ import type {
   StartDeviceLinkingOptionsDevice2
 } from '../types/linkDevice';
 import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
-import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/passkeyManager';
-import type { DeviceLinkingSSEEvent } from '../types/passkeyManager';
+import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents';
+import type { DeviceLinkingSSEEvent } from '../types/sdkSentEvents';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import { extractPrfFromCredential } from '../WebAuthnManager/credentialsHelpers';
 

@@ -16,29 +16,32 @@ import {
   type AccessKeyList,
 } from '../NearClient';
 import type {
-  TatchiPasskeyConfigs,
-  RegistrationResult,
+  ActionResult,
+  DelegateRelayResult,
+  GetRecentLoginsResult,
   LoginResult,
   LoginState,
-  ActionResult,
-  GetRecentLoginsResult,
-  SignTransactionResult,
-  SignDelegateActionResult,
+  RegistrationResult,
   SignAndSendDelegateActionResult,
-  SignAndSendDelegateActionHooksOptions,
-  DelegateRelayHooksOptions,
-  DelegateRelayResponse,
-  RegistrationHooksOptions,
-  LoginHooksOptions,
+  SignDelegateActionResult,
+  SignTransactionResult,
+  TatchiConfigs,
+  TatchiConfigsInput,
+} from '../types/tatchi';
+import type {
+  AccountRecoveryHooksOptions,
   ActionHooksOptions,
-  SignTransactionHooksOptions,
+  DelegateActionHooksOptions,
+  DelegateRelayHooksOptions,
+  LoginHooksOptions,
+  RegistrationHooksOptions,
   SendTransactionHooksOptions,
+  SignAndSendDelegateActionHooksOptions,
   SignAndSendTransactionHooksOptions,
   SignNEP413HooksOptions,
-  DelegateActionHooksOptions,
-  AccountRecoveryHooksOptions,
-} from '../types/passkeyManager';
-import { ActionPhase, ActionStatus } from '../types/passkeyManager';
+  SignTransactionHooksOptions,
+} from '../types/sdkSentEvents';
+import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
 import { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
@@ -78,6 +81,7 @@ import {
   bytesToHex,
 } from '../EmailRecovery';
 import type { DelegateActionInput } from '../types/delegate';
+import { buildConfigsFromEnv } from '../defaultConfigs';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -86,7 +90,7 @@ import type { DelegateActionInput } from '../types/delegate';
 export interface PasskeyManagerContext {
   webAuthnManager: WebAuthnManager;
   nearClient: NearClient;
-  configs: TatchiPasskeyConfigs;
+  configs: TatchiConfigs;
 }
 
 let warnedAboutSameOriginWallet = false;
@@ -98,7 +102,7 @@ let warnedAboutSameOriginWallet = false;
 export class TatchiPasskey {
   private readonly webAuthnManager: WebAuthnManager;
   private readonly nearClient: NearClient;
-  readonly configs: TatchiPasskeyConfigs;
+  readonly configs: TatchiConfigs;
   private iframeRouter: WalletIframeRouter | null = null;
   // Internal active Device2 flow when running locally (not exposed)
   private activeDeviceLinkFlow: LinkDeviceFlow | null = null;
@@ -106,12 +110,12 @@ export class TatchiPasskey {
   private activeEmailRecoveryFlow: import('./emailRecovery').EmailRecoveryFlow | null = null;
 
   constructor(
-    configs: TatchiPasskeyConfigs,
+    configs: TatchiConfigsInput,
     nearClient?: NearClient
   ) {
-    this.configs = configs;
+    this.configs = buildConfigsFromEnv(configs);
     // Use provided client or create default one
-    this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
+    this.nearClient = nearClient || new MinimalNearClient(this.configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(this.configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
   }
@@ -132,6 +136,13 @@ export class TatchiPasskey {
   async initWalletIframe(nearAccountId?: string): Promise<void> {
     // Warm local critical resources (NonceManager, IndexedDB, workers) regardless of iframe usage
     await this.webAuthnManager.warmCriticalResources(nearAccountId);
+
+    // Guardrail: when running inside the wallet service iframe host, never attempt to
+    // initialize a nested wallet iframe client, even if configs accidentally include iframeWallet.
+    // The host runs the real TatchiPasskey instance and must remain self-contained.
+    if (__isWalletIframeHostMode()) {
+      return;
+    }
 
     const walletIframeConfig = this.configs.iframeWallet;
     const walletOrigin = walletIframeConfig?.walletOrigin;
@@ -393,6 +404,66 @@ export class TatchiPasskey {
       return state;
     }
     return getLoginState(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
+  }
+
+  /**
+   * Unlock (mint/refresh) the VRF-owned signing session for warm signing.
+   * Prompts TouchID/FaceID and stores WrapKeySeed in the VRF worker under the per-account sessionId.
+   */
+  async unlockSigningSession(args: {
+    nearAccountId: string;
+    remainingUses?: number;
+    ttlMs?: number;
+  }): Promise<{
+    sessionId: string;
+    status: 'active' | 'exhausted' | 'expired' | 'not_found';
+    remainingUses?: number;
+    expiresAtMs?: number;
+    createdAtMs?: number;
+  }> {
+    if (this.iframeRouter) {
+      return await this.iframeRouter.unlockSigningSession({
+        nearAccountId: args.nearAccountId,
+        remainingUses: args.remainingUses,
+        ttlMs: args.ttlMs,
+      });
+    }
+    return await this.webAuthnManager.unlockSigningSession({
+      nearAccountId: toAccountId(args.nearAccountId),
+      remainingUses: args.remainingUses,
+      ttlMs: args.ttlMs,
+    });
+  }
+
+  /**
+   * Read the current VRF-owned signing session status for UI introspection (no prompts).
+   */
+  async getSigningSessionStatus(args: { nearAccountId: string }): Promise<{
+    sessionId: string;
+    status: 'active' | 'exhausted' | 'expired' | 'not_found';
+    remainingUses?: number;
+    expiresAtMs?: number;
+    createdAtMs?: number;
+  }> {
+    if (this.iframeRouter) {
+      return await this.iframeRouter.getSigningSessionStatus({ nearAccountId: args.nearAccountId });
+    }
+    return await this.webAuthnManager.getSigningSessionStatus(toAccountId(args.nearAccountId));
+  }
+
+  /**
+   * Clear the VRF-owned signing session material for this account (does not log out VRF keypair).
+   */
+  async clearSigningSession(args: { nearAccountId: string }): Promise<{
+    sessionId: string;
+    clearedSession: boolean;
+    clearedChallenge: boolean;
+    clearedPort: boolean;
+  }> {
+    if (this.iframeRouter) {
+      return await this.iframeRouter.clearSigningSession({ nearAccountId: args.nearAccountId });
+    }
+    return await this.webAuthnManager.clearSigningSession(toAccountId(args.nearAccountId));
   }
 
   /**
@@ -898,7 +969,7 @@ export class TatchiPasskey {
     hash: string;
     signal?: AbortSignal;
     options?: DelegateRelayHooksOptions;
-  }): Promise<DelegateRelayResponse> {
+  }): Promise<DelegateRelayResult> {
     const base = args.relayerUrl.replace(/\/+$/, '');
     const route = (this.configs.relayer?.delegateActionRoute || '/signed-delegate').replace(/^\/?/, '/');
     const endpoint = `${base}${route}`;
@@ -956,7 +1027,7 @@ export class TatchiPasskey {
         }
       : undefined;
 
-    let relayResult: DelegateRelayResponse;
+    let relayResult: DelegateRelayResult;
     try {
       relayResult = await this.sendDelegateActionViaRelayer({
         relayerUrl,
@@ -1499,19 +1570,22 @@ export class TatchiPasskey {
 
 // Re-export types for convenience
 export type {
-  TatchiPasskeyConfigs,
-  RegistrationHooksOptions,
+  TatchiConfigs,
+  TatchiConfigsInput,
   RegistrationResult,
-  RegistrationSSEEvent,
-  LoginHooksOptions,
   LoginResult,
-  LoginSSEvent,
-  SignNEP413HooksOptions,
-  ActionHooksOptions,
   ActionResult,
-  EventCallback,
+} from '../types/tatchi';
+export type {
+  ActionHooksOptions,
   AfterCall,
-} from '../types/passkeyManager';
+  EventCallback,
+  LoginHooksOptions,
+  LoginSSEvent,
+  RegistrationHooksOptions,
+  RegistrationSSEEvent,
+  SignNEP413HooksOptions,
+} from '../types/sdkSentEvents';
 // Context alias (optional convenience)
 export type TatchiPasskeyContext = PasskeyManagerContext;
 

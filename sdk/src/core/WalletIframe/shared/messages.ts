@@ -27,6 +27,9 @@ export type ParentToChildType =
   | 'PM_LOGIN'
   | 'PM_LOGOUT'
   | 'PM_GET_LOGIN_STATE'
+  | 'PM_UNLOCK_SIGNING_SESSION'
+  | 'PM_GET_SIGNING_SESSION_STATUS'
+  | 'PM_CLEAR_SIGNING_SESSION'
   | 'PM_SIGN_TXS_WITH_ACTIONS'
   | 'PM_SIGN_AND_SEND_TXS'
   | 'PM_SEND_TRANSACTION'
@@ -78,7 +81,7 @@ export interface ReadyPayload {
 
 export interface PMSetConfigPayload {
   theme?: 'dark' | 'light';
-  // TatchiPasskeyConfigs subset for wallet host
+  // TatchiConfigs subset for wallet host
   nearRpcUrl?: string;
   nearNetwork?: 'testnet' | 'mainnet';
   contractId?: string;
@@ -163,6 +166,16 @@ export interface PMSetConfirmationConfigPayload { config: Record<string, unknown
 
 export interface PMGetLoginStatePayload { nearAccountId?: string }
 
+export interface PMUnlockSigningSessionPayload {
+  nearAccountId: string;
+  remainingUses?: number;
+  ttlMs?: number;
+}
+
+export interface PMGetSigningSessionStatusPayload { nearAccountId: string }
+
+export interface PMClearSigningSessionPayload { nearAccountId: string }
+
 export interface PMSetThemePayload { theme: 'dark' | 'light' }
 
 export interface PMHasPasskeyPayload { nearAccountId: string }
@@ -209,6 +222,9 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_LOGIN', PMLoginPayload>
   | RpcEnvelope<'PM_LOGOUT'>
   | RpcEnvelope<'PM_GET_LOGIN_STATE', PMGetLoginStatePayload>
+  | RpcEnvelope<'PM_UNLOCK_SIGNING_SESSION', PMUnlockSigningSessionPayload>
+  | RpcEnvelope<'PM_GET_SIGNING_SESSION_STATUS', PMGetSigningSessionStatusPayload>
+  | RpcEnvelope<'PM_CLEAR_SIGNING_SESSION', PMClearSigningSessionPayload>
   | RpcEnvelope<'PM_SIGN_TXS_WITH_ACTIONS', PMSignTxsPayload>
   | RpcEnvelope<'PM_SIGN_AND_SEND_TXS', PMSignAndSendTxsPayload>
   | RpcEnvelope<'PM_SEND_TRANSACTION', PMSendTxPayload>

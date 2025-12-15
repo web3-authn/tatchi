@@ -1,6 +1,6 @@
 import type { PasskeyManagerContext } from './index';
-import type { SignNEP413HooksOptions } from '../types/passkeyManager';
-import { ActionPhase, ActionStatus } from '../types/passkeyManager';
+import type { SignNEP413HooksOptions } from '../types/sdkSentEvents';
+import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
 import type { AccountId } from '../types/accountIds';
 
 /**

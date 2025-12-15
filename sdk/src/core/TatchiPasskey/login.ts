@@ -1,12 +1,10 @@
 import type {
-  LoginHooksOptions,
-  LoginResult,
-  LoginState,
-  LoginSSEvent,
   AfterCall,
-  GetRecentLoginsResult,
-} from '../types/passkeyManager';
-import { LoginPhase, LoginStatus } from '../types/passkeyManager';
+  LoginHooksOptions,
+  LoginSSEvent,
+} from '../types/sdkSentEvents';
+import { LoginPhase, LoginStatus } from '../types/sdkSentEvents';
+import type { GetRecentLoginsResult, LoginResult, LoginState } from '../types/tatchi';
 import type { PasskeyManagerContext } from './index';
 import type { AccountId } from '../types/accountIds';
 import type { WebAuthnAuthenticationCredential } from '../types/webauthn';
@@ -67,26 +65,42 @@ export async function loginPasskey(
 
     // Handle login and unlock VRF keypair in VRF WASM worker for WebAuthn challenge generation
     const wantsSession = options?.session?.kind == 'jwt' || options?.session?.kind == 'cookie';
-    const baseResult = await handleLoginUnlockVRF(
+    const base = await handleLoginUnlockVRF(
       context,
       nearAccountId,
       onEvent,
       onError,
       afterCall,
-      // Defer final 'login-complete' event & afterCall until session is minted
-      wantsSession
+      // Defer final 'login-complete' event & afterCall until warm signing session is minted
+      true
     );
     // If base login failed, just return
-    if (!baseResult.success) return baseResult;
+    if (!base.result.success) return base.result;
 
-    // Optionally mint a server session (JWT or HttpOnly cookie)
+    // Resolve default warm signing session policy from configs.
+    const ttlMsDefault = context.configs.signingSessionDefaults.ttlMs;
+    const remainingUsesDefault = context.configs.signingSessionDefaults.remainingUses;
+
+    // Optionally mint a server session (JWT or HttpOnly cookie).
+    // When requested, we also mint the warm signing session using the same WebAuthn prompt
+    // so Shamir auto-unlock remains a single-prompt login UX.
     if (wantsSession) {
       const { kind, relayUrl: relayUrlOverride, route: routeOverride } = options!.session!;
-      const relayUrl = (relayUrlOverride || context.configs.relayer?.url || '').trim();
+      const relayUrl = (relayUrlOverride || context.configs.relayer.url).trim();
       const route = (routeOverride || '/verify-authentication-response').trim();
       if (!relayUrl) {
         // No relay; return base result without session
         console.warn("No relayUrl provided for session");
+        // Ensure a warm signing session is minted for local signing UX.
+        await mintWarmSigningSession({
+          context,
+          nearAccountId,
+          onEvent,
+          credential: base.unlockCredential,
+          ttlMs: ttlMsDefault,
+          remainingUses: remainingUsesDefault,
+        });
+
         // Emit completion now since we deferred it
         onEvent?.({
           step: 4,
@@ -94,10 +108,10 @@ export async function loginPasskey(
           status: LoginStatus.SUCCESS,
           message: 'Login completed successfully',
           nearAccountId: nearAccountId,
-          clientNearPublicKey: baseResult?.clientNearPublicKey || ''
+          clientNearPublicKey: base.result?.clientNearPublicKey || ''
         } as unknown as LoginSSEvent);
-        await afterCall?.(true, baseResult);
-        return baseResult;
+        await afterCall?.(true, base.result);
+        return base.result;
       }
       try {
         // Build a fresh VRF challenge using current block
@@ -130,9 +144,19 @@ export async function loginPasskey(
           // Non-fatal; session minting can proceed even if last-user update fails here.
         }
 
+        // Mint the warm signing session using the same prompt used for server-session verification.
+        await mintWarmSigningSession({
+          context,
+          nearAccountId,
+          onEvent,
+          credential,
+          ttlMs: ttlMsDefault,
+          remainingUses: remainingUsesDefault,
+        });
+
         const v = await verifyAuthenticationResponse(relayUrl, route, kind as 'jwt' | 'cookie', vrfChallenge, credential);
         if (v.success && v.verified) {
-          const finalResult: LoginResult = { ...baseResult, jwt: v.jwt };
+          const finalResult: LoginResult = { ...base.result, jwt: v.jwt };
           // Now fire completion event and afterCall since we deferred them
           onEvent?.({
             step: 4,
@@ -140,7 +164,7 @@ export async function loginPasskey(
             status: LoginStatus.SUCCESS,
             message: 'Login completed successfully',
             nearAccountId: nearAccountId,
-            clientNearPublicKey: baseResult?.clientNearPublicKey || ''
+            clientNearPublicKey: base.result?.clientNearPublicKey || ''
           } as unknown as LoginSSEvent);
           await afterCall?.(true, finalResult);
           return finalResult;
@@ -172,7 +196,27 @@ export async function loginPasskey(
       }
     }
 
-    return baseResult;
+    // No server session requested: mint/refresh the warm signing session.
+    await mintWarmSigningSession({
+      context,
+      nearAccountId,
+      onEvent,
+      credential: base.unlockCredential,
+      ttlMs: ttlMsDefault,
+      remainingUses: remainingUsesDefault,
+    });
+
+    // Fire completion event and afterCall since we deferred them.
+    onEvent?.({
+      step: 4,
+      phase: LoginPhase.STEP_4_LOGIN_COMPLETE,
+      status: LoginStatus.SUCCESS,
+      message: 'Login completed successfully',
+      nearAccountId: nearAccountId,
+      clientNearPublicKey: base.result?.clientNearPublicKey || ''
+    } as unknown as LoginSSEvent);
+    await afterCall?.(true, base.result);
+    return base.result;
 
   } catch (err: any) {
     onError?.(err);
@@ -187,6 +231,56 @@ export async function loginPasskey(
     afterCall?.(false);
     return result;
   }
+}
+
+async function mintWarmSigningSession(args: {
+  context: PasskeyManagerContext;
+  nearAccountId: AccountId;
+  onEvent?: (event: LoginSSEvent) => void;
+  credential?: WebAuthnAuthenticationCredential;
+  ttlMs: number;
+  remainingUses: number;
+}): Promise<void> {
+  const { context, nearAccountId, onEvent, credential, ttlMs, remainingUses } = args;
+  const { webAuthnManager } = context;
+
+  onEvent?.({
+    step: 3,
+    phase: LoginPhase.STEP_3_VRF_UNLOCK,
+    status: LoginStatus.PROGRESS,
+    message: 'Unlocking warm signing session...'
+  });
+
+  // If we already performed a TouchID ceremony (e.g., VRF unlock fallback),
+  // reuse that credential to avoid a second prompt.
+  let effectiveCredential = credential;
+  if (!effectiveCredential) {
+    const challenge = createRandomVRFChallenge();
+    const authenticators = await webAuthnManager.getAuthenticatorsByUser(nearAccountId);
+    const { authenticatorsForPrompt } = await IndexedDBManager.clientDB.ensureCurrentPasskey(
+      nearAccountId,
+      authenticators,
+    );
+    effectiveCredential = await webAuthnManager.getAuthenticationCredentialsSerialized({
+      nearAccountId,
+      challenge: challenge as VRFChallenge,
+      allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
+    });
+  }
+
+  await webAuthnManager.unlockSigningSessionFromCredential({
+    nearAccountId,
+    credential: effectiveCredential,
+    ttlMs,
+    remainingUses,
+  });
+
+  onEvent?.({
+    step: 3,
+    phase: LoginPhase.STEP_3_VRF_UNLOCK,
+    status: LoginStatus.SUCCESS,
+    message: 'Warm signing session unlocked'
+  });
 }
 
 /**
@@ -218,7 +312,11 @@ async function handleLoginUnlockVRF(
   onError?: (error: Error) => void,
   afterCall?: AfterCall<any>,
   deferCompletionHooks?: boolean,
-): Promise<LoginResult> {
+): Promise<{
+  result: LoginResult;
+  usedFallbackTouchId: boolean;
+  unlockCredential?: WebAuthnAuthenticationCredential;
+}> {
 
   const { webAuthnManager } = context;
 
@@ -267,6 +365,7 @@ async function handleLoginUnlockVRF(
 
     let unlockResult: { success: boolean; error?: string } = { success: false };
     let usedFallbackTouchId = false;
+    let unlockCredential: WebAuthnAuthenticationCredential | undefined;
     let activeDeviceNumber = userData.deviceNumber;
     // Effective user row whose VRF/NEAR keys are actually used for this login.
     // May be switched when multiple devices exist and the user picks a different passkey.
@@ -324,6 +423,7 @@ async function handleLoginUnlockVRF(
         challenge: challenge as VRFChallenge,
         allowCredentials: authenticatorsToAllowCredentials(authenticators),
       });
+      unlockCredential = credential;
 
       // If multiple authenticators exist, align VRF credentials with the passkey
       // the user actually chose, based on credentialId → deviceNumber.
@@ -409,7 +509,7 @@ async function handleLoginUnlockVRF(
       });
       afterCall?.(true, result);
     }
-    return result;
+    return { result, usedFallbackTouchId, unlockCredential };
 
   } catch (error: any) {
     // Use centralized error handling
@@ -424,9 +524,9 @@ async function handleLoginUnlockVRF(
       error: errorMessage
     });
 
-    const result = { success: false, error: errorMessage };
+    const result: LoginResult = { success: false, error: errorMessage };
     afterCall?.(false);
-    return result;
+    return { result, usedFallbackTouchId: false };
   }
 }
 

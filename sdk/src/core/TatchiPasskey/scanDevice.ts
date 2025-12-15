@@ -7,7 +7,7 @@ import type {
   LinkDeviceResult,
   ScanAndLinkDeviceOptionsDevice1,
 } from '../types/linkDevice';
-import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/passkeyManager';
+import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents';
 import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
 import { DEVICE_LINKING_CONFIG } from '../../config.js';
 import { executeDeviceLinkingContractCalls } from '../rpcCalls';

@@ -1,5 +1,5 @@
-import type { EventCallback, AccountRecoverySSEEvent, AfterCall } from '../types/passkeyManager';
-import { AccountRecoveryPhase, AccountRecoveryStatus, AccountRecoveryHooksOptions } from '../types/passkeyManager';
+import type { AfterCall, AccountRecoverySSEEvent, EventCallback } from '../types/sdkSentEvents';
+import { AccountRecoveryPhase, AccountRecoveryStatus, AccountRecoveryHooksOptions } from '../types/sdkSentEvents';
 import type { PasskeyManagerContext } from './index';
 import type {
   AccountId,

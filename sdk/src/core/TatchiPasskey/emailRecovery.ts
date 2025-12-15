@@ -8,8 +8,8 @@ import {
   type EmailRecoverySSEEvent,
   type EventCallback,
   type AfterCall,
-  type TatchiPasskeyConfigs,
-} from '../types/passkeyManager';
+} from '../types/sdkSentEvents';
+import type { TatchiConfigs } from '../types/tatchi';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import type {
   EncryptedVRFKeypair,
@@ -47,39 +47,23 @@ export interface EmailRecoveryFlowOptions {
   afterCall?: AfterCall<void>;
 }
 
-let warnedMissingMailtoAddress = false;
-
-function getEmailRecoveryConfig(configs: TatchiPasskeyConfigs | undefined): {
+function getEmailRecoveryConfig(configs: TatchiConfigs): {
   minBalanceYocto: string;
   pollingIntervalMs: number;
   maxPollingDurationMs: number;
   pendingTtlMs: number;
   mailtoAddress: string;
-  dkimVerifierAccountId?: string;
+  dkimVerifierAccountId: string;
   verificationViewMethod: string;
 } {
-  const MIN_BALANCE_YOCTO_DEFAULT = '10000000000000000000000'; // 0.01 NEAR (1e22 yocto)
-  const relayerEmailCfg = configs?.relayer?.emailRecovery || {};
-  if (!relayerEmailCfg && !warnedMissingMailtoAddress) {
-    warnedMissingMailtoAddress = true;
-    console.warn('[EmailRecovery] relayer.emailRecovery is not configured; using defaults.');
-  }
-  // Default to 0.01 NEAR unless overridden
-  const minBalanceYocto = String(relayerEmailCfg.minBalanceYocto ?? MIN_BALANCE_YOCTO_DEFAULT);
-  const pollingIntervalMs = Number(relayerEmailCfg.pollingIntervalMs ?? 4000);
-  const maxPollingDurationMs = Number(relayerEmailCfg.maxPollingDurationMs ?? 30 * 60 * 1000);
-  const pendingTtlMs = Number(relayerEmailCfg.pendingTtlMs ?? 30 * 60 * 1000);
-  const mailtoAddressRaw = relayerEmailCfg.mailtoAddress;
-  const mailtoAddress = String(mailtoAddressRaw || 'recover@web3authn.org');
-  const dkimVerifierAccountId = relayerEmailCfg.dkimVerifierAccountId;
-  const verificationViewMethod = String(relayerEmailCfg.verificationViewMethod || 'get_verification_result');
-  if (!mailtoAddressRaw && !warnedMissingMailtoAddress) {
-    warnedMissingMailtoAddress = true;
-    // eslint-disable-next-line no-console
-    console.warn(
-      '[EmailRecovery] relayer.emailRecovery.mailtoAddress not configured; defaulting to recover@web3authn.org'
-    );
-  }
+  const relayerEmailCfg = configs.relayer.emailRecovery;
+  const minBalanceYocto = String(relayerEmailCfg.minBalanceYocto);
+  const pollingIntervalMs = Number(relayerEmailCfg.pollingIntervalMs);
+  const maxPollingDurationMs = Number(relayerEmailCfg.maxPollingDurationMs);
+  const pendingTtlMs = Number(relayerEmailCfg.pendingTtlMs);
+  const mailtoAddress = String(relayerEmailCfg.mailtoAddress);
+  const dkimVerifierAccountId = String(relayerEmailCfg.dkimVerifierAccountId);
+  const verificationViewMethod = String(relayerEmailCfg.verificationViewMethod);
   return {
     minBalanceYocto,
     pollingIntervalMs,
