@@ -4,7 +4,7 @@ import { LitElementWithProps } from '../LitElementWithProps';
 import type { ConfirmUIElement, ThemeName } from '../confirm-ui-types';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
-import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../common/tx-digest';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../txDigest';
 import { isActionArgsWasm, toActionArgsWasm, type ActionArgs, type ActionArgsWasm } from '@/core/types/actions';
 import { isObject, isString } from '../../../WalletIframe/validation';
 import { W3A_TX_CONFIRMER_ID } from '../tags';
