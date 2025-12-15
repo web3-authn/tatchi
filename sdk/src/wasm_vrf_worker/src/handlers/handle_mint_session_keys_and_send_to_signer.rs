@@ -161,12 +161,16 @@ pub(crate) async fn verify_authentication_if_needed(
         }
     }
 
+    // This VRF challenge is one-time-use. Clear it after a successful verification so
+    // stale challenges can't linger and break later session refreshes.
+    manager.borrow_mut().clear_challenge(session_id);
+
     Ok(())
 }
 
 #[wasm_bindgen]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DeriveWrapKeySeedAndSessionRequest {
+pub struct MintSessionKeysAndSendToSignerRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     #[serde(rename = "sessionId")]
     pub session_id: String,
@@ -211,13 +215,13 @@ fn js_undefined() -> JsValue {
     JsValue::UNDEFINED
 }
 
-pub async fn handle_derive_wrap_key_seed_and_session(
+pub async fn handle_mint_session_keys_and_send_to_signer(
     manager: Rc<RefCell<VRFKeyManager>>,
     message_id: Option<String>,
-    request: DeriveWrapKeySeedAndSessionRequest,
+    request: MintSessionKeysAndSendToSignerRequest,
 ) -> VrfWorkerResponse {
     debug!(
-        "[VRF] derive_wrap_key_seed_and_session for session {}",
+        "[VRF] mint_session_keys_and_send_to_signer for session {}",
         request.session_id
     );
 

@@ -29,7 +29,7 @@ pub struct DecryptSessionResult {
 
 /// VRF-side entrypoint to kick off a LocalOnly decrypt flow:
 ///  - Calls awaitSecureConfirmationV2(decryptPrivateKeyWithPrf) via JS bridge
-///  - Derives WrapKeySeed via existing DERIVE_WRAP_KEY_SEED_AND_SESSION handler using PRF output + vault wrapKeySalt
+///  - Derives WrapKeySeed via existing MINT_SESSION_KEYS_AND_SEND_TO_SIGNER handler using PRF output + vault wrapKeySalt
 pub async fn handle_decrypt_session(
     manager: Rc<RefCell<VRFKeyManager>>,
     message_id: Option<String>,
@@ -91,14 +91,14 @@ pub async fn handle_decrypt_session(
         );
     }
 
-    // WrapKeySeed derivation is delegated to the existing DERIVE_WRAP_KEY_SEED_AND_SESSION handler.
+    // WrapKeySeed derivation is delegated to the existing MINT_SESSION_KEYS_AND_SEND_TO_SIGNER handler.
     // We synthesize a request and re-use the internal handler directly (no contract gating).
     let prf_first_auth_b64u = decision.prf_output.clone().unwrap();
 
-    let response = crate::handlers::handle_derive_wrap_key_seed_and_session(
+    let response = crate::handlers::handle_mint_session_keys_and_send_to_signer(
         manager,
         message_id.clone(),
-        crate::handlers::handle_derive_wrap_key_seed_and_session::DeriveWrapKeySeedAndSessionRequest {
+        crate::handlers::handle_mint_session_keys_and_send_to_signer::MintSessionKeysAndSendToSignerRequest {
             session_id: session_id.clone(),
             prf_first_auth_b64u,
             // For decrypt flows we must reuse the vault's wrapKeySalt.

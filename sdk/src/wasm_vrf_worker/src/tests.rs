@@ -6,7 +6,7 @@ use crate::config::{
     VRF_DOMAIN_SEPARATOR, VRF_SEED_SIZE,
 };
 #[cfg(target_arch = "wasm32")]
-use crate::handlers::handle_derive_wrap_key_seed_and_session::verify_authentication_if_needed;
+use crate::handlers::handle_mint_session_keys_and_send_to_signer::verify_authentication_if_needed;
 use crate::manager::{VRFKeyManager, VrfSessionData};
 use crate::shamir3pass::{decode_biguint_b64u, encode_biguint_b64u};
 use crate::utils::{base64_url_decode, base64_url_encode};
@@ -671,9 +671,9 @@ fn test_shamir_biguint_b64u_invalid_inputs() {
 
 #[test]
 #[cfg(target_arch = "wasm32")]
-fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
+fn mint_session_keys_and_send_to_signer_uses_caller_wrap_key_salt_when_provided() {
     // Session id and PRF first auth are arbitrary but well-formed
-    let req = DeriveWrapKeySeedAndSessionRequest {
+    let req = MintSessionKeysAndSendToSignerRequest {
         session_id: "sess-123".to_string(),
         prf_first_auth_b64u: base64_url_encode(&create_test_prf_output()),
         wrap_key_salt_b64u: "explicit-salt".to_string(),
@@ -684,7 +684,7 @@ fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
         credential: JsValue::UNDEFINED,
     };
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
-    let parsed: DeriveWrapKeySeedAndSessionRequest =
+    let parsed: MintSessionKeysAndSendToSignerRequest =
         serde_wasm_bindgen::from_value(json).expect("deserialize");
     assert_eq!(
         parsed.wrap_key_salt_b64u, "explicit-salt",
@@ -694,8 +694,8 @@ fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
 
 #[test]
 #[cfg(target_arch = "wasm32")]
-fn derive_wrap_key_seed_and_session_generates_salt_when_empty() {
-    let req = DeriveWrapKeySeedAndSessionRequest {
+fn mint_session_keys_and_send_to_signer_generates_salt_when_empty() {
+    let req = MintSessionKeysAndSendToSignerRequest {
         session_id: "sess-456".to_string(),
         prf_first_auth_b64u: base64_url_encode(&create_test_prf_output()),
         wrap_key_salt_b64u: "  ".to_string(),
@@ -707,7 +707,7 @@ fn derive_wrap_key_seed_and_session_generates_salt_when_empty() {
     };
     // The handler itself runs under wasm32, but the request shape must be JSON-compatible.
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
-    let parsed: DeriveWrapKeySeedAndSessionRequest =
+    let parsed: MintSessionKeysAndSendToSignerRequest =
         serde_wasm_bindgen::from_value(json).expect("deserialize");
     assert!(
         parsed.wrap_key_salt_b64u.trim().is_empty(),

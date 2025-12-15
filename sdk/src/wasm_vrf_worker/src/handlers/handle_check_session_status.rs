@@ -9,16 +9,16 @@ use wasm_bindgen::prelude::*;
 /// Request payload for querying the status of a VRF-owned signing session.
 #[wasm_bindgen]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GetSessionStatusRequest {
+pub struct CheckSessionStatusRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     #[serde(rename = "sessionId")]
     pub session_id: String,
 }
 
-pub fn handle_get_session_status(
+pub fn handle_check_session_status(
     manager: Rc<RefCell<VRFKeyManager>>,
     message_id: Option<String>,
-    request: GetSessionStatusRequest,
+    request: CheckSessionStatusRequest,
 ) -> VrfWorkerResponse {
     debug!("[VRF] get_session_status for session {}", request.session_id);
 

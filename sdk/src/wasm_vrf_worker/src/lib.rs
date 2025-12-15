@@ -47,13 +47,14 @@ pub use handlers::handle_generate_vrf_keypair_bootstrap::GenerateVrfKeypairBoots
 pub use handlers::handle_shamir3pass_client::{
     Shamir3PassClientDecryptVrfKeypairRequest, Shamir3PassClientEncryptCurrentVrfKeypairRequest,
 };
-pub use handlers::handle_derive_wrap_key_seed_and_session::DeriveWrapKeySeedAndSessionRequest;
+pub use handlers::handle_mint_session_keys_and_send_to_signer::MintSessionKeysAndSendToSignerRequest;
 pub use handlers::handle_decrypt_session::DecryptSessionRequest;
 pub use handlers::handle_registration_credential_confirmation::RegistrationCredentialConfirmationRequest;
 pub use handlers::handle_device2_registration_session::Device2RegistrationSessionRequest;
 pub use handlers::handle_dispense_session_key::DispenseSessionKeyRequest;
-pub use handlers::handle_get_session_status::GetSessionStatusRequest;
+pub use handlers::handle_check_session_status::CheckSessionStatusRequest;
 pub use handlers::handle_clear_session::ClearSessionRequest;
+pub use handlers::handle_confirm_and_prepare_signing_session::ConfirmAndPrepareSigningSessionRequest;
 pub use handlers::handle_shamir3pass_config::{
     Shamir3PassConfigPRequest, Shamir3PassConfigServerUrlsRequest,
 };
@@ -214,7 +215,7 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         WorkerRequestType::CheckVrfStatus => {
             handlers::handle_check_vrf_status(manager_rc.clone(), id.clone())
         }
-        WorkerRequestType::Logout => {
+        WorkerRequestType::ClearVrf => {
             #[cfg(target_arch = "wasm32")]
             {
                 // Cleanup all attached ports on logout.
@@ -311,10 +312,10 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
                 request,
             )
         }
-        WorkerRequestType::DeriveWrapKeySeedAndSession => {
-            let request: DeriveWrapKeySeedAndSessionRequest =
+        WorkerRequestType::MintSessionKeysAndSendToSigner => {
+            let request: MintSessionKeysAndSendToSignerRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_derive_wrap_key_seed_and_session(
+            handlers::handle_mint_session_keys_and_send_to_signer(
                 manager_rc.clone(),
                 id.clone(),
                 request,
@@ -360,10 +361,10 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
                 request
             ).await
         }
-        WorkerRequestType::GetSessionStatus => {
-            let request: GetSessionStatusRequest =
+        WorkerRequestType::CheckSessionStatus => {
+            let request: CheckSessionStatusRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_get_session_status(
+            handlers::handle_check_session_status(
                 manager_rc.clone(),
                 id.clone(),
                 request,
@@ -377,6 +378,16 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
                 id.clone(),
                 request,
             )
+        }
+        WorkerRequestType::ConfirmAndPrepareSigningSession => {
+            let request: ConfirmAndPrepareSigningSessionRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_confirm_and_prepare_signing_session(
+                manager_rc.clone(),
+                id.clone(),
+                request,
+            )
+            .await
         }
     };
 
