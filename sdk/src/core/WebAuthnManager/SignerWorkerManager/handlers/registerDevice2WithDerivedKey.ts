@@ -103,8 +103,7 @@ export async function registerDevice2WithDerivedKey({
     const response = await ctx.sendMessage<WorkerRequestType.RegisterDevice2WithDerivedKey>({
       message: {
         type: WorkerRequestType.RegisterDevice2WithDerivedKey,
-        payload: withSessionId({
-          sessionId,
+        payload: withSessionId(sessionId, {
           credential,
           nearAccountId,
           transactionContext: {
@@ -114,7 +113,7 @@ export async function registerDevice2WithDerivedKey({
           },
           contractId,
           contractArgsJson: JSON.stringify(finalContractArgs),
-        }, sessionId),
+        }),
       },
       sessionId,
     });

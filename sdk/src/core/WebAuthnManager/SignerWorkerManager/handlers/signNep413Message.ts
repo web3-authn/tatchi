@@ -4,7 +4,7 @@ import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
 import { isObject } from '../../../WalletIframe/validation';
 import { withSessionId } from './session';
-
+import { generateSessionId } from '../sessionHandshake.js';
 
 /**
  * Sign a NEP-413 message using the user's passkey-derived private key
@@ -38,15 +38,13 @@ export async function signNep413Message({ ctx, payload }: {
     }
 
     // Expect caller (SignerWorkerManager) to reserve a session and wire ports; just use provided sessionId
-    const sessionId = payload.sessionId || ((typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-      ? crypto.randomUUID()
-      : `nep413-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const sessionId = payload.sessionId ?? generateSessionId();
 
     if (!ctx.vrfWorkerManager) {
       throw new Error('VrfWorkerManager not available for NEP-413 signing');
     }
-    // VRF-driven confirm path (collects credential and derives WrapKeySeed via confirmTxFlow).
-    const confirmation = await ctx.vrfWorkerManager.confirmAndPrepareSigningSession({
+
+    await ctx.vrfWorkerManager.confirmAndPrepareSigningSession({
       ctx,
       sessionId,
       kind: 'nep413',
@@ -54,11 +52,12 @@ export async function signNep413Message({ ctx, payload }: {
       message: payload.message,
       recipient: payload.recipient,
     });
+    await ctx.waitForSeedReady(sessionId);
 
     const response = await ctx.sendMessage<WorkerRequestType.SignNep413Message>({
       message: {
         type: WorkerRequestType.SignNep413Message,
-        payload: withSessionId({
+        payload: withSessionId(sessionId, {
           message: payload.message,
           recipient: payload.recipient,
           nonce: payload.nonce,
@@ -66,7 +65,7 @@ export async function signNep413Message({ ctx, payload }: {
           accountId: payload.accountId,
           encryptedPrivateKeyData: encryptedKeyData.encryptedData,
           encryptedPrivateKeyIv: encryptedKeyData.iv,
-        }, sessionId)
+        })
       },
       sessionId,
     });

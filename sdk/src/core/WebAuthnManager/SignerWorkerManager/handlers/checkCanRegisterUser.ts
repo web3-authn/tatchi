@@ -4,7 +4,7 @@ import type { CheckCanRegisterUserResult } from '../../../rpcCalls';
 import { checkCanRegisterUserContractCall } from '../../../rpcCalls';
 import { serializeRegistrationCredentialWithPRF, removePrfOutputGuard } from '../../credentialsHelpers';
 import { VRFChallenge } from '../../../types/vrf-worker';
-import type { onProgressEvents } from '../../../types/passkeyManager';
+import type { onProgressEvents } from '../../../types/sdkSentEvents';
 import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
 import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';

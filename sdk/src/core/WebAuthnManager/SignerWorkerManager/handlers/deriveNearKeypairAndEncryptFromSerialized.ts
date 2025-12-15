@@ -47,14 +47,14 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     const response = await ctx.sendMessage<WorkerRequestType.DeriveNearKeypairAndEncrypt>({
       message: {
         type: WorkerRequestType.DeriveNearKeypairAndEncrypt,
-        payload: withSessionId({
+        payload: withSessionId(sessionId, {
           nearAccountId: nearAccountId,
           credential,
           authenticatorOptions: options?.authenticatorOptions ? {
             userVerification: toEnumUserVerificationPolicy(options.authenticatorOptions.userVerification),
             originPolicy: options.authenticatorOptions.originPolicy,
           } : undefined,
-        }, sessionId)
+        })
       },
       sessionId,
     });

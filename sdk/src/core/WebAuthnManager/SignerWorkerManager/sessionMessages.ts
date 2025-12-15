@@ -6,6 +6,8 @@
  * and are used for worker lifecycle management and session setup.
  */
 
+import { WorkerControlMessage } from '../../workerControlMessages';
+
 // === SESSION MESSAGE TYPES ===
 
 /**
@@ -13,7 +15,7 @@
  * a WrapKeySeed MessagePort for a signing session.
  */
 export interface AttachWrapKeySeedPortOkMessage {
-  type: 'ATTACH_WRAP_KEY_SEED_PORT_OK';
+  type: typeof WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK;
   sessionId: string;
 }
 
@@ -22,7 +24,7 @@ export interface AttachWrapKeySeedPortOkMessage {
  * MessagePort fails.
  */
 export interface AttachWrapKeySeedPortErrorMessage {
-  type: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR';
+  type: typeof WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR;
   sessionId: string;
   error: string;
 }
@@ -31,7 +33,7 @@ export interface AttachWrapKeySeedPortErrorMessage {
  * Control message sent by the signer worker when it's ready to receive messages.
  */
 export interface WorkerReadyMessage {
-  type: 'WORKER_READY';
+  type: typeof WorkerControlMessage.WORKER_READY;
   ready: boolean;
 }
 
@@ -41,7 +43,7 @@ export interface WorkerReadyMessage {
  * This guarantees the session is ready for signing operations.
  */
 export interface WrapKeySeedReadyMessage {
-  type: 'WRAP_KEY_SEED_READY';
+  type: typeof WorkerControlMessage.WRAP_KEY_SEED_READY;
   sessionId: string;
 }
 
@@ -62,10 +64,10 @@ export function isSignerWorkerControlMessage(msg: unknown): msg is SignerWorkerC
     return false;
   }
   const type = (msg as any).type;
-  return type === 'ATTACH_WRAP_KEY_SEED_PORT_OK'
-    || type === 'ATTACH_WRAP_KEY_SEED_PORT_ERROR'
-    || type === 'WORKER_READY'
-    || type === 'WRAP_KEY_SEED_READY';
+  return type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK
+    || type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR
+    || type === WorkerControlMessage.WORKER_READY
+    || type === WorkerControlMessage.WRAP_KEY_SEED_READY;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -181,8 +183,8 @@ export function waitForWrapKeyPortAttach(
   timeoutMs: number = 2000
 ): Promise<void> {
   return waitForSessionMessage(worker, {
-    successType: 'ATTACH_WRAP_KEY_SEED_PORT_OK',
-    errorType: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR',
+    successType: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK,
+    errorType: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
     sessionId,
     timeoutMs,
   });
@@ -203,7 +205,7 @@ export function waitForWrapKeySeedReady(
   timeoutMs: number = 2000
 ): Promise<void> {
   return waitForSessionMessage(worker, {
-    successType: 'WRAP_KEY_SEED_READY',
+    successType: WorkerControlMessage.WRAP_KEY_SEED_READY,
     sessionId,
     timeoutMs,
   });

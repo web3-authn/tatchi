@@ -1,7 +1,7 @@
 
 import { SignedTransaction } from '../../../NearClient';
 import { TransactionInputWasm, validateActionArgsWasm } from '../../../types/actions';
-import type { onProgressEvents } from '../../../types/passkeyManager';
+import { type onProgressEvents } from '../../../types/sdkSentEvents';
 import type { ConfirmationConfig } from '../../../types/signer-worker';
 import {
   WorkerRequestType,
@@ -16,6 +16,7 @@ import { toAccountId } from '../../../types/accountIds';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { isObject } from '../../../WalletIframe/validation';
 import { withSessionId } from './session';
+import { generateSessionId } from '../sessionHandshake.js';
 
 /**
  * Sign multiple transactions with shared VRF challenge and credential
@@ -46,11 +47,7 @@ export async function signTransactionsWithActions({
       throw new Error('No transactions provided for batch signing');
     }
 
-    const sessionId = providedSessionId || ((typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-      ? crypto.randomUUID()
-      : `sign-session-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-
-    // Extract nearAccountId from rpcCall
+    const sessionId = providedSessionId ?? generateSessionId();
     const nearAccountId = rpcCall.nearAccountId;
 
     // Validate all actions in all payloads
@@ -94,6 +91,11 @@ export async function signTransactionsWithActions({
       rpcCall: resolvedRpcCall,
       confirmationConfigOverride,
     });
+    await ctx.waitForSeedReady(sessionId);
+
+    const intentDigest = confirmation.intentDigest;
+    const transactionContext = confirmation.transactionContext;
+    const credential = confirmation.credential ? JSON.stringify(confirmation.credential) : undefined;
 
     // Create transaction signing requests
     // NOTE: nonce and blockHash are computed in confirmation flow, not here
@@ -107,7 +109,7 @@ export async function signTransactionsWithActions({
     const response = await ctx.sendMessage({
       message: {
         type: WorkerRequestType.SignTransactionsWithActions,
-        payload: withSessionId({
+        payload: withSessionId(sessionId, {
           rpcCall: resolvedRpcCall,
           createdAt: Date.now(),
           decryption: {
@@ -115,10 +117,10 @@ export async function signTransactionsWithActions({
             encryptedPrivateKeyIv: encryptedKeyData.iv,
           },
           txSigningRequests: txSigningRequests,
-          intentDigest: confirmation.intentDigest,
-          transactionContext: confirmation.transactionContext,
-          credential: confirmation.credential ? JSON.stringify(confirmation.credential) : undefined,
-        }, sessionId)
+          intentDigest,
+          transactionContext,
+          credential,
+        })
       },
       onEvent,
       sessionId,

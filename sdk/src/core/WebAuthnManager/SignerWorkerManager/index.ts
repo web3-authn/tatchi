@@ -1,9 +1,8 @@
-
-import { SignedTransaction, type NearClient } from '../../NearClient';
+import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
 import { ClientAuthenticatorData, UnifiedIndexedDBManager } from '../../IndexedDBManager';
 import { IndexedDBManager } from '../../IndexedDBManager';
-import { TouchIdPrompt } from "../touchIdPrompt";
-import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
+import { SignedTransaction, type NearClient } from '../../NearClient';
+import { isObject } from '../../WalletIframe/validation';
 import { resolveWorkerUrl } from '../../sdkPaths';
 import {
   WorkerRequestType,
@@ -15,20 +14,25 @@ import {
   WorkerErrorResponse,
   WorkerRequestTypeMap,
 } from '../../types/signer-worker';
-import { isSignerWorkerControlMessage } from './sessionMessages.js';
-import { VRFChallenge } from '../../types/vrf-worker';
 import { VrfWorkerManager } from '../VrfWorkerManager';
+import { runSecureConfirm } from '../VrfWorkerManager/secureConfirmBridge';
+import { SecureConfirmationType } from '../VrfWorkerManager/confirmTxFlow/types';
+import { VRFChallenge } from '../../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../../types/actions';
 import type { DelegateActionInput } from '../../types/delegate';
-import type { onProgressEvents } from '../../types/passkeyManager';
+import type { onProgressEvents } from '../../types/sdkSentEvents';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
-import { AccountId } from "../../types/accountIds";
-import { ConfirmationConfig, WasmSignedDelegate, isDecryptPrivateKeyWithPrfSuccess } from '../../types/signer-worker';
-import { toAccountId } from '../../types/accountIds';
-import { SecureConfirmationType } from '../VrfWorkerManager/confirmTxFlow/types';
+import { AccountId, toAccountId } from "../../types/accountIds";
+import { TransactionContext } from '../../types/rpc';
+import {
+  ConfirmationConfig,
+  WasmSignedDelegate,
+  isDecryptPrivateKeyWithPrfSuccess
+} from '../../types/signer-worker';
+import { TouchIdPrompt } from "../touchIdPrompt";
 import { getLastLoggedInDeviceNumber } from './getDeviceNumber';
-import { isObject } from '../../WalletIframe/validation';
-import { runSecureConfirm } from '../VrfWorkerManager/secureConfirmBridge';
+import { isSignerWorkerControlMessage } from './sessionMessages';
+import { WorkerControlMessage } from '../../workerControlMessages';
 
 import {
   decryptPrivateKeyWithPrf,
@@ -49,7 +53,15 @@ import { NonceManager } from '../../nonceManager';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
 import { toError } from '@/utils/errors';
 import { withSessionId } from './handlers/session';
-import { attachSessionPort, waitForSessionReady } from './sessionHandshake.js';
+import { attachSessionPort } from './sessionHandshake.js';
+
+type SigningSessionEntry = {
+  worker: Worker;
+  wrapKeySeedPort?: MessagePort;
+  createdAt: number;
+  seedReady: Promise<void>;
+  onSeedReadyMessage?: (event: MessageEvent) => void;
+};
 
 export interface SignerWorkerManagerContext {
   touchIdPrompt: TouchIdPrompt;
@@ -60,6 +72,7 @@ export interface SignerWorkerManagerContext {
   rpIdOverride?: string;
   nearExplorerUrl?: string;
   vrfWorkerManager?: VrfWorkerManager;
+  waitForSeedReady: (sessionId: string, timeoutMs?: number) => Promise<void>;
   sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
     message: {
       type: T;
@@ -116,6 +129,7 @@ export class SignerWorkerManager {
       indexedDB: this.indexedDB,
       touchIdPrompt: this.touchIdPrompt,
       vrfWorkerManager: this.vrfWorkerManager,
+      waitForSeedReady: this.waitForSeedReady.bind(this),
       nearClient: this.nearClient,
       userPreferencesManager: this.userPreferencesManager,
       nonceManager: this.nonceManager,
@@ -161,11 +175,7 @@ export class SignerWorkerManager {
   private workerPool: Worker[] = [];
   private readonly MAX_WORKER_POOL_SIZE = 3; // Increased for security model
   // Map of active signing sessions to reserved workers and optional WrapKeySeed ports
-  private signingSessions: Map<string, {
-    worker: Worker;
-    wrapKeySeedPort?: MessagePort;
-    createdAt: number;
-  }> = new Map();
+  private signingSessions: Map<string, SigningSessionEntry> = new Map();
   private readonly SIGNING_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   private getWorkerFromPool(): Worker {
@@ -190,6 +200,29 @@ export class SignerWorkerManager {
     return this.signingSessions.get(sessionId);
   }
 
+  private createSeedReadyLatch(worker: Worker, sessionId: string): {
+    seedReady: Promise<void>;
+    onSeedReadyMessage: (event: MessageEvent) => void;
+  } {
+    let resolveSeedReady: (() => void) | undefined;
+    const seedReady = new Promise<void>((resolve) => {
+      resolveSeedReady = resolve;
+    });
+
+    const onSeedReadyMessage = (event: MessageEvent) => {
+      const msg = (event as MessageEvent).data as any;
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type !== WorkerControlMessage.WRAP_KEY_SEED_READY) return;
+      if (msg.sessionId !== sessionId) return;
+
+      try { resolveSeedReady?.(); } catch { }
+      resolveSeedReady = undefined;
+      try { worker.removeEventListener('message', onSeedReadyMessage); } catch { }
+    };
+
+    return { seedReady, onSeedReadyMessage };
+  }
+
   /**
    * Wait for a WrapKeySeed to be ready for the given session.
    * Public wrapper that looks up the worker and waits for the seed-ready signal.
@@ -199,7 +232,22 @@ export class SignerWorkerManager {
     if (!entry) {
       throw new Error(`No signing session found for id: ${sessionId}`);
     }
-    await waitForSessionReady(entry.worker, sessionId, timeoutMs);
+    const timeoutMsClamped = Number.isFinite(timeoutMs) ? Math.max(0, timeoutMs) : 0;
+
+    await new Promise<void>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Timeout waiting for session message (${WorkerControlMessage.WRAP_KEY_SEED_READY}) for session ${sessionId}`));
+      }, timeoutMsClamped);
+      entry.seedReady
+        .then(() => {
+          clearTimeout(timeoutId);
+          resolve();
+        })
+        .catch((err) => {
+          clearTimeout(timeoutId);
+          reject(err);
+        });
+    });
   }
 
   /**
@@ -220,6 +268,11 @@ export class SignerWorkerManager {
       vrfPort = channel.port2;
     }
 
+    // Latch WRAP_KEY_SEED_READY so callers can't miss it even if it arrives
+    // before they start awaiting (e.g. confirmation UI delays).
+    const { seedReady, onSeedReadyMessage } = this.createSeedReadyLatch(worker, sessionId);
+    try { worker.addEventListener('message', onSeedReadyMessage); } catch { }
+
     // Attach the signerPort to the worker and wait for ACK before adding to signingSessions
     try {
       if (!signerPort) {
@@ -234,11 +287,14 @@ export class SignerWorkerManager {
         worker,
         wrapKeySeedPort: signerPort,
         createdAt: Date.now(),
+        seedReady,
+        onSeedReadyMessage,
       });
 
     } catch (err) {
       console.error('[SignerWorkerManager]: Failed to attach WrapKeySeed port to signer worker', err);
       // Best-effort cleanup
+      try { worker.removeEventListener('message', onSeedReadyMessage); } catch {}
       try { signerPort?.close(); } catch {}
       try { vrfPort?.close(); } catch {}
       this.terminateAndReplaceWorker(worker);
@@ -254,6 +310,7 @@ export class SignerWorkerManager {
   releaseSigningSession(sessionId: string): void {
     const entry = this.signingSessions.get(sessionId);
     if (!entry) return;
+    try { if (entry.onSeedReadyMessage) entry.worker.removeEventListener('message', entry.onSeedReadyMessage); } catch {}
     try { entry.wrapKeySeedPort?.close() } catch {}
     try { this.terminateAndReplaceWorker(entry.worker) } catch {}
     this.signingSessions.delete(sessionId);
@@ -280,7 +337,7 @@ export class SignerWorkerManager {
         const timeout = setTimeout(() => reject(new Error('Health check timeout')), 5000);
 
         const onMessage = (event: MessageEvent) => {
-          if (event.data?.type === 'WORKER_READY' || event.data?.ready) {
+          if (event.data?.type === WorkerControlMessage.WORKER_READY || event.data?.ready) {
             worker.removeEventListener('message', onMessage);
             clearTimeout(timeout);
             resolve();
@@ -322,7 +379,7 @@ export class SignerWorkerManager {
 
             // Set up one-time ready handler
             const onReady = (event: MessageEvent) => {
-              if (event.data?.type === 'WORKER_READY' || event.data?.ready) {
+              if (event.data?.type === WorkerControlMessage.WORKER_READY || event.data?.ready) {
                 worker.removeEventListener('message', onReady);
                 this.terminateAndReplaceWorker(worker);
                 resolve();
@@ -411,7 +468,7 @@ export class SignerWorkerManager {
             return;
           }
           // Ignore readiness pings that can arrive if a worker was just spawned
-          if (event?.data?.type === 'WORKER_READY' || event?.data?.ready) {
+          if (event?.data?.type === WorkerControlMessage.WORKER_READY || event?.data?.ready) {
             return; // not a response to an operation
           }
           // Use strong typing from WASM-generated types
@@ -559,7 +616,7 @@ export class SignerWorkerManager {
     nearAccountId: AccountId;
     credential: WebAuthnRegistrationCredential;
     vrfChallenge: VRFChallenge;
-    transactionContext: import('../../types/rpc').TransactionContext;
+    transactionContext: TransactionContext;
     contractId: string;
     wrapKeySalt: string;
     deviceNumber?: number;
@@ -716,11 +773,11 @@ export class SignerWorkerManager {
     const response = await ctx.sendMessage({
       message: {
         type: WorkerRequestType.DecryptPrivateKeyWithPrf,
-        payload: withSessionId({
+        payload: withSessionId(sessionId, {
           nearAccountId: accountId,
           encryptedPrivateKeyData: keyData.encryptedData,
           encryptedPrivateKeyIv: keyData.iv,
-        } as any, sessionId),
+        }),
       },
       sessionId,
     });

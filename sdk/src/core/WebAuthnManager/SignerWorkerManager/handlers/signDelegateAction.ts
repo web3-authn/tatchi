@@ -2,7 +2,7 @@ import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../defaultConfigs';
 import { AccountId, toAccountId } from '../../../types/accountIds';
 import { toActionArgsWasm, validateActionArgsWasm } from '../../../types/actions';
 import { DelegateActionInput } from '../../../types/delegate';
-import type { onProgressEvents } from '../../../types/passkeyManager';
+import { type onProgressEvents } from '../../../types/sdkSentEvents';
 import {
   ConfirmationConfig,
   RpcCallPayload,
@@ -15,6 +15,7 @@ import { SignerWorkerManagerContext } from '..';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { withSessionId } from './session';
 import { base58Encode } from '../../../../utils/base58';
+import { generateSessionId } from '../sessionHandshake.js';
 
 const ensureEd25519Prefix = (value: string) => value.startsWith('ed25519:') ? value : `ed25519:${value}`;
 
@@ -45,11 +46,9 @@ export async function signDelegateAction({
   nearAccountId: AccountId;
   logs?: string[];
 }> {
-  const sessionId = providedSessionId || ((typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-    ? crypto.randomUUID()
-    : `delegate-session-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-
+  const sessionId = providedSessionId ?? generateSessionId();
   const nearAccountId = rpcCall.nearAccountId || delegate.senderId;
+
   const resolvedRpcCall = {
     contractId: rpcCall.contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
     nearRpcUrl: rpcCall.nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl),
@@ -57,16 +56,16 @@ export async function signDelegateAction({
   } as RpcCallPayload;
 
   const actionsWasm = delegate.actions.map(toActionArgsWasm);
-  // Validate delegate actions locally before dispatching
   actionsWasm.forEach((action, actionIndex) => {
     try {
       validateActionArgsWasm(action);
     } catch (error) {
-      throw new Error(`Delegate action ${actionIndex} validation failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Delegate action ${actionIndex} validation failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   });
 
-  // Retrieve encrypted key data from IndexedDB in main thread
   const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
   const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
   if (!encryptedKeyData) {
@@ -76,7 +75,6 @@ export async function signDelegateAction({
     throw new Error('VrfWorkerManager not available for delegate signing');
   }
 
-  // Reuse transaction confirmation path to derive WrapKeySeed + VRF context
   const confirmation = await ctx.vrfWorkerManager.confirmAndPrepareSigningSession({
     ctx,
     sessionId,
@@ -92,11 +90,16 @@ export async function signDelegateAction({
     rpcCall: resolvedRpcCall,
     confirmationConfigOverride,
   });
+  await ctx.waitForSeedReady(sessionId);
+
+  const intentDigest = confirmation.intentDigest;
+  const transactionContext = confirmation.transactionContext;
+  const credential = confirmation.credential ? JSON.stringify(confirmation.credential) : undefined;
 
   const response = await ctx.sendMessage({
     message: {
       type: WorkerRequestType.SignDelegateAction,
-      payload: withSessionId({
+      payload: withSessionId(sessionId, {
         rpcCall: resolvedRpcCall,
         createdAt: Date.now(),
         decryption: {
@@ -111,18 +114,15 @@ export async function signDelegateAction({
           maxBlockHeight: delegate.maxBlockHeight.toString(),
           publicKey: toPublicKeyString(delegate.publicKey),
         },
-        intentDigest: confirmation.intentDigest,
-        transactionContext: confirmation.transactionContext,
-        credential: confirmation.credential ? JSON.stringify(confirmation.credential) : undefined,
-      }, sessionId),
+        intentDigest,
+        transactionContext,
+        credential,
+      }),
     },
     onEvent,
     sessionId,
   });
 
-  // Debug logging of raw worker response to trace delegate failures.
-  // This helps correlate Rust-side logs (DelegateSignResult.logs / error)
-  // with the TypeScript path when delegate signing fails.
   // eslint-disable-next-line no-console
   console.debug('[WebAuthnManager][delegate] raw worker response', response);
 

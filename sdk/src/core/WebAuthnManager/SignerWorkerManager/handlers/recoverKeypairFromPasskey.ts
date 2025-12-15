@@ -45,10 +45,10 @@ export async function recoverKeypairFromPasskey({
     const response = await ctx.sendMessage<WorkerRequestType.RecoverKeypairFromPasskey>({
       message: {
         type: WorkerRequestType.RecoverKeypairFromPasskey,
-        payload: withSessionId({
+        payload: withSessionId(sessionId, {
           credential,
           accountIdHint,
-        }, sessionId)
+        })
       },
       sessionId,
     });
