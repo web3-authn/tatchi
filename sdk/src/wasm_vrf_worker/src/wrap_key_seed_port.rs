@@ -35,6 +35,7 @@ pub fn send_wrap_key_seed_on_port(
     prf_second_b64u: Option<&str>,
 ) {
     let obj = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("ok"), &JsValue::TRUE);
     let _ = js_sys::Reflect::set(
         &obj,
         &JsValue::from_str("wrap_key_seed"),
@@ -55,6 +56,17 @@ pub fn send_wrap_key_seed_on_port(
     let _ = port.post_message(&obj);
 }
 
+pub fn send_wrap_key_seed_error_on_port(port: &MessagePort, error: &str) {
+    let obj = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("ok"), &JsValue::FALSE);
+    let _ = js_sys::Reflect::set(
+        &obj,
+        &JsValue::from_str("error"),
+        &JsValue::from_str(error),
+    );
+    let _ = port.post_message(&obj);
+}
+
 pub fn send_wrap_key_seed_to_signer(
     session_id: &str,
     wrap_key_seed_b64u: &str,
@@ -68,6 +80,13 @@ pub fn send_wrap_key_seed_to_signer(
             wrap_key_salt_b64u,
             prf_second_b64u,
         );
+        port.close();
+    }
+}
+
+pub fn send_wrap_key_seed_error_to_signer(session_id: &str, error: &str) {
+    if let Some(port) = take_port(session_id) {
+        send_wrap_key_seed_error_on_port(&port, error);
         port.close();
     }
 }

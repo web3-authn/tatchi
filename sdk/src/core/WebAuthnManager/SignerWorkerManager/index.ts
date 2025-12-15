@@ -59,8 +59,6 @@ type SigningSessionEntry = {
   worker: Worker;
   wrapKeySeedPort?: MessagePort;
   createdAt: number;
-  seedReady: Promise<void>;
-  onSeedReadyMessage?: (event: MessageEvent) => void;
 };
 
 export interface SignerWorkerManagerContext {
@@ -72,7 +70,6 @@ export interface SignerWorkerManagerContext {
   rpIdOverride?: string;
   nearExplorerUrl?: string;
   vrfWorkerManager?: VrfWorkerManager;
-  waitForSeedReady: (sessionId: string, timeoutMs?: number) => Promise<void>;
   sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
     message: {
       type: T;
@@ -129,7 +126,6 @@ export class SignerWorkerManager {
       indexedDB: this.indexedDB,
       touchIdPrompt: this.touchIdPrompt,
       vrfWorkerManager: this.vrfWorkerManager,
-      waitForSeedReady: this.waitForSeedReady.bind(this),
       nearClient: this.nearClient,
       userPreferencesManager: this.userPreferencesManager,
       nonceManager: this.nonceManager,
@@ -201,87 +197,12 @@ export class SignerWorkerManager {
   }
 
   /**
-   * Create a one-shot "ready" latch for WrapKeySeed delivery in a signer worker session.
-   *
-   * Returns:
-   * - `seedReady`: resolves exactly once, when the signer worker posts
-   *   `WorkerControlMessage.WRAP_KEY_SEED_READY` for this `sessionId`.
-   * - `onSeedReadyMessage`: the corresponding `message` listener. It resolves the promise and
-   *   then unregisters itself from the worker.
-   *
-   * Timing / why it exists:
-   * - Called from `reserveSignerWorkerSession(...)` immediately when a worker is reserved,
-   *   before confirmation UI is shown and before the VRF worker is asked to mint/dispense keys.
-   * - This avoids a race where the signer worker receives WrapKeySeed and emits
-   *   `WRAP_KEY_SEED_READY` while the main thread is still waiting on a user click (`requireClick`).
-   *   If we only listened inside `waitForSeedReady`, we'd risk missing that one-shot message.
-   */
-  private createWrapKeySeedReadyLatch(worker: Worker, sessionId: string): {
-    seedReady: Promise<void>;
-    onSeedReadyMessage: (event: MessageEvent) => void;
-  } {
-    let resolveSeedReady: (() => void) | undefined;
-    const seedReady = new Promise<void>((resolve) => {
-      resolveSeedReady = resolve;
-    });
-
-    const onSeedReadyMessage = (event: MessageEvent) => {
-      const msg = (event as MessageEvent).data as any;
-      if (!msg || typeof msg !== 'object') return;
-      if (msg.type !== WorkerControlMessage.WRAP_KEY_SEED_READY) return;
-      if (msg.sessionId !== sessionId) return;
-
-      try { resolveSeedReady?.(); } catch { }
-      resolveSeedReady = undefined;
-      try { worker.removeEventListener('message', onSeedReadyMessage); } catch { }
-    };
-
-    return { seedReady, onSeedReadyMessage };
-  }
-
-  /**
-   * Wait for a WrapKeySeed to be ready for the given session.
-   * Public wrapper that looks up the worker and waits for the seed-ready signal.
-   */
-  async waitForSeedReady(sessionId: string, timeoutMs: number = 2000): Promise<void> {
-    const entry = this.getSigningSession(sessionId);
-    if (!entry) {
-      throw new Error(`No signing session found for id: ${sessionId}`);
-    }
-    const timeoutMsClamped = Number.isFinite(timeoutMs) ? Math.max(0, timeoutMs) : 0;
-
-    await new Promise<void>((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error(`Timeout waiting for session message (${WorkerControlMessage.WRAP_KEY_SEED_READY}) for session ${sessionId}`));
-      }, timeoutMsClamped);
-      entry.seedReady
-        .then(() => {
-          clearTimeout(timeoutId);
-          resolve();
-        })
-        .catch((err) => {
-          clearTimeout(timeoutId);
-          reject(err);
-        });
-    });
-  }
-
-  /**
    * Reserve a signer worker "session" (JS-side orchestration).
    *
    * What this does:
    * - Reserves a specific `Worker` instance from the pool and pins it to `sessionId`.
    * - Ensures the signer worker has a dedicated `MessagePort` attached for receiving `WrapKeySeed`
    *   from the VRF worker (VRF → Signer channel).
-   * - Installs a "seed-ready" latch (a Promise) so callers can safely `await waitForSeedReady(sessionId)`
-   *   without racing the `WRAP_KEY_SEED_READY` event.
-   *
-   * Why the latch exists:
-   * - In `requireClick` UI flows, the VRF worker may dispense/mint `WrapKeySeed` while the UI is open.
-   *   The signer worker can emit `WRAP_KEY_SEED_READY` before the main thread starts waiting.
-   *   If we only listened inside `waitForSeedReady`, we could miss the one-shot ready message.
-   * - By wiring the listener here (at reservation time), we deterministically catch the ready signal
-   *   whether it arrives early or late.
    *
    * Port wiring:
    * - The VRF worker retains one end of a `MessageChannel` and the signer worker receives the other.
@@ -311,11 +232,6 @@ export class SignerWorkerManager {
       vrfPort = channel.port2;
     }
 
-    // Latch WRAP_KEY_SEED_READY so callers can't miss it even if it arrives
-    // before they start awaiting (e.g. confirmation UI delays).
-    const { seedReady, onSeedReadyMessage } = this.createWrapKeySeedReadyLatch(worker, sessionId);
-    try { worker.addEventListener('message', onSeedReadyMessage); } catch { }
-
     // Attach the signerPort to the worker and wait for ACK before adding to signingSessions
     try {
       if (!signerPort) {
@@ -331,14 +247,11 @@ export class SignerWorkerManager {
         worker,
         wrapKeySeedPort: signerPort,
         createdAt: Date.now(),
-        seedReady,
-        onSeedReadyMessage,
       });
 
     } catch (err) {
       console.error('[SignerWorkerManager]: Failed to attach WrapKeySeed port to signer worker', err);
       // Best-effort cleanup
-      try { worker.removeEventListener('message', onSeedReadyMessage); } catch {}
       try { signerPort?.close(); } catch {}
       try { vrfPort?.close(); } catch {}
       this.terminateAndReplaceWorker(worker);
@@ -354,7 +267,6 @@ export class SignerWorkerManager {
   releaseSigningSession(sessionId: string): void {
     const entry = this.signingSessions.get(sessionId);
     if (!entry) return;
-    try { if (entry.onSeedReadyMessage) entry.worker.removeEventListener('message', entry.onSeedReadyMessage); } catch {}
     try { entry.wrapKeySeedPort?.close() } catch {}
     try { this.terminateAndReplaceWorker(entry.worker) } catch {}
     this.signingSessions.delete(sessionId);

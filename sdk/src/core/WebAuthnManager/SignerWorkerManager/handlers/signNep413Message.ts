@@ -52,7 +52,6 @@ export async function signNep413Message({ ctx, payload }: {
       message: payload.message,
       recipient: payload.recipient,
     });
-    await ctx.waitForSeedReady(sessionId);
 
     const response = await ctx.sendMessage<WorkerRequestType.SignNep413Message>({
       message: {

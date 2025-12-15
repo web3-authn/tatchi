@@ -91,7 +91,6 @@ export async function signTransactionsWithActions({
       rpcCall: resolvedRpcCall,
       confirmationConfigOverride,
     });
-    await ctx.waitForSeedReady(sessionId);
 
     const intentDigest = confirmation.intentDigest;
     const transactionContext = confirmation.transactionContext;

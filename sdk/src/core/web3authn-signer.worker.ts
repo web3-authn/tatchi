@@ -128,21 +128,9 @@ function sendProgressMessage(
 // Important: Make sendProgressMessage available globally for WASM to call
 (globalThis as any).sendProgressMessage = sendProgressMessage;
 
-/**
- * Function called by WASM when a WrapKeySeed is successfully stored in WRAP_KEY_SEED_SESSIONS.
- * This guarantees the seed is ready for signing operations.
- *
- * @param sessionId - The session ID for which the seed is ready
- */
-function notifyWrapKeySeedReady(sessionId: string): void {
-  self.postMessage({
-    type: WorkerControlMessage.WRAP_KEY_SEED_READY,
-    sessionId,
-  });
-}
-
-// Make notifyWrapKeySeedReady available globally for WASM to call
-(globalThis as any).notifyWrapKeySeedReady = notifyWrapKeySeedReady;
+// NOTE: The signer WASM now awaits WrapKeySeed internally. We intentionally do not
+// emit a separate WRAP_KEY_SEED_READY control message; readiness is implied by the
+// ability to complete the signing request once the seed arrives over the MessagePort.
 
 /**
  * Initialize WASM module

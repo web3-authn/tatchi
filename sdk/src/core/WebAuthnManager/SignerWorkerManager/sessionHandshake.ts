@@ -3,10 +3,11 @@
  *
  * This module provides high-level functions for setting up and validating
  * signing sessions with the signer worker. It orchestrates the complete
- * handshake flow from port attachment to seed readiness.
+ * handshake flow for port attachment so the VRF worker can deliver WrapKeySeed
+ * to the signer worker over a session MessagePort.
  */
 
-import { waitForWrapKeyPortAttach, waitForWrapKeySeedReady } from './sessionMessages.js';
+import { waitForWrapKeyPortAttach } from './sessionMessages.js';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../txDigest';
 import type { NearClient } from '../../NearClient';
 import type { NonceManager } from '../../nonceManager';
@@ -17,7 +18,6 @@ import { WorkerControlMessage } from '../../workerControlMessages';
 type VrfSessionKeyDispenser = {
   dispenseSessionKey: (args: { sessionId: string; uses?: number }) => Promise<unknown>;
 };
-type WaitForSeedReadyFn = (sessionId: string, timeoutMs?: number) => Promise<void>;
 
 /**
  * Attach a WrapKeySeed MessagePort to the signer worker and wait for acknowledgment.
@@ -51,30 +51,6 @@ export async function attachSessionPort(
 
   // Wait for the worker to acknowledge successful attachment
   await waitPromise;
-}
-
-/**
- * Wait for a WrapKeySeed to be ready for the given session.
- * This ensures the signer worker has received and stored the seed before signing begins.
- *
- * Flow:
- * 1. VRF worker derives WrapKeySeed
- * 2. VRF sends seed via MessagePort to signer worker
- * 3. Signer WASM receives and stores seed in WRAP_KEY_SEED_SESSIONS
- * 4. Signer notifies main thread via WRAP_KEY_SEED_READY
- * 5. This function resolves
- *
- * @param worker - The signer worker to wait for
- * @param sessionId - The signing session ID
- * @param timeoutMs - How long to wait for ready signal (default: 2000ms)
- * @throws Error if seed doesn't arrive or times out
- */
-export async function waitForSessionReady(
-  worker: Worker,
-  sessionId: string,
-  timeoutMs: number = 2000
-): Promise<void> {
-  await waitForWrapKeySeedReady(worker, sessionId, timeoutMs);
 }
 
 export const generateSessionId = (): string => {
@@ -114,7 +90,6 @@ export async function tryPrepareWarmSigningContext(args: {
   txInputsForDigest: TransactionInputWasm[];
   sessionId: string;
   vrfWorkerManager: VrfSessionKeyDispenser;
-  waitForSeedReady: WaitForSeedReadyFn;
   nonceCount?: number;
   uses?: number;
 }): Promise<{ intentDigest: string; transactionContext: TransactionContext } | null> {
@@ -139,7 +114,6 @@ export async function tryPrepareWarmSigningContext(args: {
     const uses = Math.max(1, args.uses ?? txCount);
     try {
       await args.vrfWorkerManager.dispenseSessionKey({ sessionId: args.sessionId, uses });
-      await args.waitForSeedReady(args.sessionId);
     } catch (err) {
       if (isWarmSessionUnavailableError(err)) {
         return null;

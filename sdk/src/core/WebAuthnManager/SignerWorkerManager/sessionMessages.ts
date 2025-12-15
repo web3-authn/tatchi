@@ -38,23 +38,12 @@ export interface WorkerReadyMessage {
 }
 
 /**
- * Control message sent by the signer worker when a WrapKeySeed has been
- * successfully received and stored in WRAP_KEY_SEED_SESSIONS.
- * This guarantees the session is ready for signing operations.
- */
-export interface WrapKeySeedReadyMessage {
-  type: typeof WorkerControlMessage.WRAP_KEY_SEED_READY;
-  sessionId: string;
-}
-
-/**
  * All control messages that can be sent by the signer worker.
  */
 export type SignerWorkerControlMessage =
   | AttachWrapKeySeedPortOkMessage
   | AttachWrapKeySeedPortErrorMessage
-  | WorkerReadyMessage
-  | WrapKeySeedReadyMessage;
+  | WorkerReadyMessage;
 
 /**
  * Type guard to check if a message is a control message.
@@ -66,8 +55,7 @@ export function isSignerWorkerControlMessage(msg: unknown): msg is SignerWorkerC
   const type = (msg as any).type;
   return type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK
     || type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR
-    || type === WorkerControlMessage.WORKER_READY
-    || type === WorkerControlMessage.WRAP_KEY_SEED_READY;
+    || type === WorkerControlMessage.WORKER_READY;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -185,27 +173,6 @@ export function waitForWrapKeyPortAttach(
   return waitForSessionMessage(worker, {
     successType: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK,
     errorType: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
-    sessionId,
-    timeoutMs,
-  });
-}
-
-/**
- * Wait for the worker to signal that a WrapKeySeed has been received and stored.
- * This ensures the session is fully ready for signing operations.
- *
- * @param worker - The worker that should send the ready signal
- * @param sessionId - The session ID to match
- * @param timeoutMs - How long to wait before rejecting (default: 2000ms)
- * @returns Promise that resolves when seed is ready, rejects on timeout
- */
-export function waitForWrapKeySeedReady(
-  worker: Worker,
-  sessionId: string,
-  timeoutMs: number = 2000
-): Promise<void> {
-  return waitForSessionMessage(worker, {
-    successType: WorkerControlMessage.WRAP_KEY_SEED_READY,
     sessionId,
     timeoutMs,
   });

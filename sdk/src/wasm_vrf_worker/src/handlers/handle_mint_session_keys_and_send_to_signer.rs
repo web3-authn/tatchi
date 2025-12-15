@@ -225,6 +225,12 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
         request.session_id
     );
 
+    let fail = |msg: String| -> VrfWorkerResponse {
+        #[cfg(target_arch = "wasm32")]
+        crate::wrap_key_seed_port::send_wrap_key_seed_error_to_signer(&request.session_id, &msg);
+        VrfWorkerResponse::fail(message_id.clone(), msg)
+    };
+
     // If contract verification context is provided, perform verify_authentication_response
     // before deriving WrapKeySeed. This ensures that only contract-verified sessions
     // receive WrapKeySeed material.
@@ -238,6 +244,14 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
     )
     .await
     {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let err = resp
+                .error
+                .clone()
+                .unwrap_or_else(|| "VRF mint session keys failed".to_string());
+            crate::wrap_key_seed_port::send_wrap_key_seed_error_to_signer(&request.session_id, &err);
+        }
         return resp;
     }
 
@@ -247,7 +261,7 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
     let wrap_key_salt_b64u = if request.wrap_key_salt_b64u.trim().is_empty() {
         match generate_wrap_key_salt_b64u() {
             Ok(s) => s,
-            Err(e) => return VrfWorkerResponse::fail(message_id, e),
+            Err(e) => return fail(e),
         }
     } else {
         request.wrap_key_salt_b64u.clone()
@@ -256,23 +270,20 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
     // Decode PRF.first_auth
     let prf_first_bytes = match base64_url_decode(&request.prf_first_auth_b64u) {
         Ok(bytes) => bytes,
-        Err(e) => return VrfWorkerResponse::fail(message_id, e.to_string()),
+        Err(e) => return fail(e.to_string()),
     };
 
     // Derive K_pass_auth = HKDF(PRF.first_auth, "vrf-wrap-pass")
     let hk = Hkdf::<Sha256>::new(None, &prf_first_bytes);
     let mut k_pass_auth = vec![0u8; 32];
     if let Err(_e) = hk.expand(crate::config::VRF_WRAP_PASS_INFO, &mut k_pass_auth) {
-        return VrfWorkerResponse::fail(
-            message_id,
-            HkdfError::KeyDerivationFailed.to_string(),
-        );
+        return fail(HkdfError::KeyDerivationFailed.to_string());
     }
 
     // Get VRF secret key bytes from the current in-memory keypair
     let vrf_secret = match manager.borrow().get_vrf_secret_key_bytes() {
         Ok(sk) => sk,
-        Err(e) => return VrfWorkerResponse::fail(message_id, e.to_string()),
+        Err(e) => return fail(e.to_string()),
     };
 
     // Derive WrapKeySeed = HKDF(K_pass_auth || vrf_sk, "near-wrap-seed")
@@ -283,10 +294,7 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
     let hk2 = Hkdf::<Sha256>::new(None, &seed);
     let mut wrap_key_seed = vec![0u8; 32];
     if let Err(_e) = hk2.expand(crate::config::NEAR_WRAP_SEED_INFO, &mut wrap_key_seed) {
-        return VrfWorkerResponse::fail(
-            message_id,
-            HkdfError::KeyDerivationFailed.to_string(),
-        );
+        return fail(HkdfError::KeyDerivationFailed.to_string());
     }
 
     // Cache VRF-owned session material for reuse (TTL/uses enforced on dispense).
@@ -331,7 +339,7 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
                 debug!("[VRF] PRF.second not present in credential");
                 None
             }
-            Err(e) => return VrfWorkerResponse::fail(message_id.clone(), e),
+            Err(e) => return fail(e),
         }
     } else {
         None

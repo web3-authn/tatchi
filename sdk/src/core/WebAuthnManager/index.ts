@@ -243,9 +243,6 @@ export class WebAuthnManager {
           prfFirstAuthB64u: args.options.prfFirstAuthB64u,
           credential: args.options.credential,
         });
-
-        // Wait for the signer worker to confirm it has received and stored the seed
-        await this.signerWorkerManager.waitForSeedReady(args.sessionId);
       }
       return await args.handler(args.sessionId);
     } finally {
@@ -405,9 +402,6 @@ export class WebAuthnManager {
         nearAccountId,
         wrapKeySalt,
       });
-      // Wait until the signer worker confirms WrapKeySeed has been received and stored
-      // for this session before proceeding to decrypt inside the signer.
-      await this.signerWorkerManager.waitForSeedReady(args.sessionId);
       console.debug('WebAuthnManager: VRF decrypt session ready', {
         nearAccountId: String(nearAccountId),
         sessionId: args.sessionId,
@@ -610,9 +604,6 @@ export class WebAuthnManager {
       });
 
       console.debug('[WebAuthnManager] WrapKeySeed sent to signer worker');
-
-      // === STEP 3: Wait for WrapKeySeed to arrive in signer worker ===
-      await this.signerWorkerManager.waitForSeedReady(sessionId);
 
       // === STEP 4: Get transaction context for registration ===
       const transactionContext = await this.nonceManager.getNonceBlockHashAndHeight(this.nearClient);

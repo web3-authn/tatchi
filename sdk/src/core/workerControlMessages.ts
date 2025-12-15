@@ -5,13 +5,11 @@
  * They are used for:
  * - MessagePort attachment handshakes (WrapKeySeed delivery)
  * - Readiness signals (worker pool health checks)
- * - Session seed readiness notifications
  */
 export const WorkerControlMessage = {
   ATTACH_WRAP_KEY_SEED_PORT: 'ATTACH_WRAP_KEY_SEED_PORT',
   ATTACH_WRAP_KEY_SEED_PORT_OK: 'ATTACH_WRAP_KEY_SEED_PORT_OK',
   ATTACH_WRAP_KEY_SEED_PORT_ERROR: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR',
-  WRAP_KEY_SEED_READY: 'WRAP_KEY_SEED_READY',
   WORKER_READY: 'WORKER_READY',
 } as const;
 
