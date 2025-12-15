@@ -19,15 +19,19 @@ export { buildConfigsFromEnv } from './core/defaultConfigs';
 ///////////////////////////////////////////////////////////////
 
 export type {
-  TatchiPasskeyConfigs,
+  TatchiConfigs,
+  TatchiConfigsInput,
   // Registration
   RegistrationResult,
-  RegistrationSSEEvent,
   // Login
   LoginResult,
-  LoginSSEvent,
   // Actions
   ActionResult,
+} from './core/types/tatchi';
+
+export type {
+  RegistrationSSEEvent,
+  LoginSSEvent,
   // Account Recovery
   AccountRecoveryPhase,
   AccountRecoveryStatus,
@@ -41,7 +45,7 @@ export type {
   SignNEP413HooksOptions,
   AfterCall,
   EventCallback,
-} from './core/types/passkeyManager';
+} from './core/types/sdkSentEvents';
 
 export { DEFAULT_WAIT_STATUS } from './core/types/rpc';
 
@@ -49,7 +53,7 @@ export { DEFAULT_WAIT_STATUS } from './core/types/rpc';
 export {
   DeviceLinkingPhase,
   DeviceLinkingStatus
-} from './core/types/passkeyManager';
+} from './core/types/sdkSentEvents';
 export type {
   DeviceLinkingQRData,
   DeviceLinkingSession,

@@ -1,16 +1,12 @@
-import {
-  ActionResult,
-  EventCallback,
-  DeviceLinkingPhase,
-  DeviceLinkingSSEEvent,
-  AfterCall
-} from './passkeyManager';
+import type { ActionResult } from './tatchi';
+import type { AfterCall, DeviceLinkingSSEEvent, EventCallback } from './sdkSentEvents';
+import { DeviceLinkingPhase } from './sdkSentEvents';
 import { VRFChallenge } from './vrf-worker';
 import { AccountId } from './accountIds';
 import { SignedTransaction } from '../NearClient';
 import { WebAuthnRegistrationCredential } from '.';
 
-export { DeviceLinkingPhase } from './passkeyManager';
+export { DeviceLinkingPhase } from './sdkSentEvents';
 
 // === DEVICE LINKING TYPES ===
 export interface DeviceLinkingQRData {

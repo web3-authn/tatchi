@@ -1,5 +1,5 @@
 import React from 'react';
-import type { DeviceLinkingSSEEvent } from '@/core/types/passkeyManager';
+import type { DeviceLinkingSSEEvent } from '@/core/types/sdkSentEvents';
 import type { PasskeyAuthMenuRuntime } from '../adapters/tatchi';
 import { AuthMenuMode, type PasskeyAuthMenuProps } from '../types';
 import { useAuthMenuMode } from './mode';

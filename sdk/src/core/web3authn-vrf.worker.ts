@@ -16,6 +16,7 @@ import {
   awaitSecureConfirmationV2,
   SecureConfirmMessageType,
 } from './WebAuthnManager/VrfWorkerManager/confirmTxFlow';
+import { WorkerControlMessage } from './workerControlMessages';
 
 /**
  * WASM Asset Path Resolution for VRF Worker
@@ -72,7 +73,7 @@ self.onmessage = async (event: MessageEvent) => {
     return;
   }
   // Attach WrapKeySeed MessagePort for a signing session (VRF side)
-  if (eventType === 'ATTACH_WRAP_KEY_SEED_PORT') {
+  if (eventType === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT) {
     const sessionId = (event.data as any)?.sessionId as string | undefined;
     const port = event.ports?.[0];
     if (sessionId && port) {

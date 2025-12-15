@@ -1,5 +1,5 @@
 import React from 'react';
-import type { DeviceLinkingSSEEvent } from '../../../core/types/passkeyManager';
+import type { DeviceLinkingSSEEvent } from '../../../core/types/sdkSentEvents';
 import { AuthMenuMode, AuthMenuModeMap, type AuthMenuModeLabel, type AuthMenuHeadings } from './authMenuTypes';
 
 export { AuthMenuMode, AuthMenuModeMap };

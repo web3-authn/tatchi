@@ -7,7 +7,7 @@ import { WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/
 export { WorkerRequestType, WorkerResponseType }; // Export the WASM enums directly
 
 import { StripFree } from "./index.js";
-import type { onProgressEvents } from "./passkeyManager.js";
+import type { onProgressEvents } from "./sdkSentEvents.js";
 import type { TransactionContext } from './rpc.js';
 import type { VRFChallenge } from './vrf-worker.js';
 import type { ActionArgsWasm } from './actions.js';

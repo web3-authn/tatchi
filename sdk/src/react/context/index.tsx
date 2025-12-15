@@ -8,7 +8,7 @@ import {
   useRef,
 } from 'react';
 import { TatchiPasskey } from '@/core/TatchiPasskey';
-import { DeviceLinkingPhase } from '@/core/types/passkeyManager';
+import { DeviceLinkingPhase } from '@/core/types/sdkSentEvents';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '@/core/TatchiPasskey/signNEP413';
 import type { ActionArgs } from '@/core/types/actions';
 import type { WalletIframeRouter } from '@/core/WalletIframe/client/router';
@@ -29,14 +29,15 @@ import type {
   ScanAndLinkDeviceOptionsDevice1,
   DeviceLinkingSSEEvent,
 } from '../types';
-import { AccountRecoveryHooksOptions, TatchiPasskeyConfigs, DelegateActionHooksOptions } from '@/core/types/passkeyManager';
+import type { TatchiConfigs } from '@/core/types/tatchi';
+import type { AccountRecoveryHooksOptions, DelegateActionHooksOptions } from '@/core/types/sdkSentEvents';
 import { buildConfigsFromEnv } from '@/core/defaultConfigs';
 import { toAccountId } from '@/core/types/accountIds';
 import { DelegateActionInput } from '@/core/types/delegate';
 
 // Global singleton to prevent multiple manager instances in StrictMode
 let globalPasskeyManager: TatchiPasskey | null = null;
-let globalConfig: TatchiPasskeyConfigs | null = null;
+let globalConfig: TatchiConfigs | null = null;
 
 const TatchiContext = createContext<TatchiContextType | undefined>(undefined);
 
@@ -75,7 +76,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
   // Initialize manager (TatchiPasskey or TatchiPasskeyIframe) with singleton pattern
   const tatchi = useMemo<TatchiPasskey>(() => {
     // Resolve full configs from env + optional overrides. This also validates relayer etc.
-    const finalConfig: TatchiPasskeyConfigs = buildConfigsFromEnv(config);
+    const finalConfig: TatchiConfigs = buildConfigsFromEnv(config);
     const configChanged = JSON.stringify(globalConfig) !== JSON.stringify(finalConfig);
     if (!globalPasskeyManager || configChanged) {
       console.debug('TatchiContextProvider: Creating manager with config:', finalConfig);
@@ -156,7 +157,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
           if (status?.active && status?.nearAccountId) {
             const state = await client.getLoginState(status.nearAccountId);
             // Ensure local preferences are scoped to this user
-            try { tatchi.userPreferences.setCurrentUser(toAccountId(status.nearAccountId)); } catch {}
+            tatchi.userPreferences.setCurrentUser(toAccountId(status.nearAccountId));
             setLoginState(prev => ({
               ...prev,
               isLoggedIn: true,
@@ -175,22 +176,21 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
         });
 
         // Reflect initial status
-        try {
-          const st = await client.getLoginState();
-          if (st?.vrfActive && st?.nearAccountId) {
-            setLoginState(prev => ({
-              ...prev,
-              isLoggedIn: true,
-              nearAccountId: st.nearAccountId,
-              nearPublicKey: st.publicKey || null,
-            }));
-          }
-        } catch {}
+        const st = await client.getLoginState();
+        if (st?.vrfActive && st?.nearAccountId) {
+          setLoginState(prev => ({
+            ...prev,
+            isLoggedIn: true,
+            nearAccountId: st.nearAccountId,
+            nearPublicKey: st.publicKey || null,
+          }));
+        }
         pmIframeRef.current = client;
       } catch (err) {
         console.warn('[TatchiContextProvider] WalletIframe init failed:', err);
       }
     })();
+
     return () => {
       cancelled = true;
       offReady && offReady();

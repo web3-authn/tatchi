@@ -1,7 +1,7 @@
 import type { DeviceLinkingQRData } from '../core/types/linkDevice';
 import { DeviceLinkingError, DeviceLinkingErrorCode } from '../core/types/linkDevice';
 import { validateDeviceLinkingQRData } from '../core/TatchiPasskey/scanDevice';
-import { DeviceLinkingSSEEvent } from '@/core/types/passkeyManager';
+import { DeviceLinkingSSEEvent } from '@/core/types/sdkSentEvents';
 
 // ===========================
 // TYPES AND INTERFACES

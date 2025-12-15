@@ -8,7 +8,7 @@ import { W3A_TX_CONFIRMER_ID, CONFIRM_UI_ELEMENT_SELECTORS, W3A_CONFIRM_PORTAL_I
 import type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode, ThemeName } from './confirm-ui-types';
 export type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode } from './confirm-ui-types';
 import { validateTheme } from './confirm-ui-types';
-import { computeUiIntentDigestFromTxs, orderActionForDigest } from './common/tx-digest';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../txDigest';
 // Ensure the wrapper element is registered when this module loads.
 import './IframeTxConfirmer/tx-confirmer-wrapper';
 
@@ -97,7 +97,7 @@ export async function awaitConfirmUIDecision({
   ctx: VrfWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests: TransactionInputWasm[],
-  vrfChallenge: VRFChallenge,
+  vrfChallenge?: VRFChallenge,
   theme: ThemeName,
   uiMode: ConfirmationUIMode,
   nearAccountIdOverride: string,

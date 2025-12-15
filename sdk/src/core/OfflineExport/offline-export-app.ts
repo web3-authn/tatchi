@@ -11,10 +11,11 @@ import { IndexedDBManager } from '../IndexedDBManager';
 import { MinimalNearClient } from '../NearClient';
 import { toAccountId } from '../types/accountIds';
 import { OFFLINE_EXPORT_DONE, OFFLINE_EXPORT_ERROR } from './messages';
-import type { TatchiPasskeyConfigs } from '../types/passkeyManager';
+import type { TatchiConfigsInput } from '../types/tatchi';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { TouchIdPrompt } from '../WebAuthnManager/touchIdPrompt';
 import { createRandomVRFChallenge, type VRFChallenge } from '../types/vrf-worker';
+import { buildConfigsFromEnv } from '../defaultConfigs';
 
 async function registerServiceWorker(): Promise<void> {
   if (!('serviceWorker' in navigator)) return;
@@ -86,7 +87,7 @@ function renderShell(message: string, canExport = false): HTMLButtonElement | nu
   const root = document.createElement('div');
   root.className = 'offline-root'
   const h = document.createElement('h1');
-  h.textContent = 'Offline NEAR Key Export';
+  h.textContent = 'Offline Export';
   h.className = 'offline-title'
   const p = document.createElement('p');
   p.textContent = message;
@@ -113,7 +114,7 @@ function renderShell(message: string, canExport = false): HTMLButtonElement | nu
     info.textContent = '✓ Wallet origin: (unknown)';
   }
   const btn = document.createElement('button');
-  btn.textContent = 'Export Key';
+  btn.textContent = 'Export My Key';
   btn.className = 'offline-btn'
   btn.disabled = !canExport;
   root.appendChild(h);
@@ -220,7 +221,7 @@ async function main(): Promise<void> {
 
         // Instantiate WebAuthnManager with minimal offline configs. No network RPC is used in export flow.
         const near = new MinimalNearClient('https://rpc.invalid.local');
-        const offlineConfigs: TatchiPasskeyConfigs = {
+        const offlineConfigsInput: TatchiConfigsInput = {
           nearRpcUrl: 'https://rpc.invalid.local',
           nearNetwork: 'testnet',
           contractId: 'w3a-v1.testnet',
@@ -229,8 +230,8 @@ async function main(): Promise<void> {
           relayer: {
             url: 'https://rpc.invalid.local',
           },
-          vrfWorkerConfigs: undefined,
         };
+        const offlineConfigs = buildConfigsFromEnv(offlineConfigsInput);
         const webAuthnManager = new WebAuthnManager(offlineConfigs, near);
         console.debug('[offline-export] rpId (hostname):', window.location.hostname);
         if (effectiveRpIdOverride) {

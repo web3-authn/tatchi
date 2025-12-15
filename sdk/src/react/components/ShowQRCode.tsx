@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 import { useTatchi } from '../context'
-import { DeviceLinkingSSEEvent, DeviceLinkingStatus, DeviceLinkingPhase } from '../../core/types/passkeyManager'
+import { DeviceLinkingSSEEvent, DeviceLinkingStatus, DeviceLinkingPhase } from '../../core/types/sdkSentEvents'
 import './ShowQRCode.css'
 
 interface ShowQRCodeProps {

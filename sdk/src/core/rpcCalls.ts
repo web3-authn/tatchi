@@ -12,13 +12,12 @@ import type { NearClient, SignedTransaction } from './NearClient';
 import type { AccountId } from './types/accountIds';
 import type { ContractStoredAuthenticator } from './TatchiPasskey/recoverAccount';
 import type { PasskeyManagerContext } from './TatchiPasskey';
-import type { DeviceLinkingSSEEvent } from './types/passkeyManager';
+import type { DeviceLinkingSSEEvent } from './types/sdkSentEvents';
 
 import { StoredAuthenticator, WebAuthnRegistrationCredential } from './types/webauthn';
-import { ActionPhase } from './types/passkeyManager';
+import { ActionPhase, DeviceLinkingPhase, DeviceLinkingStatus } from './types/sdkSentEvents';
 import { ActionType } from './types/actions';
 import { VRFChallenge } from './types/vrf-worker';
-import { DeviceLinkingPhase, DeviceLinkingStatus } from './types/passkeyManager';
 import { DEFAULT_WAIT_STATUS, TransactionContext } from './types/rpc';
 import type { AuthenticatorOptions } from './types/authenticatorOptions';
 import { base64UrlDecode } from '../utils/encoders';

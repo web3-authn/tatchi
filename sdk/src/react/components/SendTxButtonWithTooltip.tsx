@@ -19,7 +19,7 @@ import { useTatchi } from '../context';
 import { useTheme } from './theme';
 import TouchIcon from './AccountMenuButton/icons/TouchIcon';
 import { TransactionInput } from '@/core/types/actions';
-import type { EventCallback, ActionSSEEvent } from '@/core/types/passkeyManager';
+import type { EventCallback, ActionSSEEvent } from '@/core/types/sdkSentEvents';
 
 
 export const TouchIdWithText: React.FC<{ buttonText?: string; loading?: boolean }> = ({
