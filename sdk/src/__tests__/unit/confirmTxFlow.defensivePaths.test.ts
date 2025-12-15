@@ -491,7 +491,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
           async checkVrfStatus() {
             return { active: true, nearAccountId: 'error.testnet' };
           },
-          async deriveWrapKeySeedAndSendToSigner() {
+          async mintSessionKeysAndSendToSigner() {
             return;
           },
         },

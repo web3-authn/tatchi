@@ -244,7 +244,7 @@ test.describe('confirmTxFlow – success paths', () => {
           async checkVrfStatus() {
             return { active: true, nearAccountId: 'carol.testnet' };
           },
-          async deriveWrapKeySeedAndSendToSigner() {
+          async mintSessionKeysAndSendToSigner() {
             return;
           },
         },
@@ -371,7 +371,7 @@ test.describe('confirmTxFlow – success paths', () => {
           async checkVrfStatus() {
             return { active: true, nearAccountId: 'nep.testnet' };
           },
-          async deriveWrapKeySeedAndSendToSigner() {
+          async mintSessionKeysAndSendToSigner() {
             return;
           },
         },
