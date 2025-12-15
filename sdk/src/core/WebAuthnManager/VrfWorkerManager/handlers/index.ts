@@ -3,9 +3,9 @@ export * from './clearSession';
 export * from './clearVrfSession';
 export * from './confirmAndDeriveDevice2RegistrationSession';
 export * from './confirmAndPrepareSigningSession';
+export * from './confirmSigningUiOnly';
 export * from './createSigningSessionChannel';
 export * from './deriveVrfKeypairFromPrf';
-export * from './deriveVrfKeypairFromRawPrf';
 export * from './deriveWrapKeySeedAndSendToSigner';
 export * from './dispenseSessionKey';
 export * from './generateVrfChallenge';
@@ -16,4 +16,3 @@ export * from './requestRegistrationCredentialConfirmation';
 export * from './shamir3PassDecryptVrfKeypair';
 export * from './shamir3PassEncryptCurrentVrfKeypair';
 export * from './unlockVrfKeypair';
-
