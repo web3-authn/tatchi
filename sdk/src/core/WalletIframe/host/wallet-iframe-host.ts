@@ -44,7 +44,7 @@ import type {
 import { CONFIRM_UI_ELEMENT_SELECTORS } from '../../WebAuthnManager/LitComponents/tags';
 import { MinimalNearClient } from '../../NearClient';
 import { setupLitElemMounter } from './iframe-lit-elem-mounter';
-import type { TatchiPasskeyConfigs } from '../../types/passkeyManager';
+import type { TatchiConfigsInput } from '../../types/tatchi';
 import { isObject, isString } from '../validation';
 import { errorMessage } from '../../../utils/errors';
 import { TatchiPasskey } from '../../TatchiPasskey';
@@ -52,6 +52,7 @@ import { __setWalletIframeHostMode } from '../host-mode';
 import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import type { ProgressPayload } from '../shared/messages';
 import { WalletIframeDomEvents } from '../events';
+import { assertWalletHostConfigsNoNestedIframeWallet, sanitizeWalletHostConfigs } from './config-guards';
 // handlers moved to dedicated module; host no longer imports per-call hook types
 import { createWalletIframeHandlers } from './wallet-iframe-handlers';
 import { setEmbeddedBase } from '../../sdkPaths';
@@ -63,7 +64,7 @@ bootstrapTransparentHost();
 
 let parentOrigin: string | null = null;
 let port: MessagePort | null = null;
-let walletConfigs: TatchiPasskeyConfigs | null = null;
+let walletConfigs: TatchiConfigsInput | null = null;
 let nearClient: MinimalNearClient | null = null;
 let tatchiPasskey: TatchiPasskeyIframe | TatchiPasskey | null = null;
 let themeUnsubscribe: (() => void) | null = null;
@@ -103,18 +104,8 @@ function ensureTatchiPasskey(): void {
     nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
   }
   if (!tatchiPasskey) {
-    const cfg = {
-      ...walletConfigs,
-      iframeWallet: {
-        ...(walletConfigs?.iframeWallet || {}),
-        // IMPORTANT: The wallet host must not consider itself an iframe client.
-        // Clear walletOrigin/servicePath so SignerWorkerManager does NOT enable nested iframe mode.
-        walletOrigin: undefined,
-        walletServicePath: undefined,
-        // Rely on rpIdOverride provided by the parent (if any).
-        rpIdOverride: walletConfigs?.iframeWallet?.rpIdOverride,
-      },
-    } as TatchiPasskeyConfigs;
+    const cfg = sanitizeWalletHostConfigs(walletConfigs);
+    assertWalletHostConfigsNoNestedIframeWallet(cfg);
     // Mark runtime as wallet iframe host (internal flag)
     __setWalletIframeHostMode(true);
     tatchiPasskey = new TatchiPasskey(cfg, nearClient);
@@ -188,7 +179,7 @@ function shouldAcceptConnectEvent(e: MessageEvent, hasAdoptedPort: boolean): boo
     ensureTatchiPasskey: ensureTatchiPasskey,
     getTatchiPasskey: () => tatchiPasskey,
     updateWalletConfigs: (patch) => {
-      walletConfigs = { ...walletConfigs, ...patch } as TatchiPasskeyConfigs;
+      walletConfigs = { ...walletConfigs, ...patch } as TatchiConfigsInput;
     },
     postToParent,
   });
@@ -232,13 +223,14 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       authenticatorOptions: payload?.authenticatorOptions || walletConfigs?.authenticatorOptions,
       vrfWorkerConfigs: payload?.vrfWorkerConfigs || walletConfigs?.vrfWorkerConfigs,
       walletTheme: payload?.theme || walletConfigs?.walletTheme,
-      iframeWallet: {
-        ...(walletConfigs?.iframeWallet || {}),
-        walletOrigin: undefined,
-        walletServicePath: undefined,
-        rpIdOverride: payload?.rpIdOverride || walletConfigs?.iframeWallet?.rpIdOverride,
-      },
-    } as TatchiPasskeyConfigs;
+      iframeWallet: sanitizeWalletHostConfigs({
+        ...(walletConfigs || ({} as TatchiConfigsInput)),
+        iframeWallet: {
+          ...(walletConfigs?.iframeWallet || {}),
+          rpIdOverride: payload?.rpIdOverride || walletConfigs?.iframeWallet?.rpIdOverride,
+        },
+      }).iframeWallet,
+    } as TatchiConfigsInput;
     // Configure SDK embedded asset base for Lit modal/embedded components
     const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
     // Default to serving embedded assets from this wallet origin under /sdk/
