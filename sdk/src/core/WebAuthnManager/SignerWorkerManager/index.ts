@@ -200,7 +200,23 @@ export class SignerWorkerManager {
     return this.signingSessions.get(sessionId);
   }
 
-  private createSeedReadyLatch(worker: Worker, sessionId: string): {
+  /**
+   * Create a one-shot "ready" latch for WrapKeySeed delivery in a signer worker session.
+   *
+   * Returns:
+   * - `seedReady`: resolves exactly once, when the signer worker posts
+   *   `WorkerControlMessage.WRAP_KEY_SEED_READY` for this `sessionId`.
+   * - `onSeedReadyMessage`: the corresponding `message` listener. It resolves the promise and
+   *   then unregisters itself from the worker.
+   *
+   * Timing / why it exists:
+   * - Called from `reserveSignerWorkerSession(...)` immediately when a worker is reserved,
+   *   before confirmation UI is shown and before the VRF worker is asked to mint/dispense keys.
+   * - This avoids a race where the signer worker receives WrapKeySeed and emits
+   *   `WRAP_KEY_SEED_READY` while the main thread is still waiting on a user click (`requireClick`).
+   *   If we only listened inside `waitForSeedReady`, we'd risk missing that one-shot message.
+   */
+  private createWrapKeySeedReadyLatch(worker: Worker, sessionId: string): {
     seedReady: Promise<void>;
     onSeedReadyMessage: (event: MessageEvent) => void;
   } {
@@ -251,18 +267,45 @@ export class SignerWorkerManager {
   }
 
   /**
-   * Reserve a worker for a signing session.
-   * If a signerPort is provided (VRF-created channel), attach it; otherwise create a fresh MessageChannel.
-   * Returns the reserved worker and ports (vrfPort for VRF when we create the channel).
+   * Reserve a signer worker "session" (JS-side orchestration).
+   *
+   * What this does:
+   * - Reserves a specific `Worker` instance from the pool and pins it to `sessionId`.
+   * - Ensures the signer worker has a dedicated `MessagePort` attached for receiving `WrapKeySeed`
+   *   from the VRF worker (VRF → Signer channel).
+   * - Installs a "seed-ready" latch (a Promise) so callers can safely `await waitForSeedReady(sessionId)`
+   *   without racing the `WRAP_KEY_SEED_READY` event.
+   *
+   * Why the latch exists:
+   * - In `requireClick` UI flows, the VRF worker may dispense/mint `WrapKeySeed` while the UI is open.
+   *   The signer worker can emit `WRAP_KEY_SEED_READY` before the main thread starts waiting.
+   *   If we only listened inside `waitForSeedReady`, we could miss the one-shot ready message.
+   * - By wiring the listener here (at reservation time), we deterministically catch the ready signal
+   *   whether it arrives early or late.
+   *
+   * Port wiring:
+   * - The VRF worker retains one end of a `MessageChannel` and the signer worker receives the other.
+   * - This method attaches the signer-facing port via a control message (`ATTACH_WRAP_KEY_SEED_PORT`)
+   *   and waits for an ACK (`ATTACH_WRAP_KEY_SEED_PORT_OK`) before exposing the session.
+   *
+   * @param sessionId - Session identifier used to correlate MessagePorts + ready signals.
+   * @param opts.signerPort - Optional signer-facing `MessagePort` created/owned by the caller (VRF-created channel).
+   *                         If omitted, this method creates a fresh `MessageChannel` and returns `vrfPort` so the
+   *                         caller can transfer it to the VRF worker.
+   * @returns `{ worker, signerPort, vrfPort }` where `vrfPort` is only present when we created the channel here.
    */
-  async reserveSigningSession(sessionId: string, opts?: { signerPort?: MessagePort }): Promise<{ worker: Worker; signerPort?: MessagePort; vrfPort?: MessagePort }> {
+  async reserveSignerWorkerSession(sessionId: string, opts?: { signerPort?: MessagePort }): Promise<{ worker: Worker; signerPort?: MessagePort; vrfPort?: MessagePort }> {
     if (this.signingSessions.has(sessionId)) {
       throw new Error(`Signing session already exists for id: ${sessionId}`);
     }
+    // Reserve a worker from the pool for this sessionId.
     const worker = this.getWorkerFromPool();
     let signerPort = opts?.signerPort;
     let vrfPort: MessagePort | undefined;
     if (!signerPort) {
+      // If caller did not provide a signer-facing port, create a channel.
+      // - port1 => signer worker (receiver)
+      // - port2 => VRF worker (sender) returned to caller
       const channel = new MessageChannel();
       signerPort = channel.port1;
       vrfPort = channel.port2;
@@ -270,7 +313,7 @@ export class SignerWorkerManager {
 
     // Latch WRAP_KEY_SEED_READY so callers can't miss it even if it arrives
     // before they start awaiting (e.g. confirmation UI delays).
-    const { seedReady, onSeedReadyMessage } = this.createSeedReadyLatch(worker, sessionId);
+    const { seedReady, onSeedReadyMessage } = this.createWrapKeySeedReadyLatch(worker, sessionId);
     try { worker.addEventListener('message', onSeedReadyMessage); } catch { }
 
     // Attach the signerPort to the worker and wait for ACK before adding to signingSessions
@@ -283,6 +326,7 @@ export class SignerWorkerManager {
       await attachSessionPort(worker, sessionId, signerPort);
 
       // Only add to signingSessions after successful attachment
+      // (prevents callers from observing a session that can't receive WrapKeySeed yet).
       this.signingSessions.set(sessionId, {
         worker,
         wrapKeySeedPort: signerPort,
