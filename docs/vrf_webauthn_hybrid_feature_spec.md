@@ -189,6 +189,8 @@ KEK         = HKDF(WrapKeySeed, wrapKeySalt)
 near_sk     = Dec(KEK, C_near)
 ```
 
+One-liner: `WrapKeySeed = HKDF(HKDF(PRF.first_auth, "vrf-wrap-pass") || vrf_sk, "near-wrap-seed")`
+
 This ensures:
 - Fresh PRF.first required
 - VRF_sk required
