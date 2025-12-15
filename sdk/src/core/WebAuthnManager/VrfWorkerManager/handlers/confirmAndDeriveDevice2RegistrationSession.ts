@@ -5,6 +5,14 @@ import type { VRFChallenge } from '../../../types/vrf-worker';
 import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
+/**
+ * Kick off the SecureConfirm flow for Device2 registration ("link device") and return the confirmed result.
+ *
+ * This is a bundled orchestration that can:
+ * - collect a registration credential (PRF-capable),
+ * - derive a deterministic VRF keypair for the new device,
+ * - and return the data needed for storage + subsequent signing steps (tx context, VRF challenge, etc.).
+ */
 export async function confirmAndDeriveDevice2RegistrationSession(
   ctx: VrfWorkerManagerHandlerContext,
   params: {
@@ -83,4 +91,3 @@ export async function confirmAndDeriveDevice2RegistrationSession(
     encryptedVrfKeypair: data.encryptedVrfKeypair,
   };
 }
-

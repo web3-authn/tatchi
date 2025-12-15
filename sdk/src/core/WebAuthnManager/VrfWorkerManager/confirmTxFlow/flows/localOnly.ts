@@ -18,6 +18,7 @@ export async function handleLocalOnlyFlow(
   worker: Worker,
   opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
 ): Promise<void> {
+
   const { confirmationConfig, transactionSummary } = opts;
   const nearAccountId = getNearAccountId(request);
   const vrfChallenge = createRandomVRFChallenge() as VRFChallenge;

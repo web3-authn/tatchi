@@ -4,6 +4,7 @@ import {
   SecureConfirmationType,
   TransactionSummary,
   SigningSecureConfirmRequest,
+  SigningAuthMode,
 } from '../types';
 import { VRFChallenge, TransactionContext } from '../../../../types';
 import {
@@ -27,6 +28,17 @@ import { authenticatorsToAllowCredentials } from '../../../touchIdPrompt';
 import { toError } from '../../../../../utils/errors';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../../defaultConfigs';
 
+function getSigningAuthMode(request: SigningSecureConfirmRequest): SigningAuthMode {
+  if (request.type === SecureConfirmationType.SIGN_TRANSACTION) {
+    return getSignTransactionPayload(request).signingAuthMode ?? 'webauthn';
+  }
+  if (request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE) {
+    const p = request.payload as any;
+    return (p?.signingAuthMode as SigningAuthMode | undefined) ?? 'webauthn';
+  }
+  return 'webauthn';
+}
+
 export async function handleTransactionSigningFlow(
   ctx: VrfWorkerManagerContext,
   request: SigningSecureConfirmRequest,
@@ -35,9 +47,11 @@ export async function handleTransactionSigningFlow(
 ): Promise<void> {
   const { confirmationConfig, transactionSummary } = opts;
   const nearAccountId = getNearAccountId(request);
+  const signingAuthMode = getSigningAuthMode(request);
+  const usesNeeded = getTxCount(request);
 
   // 1) NEAR context + nonce reservation
-  const nearRpc = await fetchNearContext(ctx, { nearAccountId, txCount: getTxCount(request) });
+  const nearRpc = await fetchNearContext(ctx, { nearAccountId, txCount: usesNeeded });
   if (nearRpc.error && !nearRpc.transactionContext) {
     // eslint-disable-next-line no-console
     console.error('[SigningFlow] fetchNearContext failed', { error: nearRpc.error, details: nearRpc.details });
@@ -50,18 +64,21 @@ export async function handleTransactionSigningFlow(
   }
   let transactionContext = nearRpc.transactionContext as TransactionContext;
 
-  // 2) Initial VRF challenge
-  if (!ctx.vrfWorkerManager) throw new Error('VrfWorkerManager not available');
-  const rpId = ctx.touchIdPrompt.getRpId();
-  let uiVrfChallenge: VRFChallenge = await ctx.vrfWorkerManager.generateVrfChallengeForSession(
-    {
-      userId: nearAccountId,
-      rpId,
-      blockHeight: transactionContext.txBlockHeight,
-      blockHash: transactionContext.txBlockHash,
-    },
-    request.requestId,
-  );
+  // 2) Initial VRF challenge (only needed for WebAuthn credential collection)
+  let uiVrfChallenge: VRFChallenge | undefined;
+  if (signingAuthMode === 'webauthn') {
+    if (!ctx.vrfWorkerManager) throw new Error('VrfWorkerManager not available');
+    const rpId = ctx.touchIdPrompt.getRpId();
+    uiVrfChallenge = await ctx.vrfWorkerManager.generateVrfChallengeForSession(
+      {
+        userId: nearAccountId,
+        rpId,
+        blockHeight: transactionContext.txBlockHeight,
+        blockHash: transactionContext.txBlockHash,
+      },
+      request.requestId,
+    );
+  }
 
   // 3) UI confirm
   const { confirmed, confirmHandle, error: uiError } = await renderConfirmUI({
@@ -79,10 +96,37 @@ export async function handleTransactionSigningFlow(
       intentDigest: getIntentDigest(request),
       confirmed: false,
       error: uiError,
-    });
+      });
   }
 
-  // 4) JIT refresh VRF + ctx (best-effort)
+  // 4) Warm session: dispense WrapKeySeed and skip WebAuthn
+  if (signingAuthMode === 'warmSession') {
+    try {
+      if (!ctx.vrfWorkerManager) throw new Error('VrfWorkerManager not available');
+      await ctx.vrfWorkerManager.dispenseSessionKey({ sessionId: request.requestId, uses: usesNeeded });
+    } catch (err: unknown) {
+      releaseReservedNonces(ctx, nearRpc.reservedNonces);
+      closeModalSafely(false, confirmHandle);
+      const msg = String((toError(err))?.message || err || '');
+      return sendConfirmResponse(worker, {
+        requestId: request.requestId,
+        intentDigest: getIntentDigest(request),
+        confirmed: false,
+        error: msg || 'Failed to dispense warm session key',
+      });
+    }
+
+    sendConfirmResponse(worker, {
+      requestId: request.requestId,
+      intentDigest: getIntentDigest(request),
+      confirmed: true,
+      transactionContext,
+    });
+    closeModalSafely(true, confirmHandle);
+    return;
+  }
+
+  // 5) JIT refresh VRF + ctx (best-effort)
   try {
     const refreshed = await maybeRefreshVrfChallenge(ctx, request, nearAccountId);
     uiVrfChallenge = refreshed.vrfChallenge;
@@ -92,13 +136,16 @@ export async function handleTransactionSigningFlow(
     console.debug('[SigningFlow] VRF JIT refresh skipped', e);
   }
 
-  // 5) Collect authentication credential
+  // 6) Collect authentication credential
   try {
     const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
     const { authenticatorsForPrompt } = await ctx.indexedDB.clientDB.ensureCurrentPasskey(
       toAccountId(nearAccountId),
       authenticators,
     );
+    if (!uiVrfChallenge) {
+      throw new Error('Missing vrfChallenge for WebAuthn signing flow');
+    }
     console.debug('[SigningFlow] Authenticators for transaction signing', {
       nearAccountId,
       authenticatorCount: authenticatorsForPrompt.length,
@@ -109,7 +156,6 @@ export async function handleTransactionSigningFlow(
       })),
       vrfChallengePublicKey: uiVrfChallenge.vrfPublicKey,
     });
-
     const credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
       nearAccountId,
       challenge: uiVrfChallenge,
@@ -136,8 +182,12 @@ export async function handleTransactionSigningFlow(
     // 5c) Derive WrapKeySeed inside the VRF worker and deliver it to the signer worker via
     // the reserved WrapKeySeed MessagePort. Main thread only sees wrapKeySalt metadata.
     try {
+      const vrfWorkerManager = ctx.vrfWorkerManager;
+      if (!vrfWorkerManager) {
+        throw new Error('VrfWorkerManager not available for WrapKeySeed derivation');
+      }
       // Ensure VRF session is active and bound to the same account we are signing for.
-      const vrfStatus = await ctx.vrfWorkerManager.checkVrfStatus();
+      const vrfStatus = await vrfWorkerManager.checkVrfStatus();
       if (!vrfStatus.active) {
         throw new Error('VRF keypair not active in memory. VRF session may have expired or was not properly initialized. Please refresh and try again.');
       }
@@ -152,9 +202,6 @@ export async function handleTransactionSigningFlow(
       const wrapKeySalt = encryptedKeyData?.wrapKeySalt || encryptedKeyData?.iv || '';
       if (!wrapKeySalt) {
         throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
-      }
-      if (!ctx.vrfWorkerManager) {
-        throw new Error('VrfWorkerManager not available for WrapKeySeed derivation');
       }
 
       // Extract contract verification context when available.
@@ -171,7 +218,7 @@ export async function handleTransactionSigningFlow(
         const defaultRpc = PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl;
         nearRpcUrl = defaultRpc.split(',')[0] || defaultRpc;
       }
-      await ctx.vrfWorkerManager.deriveWrapKeySeedAndSendToSigner({
+      await vrfWorkerManager.mintSessionKeysAndSendToSigner({
         sessionId: request.requestId,
         prfFirstAuthB64u: dualPrfOutputs.chacha20PrfOutput,
         wrapKeySalt,

@@ -6,6 +6,12 @@ import type {
 import { validateVRFChallenge, type VRFChallenge } from '../../../types/vrf-worker';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
+/**
+ * Generate a VRF challenge and cache it under `sessionId` inside the VRF worker.
+ *
+ * This is used by SecureConfirm flows so later steps (e.g. contract verification) can rely on
+ * worker-owned challenge data instead of JS-provided state.
+ */
 export async function generateVrfChallengeForSession(
   ctx: VrfWorkerManagerHandlerContext,
   inputData: VRFInputData,
@@ -14,6 +20,11 @@ export async function generateVrfChallengeForSession(
   return generateVrfChallengeInternal(ctx, inputData, sessionId);
 }
 
+/**
+ * Generate a one-off VRF challenge without caching it in the VRF worker.
+ *
+ * Used for standalone WebAuthn prompts where we don't need to later look up the challenge by `sessionId`.
+ */
 export async function generateVrfChallengeOnce(
   ctx: VrfWorkerManagerHandlerContext,
   inputData: VRFInputData
@@ -51,4 +62,3 @@ async function generateVrfChallengeInternal(
   console.debug('VRF Manager: VRF challenge generated successfully');
   return validateVRFChallenge(data);
 }
-

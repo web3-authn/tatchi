@@ -3,6 +3,12 @@ import type { RegistrationCredentialConfirmationPayload } from '../../SignerWork
 import { requestRegistrationCredentialConfirmation as requestRegistrationCredentialConfirmationFlow } from '../confirmTxFlow/flows/requestRegistrationCredentialConfirmation';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
+/**
+ * Kick off the SecureConfirm UI flow for account registration and return the confirmed decision.
+ *
+ * This is used when the host (main thread) needs a registration credential + VRF challenge + NEAR context,
+ * but the UI/confirmation orchestration lives in the VRF worker confirmation flow.
+ */
 export async function requestRegistrationCredentialConfirmation(
   ctx: VrfWorkerManagerHandlerContext,
   params: {
@@ -34,4 +40,3 @@ export async function requestRegistrationCredentialConfirmation(
 
   return decision;
 }
-

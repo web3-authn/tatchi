@@ -9,6 +9,12 @@ import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
 import { extractPrfFromCredential } from '../../credentialsHelpers';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
+/**
+ * Unlock/load the VRF keypair into VRF worker memory using a WebAuthn authentication credential.
+ *
+ * This is the "login" / "unlock" path: the VRF worker decrypts the stored encrypted VRF keypair
+ * using PRF output, and keeps it active in-memory for subsequent operations (challenge gen, sessions, etc.).
+ */
 export async function unlockVrfKeypair(
   ctx: VrfWorkerManagerHandlerContext,
   args: {
@@ -61,4 +67,3 @@ export async function unlockVrfKeypair(
 
   return response;
 }
-

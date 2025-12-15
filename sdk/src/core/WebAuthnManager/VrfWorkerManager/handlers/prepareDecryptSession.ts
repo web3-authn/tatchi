@@ -2,6 +2,12 @@ import type { AccountId } from '../../../types/accountIds';
 import type { VRFWorkerMessage } from '../../../types/vrf-worker';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
+/**
+ * Prepare an export/decrypt session by having the VRF worker derive and deliver WrapKeySeed
+ * to the signer worker, using the VRF-owned confirmation flow.
+ *
+ * This is used by "offline export" / decrypt flows where secrets must not touch the main thread.
+ */
 export async function prepareDecryptSession(
   ctx: VrfWorkerManagerHandlerContext,
   args: {
@@ -50,4 +56,3 @@ export async function prepareDecryptSession(
     throw error;
   }
 }
-

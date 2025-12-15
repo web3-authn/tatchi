@@ -102,7 +102,7 @@ export async function fetchNearContext(
       // Provide the first reserved nonce to the worker context; worker handles per-tx assignment
       transactionContext.nextNonce = reservedNonces[0];
     } catch (error) {
-      console.warn(`[NonceManager]: Failed to reserve ${txCount} nonce(s):`, error);
+      console.debug(`[NonceManager]: Failed to reserve ${txCount} nonce(s):`, error);
       // Continue with existing nextNonce; worker may auto-increment where appropriate
     }
 
@@ -229,7 +229,7 @@ export async function renderConfirmUI({
   request: SecureConfirmRequest,
   confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,
-  vrfChallenge: VRFChallenge;
+  vrfChallenge?: VRFChallenge;
 }): Promise<{ confirmed: boolean; confirmHandle?: ConfirmUIHandle; error?: string }> {
   const nearAccountIdForUi = getNearAccountId(request);
 

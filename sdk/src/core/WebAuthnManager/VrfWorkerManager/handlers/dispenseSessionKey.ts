@@ -1,6 +1,12 @@
 import type { VRFWorkerMessage, WasmDispenseSessionKeyRequest } from '../../../types/vrf-worker';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
+/**
+ * "Warm session" path: dispense an existing VRF-owned session key to the signer worker.
+ *
+ * VRF WASM enforces TTL/usage limits for `sessionId`, then sends `{ wrap_key_seed, wrapKeySalt }`
+ * over the attached MessagePort to the signer worker. This does not prompt for WebAuthn.
+ */
 export async function dispenseSessionKey(
   ctx: VrfWorkerManagerHandlerContext,
   args: { sessionId: string; uses?: number }
@@ -24,4 +30,3 @@ export async function dispenseSessionKey(
   }
   return (response.data as any) || { sessionId: args.sessionId };
 }
-

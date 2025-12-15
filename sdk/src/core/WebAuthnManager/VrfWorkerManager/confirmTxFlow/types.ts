@@ -74,6 +74,8 @@ export enum SecureConfirmationType {
   SHOW_SECURE_PRIVATE_KEY_UI = 'showSecurePrivateKeyUi',
 }
 
+export type SigningAuthMode = 'webauthn' | 'warmSession';
+
 // V2 request envelope
 export interface SecureConfirmRequest<TPayload = unknown, TSummary = unknown> {
   schemaVersion: 2;
@@ -93,6 +95,12 @@ export interface SignTransactionPayload {
   txSigningRequests: TransactionInputWasm[];
   intentDigest: string;
   rpcCall: RpcCallPayload;
+  /**
+   * Controls whether confirmTxFlow should collect a WebAuthn credential.
+   * - `webauthn`: prompt TouchID/FaceID and derive WrapKeySeed from PRF.first_auth.
+   * - `warmSession`: skip WebAuthn and dispense the existing VRF session key to the signer worker.
+   */
+  signingAuthMode?: SigningAuthMode;
 }
 
 export interface RegisterAccountPayload {
@@ -118,6 +126,11 @@ export interface SignNep413Payload {
   nearAccountId: string;
   message: string;
   recipient: string;
+  /**
+   * Controls whether confirmTxFlow should collect a WebAuthn credential for this signing intent.
+   * See `SignTransactionPayload.signingAuthMode`.
+   */
+  signingAuthMode?: SigningAuthMode;
 }
 
 // V2 summaries (render-oriented)

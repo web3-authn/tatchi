@@ -1,6 +1,16 @@
 import type { VRFWorkerMessage, WasmClearSessionRequest } from '../../../types/vrf-worker';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
+/**
+ * Best-effort cleanup for a single VRF-owned signing session.
+ *
+ * Clears any VRF worker state bound to `sessionId`:
+ * - cached WrapKeySeed session material (TTL/uses),
+ * - cached VRF challenge (used for contract verification),
+ * - and any attached WrapKeySeed MessagePort.
+ *
+ * Used by UI "Lock" actions and as a safety valve for session lifecycle cleanup.
+ */
 export async function clearSession(
   ctx: VrfWorkerManagerHandlerContext,
   args: { sessionId: string }
@@ -29,4 +39,3 @@ export async function clearSession(
     clearedPort: false,
   };
 }
-

@@ -4,6 +4,10 @@ import type { VrfWorkerManagerHandlerContext } from './types';
 /**
  * Create a VRF-owned MessageChannel for signing and return the signer-facing port.
  * VRF retains the sibling port for WrapKeySeed delivery.
+ *
+ * This is the first step in the VRF ↔ Signer "warm session" handshake:
+ * - transfer Port1 to the VRF worker (sender),
+ * - return Port2 so the caller can transfer it to the signer worker (receiver).
  */
 export async function createSigningSessionChannel(
   ctx: VrfWorkerManagerHandlerContext,
@@ -22,4 +26,3 @@ export async function createSigningSessionChannel(
   }
   return channel.port2;
 }
-

@@ -45,12 +45,12 @@ import {
   createSigningSessionChannel,
   deriveVrfKeypairFromPrf,
   deriveVrfKeypairFromRawPrf,
-  deriveWrapKeySeedAndSendToSigner,
+  mintSessionKeysAndSendToSigner,
   dispenseSessionKey,
   generateVrfChallengeForSession,
   generateVrfChallengeOnce,
   generateVrfKeypairBootstrap,
-  getSessionStatus,
+  checkSessionStatus,
   prepareDecryptSession,
   requestRegistrationCredentialConfirmation,
   shamir3PassDecryptVrfKeypair,
@@ -89,7 +89,7 @@ export interface SessionVrfWorkerManager {
 
   generateVrfChallengeForSession(inputData: VRFInputData, sessionId: string): Promise<VRFChallenge>;
 
-  deriveWrapKeySeedAndSendToSigner(args: {
+  mintSessionKeysAndSendToSigner(args: {
     sessionId: string;
     prfFirstAuthB64u: string;
     wrapKeySalt?: string;
@@ -219,7 +219,7 @@ export class VrfWorkerManager {
    * Derive WrapKeySeed in the VRF worker and deliver it (along with PRF.second if credential provided)
    * to the signer worker via the registered port.
    */
-  async deriveWrapKeySeedAndSendToSigner(args: {
+  async mintSessionKeysAndSendToSigner(args: {
     sessionId: string;
     prfFirstAuthB64u: string;
     // Optional vault wrapKeySalt. When omitted or empty, VRF worker will generate a fresh wrapKeySalt.
@@ -234,7 +234,7 @@ export class VrfWorkerManager {
     // Optional credential for PRF.second extraction (registration or authentication)
     credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
   }): Promise<{ sessionId: string; wrapKeySalt: string }> {
-    return deriveWrapKeySeedAndSendToSigner(this.getHandlerContext(), args);
+    return mintSessionKeysAndSendToSigner(this.getHandlerContext(), args);
   }
 
   /**
@@ -258,7 +258,7 @@ export class VrfWorkerManager {
    * Query VRF-owned signing session status for UI introspection.
    * This does not prompt and does not reveal secrets; it only returns metadata.
    */
-  async getSessionStatus(args: {
+  async checkSessionStatus(args: {
     sessionId: string;
   }): Promise<{
     sessionId: string;
@@ -267,7 +267,7 @@ export class VrfWorkerManager {
     expiresAtMs?: number;
     createdAtMs?: number;
   }> {
-    return getSessionStatus(this.getHandlerContext(), args);
+    return checkSessionStatus(this.getHandlerContext(), args);
   }
 
   /**
@@ -336,11 +336,9 @@ export class VrfWorkerManager {
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
   }): Promise<{
     sessionId: string;
-    wrapKeySalt: string;
-    vrfChallenge: VRFChallenge;
     transactionContext: TransactionContext;
     intentDigest: string;
-    credential: SerializableCredential;
+    credential?: SerializableCredential;
   }> {
     return confirmAndPrepareSigningSession(this.getHandlerContext(), params);
   }

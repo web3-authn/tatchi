@@ -1,11 +1,24 @@
 import type {
   VRFWorkerMessage,
-  WasmDeriveWrapKeySeedAndSessionRequest,
+  WasmMintSessionKeysAndSendToSignerRequest,
 } from '../../../types/vrf-worker';
 import type { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
-export async function deriveWrapKeySeedAndSendToSigner(
+/**
+ * Mint/refresh a VRF-owned signing session and deliver WrapKey material to the signer worker.
+ *
+ * VRF WASM will:
+ * - (optionally) gate on `verify_authentication_response` when `contractId` + `nearRpcUrl` are provided,
+ * - derive WrapKeySeed from PRF.first_auth + the in-memory VRF secret key,
+ * - choose/generate `wrapKeySalt` (when omitted/empty),
+ * - upsert session metadata (TTL + remaining uses),
+ * - and send `{ wrap_key_seed, wrapKeySalt, prfSecond? }` to the signer worker over the attached MessagePort.
+ *
+ * The main thread never receives WrapKeySeed; it only receives `wrapKeySalt` metadata.
+ * This expects `createSigningSessionChannel` + signer port attachment to have happened for `sessionId`.
+ */
+export async function mintSessionKeysAndSendToSigner(
   ctx: VrfWorkerManagerHandlerContext,
   args: {
     sessionId: string;
@@ -19,8 +32,8 @@ export async function deriveWrapKeySeedAndSendToSigner(
   }
 ): Promise<{ sessionId: string; wrapKeySalt: string }> {
   await ctx.ensureWorkerReady(true);
-  const message: VRFWorkerMessage<WasmDeriveWrapKeySeedAndSessionRequest> = {
-    type: 'DERIVE_WRAP_KEY_SEED_AND_SESSION',
+  const message: VRFWorkerMessage<WasmMintSessionKeysAndSendToSignerRequest> = {
+    type: 'MINT_SESSION_KEYS_AND_SEND_TO_SIGNER',
     id: ctx.generateMessageId(),
     payload: {
       sessionId: args.sessionId,
@@ -34,9 +47,9 @@ export async function deriveWrapKeySeedAndSendToSigner(
       credential: args.credential,
     }
   };
-  const response = await ctx.sendMessage<WasmDeriveWrapKeySeedAndSessionRequest>(message);
+  const response = await ctx.sendMessage<WasmMintSessionKeysAndSendToSignerRequest>(message);
   if (!response.success) {
-    throw new Error(`deriveWrapKeySeedAndSendToSigner failed: ${response.error}`);
+    throw new Error(`mintSessionKeysAndSendToSigner failed: ${response.error}`);
   }
   // VRF WASM now delivers WrapKeySeed + wrapKeySalt directly to the signer worker via the
   // attached MessagePort; TS only needs to know that the session is prepared and
@@ -44,8 +57,7 @@ export async function deriveWrapKeySeedAndSendToSigner(
   const data = (response.data as unknown) as { sessionId: string; wrapKeySalt?: string } | undefined;
   const wrapKeySalt = data?.wrapKeySalt ?? args.wrapKeySalt ?? '';
   if (!wrapKeySalt) {
-    throw new Error('deriveWrapKeySeedAndSendToSigner: VRF worker did not return wrapKeySalt');
+    throw new Error('mintSessionKeysAndSendToSigner: VRF worker did not return wrapKeySalt');
   }
   return { sessionId: data?.sessionId ?? args.sessionId, wrapKeySalt };
 }
-

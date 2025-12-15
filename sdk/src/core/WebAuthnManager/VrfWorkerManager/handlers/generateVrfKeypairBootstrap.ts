@@ -3,6 +3,14 @@ import { validateVRFChallenge, type VRFChallenge } from '../../../types/vrf-work
 import type { VRFWorkerMessage, WasmGenerateVrfKeypairBootstrapRequest } from '../../../types/vrf-worker';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
+/**
+ * Registration bootstrap: generate a fresh random VRF keypair in the VRF worker and (optionally)
+ * generate a VRF challenge from it.
+ *
+ * This solves the "chicken-and-egg" problem during registration where you need a VRF challenge
+ * before you have PRF outputs to encrypt the VRF keypair. The generated VRF keypair lives in
+ * VRF worker memory until it is later encrypted with PRF output.
+ */
 export async function generateVrfKeypairBootstrap(
   ctx: VrfWorkerManagerHandlerContext,
   args: {
@@ -72,4 +80,3 @@ export async function generateVrfKeypairBootstrap(
     throw new Error(`Failed to generate bootstrap VRF keypair: ${error.message}`);
   }
 }
-

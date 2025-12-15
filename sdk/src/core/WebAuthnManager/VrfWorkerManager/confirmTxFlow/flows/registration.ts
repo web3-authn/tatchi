@@ -1,7 +1,6 @@
 import type { VrfWorkerManagerContext } from '../../';
 import type { ConfirmationConfig } from '../../../../types/signer-worker';
 import {
-  SecureConfirmationType,
   TransactionSummary,
   RegistrationSecureConfirmRequest,
 } from '../types';
@@ -19,11 +18,7 @@ import {
   ERROR_MESSAGES,
   getRegisterAccountPayload,
 } from './common';
-import {
-  ensureDualPrfForRegistration,
-  isSerializedRegistrationCredential
-} from '../../../credentialsHelpers';
-import type { WebAuthnRegistrationCredential } from '../../../../types/webauthn';
+import { ensureDualPrfForRegistration } from '../../../credentialsHelpers';
 import { toError } from '../../../../../utils/errors';
 
 export async function handleRegistrationFlow(
@@ -46,11 +41,6 @@ export async function handleRegistrationFlow(
 
   // 1) NEAR context
   const nearRpc = await fetchNearContext(ctx, { nearAccountId, txCount: 1 });
-  console.debug('[RegistrationFlow] fetched NEAR context', {
-    ok: !nearRpc.error,
-    details: nearRpc.details,
-    txBlockHeight: nearRpc.transactionContext?.txBlockHeight,
-  });
   if (nearRpc.error && !nearRpc.transactionContext) {
     return sendConfirmResponse(worker, {
       requestId: request.requestId,
@@ -85,7 +75,7 @@ export async function handleRegistrationFlow(
     transactionSummary,
     vrfChallenge: uiVrfChallenge,
   });
-  console.debug('[RegistrationFlow] renderConfirmUI done', { confirmed, uiError });
+
   if (!confirmed) {
     releaseReservedNonces(ctx, nearRpc.reservedNonces);
     console.debug('[RegistrationFlow] user cancelled');

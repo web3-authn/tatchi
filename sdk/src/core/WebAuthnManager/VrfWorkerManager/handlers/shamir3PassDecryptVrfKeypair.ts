@@ -6,6 +6,11 @@ import type {
 } from '../../../types/vrf-worker';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
+/**
+ * Shamir 3-pass (client): decrypt/unlock a VRF keypair using a server-protected envelope.
+ *
+ * On success, the VRF keypair becomes active in the VRF worker and is bound (in TS state) to `nearAccountId`.
+ */
 export async function shamir3PassDecryptVrfKeypair(
   ctx: VrfWorkerManagerHandlerContext,
   args: {
@@ -33,4 +38,3 @@ export async function shamir3PassDecryptVrfKeypair(
   }
   return response;
 }
-

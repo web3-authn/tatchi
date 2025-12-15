@@ -6,7 +6,7 @@ import type { VrfWorkerManagerHandlerContext } from './types';
  * "Global" VRF status: is the VRF keypair currently unlocked/active inside the VRF worker?
  *
  * This is NOT the same as a signing session status (WrapKeySeed session gating).
- * For per-`sessionId` signing-session status, use `getSessionStatus`.
+ * For per-`sessionId` signing-session status, use `checkSessionStatus`.
  */
 export async function checkVrfStatus(ctx: VrfWorkerManagerHandlerContext): Promise<VRFWorkerStatus> {
   try {

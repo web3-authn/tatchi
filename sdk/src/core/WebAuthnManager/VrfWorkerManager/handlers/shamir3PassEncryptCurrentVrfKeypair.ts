@@ -1,6 +1,11 @@
 import type { VRFWorkerMessage, WasmVrfWorkerRequestType } from '../../../types/vrf-worker';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
+/**
+ * Shamir 3-pass (client): encrypt the currently-unlocked VRF keypair for server lock flows.
+ *
+ * Returns ciphertext + client key share (`kek_s_b64u`) + server key id for subsequent unlock.
+ */
 export async function shamir3PassEncryptCurrentVrfKeypair(
   ctx: VrfWorkerManagerHandlerContext,
 ): Promise<{
@@ -31,4 +36,3 @@ export async function shamir3PassEncryptCurrentVrfKeypair(
   }
   return { ciphertextVrfB64u, kek_s_b64u, serverKeyId };
 }
-
