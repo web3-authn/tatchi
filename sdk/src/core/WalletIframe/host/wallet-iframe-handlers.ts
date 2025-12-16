@@ -25,9 +25,7 @@ import type {
 import type {
   ActionResult,
   GetRecentLoginsResult,
-  LoginResult,
   LoginSession,
-  LoginState,
   RegistrationResult,
   SignTransactionResult,
 } from '../../types/tatchi';
@@ -82,12 +80,6 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const pm = getTatchiPasskey();
       await pm.logoutAndClearSession();
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
-    },
-
-    PM_GET_LOGIN_STATE: async (req: Req<'PM_GET_LOGIN_STATE'>) => {
-      const pm = getTatchiPasskey();
-      const state = (await pm.getLoginSession(req.payload?.nearAccountId)).login;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result: state } });
     },
 
     PM_GET_LOGIN_SESSION: async (req: Req<'PM_GET_LOGIN_SESSION'>) => {

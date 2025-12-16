@@ -11,7 +11,7 @@
 import { test, expect } from '../setup/fixtures';
 import { bypassContractVerification } from '../setup/bypasses';
 import { mockRelayServer, mockAccessKeyLookup, mockSendTransaction } from '../setup/route-mocks';
-import { registerPasskey, loginPasskey, executeTransfer, recoverAccount } from '../setup/flows';
+import { registerPasskey, loginAndCreateSession, executeTransfer, recoverAccount } from '../setup/flows';
 import { handleInfrastructureErrors, type TestUtils } from '../setup';
 import { printLog } from '../setup/logging';
 import { BUILD_PATHS } from '@build-paths';
@@ -142,7 +142,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
       indent: 1,
     });
 
-    const login = await loginPasskey(passkey, { accountId });
+    const login = await loginAndCreateSession(passkey, { accountId });
 
     if (!login.success) {
       if (handleInfrastructureErrors(login)) {

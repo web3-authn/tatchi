@@ -91,9 +91,7 @@ import type {
   ActionResult,
   GetRecentLoginsResult,
   LoginAndCreateSessionResult,
-  LoginResult,
   LoginSession,
-  LoginState,
   RegistrationResult,
   SignTransactionResult,
 } from '../../types/tatchi';
@@ -307,7 +305,7 @@ export class WalletIframeRouter {
           const acct = payload?.result?.nearAccountId;
           Promise.resolve().then(async () => {
             try {
-              const st = await this.getLoginState(acct);
+              const { login: st } = await this.getLoginSession(acct);
               this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
             } catch {}
           }).catch(() => {});
@@ -573,7 +571,7 @@ export class WalletIframeRouter {
       });
 
       // Step 4: Update VRF status after successful registration
-      const st = await this.getLoginState(payload.nearAccountId);
+      const { login: st } = await this.getLoginSession(payload.nearAccountId);
       this.emitVrfStatusChanged({
         active: !!st.vrfActive,
         nearAccountId: st.nearAccountId,
@@ -617,26 +615,12 @@ export class WalletIframeRouter {
         },
         options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isLoginSSEEvent) }
       });
-      const st = await this.getLoginState(payload.nearAccountId);
+      const { login: st } = await this.getLoginSession(payload.nearAccountId);
       this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
       return res?.result;
     } finally {
       this.hideFrameForActivation();
     }
-  }
-
-  // Backward-compatible alias (deprecated): login also mints a warm signing session.
-  async loginPasskey(payload: Parameters<WalletIframeRouter['loginAndCreateSession']>[0]): Promise<LoginResult> {
-    const res = await this.loginAndCreateSession(payload);
-    return res as unknown as LoginResult;
-  }
-
-  async getLoginState(nearAccountId?: string): Promise<LoginState> {
-    const res = await this.post<LoginState>({
-      type: 'PM_GET_LOGIN_STATE',
-      payload: nearAccountId ? { nearAccountId } : undefined
-    });
-    return res.result;
   }
 
   async getLoginSession(nearAccountId?: string): Promise<LoginSession> {
@@ -648,7 +632,7 @@ export class WalletIframeRouter {
   }
 
   async checkVrfStatus(): Promise<PostResult<{ active: boolean; nearAccountId: string | null; sessionDuration?: number }>> {
-    const st = await this.getLoginState();
+    const { login: st } = await this.getLoginSession();
     return {
       ok: true,
       result: {
@@ -733,7 +717,7 @@ export class WalletIframeRouter {
   }
 
   async setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): Promise<void> {
-    let { nearAccountId } = await this.getLoginState();
+    let { nearAccountId } = (await this.getLoginSession()).login;
     await this.post<void>({
       type: 'PM_SET_CONFIRM_BEHAVIOR',
       payload: { behavior, nearAccountId }
@@ -741,7 +725,7 @@ export class WalletIframeRouter {
   }
 
   async setConfirmationConfig(config: ConfirmationConfig): Promise<void> {
-    let { nearAccountId } = await this.getLoginState();
+    let { nearAccountId } = (await this.getLoginSession()).login;
     await this.post<void>({
       type: 'PM_SET_CONFIRMATION_CONFIG',
       payload: { config, nearAccountId }

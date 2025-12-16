@@ -4,7 +4,14 @@ import type {
   LoginSSEvent,
 } from '../types/sdkSentEvents';
 import { LoginPhase, LoginStatus } from '../types/sdkSentEvents';
-import type { GetRecentLoginsResult, LoginResult, LoginState } from '../types/tatchi';
+import type {
+  GetRecentLoginsResult,
+  LoginAndCreateSessionResult,
+  LoginResult,
+  LoginSession,
+  LoginState,
+  SigningSessionStatus,
+} from '../types/tatchi';
 import type { PasskeyManagerContext } from './index';
 import type { AccountId } from '../types/accountIds';
 import type { WebAuthnAuthenticationCredential } from '../types/webauthn';
@@ -32,11 +39,11 @@ import { IndexedDBManager } from '../IndexedDBManager';
  * - If TouchID was required for VRF unlock: a second prompt is needed for the
  *   VRF‑anchored verification assertion (or omit `options.session` to defer).
  */
-export async function loginPasskey(
+export async function loginAndCreateSession(
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   options?: LoginHooksOptions
-): Promise<LoginResult> {
+): Promise<LoginAndCreateSessionResult> {
 
   const { onEvent, onError, afterCall } = options || {};
   onEvent?.({
@@ -77,6 +84,16 @@ export async function loginPasskey(
     // If base login failed, just return
     if (!base.result.success) return base.result;
 
+    const attachSigningSession = async (result: LoginResult): Promise<LoginAndCreateSessionResult> => {
+      if (!result?.success) return result;
+      try {
+        const signingSession: SigningSessionStatus = await context.webAuthnManager.getWarmSigningSessionStatus(nearAccountId);
+        return { ...result, signingSession };
+      } catch {
+        return result;
+      }
+    };
+
     // Resolve default warm signing session policy from configs.
     const ttlMsDefault = context.configs.signingSessionDefaults.ttlMs;
     const remainingUsesDefault = context.configs.signingSessionDefaults.remainingUses;
@@ -103,6 +120,7 @@ export async function loginPasskey(
           remainingUses,
         });
 
+        const finalResult = await attachSigningSession(base.result);
         // Emit completion now since we deferred it
         onEvent?.({
           step: 4,
@@ -112,8 +130,8 @@ export async function loginPasskey(
           nearAccountId: nearAccountId,
           clientNearPublicKey: base.result?.clientNearPublicKey || ''
         } as unknown as LoginSSEvent);
-        await afterCall?.(true, base.result);
-        return base.result;
+        await afterCall?.(true, finalResult);
+        return finalResult;
       }
       try {
         // Build a fresh VRF challenge using current block
@@ -158,7 +176,7 @@ export async function loginPasskey(
 
         const v = await verifyAuthenticationResponse(relayUrl, route, kind as 'jwt' | 'cookie', vrfChallenge, credential);
         if (v.success && v.verified) {
-          const finalResult: LoginResult = { ...base.result, jwt: v.jwt };
+          const finalResult = await attachSigningSession({ ...base.result, jwt: v.jwt });
           // Now fire completion event and afterCall since we deferred them
           onEvent?.({
             step: 4,
@@ -208,6 +226,7 @@ export async function loginPasskey(
       remainingUses,
     });
 
+    const finalResult = await attachSigningSession(base.result);
     // Fire completion event and afterCall since we deferred them.
     onEvent?.({
       step: 4,
@@ -217,8 +236,8 @@ export async function loginPasskey(
       nearAccountId: nearAccountId,
       clientNearPublicKey: base.result?.clientNearPublicKey || ''
     } as unknown as LoginSSEvent);
-    await afterCall?.(true, base.result);
-    return base.result;
+    await afterCall?.(true, finalResult);
+    return finalResult;
 
   } catch (err: any) {
     onError?.(err);
@@ -270,7 +289,7 @@ async function mintWarmSigningSession(args: {
     });
   }
 
-  await webAuthnManager.unlockSigningSessionFromCredential({
+  await webAuthnManager.mintSigningSessionFromCredential({
     nearAccountId,
     credential: effectiveCredential,
     ttlMs,
@@ -532,7 +551,7 @@ async function handleLoginUnlockVRF(
   }
 }
 
-export async function getLoginState(
+async function getLoginStateInternal(
   context: PasskeyManagerContext,
   nearAccountId?: AccountId
 ): Promise<LoginState> {
@@ -585,6 +604,20 @@ export async function getLoginState(
   }
 }
 
+export async function getLoginSession(
+  context: PasskeyManagerContext,
+  nearAccountId?: AccountId
+): Promise<LoginSession> {
+  const login = await getLoginStateInternal(context, nearAccountId);
+  if (!login?.isLoggedIn || !login.nearAccountId) return { login, signingSession: null };
+  try {
+    const signingSession = await context.webAuthnManager.getWarmSigningSessionStatus(login.nearAccountId);
+    return { login, signingSession };
+  } catch {
+    return { login, signingSession: null };
+  }
+}
+
 export async function getRecentLogins(
   context: PasskeyManagerContext
 ): Promise<GetRecentLoginsResult> {
@@ -600,7 +633,7 @@ export async function getRecentLogins(
   }
 }
 
-export async function logoutAndClearVrfSession(context: PasskeyManagerContext): Promise<void> {
+export async function logoutAndClearSession(context: PasskeyManagerContext): Promise<void> {
   const { webAuthnManager } = context;
   await webAuthnManager.clearVrfSession();
   try { webAuthnManager.getNonceManager().clear(); } catch {}

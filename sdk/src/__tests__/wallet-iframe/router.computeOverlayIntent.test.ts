@@ -33,7 +33,7 @@ test.describe('WalletIframeRouter.computeOverlayIntent', () => {
         'PM_SIGN_TXS_WITH_ACTIONS',
       ];
       const hiddenTypes = [
-        'PM_GET_LOGIN_STATE',
+        'PM_GET_LOGIN_SESSION',
         'PM_SET_THEME',
         'PM_GET_CONFIRMATION_CONFIG',
         'PM_SET_CONFIRM_BEHAVIOR',
@@ -59,7 +59,7 @@ test.describe('WalletIframeRouter.computeOverlayIntent', () => {
     expect(byType['PM_SEND_TRANSACTION']).toBe('fullscreen');
     expect(byType['PM_SIGN_TXS_WITH_ACTIONS']).toBe('fullscreen');
     // Hidden intents
-    expect(byType['PM_GET_LOGIN_STATE']).toBe('hidden');
+    expect(byType['PM_GET_LOGIN_SESSION']).toBe('hidden');
     expect(byType['PM_SET_THEME']).toBe('hidden');
     expect(byType['PM_GET_CONFIRMATION_CONFIG']).toBe('hidden');
     expect(byType['PM_SET_CONFIRM_BEHAVIOR']).toBe('hidden');

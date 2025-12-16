@@ -26,7 +26,6 @@ export type ParentToChildType =
   | 'PM_REGISTER'
   | 'PM_LOGIN'
   | 'PM_LOGOUT'
-  | 'PM_GET_LOGIN_STATE'
   | 'PM_GET_LOGIN_SESSION'
   | 'PM_SIGN_TXS_WITH_ACTIONS'
   | 'PM_SIGN_AND_SEND_TXS'
@@ -162,8 +161,6 @@ export interface PMSetConfirmBehaviorPayload { behavior: 'requireClick' | 'autoP
 
 export interface PMSetConfirmationConfigPayload { config: Record<string, unknown>; nearAccountId?: string }
 
-export interface PMGetLoginStatePayload { nearAccountId?: string }
-
 export interface PMGetLoginSessionPayload { nearAccountId?: string }
 
 export interface PMSetThemePayload { theme: 'dark' | 'light' }
@@ -211,7 +208,6 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_REGISTER', PMRegisterPayload>
   | RpcEnvelope<'PM_LOGIN', PMLoginPayload>
   | RpcEnvelope<'PM_LOGOUT'>
-  | RpcEnvelope<'PM_GET_LOGIN_STATE', PMGetLoginStatePayload>
   | RpcEnvelope<'PM_GET_LOGIN_SESSION', PMGetLoginSessionPayload>
   | RpcEnvelope<'PM_SIGN_TXS_WITH_ACTIONS', PMSignTxsPayload>
   | RpcEnvelope<'PM_SIGN_AND_SEND_TXS', PMSignAndSendTxsPayload>

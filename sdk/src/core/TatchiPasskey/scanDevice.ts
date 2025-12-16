@@ -1,6 +1,6 @@
 import type { PasskeyManagerContext } from './index';
 import { validateNearAccountId } from '../../utils/validation';
-import { getLoginState } from './login';
+import { getLoginSession } from './login';
 import type { VRFInputData } from '../types/vrf-worker';
 import type {
   DeviceLinkingQRData,
@@ -34,7 +34,7 @@ export async function linkDeviceWithScannedQRData(
     validateDeviceLinkingQRData(qrData);
 
     // 3. Get Device1's current account (the account that will receive the new key)
-    const device1LoginState = await getLoginState(context);
+    const { login: device1LoginState } = await getLoginSession(context);
 
     if (!device1LoginState.isLoggedIn || !device1LoginState.nearAccountId) {
       throw new Error('Device1 must be logged in to authorize device linking');

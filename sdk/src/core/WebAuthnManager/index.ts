@@ -60,13 +60,6 @@ export class WebAuthnManager {
 
   readonly tatchiPasskeyConfigs: TatchiConfigs;
 
-  /**
-   * Public getter for NonceManager instance
-   */
-  getNonceManager(): NonceManager {
-    return this.nonceManager;
-  }
-
   constructor(tatchiPasskeyConfigs: TatchiConfigs, nearClient: NearClient) {
     this.tatchiPasskeyConfigs = tatchiPasskeyConfigs;
     this.nearClient = nearClient;
@@ -126,14 +119,6 @@ export class WebAuthnManager {
   }
 
   /**
-   * Resolve the effective rpId used for WebAuthn operations.
-   * Delegates to TouchIdPrompt to centralize rpId selection logic.
-   */
-  getRpId(): string {
-    return this.touchIdPrompt.getRpId();
-  }
-
-  /**
    * Public pre-warm hook to initialize signer workers ahead of time.
    * Safe to call multiple times; errors are non-fatal.
    */
@@ -166,17 +151,18 @@ export class WebAuthnManager {
     this.prewarmSignerWorkers();
   }
 
-  // getContext(): WebAuthnManagerContext {
-  //   return {
-  //     touchIdPrompt: this.touchIdPrompt,
-  //     nearClient: this.nearClient,
-  //     indexedDB: IndexedDBManager,
-  //     userPreferencesManager: this.userPreferencesManager,
-  //     nonceManager: this.nonceManager,
-  //     rpIdOverride: this.touchIdPrompt.getRpId(),
-  //     nearExplorerUrl: this.tatchiPasskeyConfigs.nearExplorerUrl,
-  //   }
-  // }
+  /**
+   * Resolve the effective rpId used for WebAuthn operations.
+   * Delegates to TouchIdPrompt to centralize rpId selection logic.
+   */
+  getRpId(): string {
+    return this.touchIdPrompt.getRpId();
+  }
+
+  /** Getter for NonceManager instance */
+  getNonceManager(): NonceManager {
+    return this.nonceManager;
+  }
 
   /**
    * WebAuthnManager-level orchestrator for VRF-owned signing sessions.
@@ -205,11 +191,9 @@ export class WebAuthnManager {
     ttlMs: number;
     remainingUses: number;
   } {
-    const ttlMs =
-      this.toNonNegativeInt(args.ttlMs)
+    const ttlMs = this.toNonNegativeInt(args.ttlMs)
         ?? this.tatchiPasskeyConfigs.signingSessionDefaults.ttlMs;
-    const remainingUses =
-      this.toNonNegativeInt(args.remainingUses)
+    const remainingUses = this.toNonNegativeInt(args.remainingUses)
         ?? this.tatchiPasskeyConfigs.signingSessionDefaults.remainingUses;
     return { ttlMs, remainingUses };
   }
@@ -221,6 +205,22 @@ export class WebAuthnManager {
     const sessionId = this.generateSessionId('signing-session');
     this.activeSigningSessionIds.set(key, sessionId);
     return sessionId;
+  }
+
+  private async withSigningSession<T>(args: {
+    sessionId?: string;
+    prefix?: string;
+    options?: SigningSessionOptions;
+    handler: (sessionId: string) => Promise<T>;
+  }): Promise<T> {
+    if (typeof args.handler !== 'function') {
+      throw new Error('withSigningSession requires a handler function');
+    }
+    const sessionId = (args.sessionId || '').trim() || (args.prefix ? this.generateSessionId(args.prefix) : '');
+    if (!sessionId) {
+      throw new Error('withSigningSession requires a sessionId or prefix');
+    }
+    return await this.withSigningSessionInternal({ sessionId, options: args.options, handler: args.handler });
   }
 
   private async withSigningSessionInternal<T>(args: {
@@ -244,76 +244,6 @@ export class WebAuthnManager {
     } finally {
       this.signerWorkerManager.releaseSigningSession(args.sessionId);
     }
-  }
-
-  private async withSigningSession<T>(
-    prefix: string,
-    fn: (sessionId: string) => Promise<T>
-  ): Promise<T>;
-
-  private async withSigningSession<T>(
-    prefix: string,
-    opts: SigningSessionOptions,
-    fn: (sessionId: string) => Promise<T>
-  ): Promise<T>;
-
-  private async withSigningSession<T>(
-    prefix: string,
-    arg2: SigningSessionOptions | ((sessionId: string) => Promise<T>),
-    arg3?: (sessionId: string) => Promise<T>
-  ): Promise<T> {
-
-    const hasOptions = typeof arg2 === 'object' && typeof arg3 === 'function';
-    const options = hasOptions ? (arg2 as SigningSessionOptions) : undefined;
-    const handler = (hasOptions ? arg3 : arg2) as (sessionId: string) => Promise<T>;
-    if (typeof handler !== 'function') {
-      throw new Error('withSigningSession requires a handler function');
-    }
-
-    const sessionId = this.generateSessionId(prefix);
-    return await this.withSigningSessionInternal({ sessionId, options, handler });
-  }
-
-  private async withSigningSessionId<T>(
-    sessionId: string,
-    fn: (sessionId: string) => Promise<T>
-  ): Promise<T>;
-
-  private async withSigningSessionId<T>(
-    sessionId: string,
-    opts: SigningSessionOptions,
-    fn: (sessionId: string) => Promise<T>
-  ): Promise<T>;
-
-  private async withSigningSessionId<T>(
-    sessionId: string,
-    arg2: SigningSessionOptions | ((sessionId: string) => Promise<T>),
-    arg3?: (sessionId: string) => Promise<T>
-  ): Promise<T> {
-    if (!sessionId) {
-      throw new Error('withSigningSessionId requires a non-empty sessionId');
-    }
-
-    // Overload 1: withSigningSessionId(sessionId, handler)
-    if (typeof arg2 === 'function') {
-      const sessionHandler = arg2;
-      return await this.withSigningSessionInternal({
-        sessionId,
-        handler: sessionHandler,
-      });
-    }
-
-    // Overload 2: withSigningSessionId(sessionId, options, handler)
-    const signingSessionOptions = arg2;
-    const sessionHandler = arg3;
-    if (typeof sessionHandler !== 'function') {
-      throw new Error('withSigningSessionId requires a handler function');
-    }
-    return await this.withSigningSessionInternal({
-      sessionId,
-      options: signingSessionOptions,
-      handler: sessionHandler,
-    });
   }
 
   /**
@@ -348,10 +278,6 @@ export class WebAuthnManager {
     sessionId: string;
   }): Promise<void> {
     const nearAccountId = toAccountId(args.nearAccountId);
-    console.debug('WebAuthnManager: Preparing VRF decrypt session', {
-      nearAccountId: String(nearAccountId),
-      sessionId: args.sessionId,
-    });
     // Resolve deviceNumber consistently with signer paths so both VRF and signer
     // operate on the same vault entry. Prefer the last logged-in device for this
     // account; if unavailable, fall back to the most recently updated user row.
@@ -395,10 +321,6 @@ export class WebAuthnManager {
         sessionId: args.sessionId,
         nearAccountId,
         wrapKeySalt,
-      });
-      console.debug('WebAuthnManager: VRF decrypt session ready', {
-        nearAccountId: String(nearAccountId),
-        sessionId: args.sessionId,
       });
     } catch (error) {
       console.error('WebAuthnManager: VRF decrypt session failed', {
@@ -493,24 +415,21 @@ export class WebAuthnManager {
     success: boolean;
     nearAccountId: string;
     publicKey: string;
-    /**
-     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
-     */
     chacha20NonceB64u?: string;
     wrapKeySalt?: string;
     error?: string;
   }>{
-    return this.withSigningSession(
-      'reg',
-      { credential },
-      (sessionId) =>
+    return this.withSigningSession({
+      prefix: 'reg',
+      options: { credential },
+      handler: (sessionId) =>
         this.signerWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
           credential,
           nearAccountId: toAccountId(nearAccountId),
           options,
           sessionId,
         }),
-    );
+    });
   }
 
 
@@ -552,12 +471,6 @@ export class WebAuthnManager {
       // Generate new session ID for this signing operation
       const sessionId = `device2-sign-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
-      console.debug('[WebAuthnManager] Signing Device2 registration with stored key', {
-        nearAccountId,
-        deviceNumber,
-        sessionId,
-      });
-
       // Retrieve encrypted key data and wrapKeySalt from IndexedDB
       const encryptedKeyData = await IndexedDBManager.nearKeysDB.getEncryptedKey(
         nearAccountId,
@@ -571,7 +484,6 @@ export class WebAuthnManager {
       if (!wrapKeySalt) {
         throw new Error(`Missing wrapKeySalt for account ${nearAccountId} device ${deviceNumber}`);
       }
-      console.debug('[WebAuthnManager] Retrieved wrapKeySalt from IndexedDB:', wrapKeySalt);
 
       // === STEP 1: Create MessagePort session for WrapKeySeed delivery ===
       const signerPort = await this.vrfWorkerManager.createSigningSessionChannel(sessionId);
@@ -586,24 +498,14 @@ export class WebAuthnManager {
         credential, // VRF will extract PRF.second from this
       });
 
-      console.debug('[WebAuthnManager] WrapKeySeed sent to signer worker');
-
       // === STEP 4: Get transaction context for registration ===
       const transactionContext = await this.nonceManager.getNonceBlockHashAndHeight(this.nearClient);
 
       // === STEP 5: Determine deterministic VRF public key ===
       // Try: provided parameter → authenticator table → fallback to ephemeral VRF from challenge
       let vrfPublicKey = deterministicVrfPublicKey;
-      console.debug('[WebAuthnManager] VRF public key lookup result', {
-        vrfPublicKey,
-      });
       // Fallback to ephemeral VRF public key from challenge if still not found
       const finalVrfPublicKey = vrfPublicKey || vrfChallenge.vrfPublicKey;
-      console.debug('[WebAuthnManager] Final VRF public key for Device2 registration', {
-        source: vrfPublicKey ? (deterministicVrfPublicKey ? 'provided' : 'authenticator') : 'challenge',
-        finalVrfPublicKey,
-        ephemeralVrfPublicKey: vrfChallenge.vrfPublicKey,
-      });
 
       // === STEP 6: Signer worker signs registration transaction ===
       // WrapKeySeed and PRF.second are already in signer worker via MessagePort
@@ -617,10 +519,6 @@ export class WebAuthnManager {
         wrapKeySalt,
         deviceNumber,
         deterministicVrfPublicKey: finalVrfPublicKey,
-      });
-
-      console.debug('[WebAuthnManager] Device2 registration signed with stored key', {
-        publicKey: signerResult.publicKey,
       });
 
       return {
@@ -667,24 +565,12 @@ export class WebAuthnManager {
     serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
   }> {
     try {
-      console.debug('WebAuthnManager: Deriving deterministic VRF keypair from PRF output');
       const vrfResult = await this.vrfWorkerManager.deriveVrfKeypairFromPrf({
         credential,
         nearAccountId,
         vrfInputData,
         saveInMemory,
       });
-
-      console.debug(`Derived VRF public key: ${vrfResult.vrfPublicKey}`);
-      if (vrfResult.vrfChallenge) {
-        console.debug(`Generated VRF challenge with output: ${vrfResult.vrfChallenge.vrfOutput.substring(0, 20)}...`);
-      } else {
-        console.debug('No VRF challenge generated (vrfInputData not provided)');
-      }
-      if (vrfResult.encryptedVrfKeypair) {
-        console.debug(`Generated encrypted VRF keypair for storage`);
-      }
-      console.debug('WebAuthnManager: Deterministic VRF keypair derived successfully');
 
       const result: {
         success: boolean;
@@ -722,11 +608,6 @@ export class WebAuthnManager {
     credential: WebAuthnAuthenticationCredential;
   }): Promise<{ success: boolean; error?: string }> {
     try {
-      console.debug('WebAuthnManager: Unlocking VRF keypair', {
-        nearAccountId,
-        hasEncryptedData: !!encryptedVrfKeypair?.encryptedVrfDataB64u,
-      });
-
       const unlockResult = await this.vrfWorkerManager.unlockVrfKeypair({
         credential,
         nearAccountId,
@@ -829,95 +710,6 @@ export class WebAuthnManager {
   }
 
   /**
-   * Unlock (mint/refresh) the VRF-owned signing session for warm signing.
-   *
-   * This prompts for TouchID/FaceID to obtain PRF.first_auth, then derives WrapKeySeed
-   * inside the VRF worker and stores it under the per-account sessionId.
-   *
-   * Session policy:
-   * - `remainingUses` is decremented on `DISPENSE_SESSION_KEY` (warm signing).
-   * - `ttlMs` controls the in-worker expiry timestamp.
-   */
-  async unlockSigningSession(args: {
-    nearAccountId: AccountId;
-    remainingUses?: number;
-    ttlMs?: number;
-  }): Promise<{
-    sessionId: string;
-    status: 'active' | 'exhausted' | 'expired' | 'not_found';
-    remainingUses?: number;
-    expiresAtMs?: number;
-    createdAtMs?: number;
-  }> {
-    const nearAccountId = toAccountId(args.nearAccountId);
-    const sessionId = this.getOrCreateActiveSigningSessionId(nearAccountId);
-
-    // Ensure VRF keypair is active and bound to the same account.
-    const vrfStatus = await this.vrfWorkerManager.checkVrfStatus();
-    if (!vrfStatus.active) {
-      throw new Error('VRF keypair not active in memory. Please log in again.');
-    }
-    if (!vrfStatus.nearAccountId || String(vrfStatus.nearAccountId) !== String(nearAccountId)) {
-      throw new Error('VRF keypair active but bound to a different account. Please log in again.');
-    }
-
-    // Fetch wrapKeySalt from vault so the derived WrapKeySeed can decrypt the stored NEAR keys.
-    const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB);
-    const encryptedKeyData = await IndexedDBManager.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
-    if (!encryptedKeyData) {
-      throw new Error(`No encrypted key found for account ${nearAccountId} device ${deviceNumber}`);
-    }
-    const wrapKeySalt = encryptedKeyData.wrapKeySalt || '';
-    if (!wrapKeySalt) {
-      throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
-    }
-
-    const { ttlMs, remainingUses } = this.resolveSigningSessionPolicy(args);
-
-    // Provide contract verification context (best-effort) so the VRF worker can gate
-    // session creation on verify_authentication_response when supported.
-    const contractId = this.tatchiPasskeyConfigs.contractId;
-    const nearRpcUrl = this.tatchiPasskeyConfigs.nearRpcUrl;
-
-    // Generate a VRF challenge bound to this sessionId (cached in the VRF worker).
-    // VRF challenges must be fresh enough for on-chain verification (block-height max age).
-    // Force-refresh to avoid subtle cache issues when this is called infrequently.
-    const txCtx = await this.nonceManager.getNonceBlockHashAndHeight(this.nearClient, { force: true });
-    const vrfChallenge = await this.vrfWorkerManager.generateVrfChallengeForSession(
-      {
-        userId: String(nearAccountId),
-        rpId: this.touchIdPrompt.getRpId(),
-        blockHeight: txCtx.txBlockHeight,
-        blockHash: txCtx.txBlockHash,
-      },
-      sessionId,
-    );
-
-    // Prompt for TouchID/FaceID and extract PRF.first_auth.
-    const authenticators = await IndexedDBManager.clientDB.getAuthenticatorsByUser(nearAccountId);
-    const { authenticatorsForPrompt } = await IndexedDBManager.clientDB.ensureCurrentPasskey(
-      nearAccountId,
-      authenticators,
-    );
-    const credential = await this.touchIdPrompt.getAuthenticationCredentialsSerialized({
-      nearAccountId: String(nearAccountId),
-      challenge: vrfChallenge,
-      allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
-    });
-    await this.vrfWorkerManager.mintSessionKeysAndSendToSigner({
-      sessionId,
-      wrapKeySalt,
-      contractId,
-      nearRpcUrl,
-      ttlMs,
-      remainingUses,
-      credential,
-    });
-
-    return await this.vrfWorkerManager.checkSessionStatus({ sessionId });
-  }
-
-  /**
    * Mint/refresh a VRF-owned warm signing session using an already-collected WebAuthn credential.
    *
    * This is used to avoid a second TouchID prompt during login flows when we already
@@ -927,7 +719,7 @@ export class WebAuthnManager {
    * - This method does not initiate a WebAuthn prompt.
    * - Contract verification is optional and only performed when `contractId` + `nearRpcUrl` are provided.
    */
-  async unlockSigningSessionFromCredential(args: {
+  async mintSigningSessionFromCredential(args: {
     nearAccountId: AccountId;
     credential: WebAuthnAuthenticationCredential;
     remainingUses?: number;
@@ -984,7 +776,7 @@ export class WebAuthnManager {
    * Introspect the VRF-owned signing session for UI (no prompt, metadata only).
    * Session usage (`remainingUses`) is decremented on `DISPENSE_SESSION_KEY` calls.
    */
-  async getSigningSessionStatus(nearAccountId: AccountId): Promise<{
+  async getWarmSigningSessionStatus(nearAccountId: AccountId): Promise<{
     sessionId: string;
     status: 'active' | 'exhausted' | 'expired' | 'not_found';
     remainingUses?: number;
@@ -993,20 +785,6 @@ export class WebAuthnManager {
   }> {
     const sessionId = this.getOrCreateActiveSigningSessionId(nearAccountId);
     return await this.vrfWorkerManager.checkSessionStatus({ sessionId });
-  }
-
-  /**
-   * Explicitly clear the VRF-owned signing session material for UI "Lock" actions.
-   * This does not log out the VRF keypair; it only clears session-bound WrapKeySeed material and ports.
-   */
-  async clearSigningSession(nearAccountId: AccountId): Promise<{
-    sessionId: string;
-    clearedSession: boolean;
-    clearedChallenge: boolean;
-    clearedPort: boolean;
-  }> {
-    const sessionId = this.getOrCreateActiveSigningSessionId(nearAccountId);
-    return await this.vrfWorkerManager.clearSession({ sessionId });
   }
 
   /**
@@ -1264,7 +1042,6 @@ export class WebAuthnManager {
         } : undefined,
       });
 
-      console.debug('Registration data stored atomically');
       return true;
     });
   }
@@ -1304,20 +1081,22 @@ export class WebAuthnManager {
     onEvent?: (update: onProgressEvents) => void,
   }): Promise<SignTransactionResult[]> {
 
-    if (transactions.length === 0) {
-      throw new Error('No payloads provided for signing');
-    }
-    const activeSessionId = this.getOrCreateActiveSigningSessionId(toAccountId(rpcCall.nearAccountId));
-    return this.withSigningSessionId(activeSessionId, (sessionId) =>
-      this.signerWorkerManager.signTransactionsWithActions({
-        transactions,
-        rpcCall,
-        confirmationConfigOverride,
-        onEvent,
-        sessionId,
-      })
-    );
-  }
+	    if (transactions.length === 0) {
+	      throw new Error('No payloads provided for signing');
+	    }
+	    const activeSessionId = this.getOrCreateActiveSigningSessionId(toAccountId(rpcCall.nearAccountId));
+	    return this.withSigningSession({
+	      sessionId: activeSessionId,
+	      handler: (sessionId) =>
+	        this.signerWorkerManager.signTransactionsWithActions({
+	          transactions,
+	          rpcCall,
+	          confirmationConfigOverride,
+	          onEvent,
+	          sessionId,
+	        }),
+	    });
+	  }
 
   async signDelegateAction({
     delegate,
@@ -1343,35 +1122,24 @@ export class WebAuthnManager {
       nearAccountId,
     };
 
-    // Lightweight debug logs to help trace delegate signing stalls.
-    // eslint-disable-next-line no-console
-    console.debug('[WebAuthnManager][delegate] start', {
-      nearAccountId: String(nearAccountId),
-      receiverId: delegate.receiverId,
-      actions: delegate.actions?.length ?? 0,
-      nonce: delegate.nonce,
-      maxBlockHeight: delegate.maxBlockHeight,
-      rpcCall: normalizedRpcCall,
-    });
-
-    try {
-      const activeSessionId = this.getOrCreateActiveSigningSessionId(nearAccountId);
-      return await this.withSigningSessionId(activeSessionId, (sessionId) => {
-        // eslint-disable-next-line no-console
-        console.debug('[WebAuthnManager][delegate] session created', { sessionId });
-        return this.signerWorkerManager.signDelegateAction({
-          delegate,
-          rpcCall: normalizedRpcCall,
-          confirmationConfigOverride,
-          onEvent,
-          sessionId,
-        });
-      });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[WebAuthnManager][delegate] failed', err);
-      throw err;
-    }
+	    try {
+	      const activeSessionId = this.getOrCreateActiveSigningSessionId(nearAccountId);
+	      return await this.withSigningSession({ sessionId: activeSessionId, handler: (sessionId) => {
+	        // eslint-disable-next-line no-console
+	        console.debug('[WebAuthnManager][delegate] session created', { sessionId });
+	        return this.signerWorkerManager.signDelegateAction({
+	          delegate,
+	          rpcCall: normalizedRpcCall,
+	          confirmationConfigOverride,
+	          onEvent,
+	          sessionId,
+	        });
+	      }});
+	    } catch (err) {
+	      // eslint-disable-next-line no-console
+	      console.error('[WebAuthnManager][delegate] failed', err);
+	      throw err;
+	    }
   }
 
   async signNEP413Message(payload: {
@@ -1388,17 +1156,18 @@ export class WebAuthnManager {
     state?: string;
     error?: string;
   }> {
-    try {
-      const activeSessionId = this.getOrCreateActiveSigningSessionId(payload.accountId);
-      const contractId = this.tatchiPasskeyConfigs.contractId;
-      const nearRpcUrl = (this.tatchiPasskeyConfigs.nearRpcUrl.split(',')[0] || this.tatchiPasskeyConfigs.nearRpcUrl);
-      const result = await this.withSigningSessionId(activeSessionId, (sessionId) =>
-        this.signerWorkerManager.signNep413Message({ ...payload, sessionId, contractId, nearRpcUrl })
-      );
-      if (result.success) {
-        console.debug('WebAuthnManager: NEP-413 message signed successfully');
-        return result;
-      } else {
+	    try {
+	      const activeSessionId = this.getOrCreateActiveSigningSessionId(payload.accountId);
+	      const contractId = this.tatchiPasskeyConfigs.contractId;
+	      const nearRpcUrl = (this.tatchiPasskeyConfigs.nearRpcUrl.split(',')[0] || this.tatchiPasskeyConfigs.nearRpcUrl);
+	      const result = await this.withSigningSession({
+	        sessionId: activeSessionId,
+	        handler: (sessionId) =>
+	          this.signerWorkerManager.signNep413Message({ ...payload, sessionId, contractId, nearRpcUrl }),
+	      });
+	      if (result.success) {
+	        return result;
+	      } else {
         throw new Error(`NEP-413 signing failed: ${result.error || 'Unknown error'}`);
       }
     } catch (error: any) {
@@ -1427,25 +1196,25 @@ export class WebAuthnManager {
   ///////////////////////////////////////
 
   /** Worker-driven export: two-phase V2 (collect PRF → decrypt → show UI) */
-  async exportNearKeypairWithUIWorkerDriven(
-    nearAccountId: AccountId,
-    options?: { variant?: 'drawer'|'modal', theme?: 'dark'|'light' }
-  ): Promise<void> {
-    await this.withSigningSession('export-session', async (sessionId) => {
-      // Phase 1: collect PRF via LocalOnly(DECRYPT_PRIVATE_KEY_WITH_PRF) inside VRF worker
-      // and derive WrapKeySeed with the vault-provided wrapKeySalt.
-      await this.confirmDecryptAndDeriveWrapKeySeed({ nearAccountId, sessionId });
+	  async exportNearKeypairWithUIWorkerDriven(
+	    nearAccountId: AccountId,
+	    options?: { variant?: 'drawer'|'modal', theme?: 'dark'|'light' }
+	  ): Promise<void> {
+	    await this.withSigningSession({ prefix: 'export-session', handler: async (sessionId) => {
+	      // Phase 1: collect PRF via LocalOnly(DECRYPT_PRIVATE_KEY_WITH_PRF) inside VRF worker
+	      // and derive WrapKeySeed with the vault-provided wrapKeySalt.
+	      await this.confirmDecryptAndDeriveWrapKeySeed({ nearAccountId, sessionId });
 
       // Phase 2 + 3: decrypt inside signer worker using the reserved session,
       // then show the export viewer UI.
-      return this.signerWorkerManager.exportNearKeypairUi({
-        nearAccountId,
-        variant: options?.variant,
-        theme: options?.theme,
-        sessionId,
-      });
-    });
-  }
+	      return this.signerWorkerManager.exportNearKeypairUi({
+	        nearAccountId,
+	        variant: options?.variant,
+	        theme: options?.theme,
+	        sessionId,
+	      });
+	    }});
+	  }
 
   async exportNearKeypairWithUI(
     nearAccountId: AccountId,
@@ -1545,20 +1314,20 @@ export class WebAuthnManager {
         throw new Error('Dual PRF outputs required for account recovery - both AES and Ed25519 PRF outputs must be available');
       }
 
-      // Extract PRF.first for WrapKeySeed derivation
-      // Orchestrate a VRF-owned signing session with WrapKeySeed derivation, then ask
-      // the signer to recover and re-encrypt the NEAR keypair.
-      const result = await this.withSigningSession(
-        'recover',
-        { credential: authenticationCredential },
-        (sessionId) =>
-          this.signerWorkerManager.recoverKeypairFromPasskey({
-            credential: authenticationCredential,
-            accountIdHint,
-            sessionId,
-          }),
-      );
-      return result;
+	      // Extract PRF.first for WrapKeySeed derivation
+	      // Orchestrate a VRF-owned signing session with WrapKeySeed derivation, then ask
+	      // the signer to recover and re-encrypt the NEAR keypair.
+	      const result = await this.withSigningSession({
+	        prefix: 'recover',
+	        options: { credential: authenticationCredential },
+	        handler: (sessionId) =>
+	          this.signerWorkerManager.recoverKeypairFromPasskey({
+	            credential: authenticationCredential,
+	            accountIdHint,
+	            sessionId,
+	          }),
+	      });
+	      return result;
 
     } catch (error: any) {
       console.error('WebAuthnManager: Deterministic keypair derivation error:', error);

@@ -3,6 +3,7 @@ import type { ConfirmationConfig } from './signer-worker';
 import type {
   ActionResult,
   DelegateRelayResult,
+  LoginAndCreateSessionResult,
   LoginResult,
   RegistrationResult,
   SignAndSendDelegateActionResult,
@@ -590,7 +591,7 @@ export interface RegistrationHooksOptions {
 export interface LoginHooksOptions {
   onEvent?: EventCallback<LoginSSEvent>;
   onError?: (error: Error) => void;
-  afterCall?: AfterCall<LoginResult>;
+  afterCall?: AfterCall<LoginAndCreateSessionResult>;
   // Optional: request a server session (JWT in body or HttpOnly cookie)
   session?: {
     // 'jwt' returns the token in the JSON body; 'cookie' sets HttpOnly cookie

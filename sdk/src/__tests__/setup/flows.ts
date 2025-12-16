@@ -107,7 +107,7 @@ export interface LoginFlowResult {
   raw?: any;
 }
 
-export async function loginPasskey(
+export async function loginAndCreateSession(
   passkey: PasskeyFixture,
   options: LoginFlowOptions
 ): Promise<LoginFlowResult> {

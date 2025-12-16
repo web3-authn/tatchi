@@ -8,7 +8,7 @@ import {
   type EncryptedVRFKeypair,
   type ServerEncryptedVrfKeypair
 } from '../types/vrf-worker';
-import { getLoginState } from './login';
+import { getLoginSession } from './login';
 import type { PasskeyManagerContext } from './index';
 import type { WebAuthnRegistrationCredential } from '../types';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
@@ -645,7 +645,7 @@ export class LinkDeviceFlow {
         });
         // Refresh local login state so downstream consumers pick up the device-specific
         // public key without requiring a manual re-login.
-        try { await getLoginState(this.context, accountId); } catch {}
+        try { await getLoginSession(this.context, accountId); } catch {}
       } catch (unlockError: any) {
         console.warn('LinkDeviceFlow: TouchID VRF unlock failed during auto-login:', unlockError);
         // Initialize current user even if VRF unlock fails; transactions will surface

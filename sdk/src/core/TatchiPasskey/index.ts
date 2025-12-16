@@ -1,5 +1,10 @@
 import { WebAuthnManager } from '../WebAuthnManager';
-import { loginPasskey, getLoginState, getRecentLogins, logoutAndClearVrfSession } from './login';
+import {
+  loginAndCreateSession,
+  getLoginSession,
+  getRecentLogins,
+  logoutAndClearSession,
+} from './login';
 import {
   executeAction,
   signTransactionsWithActions,
@@ -380,21 +385,17 @@ export class TatchiPasskey {
     }
     // Initialize current user before login
     await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient);
-    const res = await loginPasskey(this.getContext(), toAccountId(nearAccountId), options);
-    let signingSession: LoginAndCreateSessionResult['signingSession'] | undefined;
-    if (res?.success) {
-      try { signingSession = await this.webAuthnManager.getSigningSessionStatus(toAccountId(nearAccountId)); } catch {}
-    }
+    const res = await loginAndCreateSession(this.getContext(), toAccountId(nearAccountId), options);
     // Best-effort warm-up after successful login (non-blocking)
     try { void this.warmCriticalResources(nearAccountId); } catch {}
-    return { ...res, ...(signingSession ? { signingSession } : {}) };
+    return res;
   }
 
   /**
    * Logout: clears VRF keypair and all in-worker session state.
    */
   async logoutAndClearSession(): Promise<void> {
-    await logoutAndClearVrfSession(this.getContext());
+    await logoutAndClearSession(this.getContext());
     // Also clear wallet-origin VRF session if service iframe is active
     if (this.iframeRouter) {
       try { await this.iframeRouter.clearVrfSession?.(); } catch {}
@@ -410,14 +411,7 @@ export class TatchiPasskey {
       try { await this.iframeRouter.prefetchBlockheight(); } catch {}
       return session;
     }
-    const login = await getLoginState(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
-    if (!login?.isLoggedIn || !login.nearAccountId) return { login, signingSession: null };
-    try {
-      const signingSession = await this.webAuthnManager.getSigningSessionStatus(toAccountId(login.nearAccountId));
-      return { login, signingSession };
-    } catch {
-      return { login, signingSession: null };
-    }
+    return await getLoginSession(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
   }
 
   /**

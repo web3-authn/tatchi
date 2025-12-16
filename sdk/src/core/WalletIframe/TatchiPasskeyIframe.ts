@@ -28,7 +28,6 @@ import type {
   ActionResult,
   GetRecentLoginsResult,
   LoginAndCreateSessionResult,
-  LoginResult,
   LoginSession,
   LoginState,
   RegistrationResult,
@@ -216,19 +215,8 @@ export class TatchiPasskeyIframe {
     }
   }
 
-  // Backward-compatible alias (deprecated)
-  async loginPasskey(nearAccountId: string, options?: LoginHooksOptions): Promise<LoginResult> {
-    const res = await this.loginAndCreateSession(nearAccountId, options);
-    return res as unknown as LoginResult;
-  }
-
   async logoutAndClearSession(): Promise<void> {
     await this.router.clearVrfSession();
-  }
-
-  // Backward-compatible alias (deprecated)
-  async logoutAndClearVrfSession(): Promise<void> {
-    await this.logoutAndClearSession();
   }
 
   async getLoginSession(nearAccountId?: string): Promise<LoginSession> {
@@ -243,11 +231,6 @@ export class TatchiPasskeyIframe {
       return { login, signingSession: null };
     }
     return await this.router.getLoginSession(nearAccountId);
-  }
-
-  // Backward-compatible alias (deprecated)
-  async getLoginState(nearAccountId?: string): Promise<LoginState> {
-    return (await this.getLoginSession(nearAccountId)).login;
   }
 
   async signTransactionsWithActions(args: {

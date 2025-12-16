@@ -16,7 +16,7 @@ This yields: strong rpId binding (WebAuthn), freshness anchored on chain (VRF + 
 - One TouchID prompt when Shamir auto‑unlock succeeds; clean fallback when it doesn’t.
 
 ## Client Flow
-- Inputs: `session?: { kind: 'jwt' | 'cookie'; relayUrl?: string; route?: string }` on `loginPasskey()`.
+- Inputs: `session?: { kind: 'jwt' | 'cookie'; relayUrl?: string; route?: string }` on `loginAndCreateSession()`.
 
 1) Shamir auto‑unlock path (no prompt)
 - Try `shamir3PassDecryptVrfKeypair`.

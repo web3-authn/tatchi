@@ -155,7 +155,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
         offVrf = client.onVrfStatusChanged?.(async (status: { active: boolean; nearAccountId: string | null; sessionDuration?: number }) => {
           if (cancelled) return;
           if (status?.active && status?.nearAccountId) {
-            const state = await client.getLoginState(status.nearAccountId);
+            const { login: state } = await client.getLoginSession(status.nearAccountId);
             // Ensure local preferences are scoped to this user
             tatchi.userPreferences.setCurrentUser(toAccountId(status.nearAccountId));
             setLoginState(prev => ({
@@ -176,7 +176,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
         });
 
         // Reflect initial status
-        const st = await client.getLoginState();
+        const { login: st } = await client.getLoginSession();
         if (st?.vrfActive && st?.nearAccountId) {
           setLoginState(prev => ({
             ...prev,
@@ -352,7 +352,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
       const pmClient = pmIframeRef.current;
       if (walletIframeConnected && pmClient) {
         try {
-          const st = await pmClient.getLoginState();
+          const { login: st } = await pmClient.getLoginSession();
           if (st?.vrfActive && st?.nearAccountId) {
             setLoginState(prevState => ({
               ...prevState,
