@@ -122,8 +122,8 @@ export async function loginPasskey(
     const events: any[] = [];
 
     try {
-      console.log(`[flow:login] invoking loginPasskey for ${args.accountId}`);
-      return utils.passkeyManager.loginPasskey(toAccountId(args.accountId), {
+      console.log(`[flow:login] invoking loginAndCreateSession for ${args.accountId}`);
+      return utils.passkeyManager.loginAndCreateSession(toAccountId(args.accountId), {
         onEvent: (event: any) => {
           events.push(event);
           console.log(`[flow:login]   -> ${event.phase} | ${event.message}`);

@@ -160,10 +160,10 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
           const passkeyManager = new TatchiPasskey(runtimeConfigs);
           // Test basic functionality
           try {
-            const loginState = await passkeyManager.getLoginState();
-            console.log('[setup:browser]   -> getLoginState test successful:', loginState);
+            const loginState = (await passkeyManager.getLoginSession()).login;
+            console.log('[setup:browser]   -> getLoginSession test successful:', loginState);
           } catch (testError: any) {
-            console.warn('[setup:browser]   -> getLoginState test failed:', testError.message);
+            console.warn('[setup:browser]   -> getLoginSession test failed:', testError.message);
           }
 
           // Store in window for test access

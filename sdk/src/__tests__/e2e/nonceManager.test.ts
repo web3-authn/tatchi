@@ -34,7 +34,7 @@ test.describe('NonceManager Integration Tests', () => {
           throw new Error(`Registration failed: ${registrationResult.error}`);
         }
 
-        const loginResult = await passkeyManager.loginPasskey(testAccountId);
+        const loginResult = await passkeyManager.loginAndCreateSession(testAccountId);
         if (!loginResult.success) {
           throw new Error(`Login failed: ${loginResult.error}`);
         }
@@ -111,7 +111,7 @@ test.describe('NonceManager Integration Tests', () => {
           throw new Error(`Registration failed: ${registrationResult.error}`);
         }
 
-        const loginResult = await passkeyManager.loginPasskey(testAccountId);
+        const loginResult = await passkeyManager.loginAndCreateSession(testAccountId);
         if (!loginResult.success) {
           throw new Error(`Login failed: ${loginResult.error}`);
         }
@@ -193,7 +193,7 @@ test.describe('NonceManager Integration Tests', () => {
           throw new Error(`Registration failed: ${registrationResult.error}`);
         }
 
-        const loginResult = await passkeyManager.loginPasskey(testAccountId);
+        const loginResult = await passkeyManager.loginAndCreateSession(testAccountId);
         if (!loginResult.success) {
           throw new Error(`Login failed: ${loginResult.error}`);
         }

@@ -11,7 +11,7 @@ test.describe('confirmTxFlow – success paths', () => {
     await setupBasicPasskeyTest(page);
   });
 
-  test('LocalOnly: decryptPrivateKeyWithPrf returns credential + prfOutput', async ({ page }) => {
+  test('LocalOnly: decryptPrivateKeyWithPrf returns credential (no prfOutput)', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.handle);
       const types = await import(paths.types);
@@ -71,8 +71,8 @@ test.describe('confirmTxFlow – success paths', () => {
     }, { paths: IMPORT_PATHS });
 
     expect(result.ok).toBe(true);
-    expect(typeof result.prf).toBe('string');
-    expect(result.prf.length).toBeGreaterThan(0);
+    // LocalOnly decrypt now forwards the credential and lets the VRF worker extract PRF internally.
+    expect(result.prf).toBeUndefined();
     expect(result.cred?.id).toBe('cred-id');
     // LocalOnly decrypt flows should not surface wrap key material on the main thread.
     expect(result.wrapKeySeed).toBeUndefined();
@@ -329,6 +329,7 @@ test.describe('confirmTxFlow – success paths', () => {
       const handle = mod.handlePromptUserConfirmInJsMainThread as Function;
 
       let refreshed = 0;
+      let mintArgs: any = null;
       const ctx: any = {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
@@ -371,7 +372,8 @@ test.describe('confirmTxFlow – success paths', () => {
           async checkVrfStatus() {
             return { active: true, nearAccountId: 'nep.testnet' };
           },
-          async mintSessionKeysAndSendToSigner() {
+          async mintSessionKeysAndSendToSigner(args: any) {
+            mintArgs = args;
             return;
           },
         },
@@ -418,6 +420,8 @@ test.describe('confirmTxFlow – success paths', () => {
           nearAccountId: 'nep.testnet',
           message: 'hello-world',
           recipient: 'receiver.testnet',
+          contractId: 'custom-contract.testnet',
+          nearRpcUrl: 'https://rpc.custom.testnet',
         },
       } as any;
 
@@ -434,6 +438,7 @@ test.describe('confirmTxFlow – success paths', () => {
         vrf: resp?.vrfChallenge,
         tx: resp?.transactionContext,
         refreshed,
+        mintArgs,
       };
     }, { paths: IMPORT_PATHS });
 
@@ -441,6 +446,8 @@ test.describe('confirmTxFlow – success paths', () => {
     expect(result.vrf?.vrfOutput).toBe('nep-out');
     expect(result.tx?.nextNonce).toBe('11');
     expect(result.refreshed).toBeGreaterThanOrEqual(0);
+    expect(result.mintArgs?.contractId).toBe('custom-contract.testnet');
+    expect(result.mintArgs?.nearRpcUrl).toBe('https://rpc.custom.testnet');
     // NEP-413 signing also must not expose PRF output.
     expect(result.prf).toBeUndefined();
   });

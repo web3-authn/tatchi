@@ -380,14 +380,16 @@ test.describe('VRF Worker Manager Integration Test', () => {
           }
         });
 
-        // Test with different PRF output by supplying a distinct raw PRF string
+        // Test with different PRF output by supplying a credential with a distinct PRF salt
         console.log('Testing with different PRF output...');
-        const randomBytes = crypto.getRandomValues(new Uint8Array(32));
-        const differentPrfOutput = (window as any).base64UrlEncode(randomBytes);
-        const derivedResult3 = await vrfWorkerManager.deriveVrfKeypairFromRawPrf({
-          prfOutput: differentPrfOutput,
+        const cred3 = await getCredentialForAccount(`${testConfig.ACCOUNT_ID}-alt-prf`);
+        const derivedResult3 = await vrfWorkerManager.deriveVrfKeypairFromPrf({
+          credential: cred3,
           nearAccountId: testConfig.ACCOUNT_ID as AccountId,
-          vrfInputData: testConfig.VRF_INPUT_PARAMS
+          vrfInputData: {
+            ...testConfig.VRF_INPUT_PARAMS,
+            rpId: configs.rpId
+          }
         });
 
         // Verify deterministic behavior

@@ -28,7 +28,7 @@ test.describe('Example TatchiPasskey Usage', () => {
       // Example: Test some TatchiPasskey functionality
       // You could test login state, configuration, etc.
       try {
-        const loginState = await passkeyManager.getLoginState();
+        const loginState = (await passkeyManager.getLoginSession()).login;
         return {
           success: true,
           hasPasskeyManager: !!passkeyManager,

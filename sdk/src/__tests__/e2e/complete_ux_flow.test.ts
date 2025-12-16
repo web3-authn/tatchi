@@ -132,7 +132,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
           });
         }
       })).then(async () => {
-        const loginState = await utils.passkeyManager.getLoginState();
+        const loginState = (await utils.passkeyManager.getLoginSession()).login;
         return { workerResults, loginState };
       });
     }, { buildPaths: BUILD_PATHS });
@@ -208,7 +208,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
     const finalState = await passkey.withTestUtils(async ({ accountId: id }) => {
       const utils = (window as any).testUtils as TestUtils;
       const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
-      const state = await utils.passkeyManager.getLoginState(toAccountId(id));
+      const state = (await utils.passkeyManager.getLoginSession(toAccountId(id))).login;
       const recent = await utils.passkeyManager.getRecentLogins();
       return { state, recent };
     }, { accountId });
