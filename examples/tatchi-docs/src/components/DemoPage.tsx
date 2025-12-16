@@ -123,8 +123,8 @@ export const DemoPage: React.FC = () => {
     if (!nearAccountId) return;
     setSessionStatusLoading(true);
     try {
-      const status = await tatchi.getSigningSessionStatus({ nearAccountId });
-      setSessionStatus(status);
+      const sess = await tatchi.getLoginSession(nearAccountId);
+      setSessionStatus(sess?.signingSession || null);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       toast.error(`Failed to fetch session status: ${message}`, { id: 'session-status' });
@@ -151,35 +151,33 @@ export const DemoPage: React.FC = () => {
     const ttlMs = typeof ttlSeconds === 'number' ? ttlSeconds * 1000 : undefined;
 
     setUnlockLoading(true);
-    toast.loading('Unlocking signing session…', { id: 'unlock-session' });
+    toast.loading('Logging in & creating session…', { id: 'unlock-session' });
     try {
-      const status = await tatchi.unlockSigningSession({
-        nearAccountId,
-        remainingUses,
-        ttlMs,
+      await tatchi.loginAndCreateSession(nearAccountId, {
+        signingSession: { ttlMs, remainingUses },
       });
-      setSessionStatus(status);
-      toast.success('Signing session unlocked', { id: 'unlock-session' });
+      await refreshSessionStatus();
+      toast.success('Session ready', { id: 'unlock-session' });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      toast.error(`Failed to unlock session: ${message}`, { id: 'unlock-session' });
+      toast.error(`Failed to create session: ${message}`, { id: 'unlock-session' });
     } finally {
       setUnlockLoading(false);
     }
-  }, [nearAccountId, sessionRemainingUsesInput, sessionTtlSecondsInput, tatchi]);
+  }, [nearAccountId, sessionRemainingUsesInput, sessionTtlSecondsInput, tatchi, refreshSessionStatus]);
 
   const handleClearSession = useCallback(async () => {
     if (!nearAccountId) return;
-    toast.loading('Locking signing session…', { id: 'clear-session' });
+    toast.loading('Logging out…', { id: 'clear-session' });
     try {
-      await tatchi.clearSigningSession({ nearAccountId });
-      toast.success('Signing session locked', { id: 'clear-session' });
-      await refreshSessionStatus();
+      await tatchi.logoutAndClearSession();
+      toast.success('Logged out', { id: 'clear-session' });
+      setSessionStatus(null);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      toast.error(`Failed to lock session: ${message}`, { id: 'clear-session' });
+      toast.error(`Failed to logout: ${message}`, { id: 'clear-session' });
     }
-  }, [nearAccountId, refreshSessionStatus, tatchi]);
+  }, [nearAccountId, tatchi]);
 
   const canExecuteGreeting = useCallback(
     (val: string, loggedIn: boolean, accountId?: string | null) =>
@@ -270,7 +268,7 @@ export const DemoPage: React.FC = () => {
   const handleSignDelegateGreeting = useCallback(async () => {
     if (!canExecuteGreeting(greetingInput, isLoggedIn, nearAccountId)) return;
 
-    const loginState = await tatchi.getLoginState();
+    const { login: loginState } = await tatchi.getLoginSession();
 
     setDelegateLoading(true);
     try {
@@ -492,7 +490,7 @@ export const DemoPage: React.FC = () => {
       <div className="action-section">
         <h2 className="demo-subtitle">VRF Signing Session</h2>
         <div className="action-text">
-          Unlock a warm signing session with configurable <code>remaining_uses</code> and TTL.
+          Create a warm signing session with configurable <code>remaining_uses</code> and TTL.
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
@@ -544,12 +542,12 @@ export const DemoPage: React.FC = () => {
             <LoadingButton
               onClick={handleUnlockSession}
               loading={unlockLoading}
-              loadingText="Unlocking..."
+              loadingText="Creating..."
               variant="primary"
               size="medium"
               style={{ width: 180 }}
             >
-              Unlock Session
+              Create Session
             </LoadingButton>
             <LoadingButton
               onClick={refreshSessionStatus}
@@ -564,12 +562,12 @@ export const DemoPage: React.FC = () => {
             <LoadingButton
               onClick={handleClearSession}
               loading={false}
-              loadingText="Lock Session"
+              loadingText="Logging out..."
               variant="secondary"
               size="medium"
               style={{ width: 160 }}
             >
-              Lock Session
+              Logout
             </LoadingButton>
           </div>
         </div>

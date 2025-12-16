@@ -18,7 +18,7 @@ By default, every backend API call requiring authentication triggers a WebAuthn 
 ### Client Configuration
 
 ```typescript
-const result = await passkeyManager.loginPasskey('alice.testnet', {
+const result = await passkeyManager.loginAndCreateSession('alice.testnet', {
   session: {
     kind: 'jwt',  // or 'cookie'
     relayUrl: 'https://relay.example.com',
@@ -95,7 +95,7 @@ When Shamir unlock fails:
 **Without sessions:**
 ```typescript
 // Every API call triggers TouchID
-await passkeyManager.loginPasskey('alice.testnet')
+await passkeyManager.loginAndCreateSession('alice.testnet')
 await apiCall1()  // TouchID prompt
 await apiCall2()  // TouchID prompt
 await apiCall3()  // TouchID prompt
@@ -104,7 +104,7 @@ await apiCall3()  // TouchID prompt
 **With sessions:**
 ```typescript
 // One TouchID at login, then session-based auth
-await passkeyManager.loginPasskey('alice.testnet', {
+await passkeyManager.loginAndCreateSession('alice.testnet', {
   session: { kind: 'jwt', relayUrl: 'https://relay.example.com' }
 })
 await apiCall1()  // No prompt, uses session
@@ -138,13 +138,13 @@ cookie: {
 
 ```typescript
 // Login with session
-await passkeyManager.loginPasskey('alice.testnet', { session: { kind: 'jwt', relayUrl } })
+await passkeyManager.loginAndCreateSession('alice.testnet', { session: { kind: 'jwt', relayUrl } })
 
 // SDK stores token internally
 // Subsequent signing operations include it automatically
 
 // Logout clears session
-await passkeyManager.logout()
+await passkeyManager.logoutAndClearSession()
 ```
 
 ## Troubleshooting

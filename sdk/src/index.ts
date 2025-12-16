@@ -25,6 +25,9 @@ export type {
   RegistrationResult,
   // Login
   LoginResult,
+  LoginAndCreateSessionResult,
+  LoginSession,
+  SigningSessionStatus,
   // Actions
   ActionResult,
 } from './core/types/tatchi';

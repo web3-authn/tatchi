@@ -70,7 +70,7 @@ You can also combine registration events with transaction/login events using a s
 All of these flows share a common shape:
 
 - `registerPasskey` / `registerPasskeyWithConfig`
-- `loginPasskey`
+- `loginAndCreateSession`
 - `executeAction`
 - `signAndSendTransactions`
 - `signTransactionsWithActions`
@@ -137,14 +137,14 @@ registerPasskey(accountId, {
 
 
 
-## Login (`loginPasskey`)
+## Login (`loginAndCreateSession`)
 
 ```ts
 import type { LoginSSEvent } from '@tatchi-xyz/sdk/react'
 ```
 
 ```ts
-loginPasskey(accountId, {
+loginAndCreateSession(accountId, {
   onEvent: (event: LoginSSEvent) => {
     console.log(event.step, event.phase, event.status, event.message)
   },
@@ -303,7 +303,7 @@ registerPasskey(accountId, {
   onEvent: (e) => handleEvent(e),
 })
 
-loginPasskey(accountId, {
+loginAndCreateSession(accountId, {
   onEvent: (e) => handleEvent(e),
 })
 

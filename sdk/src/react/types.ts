@@ -42,7 +42,14 @@ import {
 } from '../core/types/sdkSentEvents';
 import type { DelegateActionInput } from '../core/types/delegate';
 import type { WasmSignedDelegate } from '../core/types/signer-worker';
-import type { ActionResult, LoginResult, RegistrationResult } from '../core/types/tatchi';
+import type {
+  ActionResult,
+  LoginSession,
+  LoginAndCreateSessionResult,
+  LoginResult,
+  RegistrationResult,
+  SigningSessionStatus,
+} from '../core/types/tatchi';
 import type { AccessKeyList } from '../core/NearClient';
 
 // Type-safe event handler for device linking events
@@ -107,7 +114,7 @@ export interface TatchiContextType {
 
   // Registration and login functions
   registerPasskey: (nearAccountId: string, options?: RegistrationHooksOptions) => Promise<RegistrationResult>;
-  loginPasskey: (nearAccountId: string, options?: LoginHooksOptions) => Promise<LoginResult>;
+  loginAndCreateSession: (nearAccountId: string, options?: LoginHooksOptions) => Promise<LoginAndCreateSessionResult>;
   logout: () => void;
 
   // Execute actions
@@ -156,14 +163,7 @@ export interface TatchiContextType {
   // Wallet iframe connectivity (true when service client handshake completes)
   walletIframeConnected: boolean;
 
-  getLoginState: (nearAccountId?: string) => Promise<{
-    isLoggedIn: boolean;
-    nearAccountId: string | null;
-    publicKey: string | null;
-    vrfActive: boolean;
-    userData: ClientUserData | null;
-    vrfSessionDuration?: number;
-  }>;
+  getLoginSession: (nearAccountId?: string) => Promise<LoginSession>;
   refreshLoginState: (nearAccountId?: string) => Promise<void>;
 
   // Account input management

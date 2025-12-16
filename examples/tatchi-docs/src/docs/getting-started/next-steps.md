@@ -49,20 +49,20 @@ import { useState, useEffect } from 'react'
 import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 function Login() {
-  const { tatchi, loginState, loginPasskey } = useTatchi()
+  const { tatchi, loginState, loginAndCreateSession } = useTatchi()
   return (
     <>
       <button onClick={async () => {
           const { lastUsedAccount } = await tatchi.getRecentLogins();
-          if (!account?.nearAccountId) { return null; }
-          loginPasskey(account.nearAccountId)
+          if (!lastUsedAccount?.nearAccountId) { return null; }
+          loginAndCreateSession(lastUsedAccount.nearAccountId)
         }}
       >
         Log In
       </button>
       {loginState.isLoggedIn && (
         <>
-          <button onClick={() => tatchi.logoutAndClearVrfSession()}>
+          <button onClick={() => tatchi.logoutAndClearSession()}>
             Logout
           </button>
           <p>{JSON.stringify(loginState)}</p>
@@ -73,7 +73,7 @@ function Login() {
 }
 ```
 
-When you call `loginPasskey()`, the SDK establishes a VRF session. If you've configured a relay, it can unlock the VRF key via Shamir 3-pass without prompting for TouchID. Otherwise it falls back to a biometric prompt to decrypt the VRF keypair. Once logged in, you're ready to sign transactions.
+When you call `loginAndCreateSession()`, the SDK establishes a VRF session and mints a warm signing session. If you've configured a relay, it can unlock the VRF key via Shamir 3-pass without prompting for TouchID. Otherwise it falls back to a biometric prompt to decrypt the VRF keypair. Once logged in, you're ready to sign transactions.
 
 ## Send Transaction
 
@@ -129,16 +129,16 @@ You can set `confirmationConfig: { behavior: 'requireClick' | 'autoProceed' }` t
 
 The `onEvent()` callback streams progress events (authentication, signing, broadcasting, completion) that you can use to update your UI or handle errors.
 
-When you're done, call `logoutAndClearVrfSession()` to clear the in-memory VRF key and update `loginState` accordingly.
+When you're done, call `logoutAndClearSession()` to clear the in-memory VRF key and update `loginState` accordingly.
 
 
 ## Recap
 
 **Registration**: `registerPasskey()` triggers WebAuthn registration, derives a deterministic NEAR keypair, encrypts and persists the data in IndexedDB. In iframe mode, this happens in the wallet origin for isolation.
 
-**Login**: `getRecentLogins()` reads from IndexedDB and tracks the last-used account.  `loginPasskey()` unlocks a VRF key needed for Passkey authentication. With a relay server configured, you can unlock the VRF key automatically without biometrics, otherwise it uses TouchID to unlock (serverless). The VRF key is used to generate verifiable challenges for stateless Passkey authentication with the onchain webauthn contract.
+**Login**: `getRecentLogins()` reads from IndexedDB and tracks the last-used account. `loginAndCreateSession()` unlocks the VRF key and ensures a warm signing session exists. With a relay server configured, you can unlock the VRF key automatically without biometrics, otherwise it uses TouchID to unlock (serverless). The VRF key is used to generate verifiable challenges for stateless Passkey authentication with the onchain webauthn contract.
 
-*Logout*: `logoutAndClearVrfSession()` clears the in-memory VRF key and updates loginState.
+*Logout*: `logoutAndClearSession()` clears the in-memory VRF key and updates loginState.
 
 **Transactions**: `executeAction()` builds, signs, and broadcasts transactions to the NEAR blockchain. `onEvent` handlers stream progress events back for UI updates.
 

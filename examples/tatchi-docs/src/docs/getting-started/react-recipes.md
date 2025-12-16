@@ -45,7 +45,7 @@ export function PasskeySection() {
   const {
     accountInputState,
     registerPasskey,
-    loginPasskey,
+    loginAndCreateSession,
     tatchi,
   } = useTatchi()
 
@@ -60,7 +60,7 @@ export function PasskeySection() {
     })
 
   const onLogin = () =>
-    loginPasskey(targetAccountId, {
+    loginAndCreateSession(targetAccountId, {
       onEvent: (event) => {
         console.log('login event', event)
       },

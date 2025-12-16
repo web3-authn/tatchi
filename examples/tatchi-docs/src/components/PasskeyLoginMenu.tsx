@@ -27,7 +27,7 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
       targetAccountId,
       accountExists
     },
-    loginPasskey,
+    loginAndCreateSession,
     registerPasskey,
     refreshLoginState,
     tatchi,
@@ -127,7 +127,7 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
   };
 
   const onLogin = async () => {
-    const result = await loginPasskey(targetAccountId, {
+    const result = await loginAndCreateSession(targetAccountId, {
       // Mint a JWT session via the relay server if session.kind is provided
       // session: {
       //   kind: 'jwt',

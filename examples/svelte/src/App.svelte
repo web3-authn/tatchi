@@ -83,7 +83,7 @@
       iframeReady = !!pm.getWalletIframeClient()?.isReady()
     } catch (e) { console.warn('[svelte] iframe init warn:', e) }
     try {
-      const st = await pm.getLoginState()
+      const { login: st } = await pm.getLoginSession()
       isLoggedIn = !!st.vrfActive
       currentAccount = st.nearAccountId || null
       loginDetails = st as any
@@ -113,7 +113,7 @@
       })
       if (res?.success) {
         notify('Registered successfully', 'success')
-        const st = await pm.getLoginState(fullId)
+        const { login: st } = await pm.getLoginSession(fullId)
         isLoggedIn = !!st.vrfActive
         currentAccount = fullId
         loginDetails = st as any
@@ -134,13 +134,13 @@
     waiting = true
     notify('Starting login…')
     try {
-      const res = await pm.loginPasskey(fullId, {
+      const res = await pm.loginAndCreateSession(fullId, {
         onEvent: (ev) => { notify(`${ev.phase ?? ev.step}: ${ev.message}`) },
         onError: (err) => { notify(err.message || String(err), 'error') },
       })
       if (res?.success) {
         notify('Logged in successfully', 'success')
-        const st = await pm.getLoginState(fullId)
+        const { login: st } = await pm.getLoginSession(fullId)
         isLoggedIn = !!st.vrfActive
         currentAccount = fullId
         loginDetails = st as any

@@ -30,10 +30,10 @@ Instead of keeping decrypted keys around, the wallet caches only the *minimum ca
 ### Cold path: mint/refresh a VRF session (requires WebAuthn)
 
 1. Create a fresh `MessageChannel` and attach ports to VRF + signer workers for `sessionId`.
-2. Run the normal VRF‑WebAuthn confirmation flow (confirm UI + TouchID/WebAuthn → `PRF.first_auth`).
+2. Run the normal VRF‑WebAuthn confirmation flow (confirm UI + TouchID/WebAuthn → credential with PRF outputs in `clientExtensionResults`).
 3. VRF worker derives `WrapKeySeed` (from `PRF.first_auth` + in‑memory `vrf_sk`) and stores `{WrapKeySeed, wrapKeySalt}` with TTL/uses in a VRF‑owned session.
-4. VRF worker sends `{WrapKeySeed, wrapKeySalt}` to the signer worker over the attached port; signer stores it and signals readiness.
-5. Main thread sends the signing request; signer decrypts, signs, and terminates.
+4. VRF worker sends `{WrapKeySeed, wrapKeySalt}` to the signer worker over the attached port; signer stores it.
+5. Main thread sends the signing request; if the seed hasn’t arrived yet the signer waits internally, then decrypts, signs, and terminates.
 
 ### Warm path: reuse a VRF session (no WebAuthn prompt)
 
@@ -41,7 +41,7 @@ Instead of keeping decrypted keys around, the wallet caches only the *minimum ca
 2. Call `DISPENSE_SESSION_KEY(sessionId)` in the VRF worker:
    - VRF enforces TTL/remaining‑uses
    - If valid, VRF sends `{WrapKeySeed, wrapKeySalt}` over the attached port and closes it
-3. Signer signals `WRAP_KEY_SEED_READY`, then signs and terminates.
+3. Main thread sends the signing request; signer waits internally for the seed if needed, then signs and terminates.
 4. If the session is missing/expired/exhausted, fall back to the cold path to re‑mint.
 
 
@@ -67,16 +67,14 @@ sequenceDiagram
     alt Warm session available (no prompt)
         UI->>VRF: DISPENSE_SESSION_KEY(sessionId, uses)
         VRF-->>Signer: MessagePort {WrapKeySeed, wrapKeySalt}
-        Signer-->>UI: WRAP_KEY_SEED_READY
     else Cold session (mint/refresh)
         UI->>UI: Show wallet confirm UI
-        UI->>UI: WebAuthn (TouchID) → PRF.first_auth
-        UI->>VRF: MINT_SESSION_KEYS_AND_SEND_TO_SIGNER(sessionId, PRF.first_auth, ttl/uses)
+        UI->>UI: WebAuthn (TouchID) → credential (PRF outputs in extensions)
+        UI->>VRF: MINT_SESSION_KEYS_AND_SEND_TO_SIGNER(sessionId, credential, ttl/uses)
         VRF->>Chain: (optional) verify_authentication_response
         Chain-->>VRF: verified
         VRF->>VRF: Derive WrapKeySeed; cache TTL/uses
         VRF-->>Signer: MessagePort {WrapKeySeed, wrapKeySalt}
-        Signer-->>UI: WRAP_KEY_SEED_READY
     end
 
     UI->>Signer: SIGN_* request (sessionId + vault ciphertext)

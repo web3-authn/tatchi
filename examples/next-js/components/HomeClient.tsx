@@ -36,7 +36,7 @@ export default function HomeClient() {
   const {
     loginState,
     accountInputState,
-    loginPasskey,
+    loginAndCreateSession,
     registerPasskey,
     refreshLoginState,
   } = useTatchi()
@@ -45,7 +45,7 @@ export default function HomeClient() {
 
   const onLogin = React.useCallback(async () => {
     if (!targetAccountId) return
-    return loginPasskey(targetAccountId, {
+    return loginAndCreateSession(targetAccountId, {
       onEvent: (event: any) => {
         // Minimal console feedback; integrators can add toasts if desired
         if (event.phase === LoginPhase.STEP_4_LOGIN_COMPLETE) {
@@ -54,7 +54,7 @@ export default function HomeClient() {
         if (event.error) console.error('Login error:', event.error)
       },
     })
-  }, [loginPasskey, targetAccountId])
+  }, [loginAndCreateSession, targetAccountId])
 
   const onRegister = React.useCallback(async () => {
     if (!targetAccountId) return

@@ -234,7 +234,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
   const logout = useCallback(async () => {
     try {
       // Clear VRF session when user logs out (also clears wallet-origin session if active)
-      await tatchi.logoutAndClearVrfSession();
+      await tatchi.logoutAndClearSession();
     } catch (error) {
       console.warn('VRF logout warning:', error);
     }
@@ -247,13 +247,13 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
     }));
   }, [tatchi]);
 
-  const loginPasskey = async (nearAccountId: string, options?: LoginHooksOptions) => {
-    const result: LoginResult = await tatchi.loginPasskey(nearAccountId, {
+  const loginAndCreateSession = async (nearAccountId: string, options?: LoginHooksOptions) => {
+    const result = await tatchi.loginAndCreateSession(nearAccountId, {
       ...options,
       onEvent: async (event) => {
         if (event.phase === 'login-complete' && event.status === 'success') {
-          const currentLoginState = await tatchi.getLoginState(nearAccountId);
-          const isVRFLoggedIn = currentLoginState.vrfActive;
+          const { login } = await tatchi.getLoginSession(nearAccountId);
+          const isVRFLoggedIn = login.vrfActive;
           setLoginState(prevState => ({
             ...prevState,
             isLoggedIn: isVRFLoggedIn,
@@ -366,7 +366,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
       }
 
       // Fallback: reflect local VRF status
-      const ls = await tatchi.getLoginState(nearAccountId);
+      const { login: ls } = await tatchi.getLoginSession(nearAccountId);
       // Only retain account id when VRF session is active; otherwise clear it to avoid
       // stale "logged in" indicators in host UI that rely solely on account id.
       if (ls.nearAccountId && ls.vrfActive) {
@@ -403,7 +403,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
 
     // Simple login/register functions
     registerPasskey,
-    loginPasskey,
+    loginAndCreateSession,
     logout,                      // Clears VRF session (logs out)
 
     // Execute actions
@@ -420,7 +420,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
     stopDevice2LinkingFlow,      // Stop device linking flow
 
     // Login state
-    getLoginState: (nearAccountId?: string) => tatchi.getLoginState(nearAccountId),
+    getLoginSession: (nearAccountId?: string) => tatchi.getLoginSession(nearAccountId),
     refreshLoginState,           // Manually refresh login state
     loginState,
     walletIframeConnected,
