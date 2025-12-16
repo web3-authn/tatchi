@@ -2,9 +2,7 @@ use bs58;
 
 use crate::config::CHACHA20_KEY_SIZE;
 use crate::crypto::{
-    decrypt_data_chacha20,
-    derive_ed25519_key_from_prf_output,
-    encrypt_data_chacha20,
+    decrypt_data_chacha20, derive_ed25519_key_from_prf_output, encrypt_data_chacha20,
 };
 use crate::encoders::base64_url_encode;
 

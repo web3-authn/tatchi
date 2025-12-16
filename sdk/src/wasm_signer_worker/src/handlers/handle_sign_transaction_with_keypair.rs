@@ -42,11 +42,11 @@ where
         where
             A: serde::de::SeqAccess<'de>,
         {
-             let mut vec = Vec::new();
-             while let Some(elem) = seq.next_element()? {
-                 vec.push(elem);
-             }
-             Ok(vec)
+            let mut vec = Vec::new();
+            while let Some(elem) = seq.next_element()? {
+                vec.push(elem);
+            }
+            Ok(vec)
         }
 
         fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
@@ -55,7 +55,8 @@ where
         {
             #[cfg(target_arch = "wasm32")]
             {
-                let js_val = js_sys::JSON::parse(v).map_err(|_| E::custom("Failed to parse actions JSON string"))?;
+                let js_val = js_sys::JSON::parse(v)
+                    .map_err(|_| E::custom("Failed to parse actions JSON string"))?;
                 serde_wasm_bindgen::from_value(js_val).map_err(E::custom)
             }
             #[cfg(not(target_arch = "wasm32"))]
@@ -85,7 +86,6 @@ where
 pub async fn handle_sign_transaction_with_keypair(
     request: SignTransactionWithKeyPairRequest,
 ) -> Result<TransactionSignResult, String> {
-
     let mut logs: Vec<String> = Vec::new();
     // Parse the private key from NEAR format (ed25519:base58_encoded_64_bytes)
     let private_key_str = if request.near_private_key.starts_with("ed25519:") {

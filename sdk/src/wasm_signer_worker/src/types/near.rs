@@ -1,7 +1,7 @@
+use super::deserializers::{serde_array_32, serde_array_64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use super::deserializers::{serde_array_32, serde_array_64};
 
 // === CORE NEAR TYPES ===
 
@@ -226,8 +226,8 @@ pub enum GlobalContractDeployMode {
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GlobalContractIdentifier {
-    CodeHash(CryptoHash),   // 32-byte code hash
-    AccountId(AccountId),   // owner account ID
+    CodeHash(CryptoHash), // 32-byte code hash
+    AccountId(AccountId), // owner account ID
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -320,10 +320,10 @@ where
     let compat = Compat::deserialize(deserializer)?;
 
     match compat {
-        Compat::FullAccessMap { full_access: _full_access } => Ok(AccessKeyPermission::FullAccess),
-        Compat::FunctionCallMap { function_call: fc } => {
-            Ok(AccessKeyPermission::FunctionCall(fc))
-        }
+        Compat::FullAccessMap {
+            full_access: _full_access,
+        } => Ok(AccessKeyPermission::FullAccess),
+        Compat::FunctionCallMap { function_call: fc } => Ok(AccessKeyPermission::FunctionCall(fc)),
     }
 }
 
@@ -405,9 +405,7 @@ impl SignedTransaction {
 
 // === DELEGATE ACTION TYPES (NEP-461) ===
 
-#[derive(
-    BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize,
-)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DelegateAction {
     pub sender_id: AccountId,
@@ -418,9 +416,7 @@ pub struct DelegateAction {
     pub public_key: PublicKey,
 }
 
-#[derive(
-    BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize,
-)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignedDelegate {
     pub delegate_action: DelegateAction,

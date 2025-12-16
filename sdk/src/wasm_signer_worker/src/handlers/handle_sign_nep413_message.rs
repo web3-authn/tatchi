@@ -24,8 +24,12 @@ pub struct SignNep413Request {
     pub account_id: String, // NEAR account ID
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyData")]
     pub encrypted_private_key_data: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyIv")]
-    pub encrypted_private_key_iv: String,
+    /// ChaCha20-Poly1305 nonce (base64url) for `encryptedPrivateKeyData`.
+    ///
+    /// Accepts legacy `encryptedPrivateKeyIv` via serde alias.
+    #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyChacha20NonceB64u")]
+    #[serde(alias = "encryptedPrivateKeyIv")]
+    pub encrypted_private_key_chacha20_nonce_b64u: String,
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     pub session_id: String,
 }
@@ -93,7 +97,7 @@ pub async fn handle_sign_nep413_message(
     let kek = wrap_key.derive_kek()?;
     let decrypted_private_key_str = crate::crypto::decrypt_data_chacha20(
         &request.encrypted_private_key_data,
-        &request.encrypted_private_key_iv,
+        &request.encrypted_private_key_chacha20_nonce_b64u,
         &kek,
     )
     .map_err(|e| format!("Failed to decrypt private key: {}", e))?;

@@ -7,9 +7,8 @@ use log::debug;
 use sha2::Sha256;
 
 use crate::config::{
-    near_key_salt_for_account,
-    CHACHA20_KEY_SIZE, CHACHA20_NONCE_SIZE, ED25519_HKDF_KEY_INFO, ED25519_PRIVATE_KEY_SIZE,
-    ERROR_INVALID_KEY_SIZE,
+    near_key_salt_for_account, CHACHA20_KEY_SIZE, CHACHA20_NONCE_SIZE, ED25519_HKDF_KEY_INFO,
+    ED25519_PRIVATE_KEY_SIZE, ERROR_INVALID_KEY_SIZE,
 };
 use crate::encoders::{base64_url_decode, base64_url_encode};
 use crate::error::KdfError;
@@ -161,7 +160,10 @@ pub(crate) fn derive_ed25519_key_from_prf_output(
     let near_private_key = format!("ed25519:{}", private_key_b58);
     let near_public_key = format!("ed25519:{}", public_key_b58);
 
-    debug!("Successfully derived Ed25519 key for account: {}", account_id);
+    debug!(
+        "Successfully derived Ed25519 key for account: {}",
+        account_id
+    );
     Ok((near_private_key, near_public_key))
 }
 

@@ -72,9 +72,13 @@ pub struct RegisterDevice2WithDerivedKeyResult {
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedData")]
     pub encrypted_data: String,
 
-    /// ChaCha20 nonce used for encryption (base64url-encoded)
+    /// @deprecated Use `chacha20NonceB64u`.
     #[wasm_bindgen(getter_with_clone)]
     pub iv: String,
+
+    /// ChaCha20-Poly1305 nonce used for encryption (base64url-encoded)
+    #[wasm_bindgen(getter_with_clone, js_name = "chacha20NonceB64u")]
+    pub chacha20_nonce_b64u: String,
 
     /// WrapKeySalt used for KEK derivation (base64url-encoded)
     #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
@@ -95,10 +99,12 @@ impl RegisterDevice2WithDerivedKeyResult {
         wrap_key_salt: String,
         signed_transaction: WasmSignedTransaction,
     ) -> RegisterDevice2WithDerivedKeyResult {
+        let chacha20_nonce_b64u = iv.clone();
         RegisterDevice2WithDerivedKeyResult {
             public_key,
             encrypted_data,
             iv,
+            chacha20_nonce_b64u,
             wrap_key_salt,
             signed_transaction,
         }
@@ -133,14 +139,12 @@ pub async fn handle_register_device2_with_derived_key(
     );
 
     // === STEP 1: Derive NEAR keypair from PRF.second ===
-    let (near_private_key, near_public_key) =
-        crate::crypto::derive_ed25519_key_from_prf_output(&prf_second_b64u, &request.near_account_id)
-            .map_err(|e| format!("Failed to derive ed25519 key from PRF.second: {}", e))?;
+    let (near_private_key, near_public_key) = crate::crypto::derive_ed25519_key_from_prf_output(
+        &prf_second_b64u,
+        &request.near_account_id,
+    ).map_err(|e| format!("Failed to derive ed25519 key from PRF.second: {}", e))?;
 
-    debug!(
-        "[rust wasm signer]: Derived Device2 NEAR keypair, public key: {}",
-        near_public_key
-    );
+    debug!("[rust wasm signer]: Derived Device2 NEAR keypair, public key: {}", near_public_key);
 
     // === STEP 2: Encrypt NEAR private key with KEK ===
     let kek = wrap_key
@@ -153,8 +157,6 @@ pub async fn handle_register_device2_with_derived_key(
     let encryption_result = crate::crypto::encrypt_data_chacha20(&near_private_key, &kek)
         .map_err(|e| format!("Failed to encrypt Device2 private key: {}", e))?
         .with_wrap_key_salt(&wrap_key_salt_bytes);
-
-    debug!("[rust wasm signer]: Encrypted Device2 NEAR private key");
 
     // === STEP 3: Parse private key to extract signing key ===
     // near_private_key is in format "ed25519:base58_encoded_64_bytes"
@@ -189,30 +191,18 @@ pub async fn handle_register_device2_with_derived_key(
         .try_into()
         .map_err(|_| "Failed to extract public key from private key".to_string())?;
 
-    debug!("[rust wasm signer]: Parsed Device2 signing key");
-
     // === STEP 4: Build Device2 registration transaction ===
     // Use the JSON args provided by TS directly
     let function_call_args = request.contract_args_json.clone().into_bytes();
 
-    let registration_tx = build_device2_registration_transaction(
-        &request,
-        &public_key_bytes,
-        function_call_args
-    )?;
+    let registration_tx =
+        build_device2_registration_transaction(&request, &public_key_bytes, function_call_args)?;
 
-    debug!(
-        "[rust wasm signer]: Built Device2 registration transaction for contract {}",
-        request.contract_id
-    );
+    debug!("[rust wasm signer]: Built Device2 registration transaction for contract {}", request.contract_id);
 
     // === STEP 5: Sign transaction with derived NEAR keypair ===
     let signed_tx_bytes = crate::transaction::sign_transaction(registration_tx, &signing_key)
         .map_err(|e| format!("Failed to sign Device2 registration transaction: {}", e))?;
-
-    debug!(
-        "[rust wasm signer]: Signed Device2 registration transaction"
-    );
 
     // === STEP 6: Convert to WasmSignedTransaction ===
     let signed_tx = crate::types::SignedTransaction::from_borsh_bytes(&signed_tx_bytes)
@@ -259,17 +249,15 @@ fn build_device2_registration_transaction(
         method_name: "link_device_register_user".to_string(),
         args: function_call_args,
         gas: 50_000_000_000_000, // 50 TGas
-        deposit: 0,               // No deposit required
+        deposit: 0,              // No deposit required
     }))];
 
     // Build NEAR transaction
     let tx = crate::types::near::Transaction {
-        signer_id: request.near_account_id.parse().map_err(|e| {
-            format!(
-                "Invalid signer_id (NEAR account ID): {}",
-                e
-            )
-        })?,
+        signer_id: request
+            .near_account_id
+            .parse()
+            .map_err(|e| format!("Invalid signer_id (NEAR account ID): {}", e))?,
         public_key: crate::types::near::PublicKey::from_ed25519_bytes(public_key_bytes),
         nonce: parsed_nonce,
         receiver_id: request

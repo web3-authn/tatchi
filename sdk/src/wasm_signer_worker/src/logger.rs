@@ -61,4 +61,3 @@ mod console {
         eprintln!("{s}");
     }
 }
-

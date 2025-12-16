@@ -4,7 +4,6 @@
 // *                                                                            *
 // ******************************************************************************
 
-use crate::{actions::ActionParams, WrapKey};
 use crate::transaction::{
     build_actions_from_params, build_transaction_with_actions, calculate_transaction_hash,
     sign_transaction,
@@ -12,15 +11,13 @@ use crate::transaction::{
 use crate::types::{
     handlers::{ConfirmationConfig, RpcCallPayload},
     progress::{
-        send_completion_message, send_progress_message,
-        ProgressMessageType,
+        send_completion_message, send_progress_message, ProgressData, ProgressMessageType,
         ProgressStep,
-        ProgressData,
     },
     wasm_to_json::WasmSignedTransaction,
-    DecryptionPayload,
-    SignedTransaction,
+    DecryptionPayload, SignedTransaction,
 };
+use crate::{actions::ActionParams, WrapKey};
 use bs58;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -47,7 +44,6 @@ pub struct TransactionPayload {
     pub receiver_id: String,
     pub actions: Vec<ActionParams>,
 }
-
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Serialize)]
@@ -134,19 +130,19 @@ impl KeyActionResult {
 pub struct Decryption {
     pub wrap_key: WrapKey,
     pub encrypted_private_key_data: String,
-    pub encrypted_private_key_iv: String,
+    pub encrypted_private_key_chacha20_nonce_b64u: String,
 }
 
 impl Decryption {
     pub fn new(
         wrap_key: WrapKey,
         encrypted_private_key_data: String,
-        encrypted_private_key_iv: String,
+        encrypted_private_key_chacha20_nonce_b64u: String,
     ) -> Decryption {
         Decryption {
             wrap_key,
             encrypted_private_key_data,
-            encrypted_private_key_iv,
+            encrypted_private_key_chacha20_nonce_b64u,
         }
     }
 }
@@ -184,7 +180,7 @@ pub async fn handle_sign_transactions_with_actions(
     if let Some(created_at) = tx_batch_request.created_at {
         let now = js_sys::Date::now();
         if now - created_at > crate::config::SESSION_MAX_DURATION_MS {
-             return Err("Session expired".to_string());
+            return Err("Session expired".to_string());
         }
     }
 
@@ -202,8 +198,10 @@ pub async fn handle_sign_transactions_with_actions(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::UserConfirmation,
         "Using pre-confirmed signing session from VRF flow...",
-        Some(&ProgressData::new(1, 4)
-            .with_transaction_count(tx_batch_request.tx_signing_requests.len())),
+        Some(
+            &ProgressData::new(1, 4)
+                .with_transaction_count(tx_batch_request.tx_signing_requests.len()),
+        ),
     );
 
     let intent_digest = tx_batch_request
@@ -241,7 +239,10 @@ pub async fn handle_sign_transactions_with_actions(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::TransactionSigningProgress,
         "Decrypting private key and signing transactions...",
-        Some(&ProgressData::new(4, 4).with_transaction_count(tx_batch_request.tx_signing_requests.len()))
+        Some(
+            &ProgressData::new(4, 4)
+                .with_transaction_count(tx_batch_request.tx_signing_requests.len()),
+        ),
     );
 
     // Process all transactions using the shared verification and decryption
@@ -253,7 +254,10 @@ pub async fn handle_sign_transactions_with_actions(
             .decryption
             .encrypted_private_key_data
             .clone(),
-        tx_batch_request.decryption.encrypted_private_key_iv.clone(),
+        tx_batch_request
+            .decryption
+            .encrypted_private_key_chacha20_nonce_b64u
+            .clone(),
     );
 
     let result = sign_near_transactions_with_actions_impl(
@@ -273,8 +277,7 @@ pub async fn handle_sign_transactions_with_actions(
             &ProgressData::new(4, 4)
                 .with_success(result.success)
                 .with_transaction_count(tx_count)
-                .with_logs(result.logs.clone())
-            ,
+                .with_logs(result.logs.clone()),
         ),
     );
 
@@ -322,7 +325,7 @@ async fn sign_near_transactions_with_actions_impl(
 
     let decrypted_private_key_str = crate::crypto::decrypt_data_chacha20(
         &decryption.encrypted_private_key_data,
-        &decryption.encrypted_private_key_iv,
+        &decryption.encrypted_private_key_chacha20_nonce_b64u,
         &kek,
     )
     .map_err(|e| format!("Decryption failed: {}", e))?;

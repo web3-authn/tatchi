@@ -338,6 +338,9 @@ fn parse_access_key_from_json(json_str: &str) -> Result<crate::types::AccessKey,
         // Native fallback - requires serde_json or manual parsing.
         // Since we don't have serde_json in dependencies, we return error.
         let _ = json_str;
-        Err("Parsing JSON string AccessKey not supported on native target without serde_json".to_string())
+        Err(
+            "Parsing JSON string AccessKey not supported on native target without serde_json"
+                .to_string(),
+        )
     }
 }

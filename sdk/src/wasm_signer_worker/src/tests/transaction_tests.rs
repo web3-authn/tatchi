@@ -1,13 +1,11 @@
 use borsh;
 use ed25519_dalek::SigningKey;
 
+use crate::actions::ActionParams;
 use crate::transaction::{
-    build_actions_from_params,
-    build_transaction_with_actions,
-    calculate_transaction_hash,
+    build_actions_from_params, build_transaction_with_actions, calculate_transaction_hash,
     sign_transaction,
 };
-use crate::actions::ActionParams;
 use crate::types::{NearAction, Transaction};
 
 /// Build a simple transaction with a single transfer action and sign it end-to-end.

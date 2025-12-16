@@ -46,7 +46,9 @@ pub fn build_transaction_with_actions(
 }
 
 /// Build actions from action parameters
-pub fn build_actions_from_params(action_params: Vec<ActionParams>) -> Result<Vec<NearAction>, String> {
+pub fn build_actions_from_params(
+    action_params: Vec<ActionParams>,
+) -> Result<Vec<NearAction>, String> {
     let mut actions = Vec::new();
     for (i, params) in action_params.into_iter().enumerate() {
         let action = params
