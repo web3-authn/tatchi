@@ -4,6 +4,7 @@ import {
   SecureConfirmRequest,
   SecureConfirmationType,
   type SecureConfirmDecision,
+  type SerializableCredential,
   SignTransactionPayload,
   RegisterAccountPayload,
   SignNep413Payload,
@@ -13,33 +14,12 @@ import {
 import { TransactionContext, VRFChallenge } from '../../../../types';
 import type { BlockReference, AccessKeyView } from '@near-js/types';
 import { awaitConfirmUIDecision, mountConfirmUI, type ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
-import { addLitCancelListener } from '../../../LitComponents/lit-events';
 import { isObject, isFunction, isString } from '../../../../WalletIframe/validation';
 import { errorMessage, toError, isTouchIdCancellationError } from '../../../../../utils/errors';
-// Ensure the export viewer custom element is defined when used
-import type { ExportViewerIframeElement } from '../../../LitComponents/ExportPrivateKey/iframe-host';
-import { ensureDefined } from '../../../LitComponents/ensure-defined';
-import { W3A_EXPORT_VIEWER_IFRAME_ID } from '../../../LitComponents/tags';
-
-// Flow classification type (kept close to helpers for reuse)
-export type FlowKind = 'LocalOnly' | 'Registration' | 'Signing' | 'Unsupported';
-
-export function classifyFlow(request: SecureConfirmRequest): FlowKind {
-  switch (request.type) {
-    case SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF:
-    case SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI:
-      return 'LocalOnly';
-    case SecureConfirmationType.REGISTER_ACCOUNT:
-    case SecureConfirmationType.LINK_DEVICE:
-      return 'Registration';
-    case SecureConfirmationType.SIGN_TRANSACTION:
-    case SecureConfirmationType.SIGN_NEP413_MESSAGE:
-      return 'Signing';
-    default:
-      // Explicitly mark any unknown/unsupported type
-      return 'Unsupported';
-  }
-}
+import { serializeAuthenticationCredentialWithPRF } from '../../../credentialsHelpers';
+import { toAccountId } from '../../../../types/accountIds';
+import { authenticatorsToAllowCredentials } from '../../../touchIdPrompt';
+import type { ClientAuthenticatorData } from '../../../../IndexedDBManager';
 
 // ==== Small helpers to centralize request shape access ====
 export function getNearAccountId(request: SecureConfirmRequest): string {
@@ -81,7 +61,7 @@ export function getIntentDigest(request: SecureConfirmRequest): string | undefin
 // ===== NEAR context and nonce management =====
 export async function fetchNearContext(
   ctx: VrfWorkerManagerContext,
-  opts: { nearAccountId: string; txCount: number },
+  opts: { nearAccountId: string; txCount: number; reserveNonces: boolean },
 ): Promise<{
   transactionContext: TransactionContext | null;
   error?: string;
@@ -94,17 +74,18 @@ export async function fetchNearContext(
     // JIT refresh later will force a new block height for the VRF challenge.
     const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
 
-    // Reserve nonces for this request to avoid parallel collisions
     const txCount = opts.txCount || 1;
     let reservedNonces: string[] | undefined;
-    try {
-      reservedNonces = ctx.nonceManager.reserveNonces(txCount);
-      console.debug(`[NonceManager]: Reserved ${txCount} nonce(s):`, reservedNonces);
-      // Provide the first reserved nonce to the worker context; worker handles per-tx assignment
-      transactionContext.nextNonce = reservedNonces[0];
-    } catch (error) {
-      console.debug(`[NonceManager]: Failed to reserve ${txCount} nonce(s):`, error);
-      // Continue with existing nextNonce; worker may auto-increment where appropriate
+    if (opts.reserveNonces) {
+      try {
+        reservedNonces = ctx.nonceManager.reserveNonces(txCount);
+        console.debug(`[NonceManager]: Reserved ${txCount} nonce(s):`, reservedNonces);
+        // Provide the first reserved nonce to the worker context; worker handles per-tx assignment
+        transactionContext.nextNonce = reservedNonces[0];
+      } catch (error) {
+        console.debug(`[NonceManager]: Failed to reserve ${txCount} nonce(s):`, error);
+        // Continue with existing nextNonce; worker may auto-increment where appropriate
+      }
     }
 
     return { transactionContext, reservedNonces };
@@ -230,104 +211,53 @@ export async function renderConfirmUI({
   request: SecureConfirmRequest,
   confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,
-  vrfChallenge?: VRFChallenge;
+  vrfChallenge?: Partial<VRFChallenge>;
 }): Promise<{ confirmed: boolean; confirmHandle?: ConfirmUIHandle; error?: string }> {
   const nearAccountIdForUi = getNearAccountId(request);
-
-  // Show-only export viewer: mount with provided key and return immediately
-  if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
-
-    // Ensure the defining module runs in this runtime before creating the element.
-    await ensureDefined(W3A_EXPORT_VIEWER_IFRAME_ID, () => import('../../../LitComponents/ExportPrivateKey/iframe-host'));
-    const host = document.createElement(W3A_EXPORT_VIEWER_IFRAME_ID) as ExportViewerIframeElement;
-    host.theme = confirmationConfig.theme || 'dark';
-    host.variant = (confirmationConfig.uiMode === 'drawer') ? 'drawer' : 'modal';
-    {
-      const p = request.payload as { nearAccountId?: string; publicKey?: string; privateKey?: string };
-      if (p?.nearAccountId) host.accountId = p.nearAccountId;
-      if (p?.publicKey) host.publicKey = p.publicKey;
-      if (p?.privateKey) host.privateKey = p.privateKey;
-      host.loading = false;
-    }
-    window.parent?.postMessage({ type: 'WALLET_UI_OPENED' }, '*');
-    document.body.appendChild(host);
-    let removeCancelListener: (() => void) | undefined;
-    const onCancel = (_event: CustomEvent<{ reason?: string } | undefined>) => {
-      window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
-      removeCancelListener?.();
-      host.remove();
-    };
-    removeCancelListener = addLitCancelListener(host, onCancel, { once: true });
-    const close = (_c: boolean) => { removeCancelListener?.(); host.remove(); };
-    const update = (_props: any) => { /* no-op for export viewer */ };
-    return Promise.resolve({ confirmed: true, confirmHandle: { close, update } });
-  }
 
   const uiMode = confirmationConfig.uiMode as ConfirmationUIMode;
   const txSigningRequests = request.type === SecureConfirmationType.SIGN_TRANSACTION
     ? getSignTransactionPayload(request).txSigningRequests
     : [];
+
+  const renderDrawerOrModal = async (mode: 'drawer' | 'modal') => {
+    if (confirmationConfig.behavior === 'autoProceed') {
+      const handle = await mountConfirmUI({
+        ctx,
+        summary: transactionSummary,
+        txSigningRequests,
+        vrfChallenge,
+        loading: true,
+        theme: confirmationConfig.theme,
+        uiMode: mode,
+        nearAccountIdOverride: nearAccountIdForUi,
+      });
+      const delay = confirmationConfig.autoProceedDelay ?? 0;
+      await new Promise((r) => setTimeout(r, delay));
+      return { confirmed: true, confirmHandle: handle } as const;
+    }
+
+    const { confirmed, handle, error } = await awaitConfirmUIDecision({
+      ctx,
+      summary: transactionSummary,
+      txSigningRequests,
+      vrfChallenge,
+      theme: confirmationConfig.theme,
+      uiMode: mode,
+      nearAccountIdOverride: nearAccountIdForUi,
+    });
+    return { confirmed, confirmHandle: handle, error } as const;
+  };
+
   switch (uiMode) {
     case 'skip': {
       return { confirmed: true, confirmHandle: undefined };
     }
     case 'drawer': {
-      if (confirmationConfig.behavior === 'autoProceed') {
-        const handle = await mountConfirmUI({
-          ctx,
-          summary: transactionSummary,
-          txSigningRequests,
-          vrfChallenge,
-          loading: true,
-          theme: confirmationConfig.theme,
-          uiMode: 'drawer',
-          nearAccountIdOverride: nearAccountIdForUi,
-        });
-        const delay = confirmationConfig.autoProceedDelay ?? 0;
-        await new Promise((r) => setTimeout(r, delay));
-        return { confirmed: true, confirmHandle: handle };
-      } else {
-
-        const { confirmed, handle, error } = await awaitConfirmUIDecision({
-          ctx,
-          summary: transactionSummary,
-          txSigningRequests,
-          vrfChallenge,
-          theme: confirmationConfig.theme,
-          uiMode: 'drawer',
-          nearAccountIdOverride: nearAccountIdForUi,
-        });
-
-        return { confirmed, confirmHandle: handle, error };
-      }
+      return await renderDrawerOrModal('drawer');
     }
     case 'modal': {
-      if (confirmationConfig.behavior === 'autoProceed') {
-        const handle = await mountConfirmUI({
-          ctx,
-          summary: transactionSummary,
-          txSigningRequests,
-          vrfChallenge,
-          loading: true,
-          theme: confirmationConfig.theme,
-          uiMode: 'modal',
-          nearAccountIdOverride: nearAccountIdForUi,
-        });
-        const delay = confirmationConfig.autoProceedDelay ?? 0;
-        await new Promise((r) => setTimeout(r, delay));
-        return { confirmed: true, confirmHandle: handle };
-      } else {
-        const { confirmed, handle, error } = await awaitConfirmUIDecision({
-          ctx,
-          summary: transactionSummary,
-          txSigningRequests,
-          vrfChallenge,
-          theme: confirmationConfig.theme,
-          uiMode: 'modal',
-          nearAccountIdOverride: nearAccountIdForUi,
-        });
-        return { confirmed, confirmHandle: handle, error };
-      }
+      return await renderDrawerOrModal('modal');
     }
     default: {
       const handle = await mountConfirmUI({
@@ -346,19 +276,18 @@ export async function renderConfirmUI({
 }
 
 // ===== Summary parsing =====
-export interface SummaryType { totalAmount?: string; method?: string }
-
-export function parseTransactionSummary(summaryData: unknown): SummaryType {
+export function parseTransactionSummary(summaryData: unknown): TransactionSummary {
   if (!summaryData) return {};
   if (isString(summaryData)) {
     try {
-      return JSON.parse(summaryData);
+      const parsed = JSON.parse(summaryData) as unknown;
+      return isObject(parsed) ? (parsed as TransactionSummary) : {};
     } catch (parseError) {
       console.warn('[SignerWorkerManager]: Failed to parse summary string:', parseError);
       return {};
     }
   }
-  return summaryData as SummaryType;
+  return isObject(summaryData) ? (summaryData as TransactionSummary) : {};
 }
 
 // ===== Utility: postMessage sanitization (exported in case flows need to respond directly) =====
@@ -417,6 +346,63 @@ export function isUserCancelledSecureConfirm(error: unknown): boolean {
 
 export function releaseReservedNonces(ctx: VrfWorkerManagerContext, nonces?: string[]) {
   nonces?.forEach((n) => ctx.nonceManager.releaseNonce(n));
+}
+
+export async function collectAuthenticationCredentialWithPRF({
+  ctx,
+  nearAccountId,
+  vrfChallenge,
+  onBeforePrompt,
+  includeSecondPrfOutput = false,
+}: {
+  ctx: VrfWorkerManagerContext;
+  nearAccountId: string;
+  vrfChallenge: VRFChallenge;
+  onBeforePrompt?: (info: {
+    authenticators: ClientAuthenticatorData[];
+    authenticatorsForPrompt: ClientAuthenticatorData[];
+    vrfChallenge: VRFChallenge;
+  }) => void;
+  /**
+   * When true, include PRF.second in the serialized credential.
+   * Use only for explicit recovery/export flows (higher-friction paths).
+   */
+  includeSecondPrfOutput?: boolean;
+}): Promise<SerializableCredential> {
+  const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
+  const { authenticatorsForPrompt, wrongPasskeyError } = await ctx.indexedDB.clientDB.ensureCurrentPasskey(
+    toAccountId(nearAccountId),
+    authenticators,
+  );
+  if (wrongPasskeyError) {
+    throw new Error(wrongPasskeyError);
+  }
+
+  onBeforePrompt?.({ authenticators, authenticatorsForPrompt, vrfChallenge });
+
+  const credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
+    nearAccountId,
+    challenge: vrfChallenge,
+    allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
+  });
+
+  const serialized = serializeAuthenticationCredentialWithPRF({
+    credential,
+    firstPrfOutput: true,
+    secondPrfOutput: includeSecondPrfOutput,
+  });
+
+  // Verify that the chosen credential matches the "current" passkey device, when applicable.
+  const { wrongPasskeyError: wrongSelectedCredentialError } = await ctx.indexedDB.clientDB.ensureCurrentPasskey(
+    toAccountId(nearAccountId),
+    authenticators,
+    serialized.rawId,
+  );
+  if (wrongSelectedCredentialError) {
+    throw new Error(wrongSelectedCredentialError);
+  }
+
+  return serialized;
 }
 
 // ===== Payload guards =====

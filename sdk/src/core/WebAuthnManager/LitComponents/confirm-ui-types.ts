@@ -25,7 +25,7 @@ export function validateTheme(s?: string): ThemeName | undefined {
 export type ConfirmUIUpdate = {
   nearAccountId?: string;
   txSigningRequests?: TransactionInputWasm[];
-  vrfChallenge?: VRFChallenge;
+  vrfChallenge?: Partial<VRFChallenge>;
   theme?: ThemeName;
   loading?: boolean;
   errorMessage?: string;
