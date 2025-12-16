@@ -90,7 +90,9 @@ import {
 import type {
   ActionResult,
   GetRecentLoginsResult,
+  LoginAndCreateSessionResult,
   LoginResult,
+  LoginSession,
   LoginState,
   RegistrationResult,
   SignTransactionResult,
@@ -587,7 +589,7 @@ export class WalletIframeRouter {
     }
   }
 
-  async loginPasskey(payload: {
+  async loginAndCreateSession(payload: {
     nearAccountId: string;
     options?: {
       onEvent?: (ev: LoginSSEvent) => void;
@@ -597,12 +599,17 @@ export class WalletIframeRouter {
         relayUrl?: string;
         route?: string;
       };
+      // Warm signing session policy override during login
+      signingSession?: {
+        ttlMs?: number;
+        remainingUses?: number;
+      };
     }
-  }): Promise<LoginResult> {
+  }): Promise<LoginAndCreateSessionResult> {
     this.showFrameForActivation();
     try {
       const safeOptions = removeFunctionsFromOptions(payload.options);
-      const res = await this.post<LoginResult>({
+      const res = await this.post<LoginAndCreateSessionResult>({
         type: 'PM_LOGIN',
         payload: {
           nearAccountId: payload.nearAccountId,
@@ -618,6 +625,12 @@ export class WalletIframeRouter {
     }
   }
 
+  // Backward-compatible alias (deprecated): login also mints a warm signing session.
+  async loginPasskey(payload: Parameters<WalletIframeRouter['loginAndCreateSession']>[0]): Promise<LoginResult> {
+    const res = await this.loginAndCreateSession(payload);
+    return res as unknown as LoginResult;
+  }
+
   async getLoginState(nearAccountId?: string): Promise<LoginState> {
     const res = await this.post<LoginState>({
       type: 'PM_GET_LOGIN_STATE',
@@ -626,77 +639,10 @@ export class WalletIframeRouter {
     return res.result;
   }
 
-  async unlockSigningSession(payload: {
-    nearAccountId: string;
-    remainingUses?: number;
-    ttlMs?: number;
-  }): Promise<{
-    sessionId: string;
-    status: 'active' | 'exhausted' | 'expired' | 'not_found';
-    remainingUses?: number;
-    expiresAtMs?: number;
-    createdAtMs?: number;
-  }> {
-    this.showFrameForActivation();
-    try {
-      const res = await this.post<{
-        sessionId: string;
-        status: 'active' | 'exhausted' | 'expired' | 'not_found';
-        remainingUses?: number;
-        expiresAtMs?: number;
-        createdAtMs?: number;
-      }>({
-        type: 'PM_UNLOCK_SIGNING_SESSION',
-        payload: {
-          nearAccountId: payload.nearAccountId,
-          remainingUses: payload.remainingUses,
-          ttlMs: payload.ttlMs,
-        },
-      });
-      return res.result;
-    } finally {
-      this.hideFrameForActivation();
-    }
-  }
-
-  async getSigningSessionStatus(payload: {
-    nearAccountId: string;
-  }): Promise<{
-    sessionId: string;
-    status: 'active' | 'exhausted' | 'expired' | 'not_found';
-    remainingUses?: number;
-    expiresAtMs?: number;
-    createdAtMs?: number;
-  }> {
-    const res = await this.post<{
-      sessionId: string;
-      status: 'active' | 'exhausted' | 'expired' | 'not_found';
-      remainingUses?: number;
-      expiresAtMs?: number;
-      createdAtMs?: number;
-    }>({
-      type: 'PM_GET_SIGNING_SESSION_STATUS',
-      payload: { nearAccountId: payload.nearAccountId },
-    });
-    return res.result;
-  }
-
-  async clearSigningSession(payload: {
-    nearAccountId: string;
-  }): Promise<{
-    sessionId: string;
-    clearedSession: boolean;
-    clearedChallenge: boolean;
-    clearedPort: boolean;
-  }> {
-    const res = await this.post<{
-      sessionId: string;
-      clearedSession: boolean;
-      clearedChallenge: boolean;
-      clearedPort: boolean;
-    }>({
-      type: 'PM_CLEAR_SIGNING_SESSION',
-      payload: { nearAccountId: payload.nearAccountId },
+  async getLoginSession(nearAccountId?: string): Promise<LoginSession> {
+    const res = await this.post<LoginSession>({
+      type: 'PM_GET_LOGIN_SESSION',
+      payload: nearAccountId ? { nearAccountId } : undefined
     });
     return res.result;
   }

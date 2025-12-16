@@ -180,7 +180,7 @@ export interface ConfirmationConfig {
 
 export const DEFAULT_CONFIRMATION_CONFIG: ConfirmationConfig = {
   uiMode: 'modal',
-  behavior: 'autoProceed',
+  behavior: 'requireClick',
   autoProceedDelay: 0,
   theme: 'dark',
 };

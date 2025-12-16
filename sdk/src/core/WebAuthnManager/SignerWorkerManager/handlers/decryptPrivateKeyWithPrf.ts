@@ -10,6 +10,7 @@ import { SignerWorkerManagerContext } from '..';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { isObject } from '../../../WalletIframe/validation';
 import { withSessionId } from './session';
+import { toEncryptedPrivateKeyCiphertext } from './encryptedPrivateKey';
 
 export async function decryptPrivateKeyWithPrf({
   ctx,
@@ -36,8 +37,7 @@ export async function decryptPrivateKeyWithPrf({
         type: WorkerRequestType.DecryptPrivateKeyWithPrf,
         payload: withSessionId(sessionId, {
           nearAccountId: nearAccountId,
-          encryptedPrivateKeyData: encryptedKeyData.encryptedData,
-          encryptedPrivateKeyIv: encryptedKeyData.iv,
+          ...toEncryptedPrivateKeyCiphertext(encryptedKeyData),
         })
       },
       sessionId,

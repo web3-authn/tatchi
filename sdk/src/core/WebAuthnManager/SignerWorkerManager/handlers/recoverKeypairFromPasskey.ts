@@ -23,9 +23,16 @@ export async function recoverKeypairFromPasskey({
 }): Promise<{
   publicKey: string;
   encryptedPrivateKey: string;
+  /**
+   * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+   */
+  chacha20NonceB64u: string;
+  /**
+   * @deprecated Use `chacha20NonceB64u`.
+   */
   iv: string;
   accountIdHint?: string;
-  wrapKeySalt?: string;
+  wrapKeySalt: string;
 }> {
   try {
     console.info('SignerWorkerManager: Starting dual PRF-based keypair recovery from authentication credential');
@@ -58,12 +65,14 @@ export async function recoverKeypairFromPasskey({
       throw new Error('Dual PRF keypair recovery failed in WASM worker');
     }
 
+    const chacha20NonceB64u = response.payload.chacha20NonceB64u || response.payload.iv || '';
     return {
       publicKey: response.payload.publicKey,
       encryptedPrivateKey: response.payload.encryptedData,
-      iv: response.payload.iv,
+      chacha20NonceB64u,
+      iv: response.payload.iv || chacha20NonceB64u,
       accountIdHint: response.payload.accountIdHint,
-      wrapKeySalt: (response.payload as any).wrapKeySalt,
+      wrapKeySalt: response.payload.wrapKeySalt,
     };
 
   } catch (error: unknown) {

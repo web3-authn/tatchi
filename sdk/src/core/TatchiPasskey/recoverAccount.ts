@@ -390,6 +390,9 @@ export async function recoverAccount(
       credential,
       accountId
     );
+    if (!recoveredKeypair.wrapKeySalt) {
+      throw new Error('Missing wrapKeySalt in recovered key material; re-register to upgrade vault format.');
+    }
 
     // Check if the recovered public key has access to the account
     const hasAccess = await nearClient.viewAccessKey(accountId, recoveredKeypair.publicKey);
@@ -404,7 +407,7 @@ export async function recoverAccount(
       publicKey: recoveredKeypair.publicKey,
       encryptedKeypair: {
         encryptedPrivateKey: recoveredKeypair.encryptedPrivateKey,
-        iv: recoveredKeypair.iv,
+        chacha20NonceB64u: recoveredKeypair.chacha20NonceB64u,
         wrapKeySalt: recoveredKeypair.wrapKeySalt,
       },
       credential: credential,
@@ -509,7 +512,14 @@ async function performAccountRecovery({
   publicKey: string,
   encryptedKeypair: {
     encryptedPrivateKey: string,
-    iv: string,
+    /**
+     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+     */
+    chacha20NonceB64u: string,
+    /**
+     * @deprecated Use `chacha20NonceB64u`.
+     */
+    iv?: string,
     wrapKeySalt?: string,
   },
   credential: WebAuthnAuthenticationCredential,
@@ -643,22 +653,36 @@ async function restoreUserData({
   serverEncryptedVrfKeypair?: ServerEncryptedVrfKeypair,
   encryptedNearKeypair: {
     encryptedPrivateKey: string;
-    iv: string;
+    /**
+     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+     */
+    chacha20NonceB64u?: string;
+    /**
+     * @deprecated Use `chacha20NonceB64u`.
+     */
+    iv?: string;
     wrapKeySalt?: string;
   },
   credential: WebAuthnAuthenticationCredential
 }) {
   const existingUser = await webAuthnManager.getUserByDevice(accountId, deviceNumber);
+  if (!encryptedNearKeypair.wrapKeySalt) {
+    throw new Error('Missing wrapKeySalt in recovered key material; re-register to upgrade vault format.');
+  }
+  const wrapKeySalt = encryptedNearKeypair.wrapKeySalt;
+
+  const chacha20NonceB64u = encryptedNearKeypair.chacha20NonceB64u || encryptedNearKeypair.iv || '';
+  if (!chacha20NonceB64u) {
+    throw new Error('Missing chacha20NonceB64u in recovered key material; cannot store encrypted NEAR key.');
+  }
 
   // Store the encrypted NEAR keypair in the encrypted keys database
   await IndexedDBManager.nearKeysDB.storeEncryptedKey({
     nearAccountId: accountId,
     deviceNumber,
     encryptedData: encryptedNearKeypair.encryptedPrivateKey,
-    iv: encryptedNearKeypair.iv,
-    // Prefer the true WrapKeySeed salt when available; fall back to iv only for
-    // legacy recovery entries that did not persist wrapKeySalt explicitly.
-    wrapKeySalt: encryptedNearKeypair.wrapKeySalt || encryptedNearKeypair.iv,
+    chacha20NonceB64u,
+    wrapKeySalt,
     version: 2,
     timestamp: Date.now()
   });

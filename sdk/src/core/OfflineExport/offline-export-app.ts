@@ -260,6 +260,9 @@ async function main(): Promise<void> {
             });
             // Recover NEAR keypair using WebAuthnManager's recovery flow
             const rec = await webAuthnManager.recoverKeypairFromPasskey(authCred, account);
+            if (!rec.wrapKeySalt) {
+              throw new Error('Missing wrapKeySalt in recovered key material; re-register to upgrade vault format.');
+            }
             // Store encrypted key locally for this device. Prefer the last logged-in
             // device for this account; fall back to device 1 for legacy cases.
             const last = await IndexedDBManager.clientDB.getLastUser().catch(() => null);
@@ -272,10 +275,8 @@ async function main(): Promise<void> {
               nearAccountId: account,
               deviceNumber,
               encryptedData: rec.encryptedPrivateKey,
-              iv: rec.iv,
-              // Prefer the true wrapKeySalt returned by recovery; fall back to iv
-              // only if missing for backwards compatibility.
-              wrapKeySalt: rec.wrapKeySalt || rec.iv,
+              chacha20NonceB64u: rec.chacha20NonceB64u,
+              wrapKeySalt: rec.wrapKeySalt,
               version: 2,
               timestamp: Date.now(),
             });

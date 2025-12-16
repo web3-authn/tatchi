@@ -11,15 +11,30 @@ import { base64UrlDecode, base64UrlEncode } from "../../utils/encoders.js";
 
 export type WasmGenerateVrfKeypairBootstrapRequest = StripFree<wasmModule.GenerateVrfKeypairBootstrapRequest>;
 export type WasmGenerateVrfChallengeRequest = StripFree<wasmModule.GenerateVrfChallengeRequest>;
-export type WasmUnlockVrfKeypairRequest = StripFree<wasmModule.UnlockVrfKeypairRequest>;
-export type WasmDeriveVrfKeypairFromPrfRequest = StripFree<wasmModule.DeriveVrfKeypairFromPrfRequest>;
+export type WasmUnlockVrfKeypairRequest = Omit<StripFree<wasmModule.UnlockVrfKeypairRequest>, 'prfKey'> & {
+  // Prefer forwarding the full serialized WebAuthn credential so PRF outputs do not need
+  // to be extracted into separate main-thread strings.
+  credential: WebAuthnAuthenticationCredential;
+};
+export type WasmDeriveVrfKeypairFromPrfRequest = Omit<
+  StripFree<wasmModule.DeriveVrfKeypairFromPrfRequest>,
+  'credential' | 'prfOutput'
+> & {
+  // Forward the WebAuthn credential so PRF outputs do not need to be extracted in main-thread JS.
+  credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+};
 export type WasmMintSessionKeysAndSendToSignerRequest =
-  StripFree<wasmModule.MintSessionKeysAndSendToSignerRequest> & {
+  Omit<
+    StripFree<wasmModule.MintSessionKeysAndSendToSignerRequest>,
+    'contractId' | 'nearRpcUrl' | 'ttlMs' | 'remainingUses'
+  > & {
+    contractId?: string;
+    nearRpcUrl?: string;
     // Optional signing-session config. When omitted, VRF worker uses defaults.
     ttlMs?: number;
     remainingUses?: number;
-    // Optional credential for PRF.second extraction (registration or authentication)
-    credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+    // Forward the WebAuthn credential so PRF outputs do not need to be extracted in main-thread JS.
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
   };
 export type WasmDispenseSessionKeyRequest = StripFree<wasmModule.DispenseSessionKeyRequest>;
 export type WasmCheckSessionStatusRequest = StripFree<wasmModule.CheckSessionStatusRequest>;

@@ -53,6 +53,7 @@ import { NonceManager } from '../../nonceManager';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
 import { toError } from '@/utils/errors';
 import { withSessionId } from './handlers/session';
+import { toEncryptedPrivateKeyCiphertext } from './handlers/encryptedPrivateKey';
 import { attachSessionPort } from './sessionHandshake.js';
 
 type SigningSessionEntry = {
@@ -522,6 +523,13 @@ export class SignerWorkerManager {
     success: boolean;
     nearAccountId: AccountId;
     publicKey: string;
+    /**
+     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+     */
+    chacha20NonceB64u?: string;
+    /**
+     * @deprecated Use `chacha20NonceB64u`.
+     */
     iv?: string;
     wrapKeySalt?: string;
   }> {
@@ -583,6 +591,13 @@ export class SignerWorkerManager {
     signedTransaction: any;
     wrapKeySalt: string;
     encryptedData?: string;
+    /**
+     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+     */
+    chacha20NonceB64u?: string;
+    /**
+     * @deprecated Use `chacha20NonceB64u`.
+     */
     iv?: string;
     error?: string;
   }> {
@@ -638,9 +653,16 @@ export class SignerWorkerManager {
   }): Promise<{
     publicKey: string;
     encryptedPrivateKey: string;
+    /**
+     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+     */
+    chacha20NonceB64u: string;
+    /**
+     * @deprecated Use `chacha20NonceB64u`.
+     */
     iv: string;
     accountIdHint?: string;
-    wrapKeySalt?: string;
+    wrapKeySalt: string;
   }> {
     return recoverKeypairFromPasskey({ ctx: this.getContext(), ...args });
   }
@@ -684,6 +706,8 @@ export class SignerWorkerManager {
     state: string | null;
     accountId: string;
     sessionId: string;
+    contractId?: string;
+    nearRpcUrl?: string;
   }): Promise<{
     success: boolean;
     accountId: string;
@@ -714,7 +738,7 @@ export class SignerWorkerManager {
     const accountId = toAccountId(args.nearAccountId);
     const sessionId = args.sessionId;
 
-    // Gather encrypted key + IV and public key from IndexedDB
+    // Gather encrypted key + ChaCha20 nonce and public key from IndexedDB
     const deviceNumber = await getLastLoggedInDeviceNumber(accountId, ctx.indexedDB.clientDB);
     const [keyData, user] = await Promise.all([
       ctx.indexedDB.nearKeysDB.getEncryptedKey(accountId, deviceNumber),
@@ -731,8 +755,7 @@ export class SignerWorkerManager {
         type: WorkerRequestType.DecryptPrivateKeyWithPrf,
         payload: withSessionId(sessionId, {
           nearAccountId: accountId,
-          encryptedPrivateKeyData: keyData.encryptedData,
-          encryptedPrivateKeyIv: keyData.iv,
+          ...toEncryptedPrivateKeyCiphertext(keyData),
         }),
       },
       sessionId,

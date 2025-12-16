@@ -80,6 +80,8 @@ export async function loginPasskey(
     // Resolve default warm signing session policy from configs.
     const ttlMsDefault = context.configs.signingSessionDefaults.ttlMs;
     const remainingUsesDefault = context.configs.signingSessionDefaults.remainingUses;
+    const ttlMs = options?.signingSession?.ttlMs ?? ttlMsDefault;
+    const remainingUses = options?.signingSession?.remainingUses ?? remainingUsesDefault;
 
     // Optionally mint a server session (JWT or HttpOnly cookie).
     // When requested, we also mint the warm signing session using the same WebAuthn prompt
@@ -97,8 +99,8 @@ export async function loginPasskey(
           nearAccountId,
           onEvent,
           credential: base.unlockCredential,
-          ttlMs: ttlMsDefault,
-          remainingUses: remainingUsesDefault,
+          ttlMs,
+          remainingUses,
         });
 
         // Emit completion now since we deferred it
@@ -150,8 +152,8 @@ export async function loginPasskey(
           nearAccountId,
           onEvent,
           credential,
-          ttlMs: ttlMsDefault,
-          remainingUses: remainingUsesDefault,
+          ttlMs,
+          remainingUses,
         });
 
         const v = await verifyAuthenticationResponse(relayUrl, route, kind as 'jwt' | 'cookie', vrfChallenge, credential);
@@ -202,8 +204,8 @@ export async function loginPasskey(
       nearAccountId,
       onEvent,
       credential: base.unlockCredential,
-      ttlMs: ttlMsDefault,
-      remainingUses: remainingUsesDefault,
+      ttlMs,
+      remainingUses,
     });
 
     // Fire completion event and afterCall since we deferred them.

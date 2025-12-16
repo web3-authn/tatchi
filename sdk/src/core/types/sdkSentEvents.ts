@@ -600,6 +600,14 @@ export interface LoginHooksOptions {
     // Optional: override route path; defaults to '/verify-authentication-response'
     route?: string;
   };
+  /**
+   * Optional: override the warm signing session policy minted during login.
+   * Defaults come from `TatchiConfigs.signingSessionDefaults`.
+   */
+  signingSession?: {
+    ttlMs?: number;
+    remainingUses?: number;
+  };
 }
 
 export interface ActionHooksOptions {

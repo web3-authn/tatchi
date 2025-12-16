@@ -17,7 +17,6 @@ import type {
   VRFChallenge,
 } from '../types/vrf-worker';
 import type { WebAuthnRegistrationCredential } from '../types';
-import { extractPrfFromCredential } from '../WebAuthnManager/credentialsHelpers';
 
 export type PendingEmailRecoveryStatus =
   | 'awaiting-email'
@@ -377,19 +376,8 @@ export class EmailRecoveryFlow {
         throw err;
       }
 
-      const { chacha20PrfOutput } = extractPrfFromCredential({
+      const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypair({
         credential: confirm.credential,
-        firstPrfOutput: true,
-        secondPrfOutput: false,
-      });
-      if (!chacha20PrfOutput) {
-        const err = this.emitError(2, 'Missing PRF output from email recovery credential');
-        await this.options?.afterCall?.(false);
-        throw err;
-      }
-
-      const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypairFromRawPrf({
-        prfOutput: chacha20PrfOutput,
         nearAccountId,
       });
 

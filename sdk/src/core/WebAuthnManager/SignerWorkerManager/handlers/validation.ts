@@ -10,7 +10,6 @@ export interface RegistrationCredentialConfirmationPayload {
   requestId: string;
   intentDigest: string;
   credential: WebAuthnRegistrationCredential; // serialized PublicKeyCredential (no methods)
-  prfOutput?: string; // base64url string (ChaCha20 PRF)
   vrfChallenge: VRFChallenge;
   transactionContext?: TransactionContext;
   error?: string;
@@ -140,7 +139,6 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
     requestId,
     intentDigest,
     credential,
-    prfOutput,
     vrfChallenge,
     transactionContext,
     error,
@@ -149,7 +147,6 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
     requestId?: unknown;
     intentDigest?: unknown;
     credential?: unknown;
-    prfOutput?: unknown;
     vrfChallenge?: unknown;
     transactionContext?: unknown;
     error?: unknown;
@@ -167,9 +164,6 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
   if (!normalizedCredential) {
     throw new Error('Missing registration credential');
   }
-
-  const normalizedPrfOutput =
-    prfOutput == null ? undefined : assertString(prfOutput, 'prfOutput');
 
   const normalizedVrfChallenge =
     vrfChallenge != null ? validateVrfChallengeMaybe(vrfChallenge) : undefined;
@@ -189,7 +183,6 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
     requestId: normalizedRequestId,
     intentDigest: normalizedIntentDigest,
     credential: normalizedCredential,
-    prfOutput: normalizedPrfOutput,
     vrfChallenge: normalizedVrfChallenge,
     transactionContext: normalizedTransactionContext,
     error: normalizedError,

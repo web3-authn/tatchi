@@ -18,7 +18,6 @@ import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
-import { extractPrfFromCredential } from '../WebAuthnManager/credentialsHelpers';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
@@ -86,20 +85,12 @@ export async function registerPasskeyInternal(
 
     const credential = registrationSession.credential;
     const vrfChallenge = registrationSession.vrfChallenge;
-    const { chacha20PrfOutput } = extractPrfFromCredential({
-      credential,
-      firstPrfOutput: true,
-      secondPrfOutput: false,
-    });
-    if (!chacha20PrfOutput) {
-      throw new Error('Missing PRF output from registration credential');
-    }
 
     onEvent?.({
       step: 1,
       phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
       status: RegistrationStatus.SUCCESS,
-      message: 'WebAuthn ceremony successful, PRF output obtained'
+      message: 'WebAuthn ceremony successful'
     });
 
     // Derive deterministic VRF and NEAR keypairs from PRF, and check registration in parallel
@@ -108,8 +99,8 @@ export async function registerPasskeyInternal(
       nearKeyResult,
       canRegisterUserResult,
     } = await Promise.all([
-      webAuthnManager.deriveVrfKeypairFromRawPrf({
-        prfOutput: chacha20PrfOutput,
+      webAuthnManager.deriveVrfKeypair({
+        credential,
         nearAccountId,
         saveInMemory: true,
       }),

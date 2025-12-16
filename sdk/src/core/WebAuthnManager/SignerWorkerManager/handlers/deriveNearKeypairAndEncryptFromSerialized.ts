@@ -35,6 +35,13 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
   success: boolean;
   nearAccountId: AccountId;
   publicKey: string;
+  /**
+   * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+   */
+  chacha20NonceB64u?: string;
+  /**
+   * @deprecated Use `chacha20NonceB64u`.
+   */
   iv?: string;
   wrapKeySalt?: string;
   error?: string;
@@ -65,16 +72,17 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
 
     const wasmResult = response.payload;
     const version = (wasmResult as any).version ?? 2;
-    const wrapKeySaltPersisted = (wasmResult as any).wrapKeySalt;
+    const wrapKeySaltPersisted = wasmResult.wrapKeySalt;
     // Prefer explicitly provided deviceNumber, else derive from IndexedDB state
     const deviceNumber = (typeof options?.deviceNumber === 'number')
       ? options!.deviceNumber!
       : await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
+    const chacha20NonceB64u = wasmResult.chacha20NonceB64u || wasmResult.iv || '';
     const keyData: EncryptedKeyData = {
       nearAccountId: nearAccountId,
       deviceNumber,
       encryptedData: wasmResult.encryptedData,
-      iv: wasmResult.iv,
+      chacha20NonceB64u,
       wrapKeySalt: wrapKeySaltPersisted,
       version,
       timestamp: Date.now()
@@ -85,7 +93,8 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
       success: true,
       nearAccountId: toAccountId(wasmResult.nearAccountId),
       publicKey: wasmResult.publicKey,
-      iv: wasmResult.iv,
+      chacha20NonceB64u,
+      iv: chacha20NonceB64u,
       wrapKeySalt: wrapKeySaltPersisted,
     };
   } catch (error: unknown) {

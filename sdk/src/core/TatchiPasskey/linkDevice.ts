@@ -36,7 +36,6 @@ import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice'
 import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents';
 import type { DeviceLinkingSSEEvent } from '../types/sdkSentEvents';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
-import { extractPrfFromCredential } from '../WebAuthnManager/credentialsHelpers';
 
 
 /**
@@ -779,20 +778,11 @@ export class LinkDeviceFlow {
     this.session.credential = confirm.credential;
     this.session.vrfChallenge = confirm.vrfChallenge || null;
 
-    const { chacha20PrfOutput } = extractPrfFromCredential({
-      credential: confirm.credential,
-      firstPrfOutput: true,
-      secondPrfOutput: false,
-    });
-    if (!chacha20PrfOutput) {
-      throw new Error('Missing PRF output from link-device credential');
-    }
-
-    // Derive VRF keypair using raw PRF output from secureConfirm
+    // Derive deterministic VRF keypair from PRF output embedded in the credential.
     // This also loads the VRF keypair into the worker's memory (saveInMemory=true by default)
-    // and automatically tracks the account ID at the TypeScript level
-    const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypairFromRawPrf({
-      prfOutput: chacha20PrfOutput,
+    // and automatically tracks the account ID at the TypeScript level.
+    const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypair({
+      credential: confirm.credential,
       nearAccountId: realAccountId,
     });
 

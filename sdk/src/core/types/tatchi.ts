@@ -44,6 +44,23 @@ export interface LoginResult {
   jwt?: string;
 }
 
+export interface SigningSessionStatus {
+  sessionId: string;
+  status: 'active' | 'exhausted' | 'expired' | 'not_found';
+  remainingUses?: number;
+  expiresAtMs?: number;
+  createdAtMs?: number;
+}
+
+export interface LoginAndCreateSessionResult extends LoginResult {
+  signingSession?: SigningSessionStatus;
+}
+
+export interface LoginSession {
+  login: LoginState;
+  signingSession: SigningSessionStatus | null;
+}
+
 export interface ActionResult {
   success: boolean;
   error?: string;
@@ -98,8 +115,8 @@ export interface TatchiConfigsInput {
   nearExplorerUrl?: string; // NEAR Explorer URL for transaction links
   walletTheme?: 'dark' | 'light';
   /**
-   * Defaults for VRF-owned warm signing sessions minted by `loginPasskey()` and
-   * `unlockSigningSession()`. These can be overridden per-call via `unlockSigningSession()`.
+   * Defaults for VRF-owned warm signing sessions minted by `loginAndCreateSession()`.
+   * These can be overridden per-call via `LoginHooksOptions.signingSession`.
    */
   signingSessionDefaults?: {
     ttlMs?: number;

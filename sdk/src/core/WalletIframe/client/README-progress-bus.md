@@ -129,8 +129,8 @@ Even when you call `passkeyManager.executeAction(...)` directly from your app (n
 1) Overlay activation at the right phases
    - On `STEP_2_USER_CONFIRMATION` and `STEP_3_WEBAUTHN_AUTHENTICATION`, the `ProgressBus` instructs the router to expand the wallet iframe overlay, so the credential call happens in the wallet document.
 
-2) Default confirmation config: “modal + autoProceed”
-   - `DEFAULT_CONFIRMATION_CONFIG` is `uiMode: 'modal', behavior: 'autoProceed', autoProceedDelay: 0`.
+2) Default confirmation config: “modal + requireClick”
+   - `DEFAULT_CONFIRMATION_CONFIG` is `uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 0`.
    - Source: `passkey-sdk/src/core/types/signer-worker.ts`
    - In `handleSecureConfirmRequest.ts`, the `modal + autoProceed` branch mounts the modal with `loading: true`, waits `autoProceedDelay`, and proceeds without requiring a user click.
      - Source: `passkey-sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/handleSecureConfirmRequest.ts`

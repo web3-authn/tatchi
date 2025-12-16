@@ -26,6 +26,7 @@ import type {
   ActionResult,
   GetRecentLoginsResult,
   LoginResult,
+  LoginSession,
   LoginState,
   RegistrationResult,
   SignTransactionResult,
@@ -69,7 +70,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const pm = getTatchiPasskey();
       const { nearAccountId, options } = req.payload!;
       if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.loginPasskey(nearAccountId, {
+      const result = await pm.loginAndCreateSession(nearAccountId, {
         ...options,
         onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
       } as LoginHooksOptions);
@@ -79,36 +80,19 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
 
     PM_LOGOUT: async (req: Req<'PM_LOGOUT'>) => {
       const pm = getTatchiPasskey();
-      await pm.logoutAndClearVrfSession();
+      await pm.logoutAndClearSession();
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
     PM_GET_LOGIN_STATE: async (req: Req<'PM_GET_LOGIN_STATE'>) => {
       const pm = getTatchiPasskey();
-      const state = await pm.getLoginState(req.payload?.nearAccountId);
+      const state = (await pm.getLoginSession(req.payload?.nearAccountId)).login;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result: state } });
     },
 
-    PM_UNLOCK_SIGNING_SESSION: async (req: Req<'PM_UNLOCK_SIGNING_SESSION'>) => {
+    PM_GET_LOGIN_SESSION: async (req: Req<'PM_GET_LOGIN_SESSION'>) => {
       const pm = getTatchiPasskey();
-      const { nearAccountId, remainingUses, ttlMs } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.unlockSigningSession({ nearAccountId, remainingUses, ttlMs });
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
-    },
-
-    PM_GET_SIGNING_SESSION_STATUS: async (req: Req<'PM_GET_SIGNING_SESSION_STATUS'>) => {
-      const pm = getTatchiPasskey();
-      const { nearAccountId } = req.payload!;
-      const result = await pm.getSigningSessionStatus({ nearAccountId });
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
-    },
-
-    PM_CLEAR_SIGNING_SESSION: async (req: Req<'PM_CLEAR_SIGNING_SESSION'>) => {
-      const pm = getTatchiPasskey();
-      const { nearAccountId } = req.payload!;
-      const result = await pm.clearSigningSession({ nearAccountId });
+      const result: LoginSession = await pm.getLoginSession(req.payload?.nearAccountId);
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
@@ -312,9 +296,9 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const incoming = (req.payload?.config || {}) as Record<string, unknown>;
       let patch: Record<string, unknown> = { ...incoming };
       if (nearAccountId) {
-        await pm.getLoginState(nearAccountId)
-          .then((loginState) => {
-            const existing = (loginState?.userData?.preferences?.confirmationConfig || {}) as Record<string, unknown>;
+        await pm.getLoginSession(nearAccountId)
+          .then(({ login }) => {
+            const existing = (login?.userData?.preferences?.confirmationConfig || {}) as Record<string, unknown>;
             patch = { ...existing, ...incoming };
           })
           .catch(() => undefined);

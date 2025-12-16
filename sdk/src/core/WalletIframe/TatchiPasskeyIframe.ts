@@ -27,7 +27,9 @@ import type { NearClient, SignedTransaction, AccessKeyList } from '../NearClient
 import type {
   ActionResult,
   GetRecentLoginsResult,
+  LoginAndCreateSessionResult,
   LoginResult,
+  LoginSession,
   LoginState,
   RegistrationResult,
   SignDelegateActionResult,
@@ -192,13 +194,17 @@ export class TatchiPasskeyIframe {
     }
   }
 
-  async loginPasskey(nearAccountId: string, options?: LoginHooksOptions): Promise<LoginResult> {
+  async loginAndCreateSession(nearAccountId: string, options?: LoginHooksOptions): Promise<LoginAndCreateSessionResult> {
     try {
       // Route login request to iframe - similar flow to registerPasskey
       // The iframe will handle WebAuthn authentication and VRF session creation
-      const res = await this.router.loginPasskey({
+      const res = await this.router.loginAndCreateSession({
         nearAccountId,
-        options: { onEvent: options?.onEvent } // Progress events flow back to parent
+        options: {
+          onEvent: options?.onEvent,
+          session: options?.session,
+          signingSession: options?.signingSession,
+        } // Progress events flow back to parent
       });
       await options?.afterCall?.(true, res);
       return res;
@@ -210,62 +216,38 @@ export class TatchiPasskeyIframe {
     }
   }
 
-  async logoutAndClearVrfSession(): Promise<void> {
+  // Backward-compatible alias (deprecated)
+  async loginPasskey(nearAccountId: string, options?: LoginHooksOptions): Promise<LoginResult> {
+    const res = await this.loginAndCreateSession(nearAccountId, options);
+    return res as unknown as LoginResult;
+  }
+
+  async logoutAndClearSession(): Promise<void> {
     await this.router.clearVrfSession();
   }
 
-  async getLoginState(nearAccountId?: string): Promise<LoginState> {
+  // Backward-compatible alias (deprecated)
+  async logoutAndClearVrfSession(): Promise<void> {
+    await this.logoutAndClearSession();
+  }
+
+  async getLoginSession(nearAccountId?: string): Promise<LoginSession> {
     if (!this.router.isReady()) {
-      return {
+      const login: LoginState = {
         isLoggedIn: false,
         nearAccountId: null,
         publicKey: null,
         userData: null,
         vrfActive: false,
       } as LoginState;
+      return { login, signingSession: null };
     }
-    return this.router.getLoginState(nearAccountId);
+    return await this.router.getLoginSession(nearAccountId);
   }
 
-  async unlockSigningSession(args: {
-    nearAccountId: string;
-    remainingUses?: number;
-    ttlMs?: number;
-  }): Promise<{
-    sessionId: string;
-    status: 'active' | 'exhausted' | 'expired' | 'not_found';
-    remainingUses?: number;
-    expiresAtMs?: number;
-    createdAtMs?: number;
-  }> {
-    return await this.router.unlockSigningSession({
-      nearAccountId: args.nearAccountId,
-      remainingUses: args.remainingUses,
-      ttlMs: args.ttlMs,
-    });
-  }
-
-  async getSigningSessionStatus(args: {
-    nearAccountId: string;
-  }): Promise<{
-    sessionId: string;
-    status: 'active' | 'exhausted' | 'expired' | 'not_found';
-    remainingUses?: number;
-    expiresAtMs?: number;
-    createdAtMs?: number;
-  }> {
-    return await this.router.getSigningSessionStatus({ nearAccountId: args.nearAccountId });
-  }
-
-  async clearSigningSession(args: {
-    nearAccountId: string;
-  }): Promise<{
-    sessionId: string;
-    clearedSession: boolean;
-    clearedChallenge: boolean;
-    clearedPort: boolean;
-  }> {
-    return await this.router.clearSigningSession({ nearAccountId: args.nearAccountId });
+  // Backward-compatible alias (deprecated)
+  async getLoginState(nearAccountId?: string): Promise<LoginState> {
+    return (await this.getLoginSession(nearAccountId)).login;
   }
 
   async signTransactionsWithActions(args: {

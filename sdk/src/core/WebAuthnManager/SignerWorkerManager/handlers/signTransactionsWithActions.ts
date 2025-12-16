@@ -17,6 +17,7 @@ import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { isObject } from '../../../WalletIframe/validation';
 import { withSessionId } from './session';
 import { generateSessionId } from '../sessionHandshake.js';
+import { toEncryptedPrivateKeyCiphertext } from './encryptedPrivateKey';
 
 /**
  * Sign multiple transactions with shared VRF challenge and credential
@@ -111,10 +112,7 @@ export async function signTransactionsWithActions({
         payload: withSessionId(sessionId, {
           rpcCall: resolvedRpcCall,
           createdAt: Date.now(),
-          decryption: {
-            encryptedPrivateKeyData: encryptedKeyData.encryptedData,
-            encryptedPrivateKeyIv: encryptedKeyData.iv,
-          },
+          decryption: toEncryptedPrivateKeyCiphertext(encryptedKeyData),
           txSigningRequests: txSigningRequests,
           intentDigest,
           transactionContext,
