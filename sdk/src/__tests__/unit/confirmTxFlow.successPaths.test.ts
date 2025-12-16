@@ -37,7 +37,7 @@ test.describe('confirmTxFlow – success paths', () => {
               signature: new Uint8Array([3]).buffer,
               userHandle: null
             },
-            getClientExtensionResults: () => ({ prf: { results: { first: new Uint8Array(32).fill(7) } } })
+            getClientExtensionResults: () => ({ prf: { results: { first: new Uint8Array(32).fill(7), second: new Uint8Array(32).fill(8) } } })
           }) as any,
         },
         indexedDB: {
