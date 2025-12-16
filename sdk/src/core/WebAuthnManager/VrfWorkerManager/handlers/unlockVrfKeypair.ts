@@ -6,7 +6,6 @@ import type {
   WasmUnlockVrfKeypairRequest,
 } from '../../../types/vrf-worker';
 import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
-import { extractPrfFromCredential } from '../../credentialsHelpers';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
 /**
@@ -26,16 +25,6 @@ export async function unlockVrfKeypair(
 ): Promise<VRFWorkerResponse> {
   await ctx.ensureWorkerReady(true);
 
-  const { chacha20PrfOutput } = extractPrfFromCredential({
-    credential: args.credential,
-    firstPrfOutput: true,
-    secondPrfOutput: false,
-  });
-
-  if (!chacha20PrfOutput) {
-    throw new Error('ChaCha20 PRF output not found in WebAuthn credentials');
-  }
-
   args.onEvent?.({
     type: 'loginProgress',
     data: {
@@ -50,7 +39,7 @@ export async function unlockVrfKeypair(
     payload: {
       nearAccountId: args.nearAccountId,
       encryptedVrfKeypair: args.encryptedVrfKeypair,
-      prfKey: chacha20PrfOutput // already a base64url string
+      credential: args.credential,
     }
   };
 

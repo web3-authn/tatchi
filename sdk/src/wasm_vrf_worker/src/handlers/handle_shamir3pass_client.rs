@@ -4,10 +4,10 @@ use crate::shamir3pass::{decode_biguint_b64u, encode_biguint_b64u};
 use crate::types::VrfWorkerResponse;
 use log::error;
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
-use serde_wasm_bindgen;
 
 fn normalize_relay_url(base: &str, route: &str) -> String {
     let base_trimmed = base.trim().trim_end_matches('/');
@@ -15,11 +15,7 @@ fn normalize_relay_url(base: &str, route: &str) -> String {
     if route_trimmed.starts_with("http://") || route_trimmed.starts_with("https://") {
         route_trimmed.to_string()
     } else {
-        format!(
-            "{}/{}",
-            base_trimmed,
-            route_trimmed.trim_start_matches('/')
-        )
+        format!("{}/{}", base_trimmed, route_trimmed.trim_start_matches('/'))
     }
 }
 
@@ -99,8 +95,7 @@ pub async fn handle_shamir3pass_client_encrypt_current_vrf_keypair(
     };
 
     // Return ciphertext_vrf (base64url) and KEK_s to save to indexedDB
-    let payload = serde_wasm_bindgen::to_value(&result)
-        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    let payload = serde_wasm_bindgen::to_value(&result).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
     VrfWorkerResponse::success(message_id, Some(payload))
 }
 
@@ -254,7 +249,8 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
 
     // POST KEK_cs to server /remove-server-lock and receive KEK_c back
     let url = normalize_relay_url(&relay_url, &remove_route);
-    let kek_c_b64u = match post_remove_server_lock(&url, &kek_cs_b64u, payload.key_id.clone()).await {
+    let kek_c_b64u = match post_remove_server_lock(&url, &kek_cs_b64u, payload.key_id.clone()).await
+    {
         Ok(v) => v.kek_c_b64u,
         Err(e) => return VrfWorkerResponse::fail(message_id, e),
     };
@@ -292,12 +288,7 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
         return VrfWorkerResponse::fail(message_id, e.to_string());
     }
 
-    VrfWorkerResponse::success_from(
-        message_id,
-        Some(ShamirUnlockStatus {
-            status: "unlocked",
-        }),
-    )
+    VrfWorkerResponse::success_from(message_id, Some(ShamirUnlockStatus { status: "unlocked" }))
 }
 
 #[derive(Serialize)]

@@ -619,8 +619,10 @@ impl VRFKeyManager {
         seed: &[u8],
         account_id: &str,
     ) -> VrfResult<ECVRFKeyPair> {
-
-        debug!("Generating deterministic VRF keypair for account: {}", account_id);
+        debug!(
+            "Generating deterministic VRF keypair for account: {}",
+            account_id
+        );
         // Use HKDF-SHA256 to derive a proper 32-byte seed from PRF output
         let hk = Hkdf::<Sha256>::new(Some(account_id.as_bytes()), seed);
         let mut vrf_seed = [0u8; VRF_SEED_SIZE];

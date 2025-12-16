@@ -7,90 +7,19 @@ import type {
   WasmDeriveVrfKeypairFromPrfRequest,
 } from '../../../types/vrf-worker';
 import { validateVRFChallenge, type VRFChallenge } from '../../../types/vrf-worker';
-import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
-import { extractPrfFromCredential } from '../../credentialsHelpers';
+import type { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
 /**
  * Derive deterministic VRF keypair from PRF output embedded in a WebAuthn credential.
- *
- * If you already have the base64url PRF output string (e.g. from a serialized credential / secureConfirm),
- * use `deriveVrfKeypairFromRawPrf` instead.
  */
 export async function deriveVrfKeypairFromPrf(
   ctx: VrfWorkerManagerHandlerContext,
   args: {
-    credential: WebAuthnAuthenticationCredential;
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
     nearAccountId: AccountId;
     vrfInputData?: VRFInputData;
     saveInMemory?: boolean;
-  }
-): Promise<{
-  vrfPublicKey: string;
-  vrfChallenge: VRFChallenge | null;
-  encryptedVrfKeypair: EncryptedVRFKeypair;
-  serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-}> {
-  const saveInMemory = args.saveInMemory ?? true;
-  console.debug('VRF Manager: Deriving deterministic VRF keypair from PRF output');
-  try {
-    const { chacha20PrfOutput } = extractPrfFromCredential({
-      credential: args.credential,
-      firstPrfOutput: true,
-      secondPrfOutput: false,
-    });
-    const result = await deriveVrfKeypairFromPrfOutput(ctx, {
-      prfOutput: chacha20PrfOutput,
-      nearAccountId: args.nearAccountId,
-      vrfInputData: args.vrfInputData,
-      saveInMemory,
-      requireEncryptedVrfKeypair: true,
-    });
-    console.debug('VRF Manager: Deterministic VRF keypair derivation successful');
-    return result;
-
-  } catch (error: any) {
-    console.error('VRF Manager: VRF keypair derivation failed:', error);
-    throw new Error(`VRF keypair derivation failed: ${error.message}`);
-  }
-}
-
-/**
- * Derive deterministic VRF keypair from a pre-extracted base64url PRF output string.
- *
- * If you have a live WebAuthn credential with PRF extension results, prefer `deriveVrfKeypairFromPrf`,
- * which extracts the PRF output from the credential for you.
- */
-export async function deriveVrfKeypairFromRawPrf(
-  ctx: VrfWorkerManagerHandlerContext,
-  args: {
-    prfOutput: string;
-    nearAccountId: AccountId;
-    vrfInputData?: VRFInputData;
-    saveInMemory?: boolean;
-  }
-): Promise<{
-  vrfPublicKey: string;
-  vrfChallenge: VRFChallenge | null;
-  encryptedVrfKeypair: EncryptedVRFKeypair;
-  serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-}> {
-  return deriveVrfKeypairFromPrfOutput(ctx, {
-    prfOutput: args.prfOutput,
-    nearAccountId: args.nearAccountId,
-    vrfInputData: args.vrfInputData,
-    saveInMemory: args.saveInMemory,
-  });
-}
-
-async function deriveVrfKeypairFromPrfOutput(
-  ctx: VrfWorkerManagerHandlerContext,
-  args: {
-    prfOutput: string;
-    nearAccountId: AccountId;
-    vrfInputData?: VRFInputData;
-    saveInMemory?: boolean;
-    requireEncryptedVrfKeypair?: boolean;
   }
 ): Promise<{
   vrfPublicKey: string;
@@ -111,7 +40,7 @@ async function deriveVrfKeypairFromPrfOutput(
     type: 'DERIVE_VRF_KEYPAIR_FROM_PRF',
     id: ctx.generateMessageId(),
     payload: {
-      prfOutput: args.prfOutput,
+      credential: args.credential,
       nearAccountId: args.nearAccountId,
       saveInMemory,
       vrfInputData: hasVrfInputData ? {
@@ -139,9 +68,8 @@ async function deriveVrfKeypairFromPrfOutput(
   if (!vrfPublicKey) {
     throw new Error('VRF public key not found in response');
   }
-
-  if (args.requireEncryptedVrfKeypair && !data.encryptedVrfKeypair) {
-    throw new Error('Encrypted VRF keypair not found in response - this is required for registration');
+  if (!data.encryptedVrfKeypair) {
+    throw new Error('Encrypted VRF keypair not found in response');
   }
 
   const vrfChallenge = data.vrfChallengeData

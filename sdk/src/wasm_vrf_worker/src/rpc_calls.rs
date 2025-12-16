@@ -1,8 +1,8 @@
+use js_sys::{Array, Reflect};
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use js_sys::{Array, Reflect};
+use wasm_bindgen::JsCast;
 
 use crate::fetch::{
     build_json_post_init, fetch_with_init, response_json, response_ok, response_status,
@@ -172,11 +172,11 @@ pub async fn verify_authentication_response_rpc_call(
     vrf_data: VrfData,
     webauthn_authentication_credential: WebAuthnAuthenticationCredential,
 ) -> Result<ContractVerificationResult, String> {
-
     let contract_args_bytes = ContractArgs {
         vrf_data: &vrf_data,
         webauthn_authentication: &webauthn_authentication_credential,
-    }.to_json_bytes()?;
+    }
+    .to_json_bytes()?;
 
     debug!("[vrf wasm]: Making verification RPC call to: {}", rpc_url);
     let result = execute_rpc_request(
@@ -192,8 +192,10 @@ pub async fn verify_authentication_response_rpc_call(
                 args_base64: base64_standard_encode(&contract_args_bytes),
                 finality: "final",
             },
-        }.to_js_value()?
-    ).await?;
+        }
+        .to_js_value()?,
+    )
+    .await?;
 
     // Top-level RPC error
     if let Some(error_msg) = extract_error_message(&result, "error") {
@@ -229,7 +231,9 @@ pub async fn verify_authentication_response_rpc_call(
     }
     let mut result_u8: Vec<u8> = Vec::with_capacity(result_bytes_arr.length() as usize);
     for v in result_bytes_arr.iter() {
-        let byte = v.as_f64().ok_or_else(|| "result.result must be an array of numbers".to_string())?;
+        let byte = v
+            .as_f64()
+            .ok_or_else(|| "result.result must be an array of numbers".to_string())?;
         result_u8.push(byte as u8);
     }
 
@@ -256,16 +260,17 @@ pub async fn verify_authentication_response_rpc_call(
     Ok(ContractVerificationResult {
         success: true,
         verified,
-        error: if verified { None } else { Some(contract_error.unwrap_or_else(|| "Contract verification failed".to_string())) },
+        error: if verified {
+            None
+        } else {
+            Some(contract_error.unwrap_or_else(|| "Contract verification failed".to_string()))
+        },
         logs,
     })
 }
 
 /// Shared HTTP request execution logic for VRF worker
-async fn execute_rpc_request(
-    rpc_url: &str,
-    rpc_body: &JsValue,
-) -> Result<JsValue, String> {
+async fn execute_rpc_request(rpc_url: &str, rpc_body: &JsValue) -> Result<JsValue, String> {
     let endpoints: Vec<String> = rpc_url
         .split(|c: char| c == ',' || c.is_whitespace())
         .map(|s| s.trim())
@@ -312,10 +317,7 @@ async fn execute_rpc_request(
             let status_text = response_status_text(&resp).unwrap_or_default();
             last_error = Some(format!(
                 "HTTP error from {}: {} {} - Response: {}",
-                endpoint,
-                status,
-                status_text,
-                error_text
+                endpoint, status, status_text, error_text
             ));
             continue;
         }

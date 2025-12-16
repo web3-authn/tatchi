@@ -21,7 +21,7 @@ import {
   ERROR_MESSAGES,
   getSignTransactionPayload,
 } from './common';
-import { serializeAuthenticationCredentialWithPRF, extractPrfFromCredential } from '../../../credentialsHelpers';
+import { serializeAuthenticationCredentialWithPRF } from '../../../credentialsHelpers';
 import { toAccountId } from '../../../../types/accountIds';
 import { getLastLoggedInDeviceNumber } from '../../../SignerWorkerManager/getDeviceNumber';
 import { authenticatorsToAllowCredentials } from '../../../touchIdPrompt';
@@ -172,11 +172,6 @@ export async function handleTransactionSigningFlow(
       throw new Error(wrongPasskeyError);
     }
 
-    const dualPrfOutputs = extractPrfFromCredential({
-      credential,
-      firstPrfOutput: true,
-      secondPrfOutput: false  // PRF.second not needed for normal transaction signing (only registration/linking)
-    });
     const serialized = serializeAuthenticationCredentialWithPRF({ credential });
 
     // 5c) Derive WrapKeySeed inside the VRF worker and deliver it to the signer worker via
@@ -197,16 +192,15 @@ export async function handleTransactionSigningFlow(
 
       const deviceNumber = await getLastLoggedInDeviceNumber(toAccountId(nearAccountId), ctx.indexedDB.clientDB);
       const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
-      // For v2+ vaults, wrapKeySalt is the canonical salt. iv fallback is retained
-      // only for legacy entries that predate VRF‑owned WrapKeySeed derivation.
-      const wrapKeySalt = encryptedKeyData?.wrapKeySalt || encryptedKeyData?.iv || '';
+      // For v2+ vaults, wrapKeySalt is the canonical salt.
+      const wrapKeySalt = encryptedKeyData?.wrapKeySalt || '';
       if (!wrapKeySalt) {
         throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
       }
 
       // Extract contract verification context when available.
       // - SIGN_TRANSACTION: use per-request rpcCall (already normalized by caller).
-      // - SIGN_NEP413_MESSAGE: use default contract/rpc from PASSKEY_MANAGER_DEFAULT_CONFIGS.
+      // - SIGN_NEP413_MESSAGE: allow per-request override; fall back to PASSKEY_MANAGER_DEFAULT_CONFIGS.
       let contractId: string | undefined;
       let nearRpcUrl: string | undefined;
       if (request.type === SecureConfirmationType.SIGN_TRANSACTION) {
@@ -214,18 +208,21 @@ export async function handleTransactionSigningFlow(
         contractId = payload?.rpcCall?.contractId;
         nearRpcUrl = payload?.rpcCall?.nearRpcUrl;
       } else if (request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE) {
-        contractId = PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId;
-        const defaultRpc = PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl;
-        nearRpcUrl = defaultRpc.split(',')[0] || defaultRpc;
+        const payload = request.payload as any;
+        contractId = payload?.contractId
+          || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId;
+        nearRpcUrl = payload?.nearRpcUrl
+          || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl;
       }
+
       await vrfWorkerManager.mintSessionKeysAndSendToSigner({
         sessionId: request.requestId,
-        prfFirstAuthB64u: dualPrfOutputs.chacha20PrfOutput,
         wrapKeySalt,
         contractId,
         nearRpcUrl,
         credential: serialized,
       });
+
     } catch (err) {
       console.error('[SigningFlow] WrapKeySeed derivation failed:', err);
       throw err; // Don't silently ignore - propagate the error

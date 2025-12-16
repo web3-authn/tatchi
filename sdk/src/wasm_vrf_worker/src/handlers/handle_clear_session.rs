@@ -63,4 +63,3 @@ pub fn handle_clear_session(
         }),
     )
 }
-

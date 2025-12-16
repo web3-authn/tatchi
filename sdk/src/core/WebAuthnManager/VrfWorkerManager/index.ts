@@ -44,7 +44,6 @@ import {
   confirmAndPrepareSigningSession,
   createSigningSessionChannel,
   deriveVrfKeypairFromPrf,
-  deriveVrfKeypairFromRawPrf,
   mintSessionKeysAndSendToSigner,
   dispenseSessionKey,
   generateVrfChallengeForSession,
@@ -91,13 +90,12 @@ export interface SessionVrfWorkerManager {
 
   mintSessionKeysAndSendToSigner(args: {
     sessionId: string;
-    prfFirstAuthB64u: string;
     wrapKeySalt?: string;
     contractId?: string;
     nearRpcUrl?: string;
     ttlMs?: number;
     remainingUses?: number;
-    credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
   }): Promise<{ sessionId: string; wrapKeySalt: string }>;
 
   dispenseSessionKey(args: {
@@ -221,7 +219,6 @@ export class VrfWorkerManager {
    */
   async mintSessionKeysAndSendToSigner(args: {
     sessionId: string;
-    prfFirstAuthB64u: string;
     // Optional vault wrapKeySalt. When omitted or empty, VRF worker will generate a fresh wrapKeySalt.
     wrapKeySalt?: string;
     // Optional contract verification context; when provided, VRF Rust will call
@@ -232,7 +229,7 @@ export class VrfWorkerManager {
     ttlMs?: number;
     remainingUses?: number;
     // Optional credential for PRF.second extraction (registration or authentication)
-    credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
   }): Promise<{ sessionId: string; wrapKeySalt: string }> {
     return mintSessionKeysAndSendToSigner(this.getHandlerContext(), args);
   }
@@ -333,6 +330,8 @@ export class VrfWorkerManager {
     nearAccountId: string;
     message: string;
     recipient: string;
+    contractId?: string;
+    nearRpcUrl?: string;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
   }): Promise<{
     sessionId: string;
@@ -612,7 +611,7 @@ export class VrfWorkerManager {
 
   /**
    * Set the current VRF account ID at the TypeScript level
-   * Used after VRF keypair is loaded in WASM memory (e.g., after deriveVrfKeypairFromRawPrf)
+   * Used after VRF keypair is loaded in WASM memory (e.g., after deriveVrfKeypairFromPrf)
    * to track which account has an active VRF session
    */
   setCurrentVrfAccountId(nearAccountId: AccountId): void {
@@ -641,17 +640,17 @@ export class VrfWorkerManager {
   }
 
   /**
-   * Derive deterministic VRF keypair from PRF output for account recovery
+   * Derive deterministic VRF keypair from PRF output embedded in a WebAuthn credential.
    * Optionally generates VRF challenge if input parameters are provided
    * This enables deterministic VRF key derivation without needing stored VRF keypairs
    *
-   * @param prfOutput - Base64url-encoded PRF output from WebAuthn credential (PRF Output 1)
+   * @param credential - WebAuthn credential containing PRF outputs
    * @param nearAccountId - NEAR account ID for key derivation salt
    * @param vrfInputParams - Optional VRF input parameters for challenge generation
    * @returns Deterministic VRF public key, optional VRF challenge, and encrypted VRF keypair for storage
    */
   async deriveVrfKeypairFromPrf(args: {
-    credential: WebAuthnAuthenticationCredential;
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
     nearAccountId: AccountId;
     vrfInputData?: VRFInputData; // optional, for challenge generation
     saveInMemory?: boolean; // optional, whether to save in worker memory
@@ -662,24 +661,6 @@ export class VrfWorkerManager {
     serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
   }> {
     return deriveVrfKeypairFromPrf(this.getHandlerContext(), args);
-  }
-
-  /**
-   * Derive deterministic VRF keypair directly from a base64url PRF output string.
-   * Useful when PRF has been obtained via a serialized credential (secureConfirm).
-   */
-  async deriveVrfKeypairFromRawPrf(args: {
-    prfOutput: string;
-    nearAccountId: AccountId;
-    vrfInputData?: VRFInputData;
-    saveInMemory?: boolean;
-  }): Promise<{
-    vrfPublicKey: string;
-    vrfChallenge: VRFChallenge | null;
-    encryptedVrfKeypair: EncryptedVRFKeypair;
-    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-  }> {
-    return deriveVrfKeypairFromRawPrf(this.getHandlerContext(), args);
   }
 
   /**

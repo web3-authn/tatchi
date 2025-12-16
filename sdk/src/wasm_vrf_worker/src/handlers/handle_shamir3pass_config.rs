@@ -2,10 +2,10 @@ use crate::manager::VRFKeyManager;
 use crate::types::VrfWorkerResponse;
 use log::debug;
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
-use serde_wasm_bindgen;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -54,8 +54,9 @@ pub fn handle_shamir3pass_config_p(
             };
             VrfWorkerResponse::success(
                 message_id,
-                Some(serde_wasm_bindgen::to_value(&resp)
-                    .unwrap_or(wasm_bindgen::JsValue::UNDEFINED))
+                Some(
+                    serde_wasm_bindgen::to_value(&resp).unwrap_or(wasm_bindgen::JsValue::UNDEFINED),
+                ),
             )
         }
         Err(e) => VrfWorkerResponse::fail(message_id, format!("invalid p_b64u: {:?}", e)),
@@ -93,6 +94,9 @@ pub fn handle_shamir3pass_config_server_urls(
     }
     VrfWorkerResponse::success(
         message_id,
-        Some(serde_wasm_bindgen::to_value(&Resp { status: "ok" }).unwrap_or(wasm_bindgen::JsValue::UNDEFINED)),
+        Some(
+            serde_wasm_bindgen::to_value(&Resp { status: "ok" })
+                .unwrap_or(wasm_bindgen::JsValue::UNDEFINED),
+        ),
     )
 }

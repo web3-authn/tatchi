@@ -1,9 +1,9 @@
 // === WORKER MESSAGES: REQUEST & RESPONSE TYPES ===
 
+use js_sys::Reflect;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
-use js_sys::Reflect;
 
 // === PAYLOAD & ENVELOPE HELPERS ===
 
@@ -14,12 +14,8 @@ pub fn parse_typed_payload<T: DeserializeOwned>(
     payload: Option<JsValue>,
     request_type: WorkerRequestType,
 ) -> Result<T, JsValue> {
-    let payload_js = payload.ok_or_else(|| {
-        JsValue::from_str(&format!(
-            "{}: Missing payload",
-            request_type.name()
-        ))
-    })?;
+    let payload_js = payload
+        .ok_or_else(|| JsValue::from_str(&format!("{}: Missing payload", request_type.name())))?;
 
     serde_wasm_bindgen::from_value(payload_js).map_err(|e| {
         JsValue::from_str(&format!(
@@ -39,17 +35,12 @@ pub struct VrfWorkerMessage {
     pub payload: Option<JsValue>,
 }
 
-pub fn parse_worker_request_envelope(
-    message_val: JsValue,
-) -> Result<VrfWorkerMessage, JsValue> {
+pub fn parse_worker_request_envelope(message_val: JsValue) -> Result<VrfWorkerMessage, JsValue> {
     // Support both Object (Browser) and JSON String (Node.js/Server) inputs.
     let message_obj = if message_val.is_string() {
         let json_str = message_val.as_string().unwrap_or_default();
         js_sys::JSON::parse(&json_str).map_err(|e| {
-            JsValue::from_str(&format!(
-                "Failed to parse JSON string input: {:?}",
-                e
-            ))
+            JsValue::from_str(&format!("Failed to parse JSON string input: {:?}", e))
         })?
     } else {
         message_val
@@ -123,7 +114,9 @@ impl WorkerRequestType {
         match value {
             "PING" => Some(WorkerRequestType::Ping),
             "GENERATE_VRF_CHALLENGE" => Some(WorkerRequestType::GenerateVrfChallenge),
-            "GENERATE_VRF_KEYPAIR_BOOTSTRAP" => Some(WorkerRequestType::GenerateVrfKeypairBootstrap),
+            "GENERATE_VRF_KEYPAIR_BOOTSTRAP" => {
+                Some(WorkerRequestType::GenerateVrfKeypairBootstrap)
+            }
             "UNLOCK_VRF_KEYPAIR" => Some(WorkerRequestType::UnlockVrfKeypair),
             "CHECK_VRF_STATUS" => Some(WorkerRequestType::CheckVrfStatus),
             "CLEAR_VRF" => Some(WorkerRequestType::ClearVrf),
@@ -137,11 +130,19 @@ impl WorkerRequestType {
             "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR" => {
                 Some(WorkerRequestType::Shamir3PassGenerateServerKeypair)
             }
-            "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK" => Some(WorkerRequestType::Shamir3PassApplyServerLock),
-            "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK" => Some(WorkerRequestType::Shamir3PassRemoveServerLock),
+            "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK" => {
+                Some(WorkerRequestType::Shamir3PassApplyServerLock)
+            }
+            "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK" => {
+                Some(WorkerRequestType::Shamir3PassRemoveServerLock)
+            }
             "SHAMIR3PASS_CONFIG_P" => Some(WorkerRequestType::Shamir3PassConfigP),
-            "SHAMIR3PASS_CONFIG_SERVER_URLS" => Some(WorkerRequestType::Shamir3PassConfigServerUrls),
-            "MINT_SESSION_KEYS_AND_SEND_TO_SIGNER" => Some(WorkerRequestType::MintSessionKeysAndSendToSigner),
+            "SHAMIR3PASS_CONFIG_SERVER_URLS" => {
+                Some(WorkerRequestType::Shamir3PassConfigServerUrls)
+            }
+            "MINT_SESSION_KEYS_AND_SEND_TO_SIGNER" => {
+                Some(WorkerRequestType::MintSessionKeysAndSendToSigner)
+            }
             "DECRYPT_SESSION" => Some(WorkerRequestType::DecryptSession),
             "REGISTRATION_CREDENTIAL_CONFIRMATION" => {
                 Some(WorkerRequestType::RegistrationCredentialConfirmation)
@@ -150,7 +151,9 @@ impl WorkerRequestType {
             "DISPENSE_SESSION_KEY" => Some(WorkerRequestType::DispenseSessionKey),
             "CHECK_SESSION_STATUS" => Some(WorkerRequestType::CheckSessionStatus),
             "CLEAR_SESSION" => Some(WorkerRequestType::ClearSession),
-            "CONFIRM_AND_PREPARE_SIGNING_SESSION" => Some(WorkerRequestType::ConfirmAndPrepareSigningSession),
+            "CONFIRM_AND_PREPARE_SIGNING_SESSION" => {
+                Some(WorkerRequestType::ConfirmAndPrepareSigningSession)
+            }
             _ => None,
         }
     }
@@ -173,39 +176,21 @@ impl WorkerRequestType {
             WorkerRequestType::Shamir3PassGenerateServerKeypair => {
                 "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR"
             }
-            WorkerRequestType::Shamir3PassApplyServerLock => {
-                "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK"
-            }
-            WorkerRequestType::Shamir3PassRemoveServerLock => {
-                "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK"
-            }
-            WorkerRequestType::Shamir3PassConfigP => {
-                "SHAMIR3PASS_CONFIG_P"
-            }
-            WorkerRequestType::Shamir3PassConfigServerUrls => {
-                "SHAMIR3PASS_CONFIG_SERVER_URLS"
-            }
+            WorkerRequestType::Shamir3PassApplyServerLock => "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK",
+            WorkerRequestType::Shamir3PassRemoveServerLock => "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK",
+            WorkerRequestType::Shamir3PassConfigP => "SHAMIR3PASS_CONFIG_P",
+            WorkerRequestType::Shamir3PassConfigServerUrls => "SHAMIR3PASS_CONFIG_SERVER_URLS",
             WorkerRequestType::MintSessionKeysAndSendToSigner => {
                 "MINT_SESSION_KEYS_AND_SEND_TO_SIGNER"
             }
-            WorkerRequestType::DecryptSession => {
-                "DECRYPT_SESSION"
-            }
+            WorkerRequestType::DecryptSession => "DECRYPT_SESSION",
             WorkerRequestType::RegistrationCredentialConfirmation => {
                 "REGISTRATION_CREDENTIAL_CONFIRMATION"
             }
-            WorkerRequestType::Device2RegistrationSession => {
-                "DEVICE2_REGISTRATION_SESSION"
-            }
-            WorkerRequestType::DispenseSessionKey => {
-                "DISPENSE_SESSION_KEY"
-            }
-            WorkerRequestType::CheckSessionStatus => {
-                "CHECK_SESSION_STATUS"
-            }
-            WorkerRequestType::ClearSession => {
-                "CLEAR_SESSION"
-            }
+            WorkerRequestType::Device2RegistrationSession => "DEVICE2_REGISTRATION_SESSION",
+            WorkerRequestType::DispenseSessionKey => "DISPENSE_SESSION_KEY",
+            WorkerRequestType::CheckSessionStatus => "CHECK_SESSION_STATUS",
+            WorkerRequestType::ClearSession => "CLEAR_SESSION",
             WorkerRequestType::ConfirmAndPrepareSigningSession => {
                 "CONFIRM_AND_PREPARE_SIGNING_SESSION"
             }
@@ -336,12 +321,7 @@ fn serialize_data<T: Serialize>(value: T) -> JsValue {
 }
 
 impl VrfWorkerResponse {
-    pub fn new(
-        id: Option<String>,
-        success: bool,
-        data: JsValue,
-        error: Option<String>,
-    ) -> Self {
+    pub fn new(id: Option<String>, success: bool, data: JsValue, error: Option<String>) -> Self {
         Self {
             id,
             success,

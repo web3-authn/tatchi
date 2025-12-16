@@ -10,7 +10,7 @@ import { createRandomVRFChallenge } from '../../../../types/vrf-worker';
 import { renderConfirmUI, getNearAccountId, getIntentDigest, sendConfirmResponse, closeModalSafely, isUserCancelledSecureConfirm, ERROR_MESSAGES } from './common';
 import { toAccountId } from '../../../../types/accountIds';
 import { authenticatorsToAllowCredentials } from '../../../touchIdPrompt';
-import { extractPrfFromCredential, serializeAuthenticationCredentialWithPRF } from '../../../credentialsHelpers';
+import { serializeAuthenticationCredentialWithPRF } from '../../../credentialsHelpers';
 
 export async function handleLocalOnlyFlow(
   ctx: VrfWorkerManagerContext,
@@ -51,7 +51,8 @@ export async function handleLocalOnlyFlow(
     });
   }
 
-  // DECRYPT_PRIVATE_KEY_WITH_PRF: collect PRF via authentication and return credential + prfOutput
+  // DECRYPT_PRIVATE_KEY_WITH_PRF: collect an authentication credential (with PRF extension results)
+  // and return it to the VRF worker; VRF worker extracts PRF outputs internally.
   if (request.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF) {
     let touchIdSuccess = false;
     try {
@@ -71,25 +72,15 @@ export async function handleLocalOnlyFlow(
         allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
       });
 
-      const dualPrfOutputs = extractPrfFromCredential({
-        credential,
-        firstPrfOutput: true,
-        secondPrfOutput: false,
-      });
-      if (!dualPrfOutputs.chacha20PrfOutput) {
-        throw new Error(ERROR_MESSAGES.prfMissing);
-      }
-      const serialized = serializeAuthenticationCredentialWithPRF({ credential });
-
       touchIdSuccess = true;
       // No modal to keep open; export viewer will be shown by a subsequent request
       return sendConfirmResponse(worker, {
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: true,
-        credential: serialized,
-        prfOutput: dualPrfOutputs.chacha20PrfOutput,
+        credential: serializeAuthenticationCredentialWithPRF({ credential }),
       });
+
     } catch (err: unknown) {
       const cancelled = isUserCancelledSecureConfirm(err);
       if (cancelled) {

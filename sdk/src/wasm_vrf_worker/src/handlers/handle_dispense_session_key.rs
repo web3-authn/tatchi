@@ -30,7 +30,10 @@ pub async fn handle_dispense_session_key(
     message_id: Option<String>,
     request: DispenseSessionKeyRequest,
 ) -> VrfWorkerResponse {
-    debug!("[VRF] dispense_session_key for session {}", request.session_id);
+    debug!(
+        "[VRF] dispense_session_key for session {}",
+        request.session_id
+    );
 
     // Take the currently attached MessagePort for this session id so we can guarantee
     // one-shot delivery (1 VRF worker → N signer workers over time).
@@ -50,19 +53,19 @@ pub async fn handle_dispense_session_key(
 
     let (_wrap_key_seed_b64u, _wrap_key_salt_b64u, remaining_uses, expires_at_ms) = {
         let mut mgr = manager.borrow_mut();
-        let (seed_b64u, salt_b64u) = match mgr.dispense_session_key(&request.session_id, uses, now_ms)
-        {
-            Ok(v) => v,
-            Err(e) => {
-                #[cfg(target_arch = "wasm32")]
-                {
-                    // Put the port back so callers can fall back to a full confirmation flow
-                    // within the same signing session.
-                    crate::wrap_key_seed_port::put_port(&request.session_id, port);
+        let (seed_b64u, salt_b64u) =
+            match mgr.dispense_session_key(&request.session_id, uses, now_ms) {
+                Ok(v) => v,
+                Err(e) => {
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        // Put the port back so callers can fall back to a full confirmation flow
+                        // within the same signing session.
+                        crate::wrap_key_seed_port::put_port(&request.session_id, port);
+                    }
+                    return VrfWorkerResponse::fail(message_id, e.to_string());
                 }
-                return VrfWorkerResponse::fail(message_id, e.to_string());
-            }
-        };
+            };
         let (remaining_uses, expires_at_ms) = mgr
             .sessions
             .get(&request.session_id)

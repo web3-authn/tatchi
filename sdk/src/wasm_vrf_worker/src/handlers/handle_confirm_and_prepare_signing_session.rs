@@ -7,7 +7,7 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 
-use js_sys::{Array, Date, JSON, Reflect};
+use js_sys::{Array, Date, Reflect, JSON};
 
 /// Request payload: kick off confirmTxFlow from VRF WASM (via awaitSecureConfirmationV2).
 ///
@@ -83,8 +83,8 @@ fn inject_signing_auth_mode_if_missing(
     manager: Rc<RefCell<VRFKeyManager>>,
     request_json: String,
 ) -> Result<String, String> {
-    let parsed = JSON::parse(&request_json)
-        .map_err(|e| format!("Failed to parse requestJson: {:?}", e))?;
+    let parsed =
+        JSON::parse(&request_json).map_err(|e| format!("Failed to parse requestJson: {:?}", e))?;
 
     let req_type = get_string(&parsed, "type")?;
     if req_type != "signTransaction" && req_type != "signNep413Message" {
@@ -106,9 +106,17 @@ fn inject_signing_auth_mode_if_missing(
         warm_session_available(&mut mgr, &request_id, uses_needed, now_ms)
     };
 
-    let mode = if should_use_warm_session { "warmSession" } else { "webauthn" };
-    Reflect::set(&payload, &JsValue::from_str("signingAuthMode"), &JsValue::from_str(mode))
-        .map_err(|e| format!("Failed to set payload.signingAuthMode: {:?}", e))?;
+    let mode = if should_use_warm_session {
+        "warmSession"
+    } else {
+        "webauthn"
+    };
+    Reflect::set(
+        &payload,
+        &JsValue::from_str("signingAuthMode"),
+        &JsValue::from_str(mode),
+    )
+    .map_err(|e| format!("Failed to set payload.signingAuthMode: {:?}", e))?;
 
     JSON::stringify(&parsed)
         .map_err(|e| format!("Failed to stringify request: {:?}", e))?
@@ -128,11 +136,11 @@ pub async fn handle_confirm_and_prepare_signing_session(
         Err(e) => return VrfWorkerResponse::fail(message_id, e),
     };
 
-    let decision: WorkerConfirmationResponse = match crate::vrf_await_secure_confirmation(request_json).await {
-        Ok(v) => v,
-        Err(e) => return VrfWorkerResponse::fail(message_id, e),
-    };
+    let decision: WorkerConfirmationResponse =
+        match crate::vrf_await_secure_confirmation(request_json).await {
+            Ok(v) => v,
+            Err(e) => return VrfWorkerResponse::fail(message_id, e),
+        };
 
     VrfWorkerResponse::success_from(message_id, Some(decision))
 }
-

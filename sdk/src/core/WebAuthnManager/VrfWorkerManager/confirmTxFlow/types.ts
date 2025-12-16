@@ -13,14 +13,25 @@ export enum SecureConfirmMessageType {
   USER_PASSKEY_CONFIRM_RESPONSE = 'USER_PASSKEY_CONFIRM_RESPONSE',
 }
 
-export interface SecureConfirmDecision {
+/**
+ * Type-level guardrail: these secrets must never appear in main-thread
+ * request/response envelopes. WrapKeySeed is delivered only over the dedicated
+ * VRF→Signer MessagePort, and PRF outputs should only exist inside credentials.
+ */
+export type ForbiddenMainThreadSecrets = {
+  prfOutput?: never;
+  prf_output?: never;
+  wrapKeySeed?: never;
+  wrapKeySalt?: never;
+  vrf_sk?: never;
+  prfKey?: never;
+};
+
+export interface SecureConfirmDecision extends ForbiddenMainThreadSecrets {
   requestId: string;
   intentDigest?: string;
   confirmed: boolean;
   credential?: SerializableCredential; // Serialized WebAuthn credential
-  prfOutput?: string; // Base64url-encoded PRF output (local-only flows)
-  wrapKeySeed?: string; // Base64url-encoded WrapKeySeed (preferred; may be omitted for signing flows)
-  wrapKeySalt?: string; // Base64url-encoded salt for WrapKeySeed → KEK derivation
   vrfChallenge?: VRFChallenge; // VRF challenge generated during confirmation
   transactionContext?: TransactionContext; // NEAR data fetched during confirmation
   // This is a private field used to close the confirmation modal
@@ -55,9 +66,6 @@ export interface WorkerConfirmationResponse {
   intent_digest?: string;
   confirmed: boolean;
   credential?: SerializableCredential;
-  prf_output?: string;
-  wrapKeySeed?: string;
-  wrapKeySalt?: string;
   vrf_challenge?: VRFChallenge;     // VRF challenge generated during confirmation
   transaction_context?: TransactionContext; // NEAR data fetched during confirmation
   error?: string;
@@ -126,6 +134,16 @@ export interface SignNep413Payload {
   nearAccountId: string;
   message: string;
   recipient: string;
+  /**
+   * Optional contract verification context for VRF gating.
+   * When provided, VRF Rust can call `verify_authentication_response` on-chain
+   * before deriving and dispensing session keys.
+   */
+  contractId?: string;
+  /**
+   * Optional NEAR RPC URL for contract verification (single URL or failover list).
+   */
+  nearRpcUrl?: string;
   /**
    * Controls whether confirmTxFlow should collect a WebAuthn credential for this signing intent.
    * See `SignTransactionPayload.signingAuthMode`.

@@ -22,22 +22,21 @@ export async function mintSessionKeysAndSendToSigner(
   ctx: VrfWorkerManagerHandlerContext,
   args: {
     sessionId: string;
-    prfFirstAuthB64u: string;
     wrapKeySalt?: string;
     contractId?: string;
     nearRpcUrl?: string;
     ttlMs?: number;
     remainingUses?: number;
-    credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
   }
 ): Promise<{ sessionId: string; wrapKeySalt: string }> {
   await ctx.ensureWorkerReady(true);
+
   const message: VRFWorkerMessage<WasmMintSessionKeysAndSendToSignerRequest> = {
     type: 'MINT_SESSION_KEYS_AND_SEND_TO_SIGNER',
     id: ctx.generateMessageId(),
     payload: {
       sessionId: args.sessionId,
-      prfFirstAuthB64u: args.prfFirstAuthB64u,
       // Use empty string as a sentinel to tell the VRF worker to generate wrapKeySalt when none is provided.
       wrapKeySalt: args.wrapKeySalt ?? '',
       contractId: args.contractId,

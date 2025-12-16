@@ -30,15 +30,12 @@ import type { ConfirmationConfig, RpcCallPayload, WasmSignedDelegate } from '../
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
 import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
 import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../sdkPaths';
-import { extractPrfFromCredential } from './credentialsHelpers';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { getLastLoggedInDeviceNumber } from './SignerWorkerManager/getDeviceNumber';
 
 type SigningSessionOptions = {
-  /** PRF.first_auth for WrapKeySeed derivation (base64url) */
-  prfFirstAuthB64u: string;
-  /** Optional credential for PRF.second extraction by VRF worker */
-  credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+  /** PRF-bearing credential; VRF worker extracts PRF outputs internally */
+  credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
 };
 
 /**
@@ -240,7 +237,6 @@ export class WebAuthnManager {
       if (args.options) {
         await this.vrfWorkerManager.mintSessionKeysAndSendToSigner({
           sessionId: args.sessionId,
-          prfFirstAuthB64u: args.options.prfFirstAuthB64u,
           credential: args.options.credential,
         });
       }
@@ -385,9 +381,7 @@ export class WebAuthnManager {
       throw new Error(`No encrypted key found for account: ${nearAccountId}`);
     }
     // For v2+ vaults, wrapKeySalt is the canonical salt.
-    // iv fallback is retained only for legacy entries that were created
-    // before VRF-owned WrapKeySeed derivation.
-    const wrapKeySalt = encryptedKeyData.wrapKeySalt || encryptedKeyData.iv || '';
+    const wrapKeySalt = encryptedKeyData.wrapKeySalt || '';
     if (!wrapKeySalt) {
       console.error('WebAuthnManager: Missing wrapKeySalt in vault for decrypt session', {
         nearAccountId: String(nearAccountId),
@@ -495,20 +489,24 @@ export class WebAuthnManager {
       authenticatorOptions?: AuthenticatorOptions;
       deviceNumber?: number;
     };
-  }): Promise<{ success: boolean; nearAccountId: string; publicKey: string; iv?: string; wrapKeySalt?: string; error?: string }>{
-    // Extract PRF.first for WrapKeySeed derivation
-    const { chacha20PrfOutput } = extractPrfFromCredential({
-      credential,
-      firstPrfOutput: true,
-      secondPrfOutput: false,
-    });
-    if (!chacha20PrfOutput) {
-      throw new Error('PRF outputs missing from registration credential');
-    }
-
+  }): Promise<{
+    success: boolean;
+    nearAccountId: string;
+    publicKey: string;
+    /**
+     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+     */
+    chacha20NonceB64u?: string;
+    /**
+     * @deprecated Use `chacha20NonceB64u`.
+     */
+    iv?: string;
+    wrapKeySalt?: string;
+    error?: string;
+  }>{
     return this.withSigningSession(
       'reg',
-      { prfFirstAuthB64u: chacha20PrfOutput, credential },
+      { credential },
       (sessionId) =>
         this.signerWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
           credential,
@@ -579,16 +577,6 @@ export class WebAuthnManager {
       }
       console.debug('[WebAuthnManager] Retrieved wrapKeySalt from IndexedDB:', wrapKeySalt);
 
-      // Extract PRF.first from the credential
-      const { chacha20PrfOutput: prfFirstB64u } = extractPrfFromCredential({
-        credential,
-        firstPrfOutput: true,
-        secondPrfOutput: false,
-      });
-      if (!prfFirstB64u) {
-        throw new Error('Failed to extract PRF.first from credential');
-      }
-
       // === STEP 1: Create MessagePort session for WrapKeySeed delivery ===
       const signerPort = await this.vrfWorkerManager.createSigningSessionChannel(sessionId);
       await this.signerWorkerManager.reserveSignerWorkerSession(sessionId, { signerPort });
@@ -598,7 +586,6 @@ export class WebAuthnManager {
       // to the signer worker via MessagePort
       await this.vrfWorkerManager.mintSessionKeysAndSendToSigner({
         sessionId,
-        prfFirstAuthB64u: prfFirstB64u,
         wrapKeySalt,
         credential, // VRF will extract PRF.second from this
       });
@@ -672,7 +659,7 @@ export class WebAuthnManager {
     vrfInputData,
     saveInMemory = true,
   }: {
-    credential: WebAuthnAuthenticationCredential;
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
     nearAccountId: AccountId;
     vrfInputData?: VRFInputData; // optional, for challenge generation
     saveInMemory?: boolean; // optional, whether to save in worker memory
@@ -723,41 +710,6 @@ export class WebAuthnManager {
       console.error('WebAuthnManager: VRF keypair derivation error:', error);
       throw new Error(`VRF keypair derivation failed ${error.message}`);
     }
-  }
-
-  /**
-   * Derive deterministic VRF keypair from a raw base64url PRF output.
-   */
-  async deriveVrfKeypairFromRawPrf({
-    prfOutput,
-    nearAccountId,
-    vrfInputData,
-    saveInMemory = true,
-  }: {
-    prfOutput: string;
-    nearAccountId: AccountId;
-    vrfInputData?: VRFInputData;
-    saveInMemory?: boolean;
-  }): Promise<{
-    success: boolean;
-    vrfPublicKey: string;
-    encryptedVrfKeypair: EncryptedVRFKeypair;
-    vrfChallenge: VRFChallenge | null;
-    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-  }> {
-    const r = await this.vrfWorkerManager.deriveVrfKeypairFromRawPrf({
-      prfOutput,
-      nearAccountId,
-      vrfInputData,
-      saveInMemory,
-    });
-    return {
-      success: true,
-      vrfPublicKey: r.vrfPublicKey,
-      encryptedVrfKeypair: r.encryptedVrfKeypair,
-      vrfChallenge: r.vrfChallenge,
-      serverEncryptedVrfKeypair: r.serverEncryptedVrfKeypair,
-    };
   }
 
   /**
@@ -919,7 +871,7 @@ export class WebAuthnManager {
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account ${nearAccountId} device ${deviceNumber}`);
     }
-    const wrapKeySalt = encryptedKeyData.wrapKeySalt || encryptedKeyData.iv || '';
+    const wrapKeySalt = encryptedKeyData.wrapKeySalt || '';
     if (!wrapKeySalt) {
       throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
     }
@@ -956,18 +908,8 @@ export class WebAuthnManager {
       challenge: vrfChallenge,
       allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
     });
-    const { chacha20PrfOutput: prfFirstAuthB64u } = extractPrfFromCredential({
-      credential,
-      firstPrfOutput: true,
-      secondPrfOutput: false,
-    });
-    if (!prfFirstAuthB64u) {
-      throw new Error('Failed to extract PRF.first from credential');
-    }
-
     await this.vrfWorkerManager.mintSessionKeysAndSendToSigner({
       sessionId,
-      prfFirstAuthB64u,
       wrapKeySalt,
       contractId,
       nearRpcUrl,
@@ -1021,26 +963,16 @@ export class WebAuthnManager {
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account ${nearAccountId} device ${deviceNumber}`);
     }
-    const wrapKeySalt = encryptedKeyData.wrapKeySalt || encryptedKeyData.iv || '';
+    const wrapKeySalt = encryptedKeyData.wrapKeySalt || '';
     if (!wrapKeySalt) {
       throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
     }
 
     // Extract PRF.first_auth from the already-collected credential.
-    const { chacha20PrfOutput: prfFirstAuthB64u } = extractPrfFromCredential({
-      credential: args.credential,
-      firstPrfOutput: true,
-      secondPrfOutput: false,
-    });
-    if (!prfFirstAuthB64u) {
-      throw new Error('Failed to extract PRF.first from credential');
-    }
-
     const { ttlMs, remainingUses } = this.resolveSigningSessionPolicy(args);
 
     await this.vrfWorkerManager.mintSessionKeysAndSendToSigner({
       sessionId,
-      prfFirstAuthB64u,
       wrapKeySalt,
       contractId: args.contractId,
       nearRpcUrl: args.nearRpcUrl,
@@ -1462,8 +1394,10 @@ export class WebAuthnManager {
   }> {
     try {
       const activeSessionId = this.getOrCreateActiveSigningSessionId(payload.accountId);
+      const contractId = this.tatchiPasskeyConfigs.contractId;
+      const nearRpcUrl = (this.tatchiPasskeyConfigs.nearRpcUrl.split(',')[0] || this.tatchiPasskeyConfigs.nearRpcUrl);
       const result = await this.withSigningSessionId(activeSessionId, (sessionId) =>
-        this.signerWorkerManager.signNep413Message({ ...payload, sessionId })
+        this.signerWorkerManager.signNep413Message({ ...payload, sessionId, contractId, nearRpcUrl })
       );
       if (result.success) {
         console.debug('WebAuthnManager: NEP-413 message signed successfully');
@@ -1592,9 +1526,16 @@ export class WebAuthnManager {
   ): Promise<{
     publicKey: string;
     encryptedPrivateKey: string;
+    /**
+     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+     */
+    chacha20NonceB64u: string;
+    /**
+     * @deprecated Use `chacha20NonceB64u`.
+     */
     iv: string;
     accountIdHint?: string;
-    wrapKeySalt?: string;
+    wrapKeySalt: string;
     stored?: boolean;
   }> {
     try {
@@ -1613,20 +1554,11 @@ export class WebAuthnManager {
       }
 
       // Extract PRF.first for WrapKeySeed derivation
-      const { chacha20PrfOutput } = extractPrfFromCredential({
-        credential: authenticationCredential,
-        firstPrfOutput: true,
-        secondPrfOutput: false,
-      });
-      if (!chacha20PrfOutput) {
-        throw new Error('PRF outputs missing from authentication credential for recovery');
-      }
-
       // Orchestrate a VRF-owned signing session with WrapKeySeed derivation, then ask
       // the signer to recover and re-encrypt the NEAR keypair.
       const result = await this.withSigningSession(
         'recover',
-        { prfFirstAuthB64u: chacha20PrfOutput },
+        { credential: authenticationCredential },
         (sessionId) =>
           this.signerWorkerManager.recoverKeypairFromPasskey({
             credential: authenticationCredential,

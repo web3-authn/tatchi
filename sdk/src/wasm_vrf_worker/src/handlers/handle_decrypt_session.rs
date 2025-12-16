@@ -2,10 +2,10 @@ use crate::manager::VRFKeyManager;
 use crate::types::{VrfWorkerResponse, WorkerConfirmationResponse};
 use crate::vrf_await_secure_confirmation;
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
-use serde_wasm_bindgen;
 
 #[wasm_bindgen]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -65,49 +65,57 @@ pub async fn handle_decrypt_session(
     let request_json = match js_sys::JSON::stringify(&request_js) {
         Ok(s) => match s.as_string() {
             Some(str) => str,
-            None => return VrfWorkerResponse::fail(message_id, "Failed to stringify decrypt request".to_string()),
+            None => {
+                return VrfWorkerResponse::fail(
+                    message_id,
+                    "Failed to stringify decrypt request".to_string(),
+                )
+            }
         },
-        Err(e) => return VrfWorkerResponse::fail(message_id, format!("Failed to stringify decrypt request: {:?}", e)),
+        Err(e) => {
+            return VrfWorkerResponse::fail(
+                message_id,
+                format!("Failed to stringify decrypt request: {:?}", e),
+            )
+        }
     };
 
-    let decision: WorkerConfirmationResponse = match vrf_await_secure_confirmation(request_json).await
-    {
-        Ok(res) => res,
-        Err(e) => return VrfWorkerResponse::fail(message_id, e),
-    };
+    let decision: WorkerConfirmationResponse =
+        match vrf_await_secure_confirmation(request_json).await {
+            Ok(res) => res,
+            Err(e) => return VrfWorkerResponse::fail(message_id, e),
+        };
 
     if !decision.confirmed {
         return VrfWorkerResponse::fail(
             message_id,
-            decision.error
+            decision
+                .error
                 .unwrap_or_else(|| "User cancelled export confirmation".to_string()),
-        );
-    }
-
-    if decision.prf_output.is_none() {
-        return VrfWorkerResponse::fail(
-            message_id,
-            "Missing prfOutput in confirmation response".to_string(),
         );
     }
 
     // WrapKeySeed derivation is delegated to the existing MINT_SESSION_KEYS_AND_SEND_TO_SIGNER handler.
     // We synthesize a request and re-use the internal handler directly (no contract gating).
-    let prf_first_auth_b64u = decision.prf_output.clone().unwrap();
+    if decision.credential.is_null() || decision.credential.is_undefined() {
+        return VrfWorkerResponse::fail(
+            message_id,
+            "Missing credential in confirmation response".to_string(),
+        );
+    }
 
     let response = crate::handlers::handle_mint_session_keys_and_send_to_signer(
         manager,
         message_id.clone(),
         crate::handlers::handle_mint_session_keys_and_send_to_signer::MintSessionKeysAndSendToSignerRequest {
             session_id: session_id.clone(),
-            prf_first_auth_b64u,
             // For decrypt flows we must reuse the vault's wrapKeySalt.
             wrap_key_salt_b64u,
             contract_id: None,
             near_rpc_url: None,
             ttl_ms: None,
             remaining_uses: None,
-            credential: wasm_bindgen::JsValue::UNDEFINED,
+            credential: decision.credential,
         },
     )
     .await;

@@ -17,9 +17,6 @@ type ConfirmResponsePayload = {
   confirmed: boolean;
   intentDigest?: string;
   credential?: SerializableCredential;
-  prfOutput?: string;
-  wrapKeySeed?: string;
-  wrapKeySalt?: string;
   vrfChallenge?: VRFChallenge;
   transactionContext?: TransactionContext;
   error?: string;
@@ -97,9 +94,6 @@ export function awaitSecureConfirmationV2(
         intent_digest: env.data.intentDigest,
         confirmed: env.data.confirmed,
         credential: env.data.credential,
-        prf_output: env.data.prfOutput,
-        wrapKeySeed: env.data.wrapKeySeed,
-        wrapKeySalt: env.data.wrapKeySalt,
         vrf_challenge: env.data.vrfChallenge,
         transaction_context: env.data.transactionContext,
         error: env.data.error
@@ -188,6 +182,8 @@ function normalizeAndValidateRequest(requestJson: string): SecureConfirmRequest 
       rpcCall?: unknown;
       message?: unknown;
       recipient?: unknown;
+      contractId?: unknown;
+      nearRpcUrl?: unknown;
       payload?: unknown;
     };
 
@@ -207,11 +203,11 @@ function normalizeAndValidateRequest(requestJson: string): SecureConfirmRequest 
           accountId: nearAccountId,
           publicKey: '',
           warning: 'Decrypting your private key grants full control of your account.',
-        } as any,
+        },
         payload: {
           nearAccountId,
           publicKey: '',
-        } as any,
+        },
       };
       return full;
     }
@@ -250,6 +246,8 @@ function normalizeAndValidateRequest(requestJson: string): SecureConfirmRequest 
       const nearAccountId = String(r.nearAccountId || (r.payload as any)?.nearAccountId || '');
       const message = String(r.message || (r.payload as any)?.message || '');
       const recipient = String(r.recipient || (r.payload as any)?.recipient || '');
+      const contractId = String(r.contractId || (r.payload as any)?.contractId || '');
+      const nearRpcUrl = String(r.nearRpcUrl || (r.payload as any)?.nearRpcUrl || '');
       if (!sessionId || !nearAccountId || !message || !recipient) {
         throw new Error('signNep413Message shorthand requires sessionId, nearAccountId, message, and recipient');
       }
@@ -267,6 +265,8 @@ function normalizeAndValidateRequest(requestJson: string): SecureConfirmRequest 
           nearAccountId,
           message,
           recipient,
+          ...(contractId ? { contractId } : {}),
+          ...(nearRpcUrl ? { nearRpcUrl } : {}),
         } as any,
       };
       return full;

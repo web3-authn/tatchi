@@ -20,7 +20,10 @@ pub fn handle_check_session_status(
     message_id: Option<String>,
     request: CheckSessionStatusRequest,
 ) -> VrfWorkerResponse {
-    debug!("[VRF] get_session_status for session {}", request.session_id);
+    debug!(
+        "[VRF] get_session_status for session {}",
+        request.session_id
+    );
 
     let now_ms = js_sys::Date::now();
 
@@ -70,4 +73,3 @@ pub fn handle_check_session_status(
         }),
     )
 }
-

@@ -45,6 +45,8 @@ export interface ConfirmAndPrepareSigningSessionNep413Params extends ConfirmAndP
   nearAccountId: string;
   message: string;
   recipient: string;
+  contractId?: string;
+  nearRpcUrl?: string;
 }
 
 export type ConfirmAndPrepareSigningSessionParams =
@@ -165,6 +167,8 @@ export async function confirmAndPrepareSigningSession(
           nearAccountId: params.nearAccountId,
           message: params.message,
           recipient: params.recipient,
+          ...(params.contractId ? { contractId: params.contractId } : {}),
+          ...(params.nearRpcUrl ? { nearRpcUrl: params.nearRpcUrl } : {}),
         },
         confirmationConfig: params.confirmationConfigOverride,
         intentDigest,

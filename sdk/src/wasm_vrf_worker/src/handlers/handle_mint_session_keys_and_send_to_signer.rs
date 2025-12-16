@@ -9,7 +9,9 @@ use crate::rpc_calls::{
     verify_authentication_response_rpc_call, VrfData, WebAuthnAuthenticationCredential,
 };
 use crate::types::VrfWorkerResponse;
-use crate::utils::{base64_url_decode, generate_wrap_key_salt_b64u};
+use crate::utils::generate_wrap_key_salt_b64u;
+#[cfg(target_arch = "wasm32")]
+use crate::utils::base64_url_decode;
 use serde::{Serialize, Deserialize};
 use serde_wasm_bindgen;
 use std::cell::RefCell;
@@ -57,6 +59,26 @@ fn extract_prf_second_from_credential(
     }
 
     Ok(None)
+}
+
+fn extract_prf_first_bytes_from_credential(credential: &JsValue) -> Result<Vec<u8>, String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        if credential.is_null() || credential.is_undefined() {
+            return Err("Missing credential (required to extract PRF.first)".to_string());
+        }
+        let first_b64u = crate::webauthn::extract_prf_first_from_credential(credential)
+            .ok_or_else(|| "Missing PRF.first in credential".to_string())?;
+        if first_b64u.is_empty() {
+            return Err("Missing PRF.first in credential".to_string());
+        }
+        base64_url_decode(&first_b64u).map_err(|e| format!("Failed to decode PRF.first: {}", e))
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = credential;
+        Err("PRF extraction is only supported in wasm32 builds".to_string())
+    }
 }
 
 fn as_authentication_credential(
@@ -174,9 +196,6 @@ pub struct MintSessionKeysAndSendToSignerRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     #[serde(rename = "sessionId")]
     pub session_id: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "prfFirstAuthB64u")]
-    #[serde(rename = "prfFirstAuthB64u")]
-    pub prf_first_auth_b64u: String,
     #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
     #[serde(rename = "wrapKeySalt")]
     pub wrap_key_salt_b64u: String,
@@ -268,9 +287,9 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
     };
 
     // Decode PRF.first_auth
-    let prf_first_bytes = match base64_url_decode(&request.prf_first_auth_b64u) {
+    let prf_first_bytes = match extract_prf_first_bytes_from_credential(&request.credential) {
         Ok(bytes) => bytes,
-        Err(e) => return fail(e.to_string()),
+        Err(e) => return fail(e),
     };
 
     // Derive K_pass_auth = HKDF(PRF.first_auth, "vrf-wrap-pass")

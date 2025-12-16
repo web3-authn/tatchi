@@ -5,6 +5,7 @@ import {
   RegistrationSecureConfirmRequest,
 } from '../types';
 import { VRFChallenge, TransactionContext } from '../../../../types';
+import type { WebAuthnRegistrationCredential } from '../../../../types/webauthn';
 import {
   renderConfirmUI,
   fetchNearContext,
@@ -18,7 +19,7 @@ import {
   ERROR_MESSAGES,
   getRegisterAccountPayload,
 } from './common';
-import { ensureDualPrfForRegistration } from '../../../credentialsHelpers';
+import { isSerializedRegistrationCredential, serializeRegistrationCredentialWithPRF } from '../../../credentialsHelpers';
 import { toError } from '../../../../../utils/errors';
 
 export async function handleRegistrationFlow(
@@ -131,11 +132,16 @@ export async function handleRegistrationFlow(
       }
     }
 
-    const { serialized } = await ensureDualPrfForRegistration({
-      credential: credential!,
-      nearAccountId,
-      rpId,
-    });
+    // We require registration credentials to include dual PRF outputs (first + second)
+    // so VRF/NEAR key derivation can happen inside the workers without passing PRF outputs
+    // as separate main-thread values.
+    const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential as unknown)
+      ? (credential as unknown as WebAuthnRegistrationCredential)
+      : serializeRegistrationCredentialWithPRF({
+          credential: credential! as PublicKeyCredential,
+          firstPrfOutput: true,
+          secondPrfOutput: true,
+        });
 
     // 6) Respond + close
     sendConfirmResponse(worker, {

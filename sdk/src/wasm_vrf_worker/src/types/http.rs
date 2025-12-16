@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
 use serde_wasm_bindgen;
+use wasm_bindgen::prelude::*;
 
 // === Shamir 3-pass HTTP types (exported to TS via wasm-bindgen) ===
 

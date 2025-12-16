@@ -59,11 +59,7 @@ pub fn send_wrap_key_seed_on_port(
 pub fn send_wrap_key_seed_error_on_port(port: &MessagePort, error: &str) {
     let obj = js_sys::Object::new();
     let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("ok"), &JsValue::FALSE);
-    let _ = js_sys::Reflect::set(
-        &obj,
-        &JsValue::from_str("error"),
-        &JsValue::from_str(error),
-    );
+    let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("error"), &JsValue::from_str(error));
     let _ = port.post_message(&obj);
 }
 

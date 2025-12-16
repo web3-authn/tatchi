@@ -22,7 +22,7 @@ High‑level phases: Classify → Prepare → Confirm UI → JIT Refresh → Col
 ## Message Handshake
 
 - Worker → Main: `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD` with a V2 `SecureConfirmRequest` (schemaVersion: 2)
-- Main → Worker: `USER_PASSKEY_CONFIRM_RESPONSE` containing confirmation status, optional credential, optional `prfOutput` (LocalOnly decrypt only), and optional `{ vrfChallenge, transactionContext }`
+- Main → Worker: `USER_PASSKEY_CONFIRM_RESPONSE` containing confirmation status, optional credential, and optional `{ vrfChallenge, transactionContext }`
 
 ### Defensive constraints (signing flows)
 
@@ -47,7 +47,7 @@ This keeps “how we confirm” as a single path (less complexity) while still a
 - LocalOnly
   - Types: `DECRYPT_PRIVATE_KEY_WITH_PRF`, `SHOW_SECURE_PRIVATE_KEY_UI`
   - No NEAR calls; uses a local random VRF challenge for UI plumbing
-  - Decrypt: silently collect PRF via get(); UI is skipped; if user cancels, posts `WALLET_UI_CLOSED`
+  - Decrypt: silently collect an authentication credential via get(); UI is skipped; VRF worker extracts PRF internally; if user cancels, posts `WALLET_UI_CLOSED`
   - ShowSecurePrivateKeyUi: mounts export viewer (modal/drawer); returns confirmed=true and keeps viewer open
 
 - Registration / LinkDevice

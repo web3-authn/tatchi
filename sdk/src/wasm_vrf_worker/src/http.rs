@@ -1,9 +1,9 @@
+use crate::fetch::{
+    fetch_json_post, response_ok, response_status, response_status_text, response_text,
+};
 use crate::types::http::{
     ShamirApplyServerLockHTTPRequest, ShamirApplyServerLockHTTPResponse,
     ShamirRemoveServerLockHTTPRequest, ShamirRemoveServerLockHTTPResponse,
-};
-use crate::fetch::{
-    fetch_json_post, response_ok, response_status, response_status_text, response_text,
 };
 use log::debug;
 

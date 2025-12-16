@@ -1,12 +1,12 @@
 use crate::manager::VRFKeyManager;
 use crate::types::VRFInputData;
 use crate::types::VrfWorkerResponse;
-use log::{error, debug};
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
-use serde_wasm_bindgen;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]

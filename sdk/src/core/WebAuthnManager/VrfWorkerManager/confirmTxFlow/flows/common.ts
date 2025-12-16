@@ -3,6 +3,7 @@ import type { ConfirmationConfig, ConfirmationUIMode } from '../../../../types/s
 import {
   SecureConfirmRequest,
   SecureConfirmationType,
+  type SecureConfirmDecision,
   SignTransactionPayload,
   RegisterAccountPayload,
   SignNep413Payload,
@@ -392,11 +393,10 @@ export function ensureTypedRequest<T extends SecureConfirmRequest>(req: SecureCo
 export const ERROR_MESSAGES = {
   cancelled: 'User cancelled secure confirm request',
   collectCredentialsFailed: 'Failed to collect credentials',
-  prfMissing: 'Failed to extract PRF output from credential',
   nearRpcFailed: 'Failed to fetch NEAR data',
 } as const;
 
-export function sendConfirmResponse(worker: Worker, response: any) {
+export function sendConfirmResponse(worker: Worker, response: SecureConfirmDecision) {
   const sanitized = sanitizeForPostMessage(response);
   worker.postMessage({ type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE, data: sanitized });
 }

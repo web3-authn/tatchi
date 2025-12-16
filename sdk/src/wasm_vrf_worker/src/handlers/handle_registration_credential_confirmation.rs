@@ -2,11 +2,11 @@ use crate::manager::VRFKeyManager;
 use crate::types::{VrfWorkerResponse, WorkerConfirmationResponse};
 use crate::vrf_await_secure_confirmation;
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
-use serde_wasm_bindgen;
 
 /// Request payload for VRF-driven registration credential confirmation.
 /// Mirrors the parameters used by the TypeScript helper while remaining
@@ -47,11 +47,23 @@ pub struct RegistrationCredentialConfirmationResult {
     pub request_id: String,
     #[serde(rename = "intentDigest")]
     pub intent_digest: String,
-    #[serde(rename = "credential", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    #[serde(
+        rename = "credential",
+        with = "serde_wasm_bindgen::preserve",
+        default = "js_undefined"
+    )]
     pub credential: JsValue,
-    #[serde(rename = "vrfChallenge", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    #[serde(
+        rename = "vrfChallenge",
+        with = "serde_wasm_bindgen::preserve",
+        default = "js_undefined"
+    )]
     pub vrf_challenge: JsValue,
-    #[serde(rename = "transactionContext", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    #[serde(
+        rename = "transactionContext",
+        with = "serde_wasm_bindgen::preserve",
+        default = "js_undefined"
+    )]
     pub transaction_context: JsValue,
     #[serde(rename = "error")]
     pub error: Option<String>,
@@ -116,7 +128,10 @@ pub async fn handle_registration_credential_confirmation(
         summary: Summary<'a>,
         payload: Payload<'a>,
         intentDigest: &'a str,
-        #[serde(skip_serializing_if = "is_undefined", with = "serde_wasm_bindgen::preserve")]
+        #[serde(
+            skip_serializing_if = "is_undefined",
+            with = "serde_wasm_bindgen::preserve"
+        )]
         confirmationConfig: JsValue,
     }
 
@@ -155,13 +170,23 @@ pub async fn handle_registration_credential_confirmation(
 
     let request_js = match serde_wasm_bindgen::to_value(&confirm_request) {
         Ok(v) => v,
-        Err(e) => return VrfWorkerResponse::fail(message_id, format!("Failed to serialize request: {}", e)),
+        Err(e) => {
+            return VrfWorkerResponse::fail(
+                message_id,
+                format!("Failed to serialize request: {}", e),
+            )
+        }
     };
 
     let request_json = match js_sys::JSON::stringify(&request_js) {
         Ok(s) => match s.as_string() {
             Some(str) => str,
-            None => return VrfWorkerResponse::fail(message_id, "Failed to stringify request".to_string()),
+            None => {
+                return VrfWorkerResponse::fail(
+                    message_id,
+                    "Failed to stringify request".to_string(),
+                )
+            }
         },
         Err(e) => {
             return VrfWorkerResponse::fail(
@@ -187,8 +212,5 @@ pub async fn handle_registration_credential_confirmation(
         error: decision.error.clone(),
     };
 
-    VrfWorkerResponse::success_from(
-        message_id,
-        Some(result),
-    )
+    VrfWorkerResponse::success_from(message_id, Some(result))
 }
