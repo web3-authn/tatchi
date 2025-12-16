@@ -46,12 +46,26 @@ export async function loginAndCreateSession(
 ): Promise<LoginAndCreateSessionResult> {
 
   const { onEvent, onError, afterCall } = options || {};
+  const { webAuthnManager } = context;
+
   onEvent?.({
     step: 1,
     phase: LoginPhase.STEP_1_PREPARATION,
     status: LoginStatus.PROGRESS,
     message: `Starting login for ${nearAccountId}`
   });
+
+  const prevStatus = await webAuthnManager.checkVrfStatus();
+  const prevVrfAccountId = prevStatus?.active ? prevStatus.nearAccountId : null;
+
+  // If this call activates VRF then fails, clear the partial session.
+  const rollbackVrfOnFailure = async () => {
+    const status = await webAuthnManager.checkVrfStatus();
+    const current = status?.active ? status.nearAccountId : null;
+    if (current && current !== prevVrfAccountId) {
+      await logoutAndClearSession(context);
+    }
+  };
 
   try {
     // Validation
@@ -87,7 +101,7 @@ export async function loginAndCreateSession(
     const attachSigningSession = async (result: LoginResult): Promise<LoginAndCreateSessionResult> => {
       if (!result?.success) return result;
       try {
-        const signingSession: SigningSessionStatus = await context.webAuthnManager.getWarmSigningSessionStatus(nearAccountId);
+        const signingSession: SigningSessionStatus = await webAuthnManager.getWarmSigningSessionStatus(nearAccountId);
         return { ...result, signingSession };
       } catch {
         return result;
@@ -138,14 +152,14 @@ export async function loginAndCreateSession(
         const blockInfo = await context.nearClient.viewBlock({ finality: 'final' });
         const txBlockHash = blockInfo?.header?.hash;
         const txBlockHeight = String(blockInfo.header?.height ?? '');
-        const vrfChallenge = await context.webAuthnManager.generateVrfChallengeOnce({
+        const vrfChallenge = await webAuthnManager.generateVrfChallengeOnce({
           userId: nearAccountId,
-          rpId: context.webAuthnManager.getRpId(),
+          rpId: webAuthnManager.getRpId(),
           blockHash: txBlockHash,
           blockHeight: txBlockHeight,
         });
-        const authenticators = await context.webAuthnManager.getAuthenticatorsByUser(nearAccountId);
-        const credential = await context.webAuthnManager.getAuthenticationCredentialsSerialized({
+        const authenticators = await webAuthnManager.getAuthenticatorsByUser(nearAccountId);
+        const credential = await webAuthnManager.getAuthenticationCredentialsSerialized({
           nearAccountId,
           challenge: vrfChallenge,
           allowCredentials: authenticatorsToAllowCredentials(authenticators),
@@ -155,7 +169,7 @@ export async function loginAndCreateSession(
         try {
           if (authenticators.length > 1) {
             const rawId = credential.rawId;
-            const matched = authenticators.find(a => a.credentialId === rawId);
+            const matched = authenticators.find((a) => a.credentialId === rawId);
             if (matched && typeof matched.deviceNumber === 'number') {
               await context.webAuthnManager.setLastUser(nearAccountId, matched.deviceNumber);
             }
@@ -191,6 +205,7 @@ export async function loginAndCreateSession(
         }
         // Session verification returned an error; surface error and afterCall(false)
         const errMsg = v.error || 'Session verification failed';
+        await rollbackVrfOnFailure();
         onEvent?.({
           step: 0,
           phase: LoginPhase.LOGIN_ERROR,
@@ -202,7 +217,8 @@ export async function loginAndCreateSession(
         return { success: false, error: errMsg };
       } catch (e: any) {
         console.error("Failed to start session: ", e);
-        const errMsg = e?.message || 'Session verification failed';
+        const errMsg = getUserFriendlyErrorMessage(e, 'login') || (e?.message || 'Session verification failed');
+        await rollbackVrfOnFailure();
         onError?.(e);
         onEvent?.({
           step: 0,
@@ -240,15 +256,18 @@ export async function loginAndCreateSession(
     return finalResult;
 
   } catch (err: any) {
+
+    await rollbackVrfOnFailure();
     onError?.(err);
+    const errorMessage = getUserFriendlyErrorMessage(err, 'login') || err?.message || 'Login failed';
     onEvent?.({
       step: 0,
       phase: LoginPhase.LOGIN_ERROR,
       status: LoginStatus.ERROR,
-      message: err.message,
-      error: err.message
+      message: errorMessage,
+      error: errorMessage
     });
-    const result = { success: false, error: err.message };
+    const result = { success: false, error: errorMessage };
     afterCall?.(false);
     return result;
   }
