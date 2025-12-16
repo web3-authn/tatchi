@@ -41,7 +41,7 @@ export async function handleRegistrationFlow(
   });
 
   // 1) NEAR context
-  const nearRpc = await fetchNearContext(ctx, { nearAccountId, txCount: 1 });
+  const nearRpc = await fetchNearContext(ctx, { nearAccountId, txCount: 1, reserveNonces: true });
   if (nearRpc.error && !nearRpc.transactionContext) {
     return sendConfirmResponse(worker, {
       requestId: request.requestId,

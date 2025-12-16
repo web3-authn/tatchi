@@ -2,7 +2,6 @@ import type { VrfWorkerManagerContext } from '../';
 import type { ConfirmationConfig } from '../../../types/signer-worker';
 import { determineConfirmationConfig } from './determineConfirmationConfig';
 import {
-  SecureConfirmDecision,
   TransactionSummary,
   SecureConfirmMessageType,
   SecureConfirmRequest,
@@ -12,7 +11,7 @@ import { errorMessage, toError } from '../../../../utils/errors';
 import {
   parseTransactionSummary,
   getIntentDigest,
-  classifyFlow,
+  sendConfirmResponse,
   sanitizeForPostMessage,
 } from './flows/common';
 import type {
@@ -37,7 +36,6 @@ export async function handlePromptUserConfirmInJsMainThread(
 
   // 1. Validate and parse request
   let request: SecureConfirmRequest;
-  let summary: TransactionSummary;
   let confirmationConfig: ConfirmationConfig;
   let transactionSummary: TransactionSummary;
 
@@ -49,29 +47,31 @@ export async function handlePromptUserConfirmInJsMainThread(
     });
     const parsed = validateAndParseRequest({ ctx, request: message.data });
     request = parsed.request as SecureConfirmRequest;
-    summary = parsed.summary;
     confirmationConfig = parsed.confirmationConfig;
     transactionSummary = parsed.transactionSummary;
   } catch (e: unknown) {
     console.error('[SecureConfirm][Host] validateAndParseRequest failed', e);
     // Attempt to send a structured error back to the worker to avoid hard failure
     try {
-      const rid = message?.data?.requestId;
-      sendWorkerResponse(worker, {
-        requestId: rid,
-        confirmed: false,
-        error: errorMessage(e) || 'Invalid secure confirm request'
-      });
-      return;
+      const rid = (message?.data as any)?.requestId;
+      if (typeof rid === 'string' && rid) {
+        sendConfirmResponse(worker, {
+          requestId: rid,
+          confirmed: false,
+          error: errorMessage(e) || 'Invalid secure confirm request',
+        });
+        return;
+      }
     } catch (_err: unknown) {
       throw toError(e);
     }
+    throw toError(e);
   }
 
   // Extra diagnostics: ensure payload exists and has required fields
   if (!request?.payload) {
     console.error('[SecureConfirm][Host] Invalid secure confirm request: missing payload', request);
-    sendWorkerResponse(worker, {
+    sendConfirmResponse(worker, {
       requestId: request.requestId,
       confirmed: false,
       error: 'Invalid secure confirm request - missing payload'
@@ -79,15 +79,9 @@ export async function handlePromptUserConfirmInJsMainThread(
     return;
   }
 
-  // 2. Classify and dispatch to per-flow handlers
-  const flowKind = classifyFlow(request);
-  // eslint-disable-next-line no-console
-  console.debug('[SecureConfirm][Host] flowKind', flowKind, {
-    type: request.type,
-    requestId: request.requestId,
-  });
-  switch (flowKind) {
-    case 'LocalOnly': {
+  switch (request.type) {
+    case SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF:
+    case SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI: {
       const { handleLocalOnlyFlow } = await import('./flows/localOnly').catch((e) => {
         console.error('[SecureConfirm][Host] failed to import localOnly flow module', e);
         throw e;
@@ -95,7 +89,8 @@ export async function handlePromptUserConfirmInJsMainThread(
       await handleLocalOnlyFlow(ctx, request as LocalOnlySecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
       return;
     }
-    case 'Registration': {
+    case SecureConfirmationType.REGISTER_ACCOUNT:
+    case SecureConfirmationType.LINK_DEVICE: {
       const { handleRegistrationFlow } = await import('./flows/registration').catch((e) => {
         console.error('[SecureConfirm][Host] failed to import registration flow module', e);
         throw e;
@@ -103,7 +98,8 @@ export async function handlePromptUserConfirmInJsMainThread(
       await handleRegistrationFlow(ctx, request as RegistrationSecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
       return;
     }
-    case 'Signing': {
+    case SecureConfirmationType.SIGN_TRANSACTION:
+    case SecureConfirmationType.SIGN_NEP413_MESSAGE: {
       const { handleTransactionSigningFlow } = await import('./flows/transactions').catch((e) => {
         console.error('[SecureConfirm][Host] failed to import transactions flow module', e);
         throw e;
@@ -113,8 +109,8 @@ export async function handlePromptUserConfirmInJsMainThread(
     }
     default: {
       // Unsupported type fallback: return structured error to worker.
-      sendWorkerResponse(worker, {
-        requestId: (message?.data as any)?.requestId,
+      sendConfirmResponse(worker, {
+        requestId: request.requestId,
         confirmed: false,
         error: 'Unsupported secure confirmation type'
       });
@@ -130,16 +126,14 @@ function validateAndParseRequest({ ctx, request }: {
   request: SecureConfirmRequest,
 }): {
   request: SecureConfirmRequest;
-  summary: TransactionSummary;
   confirmationConfig: ConfirmationConfig;
   transactionSummary: TransactionSummary;
 } {
-  // Parse and validate summary data (can contain extra fields we need)
-  const summary = parseTransactionSummary(request.summary);
-
   // Defensive guard: signing envelopes must not carry PRF or wrap-key material on the main thread.
-  const flowKind = classifyFlow(request);
-  if (flowKind === 'Signing') {
+  if (
+    request.type === SecureConfirmationType.SIGN_TRANSACTION
+    || request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE
+  ) {
     const payload: any = (request as SigningSecureConfirmRequest)?.payload || {};
     if (payload.prfOutput !== undefined) {
       throw new Error('Invalid secure confirm request: forbidden signing payload field prfOutput');
@@ -157,29 +151,16 @@ function validateAndParseRequest({ ctx, request }: {
   // Get confirmation configuration from data (overrides user settings) or use user's settings,
   // then compute effective config based on runtime and request type
   const confirmationConfig: ConfirmationConfig = determineConfirmationConfig(ctx, request);
+  const parsedSummary = parseTransactionSummary(request.summary);
+  const intentDigest = getIntentDigest(request);
   const transactionSummary: TransactionSummary = {
-    totalAmount: summary?.totalAmount,
-    method: summary?.method,
-    intentDigest: getIntentDigest(request),
+    ...parsedSummary,
+    ...(intentDigest ? { intentDigest } : {}),
   };
 
   return {
     request,
-    summary,
     confirmationConfig,
-    transactionSummary
+    transactionSummary: sanitizeForPostMessage(transactionSummary) as TransactionSummary
   };
-}
-
-/**
- * Sends response to worker with consistent message format
- */
-function sendWorkerResponse(worker: Worker, responseData: SecureConfirmDecision): void {
-  // Sanitize payload to ensure postMessage structured-clone safety
-  const sanitized = sanitizeForPostMessage(responseData);
-  worker.postMessage({
-    type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
-    data: sanitized
-  });
-  // response posted to worker
 }

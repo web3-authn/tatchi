@@ -4,13 +4,47 @@ import {
   SecureConfirmationType,
   TransactionSummary,
   LocalOnlySecureConfirmRequest,
+  type ShowSecurePrivateKeyUiPayload,
 } from '../types';
 import { VRFChallenge } from '../../../../types';
 import { createRandomVRFChallenge } from '../../../../types/vrf-worker';
-import { renderConfirmUI, getNearAccountId, getIntentDigest, sendConfirmResponse, closeModalSafely, isUserCancelledSecureConfirm, ERROR_MESSAGES } from './common';
-import { toAccountId } from '../../../../types/accountIds';
-import { authenticatorsToAllowCredentials } from '../../../touchIdPrompt';
-import { serializeAuthenticationCredentialWithPRF } from '../../../credentialsHelpers';
+import { addLitCancelListener } from '../../../LitComponents/lit-events';
+import { ensureDefined } from '../../../LitComponents/ensure-defined';
+import { W3A_EXPORT_VIEWER_IFRAME_ID } from '../../../LitComponents/tags';
+import type { ExportViewerIframeElement } from '../../../LitComponents/ExportPrivateKey/iframe-host';
+import {
+  collectAuthenticationCredentialWithPRF,
+  getNearAccountId,
+  getIntentDigest,
+  sendConfirmResponse,
+  isUserCancelledSecureConfirm,
+  ERROR_MESSAGES,
+} from './common';
+import { errorMessage } from '../../../../../utils/errors';
+
+async function mountExportViewer(
+  payload: ShowSecurePrivateKeyUiPayload,
+  confirmationConfig: ConfirmationConfig,
+): Promise<void> {
+  await ensureDefined(W3A_EXPORT_VIEWER_IFRAME_ID, () => import('../../../LitComponents/ExportPrivateKey/iframe-host'));
+  const host = document.createElement(W3A_EXPORT_VIEWER_IFRAME_ID) as ExportViewerIframeElement;
+  host.theme = payload.theme || confirmationConfig.theme || 'dark';
+  host.variant = payload.variant || ((confirmationConfig.uiMode === 'drawer') ? 'drawer' : 'modal');
+  host.accountId = payload.nearAccountId;
+  host.publicKey = payload.publicKey;
+  host.privateKey = payload.privateKey;
+  host.loading = false;
+
+  window.parent?.postMessage({ type: 'WALLET_UI_OPENED' }, '*');
+  document.body.appendChild(host);
+
+  let removeCancelListener: (() => void) | undefined;
+  removeCancelListener = addLitCancelListener(host, () => {
+    window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
+    removeCancelListener?.();
+    host.remove();
+  }, { once: true });
+}
 
 export async function handleLocalOnlyFlow(
   ctx: VrfWorkerManagerContext,
@@ -19,66 +53,49 @@ export async function handleLocalOnlyFlow(
   opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
 ): Promise<void> {
 
-  const { confirmationConfig, transactionSummary } = opts;
+  const { confirmationConfig } = opts;
   const nearAccountId = getNearAccountId(request);
-  const vrfChallenge = createRandomVRFChallenge() as VRFChallenge;
-
-  // Show any UI (export viewer) or skip depending on type/config
-  const { confirmed, confirmHandle, error: uiError } = await renderConfirmUI({
-    ctx,
-    request,
-    confirmationConfig,
-    transactionSummary,
-    vrfChallenge,
-  });
 
   // SHOW_SECURE_PRIVATE_KEY_UI: purely visual; keep UI open and return confirmed immediately
   if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
-    if (!confirmed) {
-      closeModalSafely(false, confirmHandle);
+    try {
+      await mountExportViewer(request.payload as ShowSecurePrivateKeyUiPayload, confirmationConfig);
+      // Keep viewer open; do not close here.
+      sendConfirmResponse(worker, {
+        requestId: request.requestId,
+        intentDigest: getIntentDigest(request),
+        confirmed: true,
+      });
+      return;
+    } catch (err: unknown) {
       return sendConfirmResponse(worker, {
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: false,
-        error: uiError,
+        error: errorMessage(err) || 'Failed to render export UI',
       });
     }
-    // Keep viewer open; do not close here
-    return sendConfirmResponse(worker, {
-      requestId: request.requestId,
-      intentDigest: getIntentDigest(request),
-      confirmed: true,
-    });
   }
 
   // DECRYPT_PRIVATE_KEY_WITH_PRF: collect an authentication credential (with PRF extension results)
   // and return it to the VRF worker; VRF worker extracts PRF outputs internally.
   if (request.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF) {
-    let touchIdSuccess = false;
+    const vrfChallenge = createRandomVRFChallenge() as VRFChallenge;
     try {
-      // UI for decrypt is typically skipped; proceed to collect credentials
-      const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
-      // Prefer the last logged-in device for this account when multiple passkeys exist.
-      const { authenticatorsForPrompt, wrongPasskeyError } = await ctx.indexedDB.clientDB.ensureCurrentPasskey(
-        toAccountId(nearAccountId),
-        authenticators,
-      );
-      if (wrongPasskeyError) {
-        throw new Error(wrongPasskeyError);
-      }
-      const credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
+      const credential = await collectAuthenticationCredentialWithPRF({
+        ctx,
         nearAccountId,
-        challenge: vrfChallenge,
-        allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
+        vrfChallenge,
+        // Offline export / local decrypt needs both PRF outputs so the VRF worker can
+        // recover/derive key material without requiring a pre-existing VRF session.
+        includeSecondPrfOutput: true,
       });
-
-      touchIdSuccess = true;
-      // No modal to keep open; export viewer will be shown by a subsequent request
+      // No modal to keep open; export viewer will be shown by a subsequent request.
       return sendConfirmResponse(worker, {
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: true,
-        credential: serializeAuthenticationCredentialWithPRF({ credential }),
+        credential,
       });
 
     } catch (err: unknown) {
@@ -92,9 +109,6 @@ export async function handleLocalOnlyFlow(
         confirmed: false,
         error: cancelled ? ERROR_MESSAGES.cancelled : ERROR_MESSAGES.collectCredentialsFailed,
       });
-    } finally {
-      // If any modal was mounted despite skip config, close it
-      if (!confirmed) closeModalSafely(touchIdSuccess, confirmHandle);
     }
   }
 }
