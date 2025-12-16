@@ -35,9 +35,6 @@ pub struct DeriveNearKeypairAndEncryptResult {
     pub public_key: String,
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedData")]
     pub encrypted_data: String,
-    /// @deprecated Use `chacha20NonceB64u`.
-    #[wasm_bindgen(getter_with_clone)]
-    pub iv: String,
     #[wasm_bindgen(getter_with_clone, js_name = "chacha20NonceB64u")]
     pub chacha20_nonce_b64u: String,
     #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
@@ -54,17 +51,15 @@ impl DeriveNearKeypairAndEncryptResult {
         near_account_id: String,
         public_key: String,
         encrypted_data: String,
-        iv: String,
+        chacha20_nonce_b64u: String,
         wrap_key_salt: String,
         version: u8,
         stored: bool,
     ) -> DeriveNearKeypairAndEncryptResult {
-        let chacha20_nonce_b64u = iv.clone();
         DeriveNearKeypairAndEncryptResult {
             near_account_id,
             public_key,
             encrypted_data,
-            iv,
             chacha20_nonce_b64u,
             wrap_key_salt,
             version,

@@ -497,10 +497,6 @@ export class WebAuthnManager {
      * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
      */
     chacha20NonceB64u?: string;
-    /**
-     * @deprecated Use `chacha20NonceB64u`.
-     */
-    iv?: string;
     wrapKeySalt?: string;
     error?: string;
   }>{
@@ -1530,10 +1526,6 @@ export class WebAuthnManager {
      * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
      */
     chacha20NonceB64u: string;
-    /**
-     * @deprecated Use `chacha20NonceB64u`.
-     */
-    iv: string;
     accountIdHint?: string;
     wrapKeySalt: string;
     stored?: boolean;

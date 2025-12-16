@@ -29,9 +29,6 @@ pub struct RecoverKeypairResult {
     pub public_key: String,
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedData")]
     pub encrypted_data: String,
-    /// @deprecated Use `chacha20NonceB64u`.
-    #[wasm_bindgen(getter_with_clone)]
-    pub iv: String,
     #[wasm_bindgen(getter_with_clone, js_name = "chacha20NonceB64u")]
     pub chacha20_nonce_b64u: String,
     #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
@@ -46,15 +43,13 @@ impl RecoverKeypairResult {
     pub fn new(
         public_key: String,
         encrypted_data: String,
-        iv: String,
+        chacha20_nonce_b64u: String,
         wrap_key_salt: String,
         account_id_hint: Option<String>,
     ) -> RecoverKeypairResult {
-        let chacha20_nonce_b64u = iv.clone();
         RecoverKeypairResult {
             public_key,
             encrypted_data,
-            iv,
             chacha20_nonce_b64u,
             wrap_key_salt,
             account_id_hint,
@@ -116,7 +111,7 @@ pub async fn handle_recover_keypair_from_passkey(
     Ok(RecoverKeypairResult::new(
         public_key,
         encryption_result.encrypted_near_key_data_b64u,
-        encryption_result.chacha20_nonce_b64u, // IV
+        encryption_result.chacha20_nonce_b64u,
         wrap_key.salt_b64u().to_string(),
         Some(account_id.to_string()),
     ))

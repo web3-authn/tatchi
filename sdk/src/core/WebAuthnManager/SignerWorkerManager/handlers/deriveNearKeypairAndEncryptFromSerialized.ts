@@ -39,10 +39,6 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
    * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
    */
   chacha20NonceB64u?: string;
-  /**
-   * @deprecated Use `chacha20NonceB64u`.
-   */
-  iv?: string;
   wrapKeySalt?: string;
   error?: string;
 }> {
@@ -77,7 +73,10 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     const deviceNumber = (typeof options?.deviceNumber === 'number')
       ? options!.deviceNumber!
       : await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
-    const chacha20NonceB64u = wasmResult.chacha20NonceB64u || wasmResult.iv || '';
+    const chacha20NonceB64u = wasmResult.chacha20NonceB64u;
+    if (!chacha20NonceB64u) {
+      throw new Error('Missing chacha20NonceB64u in deriveNearKeypairAndEncrypt result');
+    }
     const keyData: EncryptedKeyData = {
       nearAccountId: nearAccountId,
       deviceNumber,
@@ -94,7 +93,6 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
       nearAccountId: toAccountId(wasmResult.nearAccountId),
       publicKey: wasmResult.publicKey,
       chacha20NonceB64u,
-      iv: chacha20NonceB64u,
       wrapKeySalt: wrapKeySaltPersisted,
     };
   } catch (error: unknown) {

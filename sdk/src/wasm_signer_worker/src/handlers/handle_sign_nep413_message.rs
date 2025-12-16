@@ -25,10 +25,7 @@ pub struct SignNep413Request {
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyData")]
     pub encrypted_private_key_data: String,
     /// ChaCha20-Poly1305 nonce (base64url) for `encryptedPrivateKeyData`.
-    ///
-    /// Accepts legacy `encryptedPrivateKeyIv` via serde alias.
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyChacha20NonceB64u")]
-    #[serde(alias = "encryptedPrivateKeyIv")]
     pub encrypted_private_key_chacha20_nonce_b64u: String,
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     pub session_id: String,

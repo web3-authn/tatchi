@@ -72,10 +72,6 @@ pub struct RegisterDevice2WithDerivedKeyResult {
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedData")]
     pub encrypted_data: String,
 
-    /// @deprecated Use `chacha20NonceB64u`.
-    #[wasm_bindgen(getter_with_clone)]
-    pub iv: String,
-
     /// ChaCha20-Poly1305 nonce used for encryption (base64url-encoded)
     #[wasm_bindgen(getter_with_clone, js_name = "chacha20NonceB64u")]
     pub chacha20_nonce_b64u: String,
@@ -95,15 +91,13 @@ impl RegisterDevice2WithDerivedKeyResult {
     pub fn new(
         public_key: String,
         encrypted_data: String,
-        iv: String,
+        chacha20_nonce_b64u: String,
         wrap_key_salt: String,
         signed_transaction: WasmSignedTransaction,
     ) -> RegisterDevice2WithDerivedKeyResult {
-        let chacha20_nonce_b64u = iv.clone();
         RegisterDevice2WithDerivedKeyResult {
             public_key,
             encrypted_data,
-            iv,
             chacha20_nonce_b64u,
             wrap_key_salt,
             signed_transaction,

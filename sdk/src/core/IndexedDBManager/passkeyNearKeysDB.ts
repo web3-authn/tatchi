@@ -14,11 +14,7 @@ export interface EncryptedKeyData {
   /**
    * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for `encryptedData`.
    */
-  chacha20NonceB64u?: string;
-  /**
-   * @deprecated Use `chacha20NonceB64u`.
-   */
-  iv?: string;
+  chacha20NonceB64u: string;
   /**
    * HKDF salt used alongside WrapKeySeed for KEK derivation.
    * Required for v2+ vaults; entries missing `wrapKeySalt` are considered invalid
@@ -79,12 +75,10 @@ export class PasskeyNearKeysDBManager {
    */
   async storeEncryptedKey(data: EncryptedKeyData): Promise<void> {
     const db = await this.getDB();
-    // Normalize nonce naming: persist the canonical `chacha20NonceB64u` field even if the caller
-    // only provided the legacy `iv` name.
-    const chacha20NonceB64u = data.chacha20NonceB64u || data.iv || '';
-    // Also persist the legacy `iv` alias for forward/backward compatibility across SDK versions.
-    const iv = data.iv || chacha20NonceB64u || '';
-    await db.put(this.config.storeName, { ...data, chacha20NonceB64u, iv });
+    if (!data.chacha20NonceB64u) {
+      throw new Error('PasskeyNearKeysDB: Missing chacha20NonceB64u');
+    }
+    await db.put(this.config.storeName, data);
   }
 
   /**
@@ -92,14 +86,23 @@ export class PasskeyNearKeysDBManager {
    */
   async getEncryptedKey(nearAccountId: string, deviceNumber: number): Promise<EncryptedKeyData | null> {
     const db = await this.getDB();
+    const sanitize = (rec: any): EncryptedKeyData | null => {
+      if (!rec?.encryptedData || !rec?.chacha20NonceB64u) return null;
+      return {
+        nearAccountId: rec.nearAccountId,
+        deviceNumber: rec.deviceNumber,
+        encryptedData: rec.encryptedData,
+        chacha20NonceB64u: rec.chacha20NonceB64u,
+        wrapKeySalt: rec.wrapKeySalt,
+        version: rec.version,
+        timestamp: rec.timestamp,
+      };
+    };
+
     if (typeof deviceNumber === 'number') {
       const res = await db.get(this.config.storeName, [nearAccountId, deviceNumber]);
-      if (res?.encryptedData) {
-        // Normalize nonce naming: legacy entries may store only `iv`.
-        const chacha20NonceB64u = res.chacha20NonceB64u || res.iv || '';
-        const iv = res.iv || res.chacha20NonceB64u || '';
-        return { ...res, chacha20NonceB64u, iv };
-      }
+      const direct = sanitize(res);
+      if (direct) return direct;
       // Fallback: if specific device key missing, return the most recent key for the account
       if (nearAccountId !== '_init_check') {
         console.warn('PasskeyNearKeysDB: getEncryptedKey - No result for device', deviceNumber, '→ falling back to any key for account');
@@ -110,9 +113,7 @@ export class PasskeyNearKeysDBManager {
         if (Array.isArray(all) && all.length > 0) {
           // Choose the most recently stored entry by timestamp
           const latest = (all as any[]).reduce((a, b) => (a.timestamp >= b.timestamp ? a : b));
-          const chacha20NonceB64u = latest.chacha20NonceB64u || latest.iv || '';
-          const iv = latest.iv || latest.chacha20NonceB64u || '';
-          return { ...latest, chacha20NonceB64u, iv };
+          return sanitize(latest);
         }
       } catch {}
       return null;
@@ -124,9 +125,7 @@ export class PasskeyNearKeysDBManager {
       const all = await idx.getAll(nearAccountId);
       if (Array.isArray(all) && all.length > 0) {
         const latest = (all as any[]).reduce((a, b) => (a.timestamp >= b.timestamp ? a : b));
-        const chacha20NonceB64u = latest.chacha20NonceB64u || latest.iv || '';
-        const iv = latest.iv || latest.chacha20NonceB64u || '';
-        return { ...latest, chacha20NonceB64u, iv };
+        return sanitize(latest);
       }
     } catch {}
     return null;
@@ -167,11 +166,20 @@ export class PasskeyNearKeysDBManager {
   async getAllEncryptedKeys(): Promise<EncryptedKeyData[]> {
     const db = await this.getDB();
     const all = await db.getAll(this.config.storeName);
-    return (all as any[]).map((rec) => {
-      const chacha20NonceB64u = rec.chacha20NonceB64u || rec.iv || '';
-      const iv = rec.iv || rec.chacha20NonceB64u || '';
-      return { ...rec, chacha20NonceB64u, iv };
-    });
+    return (all as any[])
+      .map((rec) => {
+        if (!rec?.encryptedData || !rec?.chacha20NonceB64u) return null;
+        return {
+          nearAccountId: rec.nearAccountId,
+          deviceNumber: rec.deviceNumber,
+          encryptedData: rec.encryptedData,
+          chacha20NonceB64u: rec.chacha20NonceB64u,
+          wrapKeySalt: rec.wrapKeySalt,
+          version: rec.version,
+          timestamp: rec.timestamp,
+        } as EncryptedKeyData;
+      })
+      .filter((rec): rec is EncryptedKeyData => rec !== null);
   }
 
   /**

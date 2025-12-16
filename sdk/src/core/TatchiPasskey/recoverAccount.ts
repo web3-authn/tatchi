@@ -516,10 +516,6 @@ async function performAccountRecovery({
      * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
      */
     chacha20NonceB64u: string,
-    /**
-     * @deprecated Use `chacha20NonceB64u`.
-     */
-    iv?: string,
     wrapKeySalt?: string,
   },
   credential: WebAuthnAuthenticationCredential,
@@ -656,11 +652,7 @@ async function restoreUserData({
     /**
      * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
      */
-    chacha20NonceB64u?: string;
-    /**
-     * @deprecated Use `chacha20NonceB64u`.
-     */
-    iv?: string;
+    chacha20NonceB64u: string;
     wrapKeySalt?: string;
   },
   credential: WebAuthnAuthenticationCredential
@@ -671,7 +663,7 @@ async function restoreUserData({
   }
   const wrapKeySalt = encryptedNearKeypair.wrapKeySalt;
 
-  const chacha20NonceB64u = encryptedNearKeypair.chacha20NonceB64u || encryptedNearKeypair.iv || '';
+  const chacha20NonceB64u = encryptedNearKeypair.chacha20NonceB64u;
   if (!chacha20NonceB64u) {
     throw new Error('Missing chacha20NonceB64u in recovered key material; cannot store encrypted NEAR key.');
   }

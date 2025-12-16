@@ -59,10 +59,6 @@ export async function registerDevice2WithDerivedKey({
    * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
    */
   chacha20NonceB64u?: string;
-  /**
-   * @deprecated Use `chacha20NonceB64u`.
-   */
-  iv?: string;
   error?: string;
 }> {
   try {
@@ -134,7 +130,10 @@ export async function registerDevice2WithDerivedKey({
     console.debug('[SignerWorkerManager] Device2 registration complete, storing encrypted key');
 
     // Store encrypted NEAR key in IndexedDB
-    const chacha20NonceB64u = wasmResult.chacha20NonceB64u || wasmResult.iv || '';
+    const chacha20NonceB64u = wasmResult.chacha20NonceB64u;
+    if (!chacha20NonceB64u) {
+      throw new Error('Missing chacha20NonceB64u in Device2 registration result');
+    }
     const keyData: EncryptedKeyData = {
       nearAccountId,
       deviceNumber: deviceNumber ?? 2, // Default to device 2
@@ -155,7 +154,6 @@ export async function registerDevice2WithDerivedKey({
       wrapKeySalt: wasmResult.wrapKeySalt,
       encryptedData: wasmResult.encryptedData,
       chacha20NonceB64u,
-      iv: chacha20NonceB64u,
     };
   } catch (error: unknown) {
     console.error('[SignerWorkerManager] registerDevice2WithDerivedKey error:', error);

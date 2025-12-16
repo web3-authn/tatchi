@@ -6,11 +6,10 @@ export type EncryptedPrivateKeyCiphertext = {
 };
 
 export function toEncryptedPrivateKeyCiphertext(
-  encryptedKeyData: Pick<EncryptedKeyData, 'encryptedData' | 'chacha20NonceB64u' | 'iv'>,
+  encryptedKeyData: Pick<EncryptedKeyData, 'encryptedData' | 'chacha20NonceB64u'>,
 ): EncryptedPrivateKeyCiphertext {
-  const nonce = encryptedKeyData.chacha20NonceB64u || encryptedKeyData.iv || '';
   return {
     encryptedPrivateKeyData: encryptedKeyData.encryptedData,
-    encryptedPrivateKeyChacha20NonceB64u: nonce,
+    encryptedPrivateKeyChacha20NonceB64u: encryptedKeyData.chacha20NonceB64u,
   };
 }
