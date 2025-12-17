@@ -163,6 +163,7 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
     return result
   };
 
+  // Only handle Device2 events here
   const onLinkDeviceEvents = async (event: DeviceLinkingSSEEvent) => {
     const toastId = 'device-linking';
     switch (event.phase) {

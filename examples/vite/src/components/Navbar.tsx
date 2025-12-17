@@ -75,13 +75,14 @@ export const Navbar: React.FC = () => {
                 toast.dismiss();
               },
               onEvent: (event) => {
+                // only handle Device1 events here
                 switch (event.phase) {
                   case DeviceLinkingPhase.STEP_2_SCANNING:
                     toast.loading('Scanning QR code...', { id: 'device-linking' });
                     break;
                   case DeviceLinkingPhase.STEP_3_AUTHORIZATION:
                     if (event.status === DeviceLinkingStatus.PROGRESS) {
-                      toast.loading('Authorizing...', { id: 'device-linking' });
+                      toast.loading(event.message, { id: 'device-linking' });
                     } else if (event.status === DeviceLinkingStatus.SUCCESS) {
                       toast.success(event.message || 'Authorization completed successfully!', { id: 'device-linking' });
                     }

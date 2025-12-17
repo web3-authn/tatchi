@@ -36,6 +36,7 @@ import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice'
 import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents';
 import type { DeviceLinkingSSEEvent } from '../types/sdkSentEvents';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
+import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 
 
 /**
@@ -329,10 +330,18 @@ export class LinkDeviceFlow {
         && linkingResult.deviceNumber !== undefined
       ) {
         // contract returns current deviceNumber, device should be assigned next number
-        const nextDeviceNumber = linkingResult.deviceNumber + 1;
+        const currentCounter = parseDeviceNumber(linkingResult.deviceNumber, { min: 0 });
+        if (currentCounter === null) {
+          console.warn(
+            'LinkDeviceFlow: Invalid deviceNumber counter returned from contract:',
+            linkingResult.deviceNumber
+          );
+          return false;
+        }
+        const nextDeviceNumber = currentCounter + 1;
         console.debug(`LinkDeviceFlow: Success! Discovered linked account:`, {
           linkedAccountId: linkingResult.linkedAccountId,
-          currentCounter: linkingResult.deviceNumber,
+          currentCounter,
           nextDeviceNumber: nextDeviceNumber,
         });
         this.session.accountId = linkingResult.linkedAccountId as AccountId;
@@ -552,10 +561,15 @@ export class LinkDeviceFlow {
       }
 
       const { accountId } = sessionSnapshot;
-      const deviceNumber = sessionSnapshot.deviceNumber;
+      const deviceNumberRaw = sessionSnapshot.deviceNumber;
 
-      if (deviceNumber == null) {
+      if (deviceNumberRaw == null) {
         throw new Error('Device number missing for auto-login');
+      }
+
+      const deviceNumber = parseDeviceNumber(deviceNumberRaw, { min: 1 });
+      if (deviceNumber === null) {
+        throw new Error(`Invalid device number for auto-login: ${String(deviceNumberRaw)}`);
       }
 
       // Try Shamir 3-pass unlock first if available
@@ -605,8 +619,11 @@ export class LinkDeviceFlow {
       // session in WASM is bound to the correct deterministic VRF key for this device.
       try {
         const nonceManager = this.context.webAuthnManager.getNonceManager();
-        const { nextNonce: _nextNonce, txBlockHash, txBlockHeight } =
-          await nonceManager.getNonceBlockHashAndHeight(this.context.nearClient);
+        const {
+          nextNonce: _nextNonce,
+          txBlockHash,
+          txBlockHeight
+        } = await nonceManager.getNonceBlockHashAndHeight(this.context.nearClient);
 
         const authChallenge = await this.context.webAuthnManager.generateVrfChallengeOnce({
           userId: accountId,
@@ -616,10 +633,10 @@ export class LinkDeviceFlow {
         });
 
         const authenticators = await this.context.webAuthnManager.getAuthenticatorsByUser(accountId);
-        const authCredential = await this.context.webAuthnManager.getAuthenticationCredentialsSerialized({
+        const authCredential = await this.context.webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
           nearAccountId: accountId,
           challenge: authChallenge,
-          allowCredentials: authenticatorsToAllowCredentials(authenticators),
+          credentialIds: authenticators.map((a) => a.credentialId),
         });
 
         const vrfUnlockResult = await this.context.webAuthnManager.unlockVRFKeypair({
@@ -705,11 +722,18 @@ export class LinkDeviceFlow {
         throw new Error('Device number not available - cannot determine device-specific account ID');
       }
 
-      console.debug("Storing device authenticator data with device number: ", this.session.deviceNumber);
+      const deviceNumber = parseDeviceNumber(this.session.deviceNumber, { min: 1 });
+      if (deviceNumber === null) {
+        throw new Error(`Invalid device number in session: ${String(this.session.deviceNumber)}`);
+      }
+      // Normalize to a number in case something wrote a numeric string.
+      this.session.deviceNumber = deviceNumber;
+
+      console.debug("Storing device authenticator data with device number: ", deviceNumber);
       // Generate device-specific account ID for storage with deviceNumber
       await webAuthnManager.storeUserData({
         nearAccountId: accountId,
-        deviceNumber: this.session.deviceNumber,
+        deviceNumber,
         clientNearPublicKey: deterministicKeysResult.nearPublicKey,
         lastUpdated: Date.now(),
         passkeyCredential: {
@@ -728,11 +752,11 @@ export class LinkDeviceFlow {
       const credentialPublicKey = await webAuthnManager.extractCosePublicKey(attestationB64u);
       await webAuthnManager.storeAuthenticator({
         nearAccountId: accountId,
-        deviceNumber: this.session.deviceNumber,
+        deviceNumber,
         credentialId: credential.rawId,
         credentialPublicKey,
         transports: ['internal'],
-        name: `Device ${this.session.deviceNumber || 'Unknown'} Passkey for ${accountId.split('.')[0]}`,
+        name: `Device ${deviceNumber} Passkey for ${accountId.split('.')[0]}`,
         registered: new Date().toISOString(),
         syncedAt: new Date().toISOString(),
         vrfPublicKey: deterministicKeysResult.vrfPublicKey,

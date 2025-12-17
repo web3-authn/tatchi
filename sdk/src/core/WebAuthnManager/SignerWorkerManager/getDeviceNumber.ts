@@ -1,6 +1,18 @@
 import type { PasskeyClientDBManager } from '@/core/IndexedDBManager';
 import { toAccountId, type AccountId } from '../../types/accountIds';
 
+export function parseDeviceNumber(
+  value: unknown,
+  options: { min?: number } = {}
+): number | null {
+  const deviceNumber = Number(value);
+  const min = options.min ?? 1;
+  if (!Number.isSafeInteger(deviceNumber) || deviceNumber < min) {
+    return null;
+  }
+  return deviceNumber;
+}
+
 /**
  * Return the deviceNumber for the last logged-in user for the given account.
  * This uses the app-state "last user" pointer only; if it does not match the
@@ -12,8 +24,11 @@ export async function getLastLoggedInDeviceNumber(
 ): Promise<number> {
   const accountId = toAccountId(nearAccountId);
   const last = await clientDB.getLastUser();
-  if (last && last.nearAccountId === accountId && typeof last.deviceNumber === 'number') {
-    return last.deviceNumber;
+  if (last && last.nearAccountId === accountId) {
+    const deviceNumber = parseDeviceNumber((last as any).deviceNumber, { min: 1 });
+    if (deviceNumber !== null) {
+      return deviceNumber;
+    }
   }
   throw new Error(`No last user session for account ${accountId}`);
 }
