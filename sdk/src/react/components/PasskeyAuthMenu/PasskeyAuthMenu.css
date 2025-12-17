@@ -1,5 +1,6 @@
 /* Root container */
 .w3a-signup-menu-root {
+  position: relative; /* relative position to anchor back button */
   width: min(100dvw, 420px);
   max-width: 100dvw;
   min-width: 330px;
@@ -21,8 +22,8 @@
 /* Back button */
 .w3a-back-button {
   position: absolute;
-  top: 0rem;
-  left: 0rem;
+  top: 1rem;
+  left: 1rem;
   width: 48px;
   height: 48px;
   padding: 0;
@@ -80,9 +81,26 @@
   pointer-events: none;
 }
 
+/* Hide header when email recovery is active */
+.w3a-signup-menu-root[data-email-recovery="true"] .w3a-header {
+  opacity: 0;
+  height: 0px;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  margin-top: 0px;
+  margin-bottom: 0px;
+  pointer-events: none;
+}
+
 /* Adjust content area when header is hidden */
 .w3a-signup-menu-root[data-waiting="true"] .w3a-content-area,
 .w3a-signup-menu-root[data-scan-device="true"] .w3a-content-area {
+  flex: 1 1 auto;
+  transition: height 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Adjust content area when email recovery is active */
+.w3a-signup-menu-root[data-email-recovery="true"] .w3a-content-area {
   flex: 1 1 auto;
   transition: height 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -94,6 +112,10 @@
 
 .w3a-signup-menu-root[data-scan-device="true"] {
   min-height: 300px;
+}
+
+.w3a-signup-menu-root[data-email-recovery="true"] {
+  min-height: 320px;
 }
 
 .w3a-title {
@@ -114,7 +136,6 @@
 
 /* Content switcher container */
 .w3a-content-switcher {
-  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden; /* ensure smooth height animations without spillover */
@@ -676,6 +697,12 @@
 .w3a-scan-device-row {
 }
 
+.w3a-secondary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .w3a-link-device-btn {
   display: flex;
   align-items: center;
@@ -722,4 +749,115 @@
 .w3a-link-device-btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Email recovery slide */
+.w3a-email-recovery-content {
+  width: 100%;
+  padding-top: 1rem;
+}
+
+.w3a-email-recovery-slide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 260px;
+  animation: content-enter 240ms ease-out;
+}
+
+.w3a-email-recovery-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0.5rem 0.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.w3a-email-recovery-help {
+  font-size: 0.95rem;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--w3a-colors-textSecondary), var(--w3a-colors-textPrimary) 20%);
+  margin: 0 0.25rem;
+}
+
+.w3a-email-recovery-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+}
+
+.w3a-email-recovery-meta-label {
+  opacity: 0.85;
+}
+
+.w3a-email-recovery-meta-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85rem;
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+  text-align: right;
+}
+
+.w3a-email-recovery-input-pill {
+  height: 54px;
+  padding: 0 1rem;
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  background: var(--w3a-colors-surface);
+}
+
+.w3a-email-recovery-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.w3a-email-recovery-summary {
+  font-size: 0.875rem;
+  line-height: 1.2;
+  padding: 0 0.25rem;
+  color: color-mix(in srgb, var(--w3a-colors-textSecondary), var(--w3a-colors-textPrimary) 20%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.w3a-email-recovery-warning {
+  color: color-mix(in srgb, var(--w3a-colors-error), var(--w3a-colors-textPrimary) 30%);
+}
+
+.w3a-email-recovery-link {
+  font-size: 0.875rem;
+  color: var(--w3a-colors-primary, #3b82f6);
+  text-decoration: none;
+  padding: 0 0.25rem;
+}
+
+.w3a-email-recovery-link:hover {
+  text-decoration: underline;
+}
+
+.w3a-email-recovery-status {
+  font-size: 0.875rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 1rem;
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  background: var(--w3a-colors-surface);
+  color: var(--w3a-colors-textPrimary);
+}
+
+.w3a-email-recovery-status.is-error {
+  border-color: color-mix(in srgb, var(--w3a-colors-error), var(--w3a-colors-borderPrimary) 60%);
+  color: var(--w3a-colors-error);
+}
+
+.w3a-email-recovery-elapsed {
+  margin-left: 6px;
+  opacity: 0.75;
 }

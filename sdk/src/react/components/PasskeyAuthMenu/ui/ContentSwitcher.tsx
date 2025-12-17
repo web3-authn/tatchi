@@ -5,6 +5,8 @@ export interface ContentSwitcherProps {
   waitingText?: string;
   showScanDevice?: boolean;
   showQRCodeElement?: React.ReactNode;
+  showEmailRecovery?: boolean;
+  emailRecoveryElement?: React.ReactNode;
   children: React.ReactNode;
   backButton?: React.ReactNode;
 }
@@ -14,6 +16,8 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
   waitingText = 'Waiting for Passkey…',
   showScanDevice = false,
   showQRCodeElement,
+  showEmailRecovery = false,
+  emailRecoveryElement,
   children,
   backButton,
 }) => {
@@ -79,7 +83,7 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
       ro.disconnect();
       window.removeEventListener('resize', onResize);
     };
-  }, [syncHeight, waiting, showScanDevice, children]);
+  }, [syncHeight, waiting, showScanDevice, showEmailRecovery, children, emailRecoveryElement]);
 
   return (
     <div ref={switcherRef} className="w3a-content-switcher">
@@ -98,7 +102,11 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
 
           {showScanDevice && <div className="w3a-scan-device-content">{showQRCodeElement}</div>}
 
-          {!waiting && !showScanDevice && <div className="w3a-signin-menu">{children}</div>}
+          {showEmailRecovery && <div className="w3a-email-recovery-content">{emailRecoveryElement}</div>}
+
+          {!waiting && !showScanDevice && !showEmailRecovery && (
+            <div className="w3a-signin-menu">{children}</div>
+          )}
         </div>
       </div>
     </div>
