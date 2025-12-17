@@ -26,9 +26,9 @@ pub const VRF_DOMAIN_SEPARATOR: &[u8] = b"web3_authn_vrf_challenge_v1";
 /// Used for both VRF keypair encryption and general ChaCha20 operations
 pub const HKDF_CHACHA20_KEY_INFO: &[u8] = b"vrf-chacha20-key";
 
-/// HKDF info string for VRF keypair derivation from PRF output
-/// Used for deterministic VRF keypair generation during account recovery
-pub const HKDF_VRF_KEYPAIR_INFO: &[u8] = b"vrf-keypair-derivation-v1";
+/// HKDF info string for deriving VRF secret material from PRF.second.
+/// Spec-aligned with `docs/vrf_webauthn_hybrid_feature_spec.md`.
+pub const HKDF_VRF_KEYPAIR_INFO: &[u8] = b"tatchi:v1:vrf-sk";
 
 /// Constant used for HKDF info when deriving K_pass_auth
 pub const VRF_WRAP_PASS_INFO: &[u8] = b"vrf-wrap-pass";

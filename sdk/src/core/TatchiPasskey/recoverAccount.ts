@@ -110,7 +110,7 @@ export class AccountRecoveryFlow {
         // Fallback discovery without a typed account: prompt once to select a passkey
         // Then infer the accountId from userHandle (set at registration time)
         const challenge = createRandomVRFChallenge();
-        const credential = await this.context.webAuthnManager.getAuthenticationCredentialsForRecovery({
+        const credential = await this.context.webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
           // Account is unknown here – salts aren't used downstream for discovery
           nearAccountId: '' as any,
           challenge: challenge as VRFChallenge,
@@ -187,7 +187,7 @@ export class AccountRecoveryFlow {
         // Attempt a one-time re-prompt to infer accountId from userHandle for this credential
         try {
           const challenge = createRandomVRFChallenge();
-          const cred = await this.context.webAuthnManager.getAuthenticationCredentialsForRecovery({
+          const cred = await this.context.webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
             nearAccountId: '' as any,
             challenge: challenge as VRFChallenge,
             credentialIds: selectedOption.credentialId && selectedOption.credentialId !== 'manual-input'
@@ -462,7 +462,7 @@ async function getOrCreateCredential(
 
   const challenge = createRandomVRFChallenge();
 
-  return await webAuthnManager.getAuthenticationCredentialsForRecovery({
+  return await webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
     nearAccountId: accountId,
     challenge: challenge as VRFChallenge,
     credentialIds: allowedCredentialIds ?? []

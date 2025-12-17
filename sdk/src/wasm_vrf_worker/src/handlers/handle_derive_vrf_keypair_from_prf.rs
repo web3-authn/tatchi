@@ -62,7 +62,7 @@ pub struct DeterministicVrfKeypairResponse {
 
 /// Handle DERIVE_VRF_KEYPAIR_FROM_PRF message
 ///
-/// Derives a VRF keypair deterministically from PRF output embedded in a WebAuthn credential,
+/// Derives a VRF keypair deterministically from PRF.second embedded in a WebAuthn credential,
 /// optionally storing it in memory
 /// and performing Shamir 3-pass encryption for server storage.
 pub async fn handle_derive_vrf_keypair_from_prf(
@@ -74,10 +74,10 @@ pub async fn handle_derive_vrf_keypair_from_prf(
         return VrfWorkerResponse::fail(message_id, "Missing credential");
     }
 
-    let prf_first_b64u: Option<String> = {
+    let prf_second_b64u: Option<String> = {
         #[cfg(target_arch = "wasm32")]
         {
-            crate::webauthn::extract_prf_first_from_credential(&payload.credential)
+            crate::webauthn::extract_prf_second_from_credential(&payload.credential)
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -85,18 +85,18 @@ pub async fn handle_derive_vrf_keypair_from_prf(
         }
     };
 
-    let prf_output = match prf_first_b64u.as_deref() {
+    let prf_output = match prf_second_b64u.as_deref() {
         Some(b64u) => match base64_url_decode(b64u) {
             Ok(bytes) if !bytes.is_empty() => bytes,
-            Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF.first in credential"),
+            Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential"),
             Err(_) => {
                 return VrfWorkerResponse::fail(
                     message_id,
-                    "Missing or invalid PRF.first in credential",
+                    "Missing or invalid PRF.second in credential",
                 )
             }
         },
-        None => return VrfWorkerResponse::fail(message_id, "Missing PRF.first in credential"),
+        None => return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential"),
     };
     if prf_output.len() != CHACHA20_KEY_SIZE {
         return VrfWorkerResponse::fail(message_id, "Invalid PRF output length: expected 32 bytes");

@@ -45,7 +45,7 @@ pub fn handle_unlock_vrf_keypair(
     let prf_key_b64u: Option<String> = {
         #[cfg(target_arch = "wasm32")]
         {
-            crate::webauthn::extract_prf_first_from_credential(&payload.credential)
+            crate::webauthn::extract_prf_second_from_credential(&payload.credential)
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -56,15 +56,15 @@ pub fn handle_unlock_vrf_keypair(
     let prf_key = match prf_key_b64u.as_deref() {
         Some(b64u) => match crate::utils::base64_url_decode(b64u) {
             Ok(bytes) if !bytes.is_empty() => bytes,
-            Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF.first in credential"),
+            Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential"),
             Err(_) => {
                 return VrfWorkerResponse::fail(
                     message_id,
-                    "Missing or invalid PRF.first in credential",
+                    "Missing or invalid PRF.second in credential",
                 )
             }
         },
-        None => return VrfWorkerResponse::fail(message_id, "Missing PRF.first in credential"),
+        None => return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential"),
     };
 
     if payload.near_account_id.is_empty() {

@@ -72,7 +72,6 @@ export function setupLitElemMounter(opts: {
   updateWalletConfigs: UpdateWalletConfigs;
   postToParent: (message: unknown) => void;
 }) {
-  // Message API: register-button overlay deprecated – only tx button APIs remain
   const { ensureTatchiPasskey, getTatchiPasskey, updateWalletConfigs } = opts;
 
   // Generic registry for mountable components

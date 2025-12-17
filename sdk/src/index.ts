@@ -7,7 +7,7 @@ export {
   MinimalNearClient,
   encodeSignedTransactionBase64
 } from './core/NearClient';
-export { verifyAuthenticationResponse } from './core/TatchiPasskey/login';
+export { verifyAuthenticationResponse } from './core/rpcCalls';
 
 export * from './config';
 export { base64UrlEncode, base64UrlDecode } from './utils/encoders';

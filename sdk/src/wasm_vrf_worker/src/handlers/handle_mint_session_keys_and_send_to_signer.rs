@@ -19,46 +19,20 @@ use std::rc::Rc;
 use wasm_bindgen::JsValue;
 use js_sys::Reflect;
 
-/// Extract PRF.second output from credential's client data extension results.
-/// Looks through known WebAuthn shapes and returns Some(decoded_bytes) when present.
 #[cfg(target_arch = "wasm32")]
-fn extract_prf_second_from_credential(
-    credential: &wasm_bindgen::JsValue,
+fn extract_prf_second_bytes_from_credential(
+    credential: &JsValue,
 ) -> Result<Option<Vec<u8>>, String> {
 
-    fn decode_prf_second(second_b64u: Option<&str>) -> Result<Option<Vec<u8>>, String> {
-        let Some(second_b64u) = second_b64u else {
-            return Ok(None);
-        };
-        if second_b64u.is_empty() {
-            return Ok(None);
-        }
-        base64_url_decode(second_b64u)
-            .map_err(|e| format!("Failed to decode PRF.second: {}", e))
-            .map(|decoded| if decoded.is_empty() { None } else { Some(decoded) })
-    }
-
-    let get_str = |path: &[&str]| -> Option<String> {
-        let mut cur = credential.clone();
-        for key in path {
-            let next = Reflect::get(&cur, &JsValue::from_str(key)).ok()?;
-            if next.is_null() || next.is_undefined() {
-                return None;
-            }
-            cur = next;
-        }
-        cur.as_string()
+    let Some(second_b64u) = crate::webauthn::extract_prf_second_from_credential(credential) else {
+        return Ok(None);
     };
-
-    if let Some(second_b64u) = get_str(&["clientExtensionResults", "prf", "results", "second"]) {
-        return decode_prf_second(Some(&second_b64u));
+    if second_b64u.trim().is_empty() {
+        return Ok(None);
     }
-
-    if let Some(second_b64u) = get_str(&["response", "clientExtensionResults", "prf", "results", "second"]) {
-        return decode_prf_second(Some(&second_b64u));
-    }
-
-    Ok(None)
+    base64_url_decode(second_b64u.trim())
+        .map_err(|e| format!("Failed to decode PRF.second: {}", e))
+        .map(|decoded| if decoded.is_empty() { None } else { Some(decoded) })
 }
 
 fn extract_prf_first_bytes_from_credential(credential: &JsValue) -> Result<Vec<u8>, String> {
@@ -346,7 +320,7 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
     // If credential is provided, extract PRF.second for NEAR key derivation in signer worker
     #[cfg(target_arch = "wasm32")]
     let prf_second_b64u = if !request.credential.is_null() && !request.credential.is_undefined() {
-        match extract_prf_second_from_credential(&request.credential) {
+        match extract_prf_second_bytes_from_credential(&request.credential) {
             Ok(Some(prf_second_bytes)) => {
                 debug!(
                     "[VRF] Extracted PRF.second ({} bytes) from credential",
@@ -430,7 +404,7 @@ mod tests {
             },
         })
         .unwrap();
-        let extracted = extract_prf_second_from_credential(&credential)
+        let extracted = extract_prf_second_bytes_from_credential(&credential)
             .expect("should decode")
             .expect("should find prf.second");
         assert_eq!(extracted, prf_second_bytes);
@@ -474,7 +448,7 @@ mod tests {
             },
         })
         .unwrap();
-        let extracted = extract_prf_second_from_credential(&credential)
+        let extracted = extract_prf_second_bytes_from_credential(&credential)
             .expect("should decode")
             .expect("should find prf.second");
         assert_eq!(extracted, prf_second_bytes);
@@ -493,7 +467,8 @@ mod tests {
             client_ext: ClientExt {},
         })
         .unwrap();
-        let extracted = extract_prf_second_from_credential(&credential).expect("should succeed");
+        let extracted =
+            extract_prf_second_bytes_from_credential(&credential).expect("should succeed");
         assert!(extracted.is_none());
     }
 
@@ -526,7 +501,7 @@ mod tests {
             },
         })
         .unwrap();
-        let err = extract_prf_second_from_credential(&credential)
+        let err = extract_prf_second_bytes_from_credential(&credential)
             .expect_err("should fail to decode invalid base64");
         assert!(err.contains("Failed to decode PRF.second"));
     }

@@ -105,8 +105,6 @@ pub struct TransactionContext {
     pub tx_block_hash: String,
 }
 
-// NOTE: VerificationPayload was deprecated; use RpcCallPayload instead (struct removed).
-
 // === DECRYPTION TYPES ===
 
 // ******************************************************************************

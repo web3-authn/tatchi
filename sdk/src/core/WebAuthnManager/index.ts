@@ -997,7 +997,6 @@ export class WebAuthnManager {
     encryptedVrfKeypair,
     vrfPublicKey,
     serverEncryptedVrfKeypair,
-    wrapKeySalt,
   }: {
     nearAccountId: AccountId;
     credential: WebAuthnRegistrationCredential;
@@ -1005,7 +1004,6 @@ export class WebAuthnManager {
     encryptedVrfKeypair: EncryptedVRFKeypair;
     vrfPublicKey: string;
     serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-    wrapKeySalt?: string;
   }): Promise<void> {
     await this.atomicOperation(async (db) => {
       // Store credential for authentication
@@ -1038,7 +1036,6 @@ export class WebAuthnManager {
           encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
           chacha20NonceB64u: encryptedVrfKeypair.chacha20NonceB64u,
         },
-        wrapKeySalt,
         version: 2,
         serverEncryptedVrfKeypair: serverEncryptedVrfKeypair ? {
           ciphertextVrfB64u: serverEncryptedVrfKeypair?.ciphertextVrfB64u,
@@ -1341,7 +1338,7 @@ export class WebAuthnManager {
     }
   }
 
-  async getAuthenticationCredentialsForRecovery({
+  async getAuthenticationCredentialsSerializedDualPrf({
     nearAccountId,
     challenge,
     credentialIds,
@@ -1350,9 +1347,8 @@ export class WebAuthnManager {
     challenge: VRFChallenge,
     credentialIds: string[];
   }): Promise<WebAuthnAuthenticationCredential> {
-    // Same as getAuthenticationCredentialsSerialized but returns both PRF outputs
-    // for account recovery
-    return this.touchIdPrompt.getAuthenticationCredentialsForRecovery({
+    // Same as getAuthenticationCredentialsSerialized but returns both PRF outputs (PRF.first + PRF.second).
+    return this.touchIdPrompt.getAuthenticationCredentialsSerializedDualPrf({
       nearAccountId,
       challenge,
       allowCredentials: credentialIds.map(id => ({

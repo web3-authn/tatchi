@@ -16,15 +16,15 @@ import type { PasskeyManagerContext } from './index';
 import type { AccountId } from '../types/accountIds';
 import type { WebAuthnAuthenticationCredential } from '../types/webauthn';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
-import { base64UrlDecode } from '../../utils/base64';
 import { createRandomVRFChallenge, ServerEncryptedVrfKeypair, VRFChallenge } from '../types/vrf-worker';
-import { authenticatorsToAllowCredentials} from '../WebAuthnManager/touchIdPrompt';
+import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import { IndexedDBManager } from '../IndexedDBManager';
+import type { ClientAuthenticatorData, ClientUserData } from '../IndexedDBManager';
+import { verifyAuthenticationResponse } from '../rpcCalls';
 
 /**
  * Core login function that handles passkey authentication without React dependencies.
  *
- * Behavior
  * - Unlocks the VRF keypair (Shamir 3‑pass auto‑unlock when possible; falls back to TouchID).
  * - Updates local login state and returns success with account/public key info.
  * - Optional: mints a server session when `options.session` is provided.
@@ -33,11 +33,6 @@ import { IndexedDBManager } from '../IndexedDBManager';
  *     (defaults to `/verify-authentication-response`).
  *   - When `kind: 'jwt'`, returns the token in `result.jwt`.
  *   - When `kind: 'cookie'`, the server sets an HttpOnly cookie and no JWT is returned.
- *
- * Prompts
- * - If Shamir auto‑unlock succeeds: a single prompt total to mint the session.
- * - If TouchID was required for VRF unlock: a second prompt is needed for the
- *   VRF‑anchored verification assertion (or omit `options.session` to defer).
  */
 export async function loginAndCreateSession(
   context: PasskeyManagerContext,
@@ -273,6 +268,14 @@ export async function loginAndCreateSession(
   }
 }
 
+/**
+ * Mint or refresh a "warm signing session" in the VRF worker.
+ *
+ * Notes:
+ * - Reuses a previously collected WebAuthn credential when provided (e.g. TouchID fallback),
+ *   to avoid prompting the user twice in a single login flow.
+ * - Session TTL/remainingUses policy is enforced by the VRF worker.
+ */
 async function mintWarmSigningSession(args: {
   context: PasskeyManagerContext;
   nearAccountId: AccountId;
@@ -327,23 +330,14 @@ async function mintWarmSigningSession(args: {
  * Handle onchain (serverless) login using VRF flow per docs/vrf_challenges.md
  *
  * VRF AUTHENTICATION FLOW:
- * 1. Unlock VRF keypair in Service Worker memory using PRF
- *      - Check if user has VRF credentials stored locally
- *      - Decrypt VRF keypair using PRF from WebAuthn ceremony
+ * 1. Unlock VRF keypair in VRF Worker memory, either
+ *      - Decrypt via Shamir 3-pass (when Relayer is present), or
+ *      - Re-derive the VRF via credentials inside VRF worker dynamically
  * 2. Generate VRF challenge using stored VRF keypair + NEAR block data (no TouchID needed)
  * 3. Use VRF output as WebAuthn challenge for authentication
  * 4. Verify VRF proof and WebAuthn response on contract simultaneously
  *      - VRF proof assures WebAuthn challenge is fresh and valid (replay protection)
  *      - WebAuthn verification for origin + biometric credentials + device authenticity
- *
- * BENEFITS OF VRF FLOW:
- * - Single WebAuthn authentication to unlock VRF keys to generate WebAuthn challenges
- *   - VRF keypair persists in-memory in VRF Worker until logout
- *   - Subsequent authentications can generate VRF challenges without additional TouchID
- * - Provides cryptographically verifiable, stateless authentication
- * - Uses NEAR block data for freshness guarantees
- * - Follows RFC-compliant VRF challenge construction
- * - Eliminates server-side session state
  */
 async function handleLoginUnlockVRF(
   context: PasskeyManagerContext,
@@ -357,7 +351,6 @@ async function handleLoginUnlockVRF(
   usedFallbackTouchId: boolean;
   unlockCredential?: WebAuthnAuthenticationCredential;
 }> {
-
   const { webAuthnManager } = context;
 
   try {
@@ -449,49 +442,18 @@ async function handleLoginUnlockVRF(
 
     // Fallback to TouchID if Shamir3Pass decryption failed
     if (!unlockResult.success) {
-      onEvent?.({
-        step: 2,
-        phase: LoginPhase.STEP_2_WEBAUTHN_ASSERTION,
-        status: LoginStatus.PROGRESS,
-        message: 'Logging in, unlocking VRF credentials...'
-      });
-
-      // Get credential for VRF unlock
-      const challenge = createRandomVRFChallenge();
-      const credential = await webAuthnManager.getAuthenticationCredentialsSerialized({
+      const fallback = await fallbackUnlockVrfKeypairWithTouchId({
+        webAuthnManager,
         nearAccountId,
-        challenge: challenge as VRFChallenge,
-        allowCredentials: authenticatorsToAllowCredentials(authenticators),
+        authenticators,
+        userData,
+        onEvent,
       });
-      unlockCredential = credential;
-
-      // If multiple authenticators exist, align VRF credentials with the passkey
-      // the user actually chose, based on credentialId → deviceNumber.
-      if (authenticators.length > 1 && userData) {
-        const rawId = credential.rawId;
-        const matched = authenticators.find(a => a.credentialId === rawId);
-        if (matched) {
-          try {
-            const byDevice = await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, matched.deviceNumber);
-            if (byDevice) {
-              effectiveUserData = byDevice;
-              activeDeviceNumber = matched.deviceNumber;
-            }
-          } catch {
-            // If lookup by device fails, fall back to the base userData.
-          }
-        }
-      }
-
-      unlockResult = await webAuthnManager.unlockVRFKeypair({
-        nearAccountId: nearAccountId,
-        encryptedVrfKeypair: {
-          encryptedVrfDataB64u: effectiveUserData.encryptedVrfKeypair.encryptedVrfDataB64u,
-          chacha20NonceB64u: effectiveUserData.encryptedVrfKeypair.chacha20NonceB64u,
-        },
-        credential: credential,
-      });
-      usedFallbackTouchId = unlockResult.success;
+      unlockResult = fallback.unlockResult;
+      usedFallbackTouchId = fallback.usedFallbackTouchId;
+      unlockCredential = fallback.unlockCredential;
+      effectiveUserData = fallback.effectiveUserData;
+      activeDeviceNumber = fallback.activeDeviceNumber;
     }
 
     if (!unlockResult.success) {
@@ -570,6 +532,114 @@ async function handleLoginUnlockVRF(
   }
 }
 
+/**
+ * TouchID fallback path for VRF unlock.
+ *
+ * Used when Shamir 3-pass auto-unlock fails/unavailable:
+ * - Prompts WebAuthn to obtain a serialized credential with PRF.first + PRF.second.
+ * - Aligns the local encrypted VRF keypair blob with the passkey the user actually chose
+ *   (important when multiple devices/passkeys exist for the same account).
+ * - Unlocks the VRF keypair inside the VRF worker and returns updated effective user context.
+ */
+async function fallbackUnlockVrfKeypairWithTouchId(args: {
+  webAuthnManager: PasskeyManagerContext['webAuthnManager'];
+  nearAccountId: AccountId;
+  authenticators: ClientAuthenticatorData[];
+  userData: ClientUserData;
+  onEvent?: (event: LoginSSEvent) => void;
+}): Promise<{
+  unlockResult: { success: boolean; error?: string };
+  usedFallbackTouchId: boolean;
+  unlockCredential: WebAuthnAuthenticationCredential;
+  effectiveUserData: ClientUserData;
+  activeDeviceNumber: number;
+}> {
+  const { webAuthnManager, nearAccountId, authenticators, userData, onEvent } = args;
+
+  onEvent?.({
+    step: 2,
+    phase: LoginPhase.STEP_2_WEBAUTHN_ASSERTION,
+    status: LoginStatus.PROGRESS,
+    message: 'Logging in, unlocking VRF credentials...'
+  });
+
+  const challenge = createRandomVRFChallenge();
+  const credential = await webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
+    nearAccountId,
+    challenge: challenge as VRFChallenge,
+    credentialIds: authenticators.map((a) => a.credentialId),
+  });
+
+  let effectiveUserData = userData;
+  let activeDeviceNumber = userData.deviceNumber;
+
+  // If multiple authenticators exist, align VRF credentials with the passkey
+  // the user actually chose, based on credentialId → deviceNumber.
+  if (authenticators.length > 1) {
+    const rawId = credential.rawId;
+    const matched = authenticators.find(a => a.credentialId === rawId);
+    if (matched) {
+      try {
+        const byDevice = await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, matched.deviceNumber);
+        if (byDevice) {
+          effectiveUserData = byDevice;
+          activeDeviceNumber = matched.deviceNumber;
+        }
+      } catch {
+        // If lookup by device fails, fall back to the base userData.
+      }
+    }
+  }
+
+  const unlockResult = await webAuthnManager.unlockVRFKeypair({
+    nearAccountId: nearAccountId,
+    encryptedVrfKeypair: {
+      encryptedVrfDataB64u: effectiveUserData.encryptedVrfKeypair.encryptedVrfDataB64u,
+      chacha20NonceB64u: effectiveUserData.encryptedVrfKeypair.chacha20NonceB64u,
+    },
+    credential: credential,
+  });
+
+  return {
+    unlockResult,
+    usedFallbackTouchId: unlockResult.success,
+    unlockCredential: credential,
+    effectiveUserData,
+    activeDeviceNumber,
+  };
+}
+
+/**
+ * High-level login snapshot used by React contexts/UI.
+ *
+ * Returns:
+ * - `login`: derived from IndexedDB last-user pointer + VRF worker status
+ * - `signingSession`: warm signing session status when available
+ *
+ * The `nearAccountId` argument is treated as a "query hint" and must match the
+ * last logged-in account to be considered logged in (prevents accidental cross-account reads).
+ */
+export async function getLoginSession(
+  context: PasskeyManagerContext,
+  nearAccountId?: AccountId
+): Promise<LoginSession> {
+  const login = await getLoginStateInternal(context, nearAccountId);
+  if (!login?.isLoggedIn || !login.nearAccountId) return { login, signingSession: null };
+  try {
+    const signingSession = await context.webAuthnManager.getWarmSigningSessionStatus(login.nearAccountId);
+    return { login, signingSession };
+  } catch {
+    return { login, signingSession: null };
+  }
+}
+
+/**
+ * Internal helper for computing `LoginState`.
+ *
+ * Implementation detail:
+ * - Trusts the IndexedDB last-user pointer for account selection, then confirms
+ *   that the VRF worker is actually active for that same account.
+ */
 async function getLoginStateInternal(
   context: PasskeyManagerContext,
   nearAccountId?: AccountId
@@ -623,20 +693,11 @@ async function getLoginStateInternal(
   }
 }
 
-export async function getLoginSession(
-  context: PasskeyManagerContext,
-  nearAccountId?: AccountId
-): Promise<LoginSession> {
-  const login = await getLoginStateInternal(context, nearAccountId);
-  if (!login?.isLoggedIn || !login.nearAccountId) return { login, signingSession: null };
-  try {
-    const signingSession = await context.webAuthnManager.getWarmSigningSessionStatus(login.nearAccountId);
-    return { login, signingSession };
-  } catch {
-    return { login, signingSession: null };
-  }
-}
-
+/**
+ * List recently used accounts from IndexedDB.
+ *
+ * Used for account picker UIs and initial app bootstrap state.
+ */
 export async function getRecentLogins(
   context: PasskeyManagerContext
 ): Promise<GetRecentLoginsResult> {
@@ -649,95 +710,16 @@ export async function getRecentLogins(
   return {
     accountIds,
     lastUsedAccount,
-  }
+  };
 }
 
+/**
+ * Clear the active VRF session and any client-side nonce caches.
+ *
+ * This is the canonical "logout" operation for the SDK (does not delete accounts).
+ */
 export async function logoutAndClearSession(context: PasskeyManagerContext): Promise<void> {
   const { webAuthnManager } = context;
   await webAuthnManager.clearVrfSession();
   try { webAuthnManager.getNonceManager().clear(); } catch {}
-}
-
-/**
- * Verify authentication response through relay server
- * Routes the request to relay server which calls the web3authn contract for verification
- * and issues a JWT or session credential
- */
-export async function verifyAuthenticationResponse(
-  relayServerUrl: string,
-  routePath: string,
-  sessionKind: 'jwt' | 'cookie',
-  vrfChallenge: VRFChallenge,
-  webauthnAuthentication: WebAuthnAuthenticationCredential
-): Promise<{
-  success: boolean;
-  verified?: boolean;
-  jwt?: string;
-  sessionCredential?: any;
-  error?: string;
-  contractResponse?: any;
-}> {
-  try {
-    // Map VRFChallenge into server ContractVrfData shape (number arrays)
-    const toBytes = (b64u: string | undefined): number[] => {
-      if (!b64u) return [];
-      return Array.from(base64UrlDecode(b64u));
-    };
-    const vrf_data = {
-      vrf_input_data: toBytes(vrfChallenge.vrfInput),
-      vrf_output: toBytes(vrfChallenge.vrfOutput),
-      vrf_proof: toBytes(vrfChallenge.vrfProof),
-      public_key: toBytes(vrfChallenge.vrfPublicKey),
-      user_id: vrfChallenge.userId,
-      rp_id: vrfChallenge.rpId,
-      block_height: Number(vrfChallenge.blockHeight || 0),
-      block_hash: toBytes(vrfChallenge.blockHash),
-    };
-
-    // Normalize authenticatorAttachment and userHandle to null for server schema
-    const webauthn_authentication = {
-      ...webauthnAuthentication,
-      authenticatorAttachment: (webauthnAuthentication as any).authenticatorAttachment ?? null,
-      response: {
-        ...webauthnAuthentication.response,
-        userHandle: webauthnAuthentication.response.userHandle ?? null,
-      }
-    } as any;
-
-    const url = `${relayServerUrl.replace(/\/$/, '')}${routePath.startsWith('/') ? routePath : `/${routePath}`}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: sessionKind === 'cookie' ? 'include' : 'omit',
-      body: JSON.stringify({
-        sessionKind: sessionKind,
-        vrf_data,
-        webauthn_authentication,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return {
-        success: false,
-        error: `HTTP ${response.status}: ${errorText}`,
-      };
-    }
-
-    const result = await response.json();
-    return {
-      success: true,
-      verified: result.verified,
-      jwt: result.jwt,
-      sessionCredential: result.sessionCredential,
-      contractResponse: result.contractResponse,
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.message || 'Failed to verify authentication response',
-    };
-  }
 }

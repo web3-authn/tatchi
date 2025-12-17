@@ -212,7 +212,6 @@ export async function registerPasskeyInternal(
       encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
       vrfPublicKey: deterministicVrfKeyResult.vrfPublicKey,
       serverEncryptedVrfKeypair: deterministicVrfKeyResult.serverEncryptedVrfKeypair,
-      wrapKeySalt: nearKeyResult.wrapKeySalt,
     });
 
     // Mark database as stored for rollback tracking
@@ -248,10 +247,10 @@ export async function registerPasskeyInternal(
         blockHeight: txBlockHeight,
       });
       const authenticators = await webAuthnManager.getAuthenticatorsByUser(nearAccountId);
-      const authCredential = await webAuthnManager.getAuthenticationCredentialsSerialized({
+      const authCredential = await webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
         nearAccountId,
         challenge: vrfChallenge2,
-        allowCredentials: authenticatorsToAllowCredentials(authenticators),
+        credentialIds: authenticators.map((a) => a.credentialId),
       });
       const unlockResult = await webAuthnManager.unlockVRFKeypair({
         nearAccountId: nearAccountId,

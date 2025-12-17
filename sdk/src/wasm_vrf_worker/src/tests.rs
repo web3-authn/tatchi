@@ -391,12 +391,37 @@ fn test_configuration_constants() {
         !HKDF_VRF_KEYPAIR_INFO.is_empty(),
         "HKDF VRF info should not be empty"
     );
+    assert_eq!(
+        HKDF_VRF_KEYPAIR_INFO,
+        b"tatchi:v1:vrf-sk",
+        "HKDF VRF info must match spec"
+    );
     assert_ne!(
         HKDF_CHACHA20_KEY_INFO, HKDF_VRF_KEYPAIR_INFO,
         "HKDF info strings should be different"
     );
 
     println!("[Passed] Configuration constants test passed");
+}
+
+#[test]
+fn deterministic_vrf_keypair_derivation_is_stable() {
+    let mgr = VRFKeyManager::new(None, None, None, None);
+    let prf_output = create_test_prf_output();
+    let account_id = create_test_account_id();
+
+    let kp1 = mgr
+        .generate_vrf_keypair_from_seed(&prf_output, &account_id)
+        .expect("derive should succeed");
+    let kp2 = mgr
+        .generate_vrf_keypair_from_seed(&prf_output, &account_id)
+        .expect("derive should succeed");
+
+    assert_eq!(
+        kp1.secret_key_bytes(),
+        kp2.secret_key_bytes(),
+        "Deterministic VRF secret key must be stable for same seed"
+    );
 }
 
 #[test]

@@ -623,8 +623,10 @@ impl VRFKeyManager {
             "Generating deterministic VRF keypair for account: {}",
             account_id
         );
-        // Use HKDF-SHA256 to derive a proper 32-byte seed from PRF output
-        let hk = Hkdf::<Sha256>::new(Some(account_id.as_bytes()), seed);
+        // Use HKDF-SHA256 to derive a proper 32-byte VRF seed from PRF.second.
+        // PRF outputs are already scoped by account via WebAuthn PRF salt selection, so we do not
+        // apply an additional HKDF salt here (spec-aligned).
+        let hk = Hkdf::<Sha256>::new(None, seed);
         let mut vrf_seed = [0u8; VRF_SEED_SIZE];
         hk.expand(HKDF_VRF_KEYPAIR_INFO, &mut vrf_seed)
             .map_err(|_| {

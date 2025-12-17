@@ -1241,7 +1241,7 @@ export class WalletIframeRouter {
     if (this.overlayForceFullscreen) {
       this.overlay.showFullscreen();
     } else {
-      // Prefer fullscreen by default; anchored pre-show is deprecated for registration flows
+      // Prefer fullscreen by default
       this.overlay.showFullscreen();
     }
   }

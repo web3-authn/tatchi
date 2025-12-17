@@ -259,7 +259,7 @@ async function main(): Promise<void> {
             const allowCredentials = Array.isArray(authenticators) && authenticators.length > 0
               ? authenticators.map((a: any) => ({ id: a.credentialId, type: 'public-key', transports: a.transports as any }))
               : [];
-            const authCred = await tip.getAuthenticationCredentialsForRecovery({
+            const authCred = await tip.getAuthenticationCredentialsSerializedDualPrf({
               nearAccountId: account,
               challenge,
               allowCredentials,

@@ -1,5 +1,4 @@
 use hkdf::Hkdf;
-use js_sys::Reflect;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen;
@@ -105,41 +104,6 @@ pub struct Device2RegistrationSessionResult {
 }
 fn js_undefined() -> JsValue {
     JsValue::UNDEFINED
-}
-
-/// Extract PRF.second output from registration credential's client data extension results.
-/// The credential returned from `navigator.credentials.create()` with dual PRF salts
-/// embeds PRF outputs in `response.clientDataJSON` or `clientExtensionResults`.
-fn extract_prf_second_from_credential(credential: &JsValue) -> Result<Vec<u8>, String> {
-    fn get_nested_str(obj: &JsValue, path: &[&str]) -> Option<String> {
-        let mut current = obj.clone();
-        for key in path {
-            let val = Reflect::get(&current, &JsValue::from_str(key)).ok()?;
-            if val.is_null() || val.is_undefined() {
-                return None;
-            }
-            current = val;
-        }
-        current.as_string()
-    }
-
-    if let Some(second_b64u) = get_nested_str(
-        credential,
-        &["clientExtensionResults", "prf", "results", "second"],
-    ) {
-        return base64_url_decode(&second_b64u)
-            .map_err(|e| format!("Failed to decode PRF.second: {}", e));
-    }
-
-    if let Some(second_b64u) = get_nested_str(
-        credential,
-        &["response", "clientExtensionResults", "prf", "results", "second"],
-    ) {
-        return base64_url_decode(&second_b64u)
-            .map_err(|e| format!("Failed to decode PRF.second: {}", e));
-    }
-
-    Err("PRF.second not found in registration credential extension results".to_string())
 }
 
 /// Combined Device2 registration session handler.
@@ -328,11 +292,29 @@ pub async fn handle_device2_registration_session(
         }
     };
 
-    let prf_second_bytes = match extract_prf_second_from_credential(&credential) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", e);
-            return VrfWorkerResponse::fail(message_id, format!("Device2 registration: {}", e));
+    let prf_second_bytes = match crate::webauthn::extract_prf_second_from_credential(&credential) {
+        Some(second_b64u) => {
+            if second_b64u.is_empty() {
+                let msg = "PRF.second not found in registration credential".to_string();
+                debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", msg);
+                return VrfWorkerResponse::fail(message_id, format!("Device2 registration: {}", msg));
+            }
+            match base64_url_decode(&second_b64u) {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    let msg = format!("Failed to decode PRF.second: {}", e);
+                    debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", msg);
+                    return VrfWorkerResponse::fail(
+                        message_id,
+                        format!("Device2 registration: {}", msg),
+                    );
+                }
+            }
+        }
+        None => {
+            let msg = "PRF.second not found in registration credential".to_string();
+            debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", msg);
+            return VrfWorkerResponse::fail(message_id, format!("Device2 registration: {}", msg));
         }
     };
 

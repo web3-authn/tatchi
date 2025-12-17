@@ -816,10 +816,10 @@ export class EmailRecoveryFlow {
       });
 
       const authenticators = await webAuthnManager.getAuthenticatorsByUser(accountId);
-      const authCredential = await webAuthnManager.getAuthenticationCredentialsSerialized({
+      const authCredential = await webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
         nearAccountId: accountId,
         challenge: authChallenge,
-        allowCredentials: authenticatorsToAllowCredentials(authenticators),
+        credentialIds: authenticators.map((a) => a.credentialId),
       });
 
       const vrfUnlockResult = await webAuthnManager.unlockVRFKeypair({

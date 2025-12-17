@@ -13,9 +13,6 @@ use wasm_bindgen::JsValue;
 #[cfg(target_arch = "wasm32")]
 use crate::utils::{base64_url_decode, base64_url_encode};
 
-#[cfg(target_arch = "wasm32")]
-use js_sys::Reflect;
-
 #[wasm_bindgen]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DecryptSessionRequest {
@@ -45,55 +42,15 @@ pub struct DecryptSessionResult {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn extract_prf_first_bytes_from_credential(credential: &JsValue) -> Result<Vec<u8>, String> {
-    let first_b64u = crate::webauthn::extract_prf_first_from_credential(credential)
-        .ok_or_else(|| "Missing PRF.first in credential".to_string())?;
+fn extract_prf_second_bytes_from_credential(credential: &JsValue) -> Result<Vec<u8>, String> {
+    let second_b64u = crate::webauthn::extract_prf_second_from_credential(credential)
+        .ok_or_else(|| "Missing PRF.second in credential".to_string())?;
 
-    if first_b64u.trim().is_empty() {
-        return Err("Missing PRF.first in credential".to_string());
+    if second_b64u.trim().is_empty() {
+        return Err("Missing PRF.second in credential".to_string());
     }
 
-    base64_url_decode(&first_b64u).map_err(|e| format!("Failed to decode PRF.first: {}", e))
-}
-
-#[cfg(target_arch = "wasm32")]
-fn extract_prf_second_bytes_from_credential(credential: &JsValue) -> Result<Option<Vec<u8>>, String> {
-    if credential.is_null() || credential.is_undefined() {
-        return Ok(None);
-    }
-
-    fn decode(second_b64u: Option<&str>) -> Result<Option<Vec<u8>>, String> {
-        let Some(second_b64u) = second_b64u else {
-            return Ok(None);
-        };
-        if second_b64u.trim().is_empty() {
-            return Ok(None);
-        }
-        let decoded = base64_url_decode(second_b64u)
-            .map_err(|e| format!("Failed to decode PRF.second: {}", e))?;
-        Ok(if decoded.is_empty() { None } else { Some(decoded) })
-    }
-
-    let get_str = |path: &[&str]| -> Option<String> {
-        let mut cur = credential.clone();
-        for key in path {
-            let next = Reflect::get(&cur, &JsValue::from_str(key)).ok()?;
-            if next.is_null() || next.is_undefined() {
-                return None;
-            }
-            cur = next;
-        }
-        cur.as_string()
-    };
-
-    if let Some(second_b64u) = get_str(&["clientExtensionResults", "prf", "results", "second"]) {
-        return decode(Some(&second_b64u));
-    }
-    if let Some(second_b64u) = get_str(&["response", "clientExtensionResults", "prf", "results", "second"]) {
-        return decode(Some(&second_b64u));
-    }
-
-    Ok(None)
+    base64_url_decode(&second_b64u).map_err(|e| format!("Failed to decode PRF.second: {}", e))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -204,38 +161,25 @@ pub async fn handle_decrypt_session(
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty());
 
-            let prf_first_bytes = match extract_prf_first_bytes_from_credential(&decision.credential) {
-                Ok(bytes) if !bytes.is_empty() => bytes,
-                Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF.first in credential".to_string()),
-                Err(e) => return VrfWorkerResponse::fail(message_id, e),
-            };
+            // Offline/local decrypt flows must include PRF.second so VRF can be recovered
+            // without any prior in-memory session state.
             let prf_second_bytes = match extract_prf_second_bytes_from_credential(&decision.credential) {
-                Ok(v) => v,
+                Ok(bytes) if !bytes.is_empty() => bytes,
+                Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential".to_string()),
                 Err(e) => return VrfWorkerResponse::fail(message_id, e),
             };
 
-            // 1) Preferred: unlock the locally stored encrypted VRF keypair (if provided).
+            // 1) Preferred: unlock the locally stored encrypted VRF keypair (if provided),
+            // using PRF.second as the decryption key (spec-aligned).
             if let Some(enc) = encrypted_vrf_keypair.clone() {
                 let mut unlocked = false;
                 let mut last_err: Option<String> = None;
 
-                // Try PRF.first first (legacy + common path)
                 {
                     let mut mgr = manager.borrow_mut();
-                    match mgr.unlock_vrf_keypair(near_account_id.clone(), enc.clone(), prf_first_bytes.clone()) {
+                    match mgr.unlock_vrf_keypair(near_account_id.clone(), enc, prf_second_bytes.clone()) {
                         Ok(_) => unlocked = true,
                         Err(e) => last_err = Some(e.to_string()),
-                    }
-                }
-
-                // If that failed, try PRF.second (some flows encrypt VRF keypair with second)
-                if !unlocked {
-                    if let Some(prf_second) = prf_second_bytes.clone() {
-                        let mut mgr = manager.borrow_mut();
-                        match mgr.unlock_vrf_keypair(near_account_id.clone(), enc, prf_second) {
-                            Ok(_) => unlocked = true,
-                            Err(e) => last_err = Some(e.to_string()),
-                        }
                     }
                 }
 
@@ -268,58 +212,41 @@ pub async fn handle_decrypt_session(
                 !mgr.session_active || mgr.vrf_keypair.is_none()
             };
             if still_missing {
-                // If an expected VRF public key is provided, try to match it using PRF.second then PRF.first.
+                let deterministic_vrf_keypair = match manager
+                    .borrow()
+                    .generate_vrf_keypair_from_seed(&prf_second_bytes, &near_account_id)
+                {
+                    Ok(kp) => kp,
+                    Err(e) => {
+                        return VrfWorkerResponse::fail(
+                            message_id,
+                            format!("Failed to derive deterministic VRF keypair from PRF.second: {}", e),
+                        )
+                    }
+                };
+
                 if let Some(expected) = expected_vrf_public_key.as_deref() {
-                    let mut derived = None;
-
-                    if let Some(prf_second) = prf_second_bytes.as_ref() {
-                        if let Ok(kp) = manager.borrow().generate_vrf_keypair_from_seed(prf_second, &near_account_id) {
-                            if let Ok(pk_bytes) = bincode::serialize(&kp.pk) {
-                                let pk_b64u = base64_url_encode(&pk_bytes);
-                                if pk_b64u == expected {
-                                    derived = Some(kp);
-                                }
-                            }
+                    let pk_bytes = match bincode::serialize(&deterministic_vrf_keypair.pk) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            return VrfWorkerResponse::fail(
+                                message_id,
+                                format!("Failed to serialize derived VRF public key: {}", e),
+                            )
                         }
-                    }
-
-                    if derived.is_none() {
-                        if let Ok(kp) = manager.borrow().generate_vrf_keypair_from_seed(&prf_first_bytes, &near_account_id) {
-                            if let Ok(pk_bytes) = bincode::serialize(&kp.pk) {
-                                let pk_b64u = base64_url_encode(&pk_bytes);
-                                if pk_b64u == expected {
-                                    derived = Some(kp);
-                                }
-                            }
-                        }
-                    }
-
-                    let Some(kp) = derived else {
+                    };
+                    let pk_b64u = base64_url_encode(&pk_bytes);
+                    if pk_b64u != expected {
                         return VrfWorkerResponse::fail(
                             message_id,
                             "Failed to recover VRF keypair: derived public key did not match expected".to_string(),
                         );
-                    };
-                    manager.borrow_mut().store_vrf_keypair_in_memory(kp, near_account_id.clone());
-                } else {
-                    // No expected pk. Prefer PRF.second when present (backup/recovery), else PRF.first.
-                    let seed = prf_second_bytes.as_deref().unwrap_or(&prf_first_bytes);
-                    let deterministic_vrf_keypair = match manager
-                        .borrow()
-                        .generate_vrf_keypair_from_seed(seed, &near_account_id)
-                    {
-                        Ok(kp) => kp,
-                        Err(e) => {
-                            return VrfWorkerResponse::fail(
-                                message_id,
-                                format!("Failed to derive deterministic VRF keypair from PRF: {}", e),
-                            )
-                        }
-                    };
-                    manager
-                        .borrow_mut()
-                        .store_vrf_keypair_in_memory(deterministic_vrf_keypair, near_account_id.clone());
+                    }
                 }
+
+                manager
+                    .borrow_mut()
+                    .store_vrf_keypair_in_memory(deterministic_vrf_keypair, near_account_id.clone());
             }
         }
         #[cfg(not(target_arch = "wasm32"))]
