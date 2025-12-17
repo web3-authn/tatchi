@@ -245,9 +245,15 @@ async function main(): Promise<void> {
           });
         } catch (err: any) {
           const msg = String(err?.message || err || '');
-          if (msg.includes('Missing local key material for export')) {
+          const isMissingLocalKeyMaterial = msg.includes('Missing local key material for export');
+          const isAeadDecryptMismatch =
+            msg.includes('Decryption failed: Decryption error: aead::Error') || msg.includes('aead::Error');
+
+          if (isMissingLocalKeyMaterial || isAeadDecryptMismatch) {
             // Attempt local recovery of key material from passkey, then retry
-            statusEl.textContent = 'Missing local key material. Attempting recovery with your passkey…';
+            statusEl.textContent = isAeadDecryptMismatch
+              ? 'Decryption failed. Attempting recovery with your passkey…'
+              : 'Missing local key material. Attempting recovery with your passkey…';
             const tip = new TouchIdPrompt(effectiveRpIdOverride);
             const challenge = createRandomVRFChallenge() as VRFChallenge;
             const allowCredentials = Array.isArray(authenticators) && authenticators.length > 0
@@ -265,12 +271,35 @@ async function main(): Promise<void> {
             }
             // Store encrypted key locally for this device. Prefer the last logged-in
             // device for this account; fall back to device 1 for legacy cases.
-            const last = await IndexedDBManager.clientDB.getLastUser().catch(() => null);
             const accountId = toAccountId(account);
+            const [last, latest] = await Promise.all([
+              IndexedDBManager.clientDB.getLastUser().catch(() => null),
+              IndexedDBManager.clientDB.getLastDBUpdatedUser(accountId).catch(() => null),
+            ]);
             const deviceNumber =
-              last && last.nearAccountId === accountId && last.deviceNumber
+              (last && last.nearAccountId === accountId && typeof last.deviceNumber === 'number')
                 ? last.deviceNumber
-                : 1;
+                : (latest && latest.nearAccountId === accountId && typeof latest.deviceNumber === 'number')
+                  ? latest.deviceNumber
+                  : 1;
+
+            // Safety check: only overwrite local vault material if the recovered public key
+            // matches what we already have for this account/device.
+            const existing = await IndexedDBManager.clientDB.getUserByDevice(accountId, deviceNumber).catch(() => null);
+            if (isAeadDecryptMismatch && !existing) {
+              throw new Error(
+                `Decryption failed and no local user record was found for '${account}'. ` +
+                'Open the wallet once online on this device to restore local vault state, then retry offline export.'
+              );
+            }
+            const expectedPublicKey = String(existing?.clientNearPublicKey || '');
+            if (expectedPublicKey && expectedPublicKey !== rec.publicKey) {
+              throw new Error(
+                `Selected passkey does not match the existing key for '${account}'. ` +
+                'Please select the correct passkey for this account and try again.'
+              );
+            }
+
             await IndexedDBManager.nearKeysDB.storeEncryptedKey({
               nearAccountId: account,
               deviceNumber,
@@ -281,7 +310,6 @@ async function main(): Promise<void> {
               timestamp: Date.now(),
             });
             // Upsert public key if missing for this device
-            const existing = await IndexedDBManager.clientDB.getUserByDevice(accountId, deviceNumber).catch(() => null);
             if (!existing?.clientNearPublicKey) {
               try { await IndexedDBManager.clientDB.updateUser(accountId, { clientNearPublicKey: rec.publicKey }); } catch {}
             }

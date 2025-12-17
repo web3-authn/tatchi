@@ -53,7 +53,6 @@ import { NonceManager } from '../../nonceManager';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
 import { toError } from '@/utils/errors';
 import { withSessionId } from './handlers/session';
-import { toEncryptedPrivateKeyCiphertext } from './handlers/encryptedPrivateKey';
 import { attachSessionPort } from './sessionHandshake.js';
 
 type SigningSessionEntry = {
@@ -738,12 +737,13 @@ export class SignerWorkerManager {
     }
 
     // Decrypt inside signer worker using the reserved session
-    const response = await ctx.sendMessage({
+    const response = await ctx.sendMessage<WorkerRequestType.DecryptPrivateKeyWithPrf>({
       message: {
         type: WorkerRequestType.DecryptPrivateKeyWithPrf,
         payload: withSessionId(sessionId, {
           nearAccountId: accountId,
-          ...toEncryptedPrivateKeyCiphertext(keyData),
+          encryptedPrivateKeyData: keyData.encryptedData,
+          encryptedPrivateKeyChacha20NonceB64u: keyData.chacha20NonceB64u,
         }),
       },
       sessionId,
@@ -753,11 +753,6 @@ export class SignerWorkerManager {
       console.error('WebAuthnManager: Export decrypt failed:', response);
       const payloadError = isObject(response?.payload) && response?.payload?.error;
       const msg = String(payloadError || 'Export decrypt failed');
-      // Treat AEAD/KEK mismatches as effectively "missing" local key material so
-      // callers (including offline-export) can trigger recovery and rewrite the vault.
-      if (msg.includes('Decryption failed: Decryption error: aead::Error')) {
-        throw new Error('Missing local key material for export');
-      }
       throw new Error(msg);
     }
 

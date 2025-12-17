@@ -516,6 +516,12 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
             '  Cache-Control: no-cache',
             '/offline-export/sw.js',
             '  Cache-Control: no-cache',
+            '/offline-export/precache.manifest.json',
+            '  Cache-Control: no-cache',
+            '/offline-export/manifest.webmanifest',
+            '  Cache-Control: no-cache',
+            '/offline-export/offline-export-app.js',
+            '  Cache-Control: no-cache',
             '/offline-export/*',
             '  Cache-Control: public, max-age=31536000, immutable',
           ]

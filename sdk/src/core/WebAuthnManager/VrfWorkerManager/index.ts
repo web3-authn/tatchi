@@ -111,6 +111,8 @@ export interface SessionVrfWorkerManager {
     sessionId: string;
     nearAccountId: AccountId;
     wrapKeySalt: string;
+    encryptedVrfKeypair?: EncryptedVRFKeypair;
+    expectedVrfPublicKey?: string;
   }): Promise<void>;
 
   requestRegistrationCredentialConfirmation(params: {
@@ -292,6 +294,8 @@ export class VrfWorkerManager {
     sessionId: string;
     nearAccountId: AccountId;
     wrapKeySalt: string;
+    encryptedVrfKeypair?: EncryptedVRFKeypair;
+    expectedVrfPublicKey?: string;
   }): Promise<void> {
     return prepareDecryptSession(this.getHandlerContext(), args);
   }

@@ -20,7 +20,7 @@ pub struct VRFKeypairData {
 }
 
 #[wasm_bindgen]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EncryptedVRFKeypair {
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedVrfDataB64u")]
     #[serde(rename = "encryptedVrfDataB64u")]

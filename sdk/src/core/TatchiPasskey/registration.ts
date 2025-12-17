@@ -93,55 +93,51 @@ export async function registerPasskeyInternal(
       message: 'WebAuthn ceremony successful'
     });
 
-    // Derive deterministic VRF and NEAR keypairs from PRF, and check registration in parallel
-    const {
-      deterministicVrfKeyResult,
-      nearKeyResult,
-      canRegisterUserResult,
-    } = await Promise.all([
-      webAuthnManager.deriveVrfKeypair({
-        credential,
-        nearAccountId,
-        saveInMemory: true,
-      }),
-      webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
-        credential,
-        nearAccountId,
-        options: { deviceNumber: 1 },
-      }),
-      webAuthnManager.checkCanRegisterUser({
-        contractId: context.configs.contractId,
-        credential,
-        vrfChallenge,
-        onEvent: (progress) => {
-          console.debug(`Registration progress: ${progress.step} - ${progress.message}`);
-          onEvent?.({
-            step: 3,
-            phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK,
-            status: RegistrationStatus.PROGRESS,
-            message: `Pre-check: ${progress.message}`
-          });
-        },
-      }),
-    ]).then(([deterministicVrfKeyResult, nearKeyResult, canRegisterUserResult]) => {
-      if (!deterministicVrfKeyResult.success || !deterministicVrfKeyResult.vrfPublicKey) {
-        throw new Error('Failed to derive deterministic VRF keypair from PRF');
-      }
-      if (!nearKeyResult.success || !nearKeyResult.publicKey) {
-        const reason = nearKeyResult?.error || 'Failed to generate NEAR keypair with PRF';
-        throw new Error(reason);
-      }
-      if (!canRegisterUserResult.verified) {
-        console.error(canRegisterUserResult);
-        const errorMessage = canRegisterUserResult.error || 'User verification failed - account may already exist or contract is unreachable';
-        throw new Error(`Web3Authn contract registration check failed: ${errorMessage}`);
-      }
-      return {
-        deterministicVrfKeyResult,
-        nearKeyResult,
-        canRegisterUserResult
-      };
+    // Start the contract pre-check, run it in parallel to key derivation (await later)
+    const canRegisterUserPromise = webAuthnManager.checkCanRegisterUser({
+      contractId: context.configs.contractId,
+      credential,
+      vrfChallenge,
+      onEvent: (progress) => {
+        console.debug(`Registration progress: ${progress.step} - ${progress.message}`);
+        onEvent?.({
+          step: 3,
+          phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK,
+          status: RegistrationStatus.PROGRESS,
+          message: `Pre-check: ${progress.message}`
+        });
+      },
     });
+
+    // 1) Ensure VRF keypair is derived and loaded in-memory
+    // before deriving WrapKeySeed for NEAR key encryption
+    const deterministicVrfKeyResult = await webAuthnManager.deriveVrfKeypair({
+      credential,
+      nearAccountId,
+      saveInMemory: true,
+    });
+    if (!deterministicVrfKeyResult.success || !deterministicVrfKeyResult.vrfPublicKey) {
+      throw new Error('Failed to derive deterministic VRF keypair from PRF');
+    }
+
+    // 2) Derive NEAR key after VRF keypair exists
+    const nearKeyResult = await webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
+      credential,
+      nearAccountId,
+      options: { deviceNumber: 1 },
+    });
+    if (!nearKeyResult.success || !nearKeyResult.publicKey) {
+      const reason = nearKeyResult?.error || 'Failed to generate NEAR keypair with PRF';
+      throw new Error(reason);
+    }
+
+    // 3) Await contract registration check (main blocker)
+    const canRegisterUserResult = await canRegisterUserPromise;
+    if (!canRegisterUserResult.verified) {
+      console.error(canRegisterUserResult);
+      const errorMessage = canRegisterUserResult.error || 'User verification failed - account may already exist or contract is unreachable';
+      throw new Error(`Web3Authn contract registration check failed: ${errorMessage}`);
+    }
 
     // Step 4-5: Create account and register with contract using the relay (atomic)
     onEvent?.({

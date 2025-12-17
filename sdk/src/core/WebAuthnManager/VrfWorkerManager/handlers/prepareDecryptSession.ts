@@ -1,5 +1,5 @@
 import type { AccountId } from '../../../types/accountIds';
-import type { VRFWorkerMessage } from '../../../types/vrf-worker';
+import type { EncryptedVRFKeypair, VRFWorkerMessage } from '../../../types/vrf-worker';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
 /**
@@ -14,6 +14,15 @@ export async function prepareDecryptSession(
     sessionId: string;
     nearAccountId: AccountId;
     wrapKeySalt: string;
+    /**
+     * Optional: local encrypted VRF keypair for this account/device.
+     * Supplying this lets the VRF worker unlock the correct VRF secret in offline mode.
+     */
+    encryptedVrfKeypair?: EncryptedVRFKeypair;
+    /**
+     * Optional: expected VRF public key (base64url) for sanity checking/fallback derivation.
+     */
+    expectedVrfPublicKey?: string;
   }
 ): Promise<void> {
   if (!args.wrapKeySalt) {
@@ -27,6 +36,8 @@ export async function prepareDecryptSession(
       sessionId: args.sessionId,
       nearAccountId: String(args.nearAccountId),
       wrapKeySalt: args.wrapKeySalt,
+      encryptedVrfKeypair: args.encryptedVrfKeypair,
+      expectedVrfPublicKey: args.expectedVrfPublicKey,
     },
   };
   try {

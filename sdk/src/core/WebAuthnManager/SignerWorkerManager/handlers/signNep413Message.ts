@@ -5,7 +5,6 @@ import { SignerWorkerManagerContext } from '..';
 import { isObject } from '../../../WalletIframe/validation';
 import { withSessionId } from './session';
 import { generateSessionId } from '../sessionHandshake.js';
-import { toEncryptedPrivateKeyCiphertext } from './encryptedPrivateKey';
 
 /**
  * Sign a NEP-413 message using the user's passkey-derived private key
@@ -67,7 +66,8 @@ export async function signNep413Message({ ctx, payload }: {
           nonce: payload.nonce,
           state: payload.state || undefined,
           accountId: payload.accountId,
-          ...toEncryptedPrivateKeyCiphertext(encryptedKeyData),
+          encryptedPrivateKeyData: encryptedKeyData.encryptedData,
+          encryptedPrivateKeyChacha20NonceB64u: encryptedKeyData.chacha20NonceB64u,
         })
       },
       sessionId,

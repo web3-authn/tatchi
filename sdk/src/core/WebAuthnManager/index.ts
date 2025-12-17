@@ -297,6 +297,11 @@ export class WebAuthnManager {
       throw new Error(`No deviceNumber found for account ${nearAccountId} (decrypt session)`);
     }
 
+    // Load VRF material for this device so the VRF worker can unlock the correct
+    // VRF keypair in a fresh/offline worker instance.
+    const userForDevice = await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, deviceNumber).catch(() => null);
+    const encryptedVrfKeypair = userForDevice?.encryptedVrfKeypair;
+
     // Gather encrypted key + wrapKeySalt and public key from IndexedDB for this device
     const encryptedKeyData = await IndexedDBManager.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
     if (!encryptedKeyData) {
@@ -321,6 +326,7 @@ export class WebAuthnManager {
         sessionId: args.sessionId,
         nearAccountId,
         wrapKeySalt,
+        encryptedVrfKeypair,
       });
     } catch (error) {
       console.error('WebAuthnManager: VRF decrypt session failed', {

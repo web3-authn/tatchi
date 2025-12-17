@@ -16,7 +16,6 @@ import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { withSessionId } from './session';
 import { base58Encode } from '../../../../utils/base58';
 import { generateSessionId } from '../sessionHandshake.js';
-import { toEncryptedPrivateKeyCiphertext } from './encryptedPrivateKey';
 
 const ensureEd25519Prefix = (value: string) => value.startsWith('ed25519:') ? value : `ed25519:${value}`;
 
@@ -102,7 +101,10 @@ export async function signDelegateAction({
       payload: withSessionId(sessionId, {
         rpcCall: resolvedRpcCall,
         createdAt: Date.now(),
-        decryption: toEncryptedPrivateKeyCiphertext(encryptedKeyData),
+        decryption: {
+          encryptedPrivateKeyData: encryptedKeyData.encryptedData,
+          encryptedPrivateKeyChacha20NonceB64u: encryptedKeyData.chacha20NonceB64u,
+        },
         delegate: {
           senderId: delegate.senderId || nearAccountId,
           receiverId: delegate.receiverId,
