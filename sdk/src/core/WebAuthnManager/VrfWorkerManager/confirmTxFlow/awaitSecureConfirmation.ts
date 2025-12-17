@@ -3,14 +3,12 @@ import {
   SecureConfirmMessageType,
   SecureConfirmRequest,
   SerializableCredential,
-  SecureConfirmationType,
 } from './types';
 import { isObject, isString, isBoolean } from '@/core/WalletIframe/validation';
 import { errorMessage, toError } from '@/utils/errors';
 import { VRFChallenge } from '../../../types';
 import { TransactionContext } from '../../../types/rpc';
-
-// Narrowing helpers now use shared validator isObject
+import { validateSecureConfirmRequest } from './adapters/requestAdapter';
 
 type ConfirmResponsePayload = {
   requestId: string;
@@ -27,50 +25,42 @@ type ConfirmResponseEnvelope = {
   data: ConfirmResponsePayload;
 };
 
-function isConfirmResponseEnvelope(msg: unknown): msg is ConfirmResponseEnvelope {
-  if (!isObject(msg)) return false;
-  const type = (msg as { type?: unknown }).type;
-  if (type !== SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE) return false;
-  const data = (msg as { data?: unknown }).data;
-  if (!isObject(data)) return false;
-  const d = data as { requestId?: unknown; confirmed?: unknown };
-  return isString(d.requestId) && isBoolean(d.confirmed);
-}
-
 /**
- * Bridge function called from Rust to await user confirmation on the main thread
+ * Worker-side bridge used by VRF WASM to request a main-thread confirmation.
  *
- * This function is exposed globally for WASM to call and handles the worker-side
- * of the confirmation flow by:
- * 1. Sending a confirmation request to the main thread
- * 2. Waiting for the user's decision
- * 3. Returning the decision back to the WASM worker
+ * Where this runs:
+ * - Runs inside the VRF Web Worker (not the main thread).
+ * - Invoked from Rust via wasm-bindgen; the VRF worker exposes this as
+ *   `globalThis.awaitSecureConfirmationV2` in `sdk/src/core/web3authn-vrf.worker.ts`.
  *
- * See await_secure_confirmation() function definition in src/handlers/confirm_tx_details.rs
- * for more details on the parameters and their types
- */
-// Legacy awaitSecureConfirmation() removed. Use awaitSecureConfirmationV2 instead.
-
-/**
- * V2: Typed secure confirmation entrypoint (preferred for new flows)
- * Accepts a discriminated request and forwards it to the main thread.
- * Backwards-compatible alongside the legacy function above.
+ * High-level flow:
+ * 1) VRF Rust calls `awaitSecureConfirmationV2(request)`
+ * 2) This posts `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD` to the main thread
+ * 3) `VrfWorkerManager` intercepts that message and runs confirmTxFlow on the main thread
+ *    (`handlePromptUserConfirmInJsMainThread`), then posts back `USER_PASSKEY_CONFIRM_RESPONSE`
+ * 4) This resolves to a Rust-friendly `WorkerConfirmationResponse` (snake_case fields)
+ *
+ * API contract:
+ * - V2 objects only (no JSON strings / no legacy shorthand).
+ * - The `requestId` is used to correlate responses when multiple confirmations are in-flight.
  */
 export function awaitSecureConfirmationV2(
-  requestJson: string,
+  requestInput: SecureConfirmRequest,
   opts: { timeoutMs?: number; signal?: AbortSignal } = {}
 ): Promise<WorkerConfirmationResponse> {
   return new Promise((resolve, reject) => {
 
-    // 1) Normalize and validate JSON string from Rust / VRF.
+    // 1) Validate request object coming from Rust / VRF.
+    // Rust passes a plain JS object (serde_wasm_bindgen), so we validate defensively here
+    // to avoid propagating malformed requests to the main thread.
     let request: SecureConfirmRequest;
     try {
-      request = normalizeAndValidateRequest(requestJson);
+      request = validateSecureConfirmRequest(requestInput);
     } catch (e: unknown) {
-      return reject(new Error(`[signer-worker]: invalid V2 request JSON: ${errorMessage(e)}`));
+      return reject(new Error(`[signer-worker]: invalid V2 request: ${errorMessage(e)}`));
     }
 
-    // 2) Setup cleanup utilities
+    // 2) Setup cleanup utilities for this single in-flight request.
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const cleanup = () => {
       if (timeoutId) clearTimeout(timeoutId);
@@ -83,7 +73,9 @@ export function awaitSecureConfirmationV2(
       reject(new Error('[signer-worker]: confirmation aborted'));
     };
 
-    // 3) Wait for matching decision
+    // 3) Wait for the matching decision message from the main thread.
+    // Note: `web3authn-vrf.worker.ts` intentionally ignores USER_PASSKEY_CONFIRM_RESPONSE
+    // at the worker `onmessage` level and lets this handler consume it.
     const onDecisionReceived = (messageEvent: MessageEvent) => {
       const env = messageEvent?.data as unknown;
       if (!isConfirmResponseEnvelope(env)) return;
@@ -117,7 +109,9 @@ export function awaitSecureConfirmationV2(
       opts.signal.addEventListener('abort', onAbort);
     }
 
-    // 4) Post request to main thread
+    // 4) Post request to the main thread.
+    // We deep-clone to ensure the payload is structured-cloneable and to avoid leaking
+    // prototype/function fields across the Worker boundary.
     try {
       const safeRequest = deepClonePlain(request);
       self.postMessage({
@@ -135,143 +129,21 @@ export function awaitSecureConfirmationV2(
 // Local plain deep-clone to ensure structured-cloneable object for postMessage
 function deepClonePlain<T>(obj: T): T {
   try {
+    if (typeof structuredClone === 'function') {
+      return structuredClone(obj);
+    }
     return JSON.parse(JSON.stringify(obj));
   } catch {
     return obj as T;
   }
 }
 
-function validateRequestJson(requestJson: string): SecureConfirmRequest {
-  const parsed = JSON.parse(requestJson) as unknown;
-  return validateRequestObject(parsed);
-}
-
-function validateRequestObject(parsed: unknown): SecureConfirmRequest {
-  if (!isObject(parsed)) throw new Error('parsed is not an object');
-  const p = parsed as { schemaVersion?: unknown; requestId?: unknown; type?: unknown; payload?: unknown };
-  if (p.schemaVersion !== 2) throw new Error('schemaVersion must be 2');
-  if (!p.requestId) throw new Error('missing requestId');
-  if (!p.type) throw new Error('missing type');
-  if (!p.payload) throw new Error('missing payload');
-  return parsed as unknown as SecureConfirmRequest;
-}
-
-/**
- * Accept either:
- *  - Full SecureConfirmRequest JSON (schemaVersion: 2, etc.)
- *  - VRF shorthand for LocalOnly decrypt:
- *      { type: 'decryptPrivateKeyWithPrf', sessionId, nearAccountId }
- */
-function normalizeAndValidateRequest(requestJson: string): SecureConfirmRequest {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(requestJson) as unknown;
-  } catch {
-    // Fall back to legacy behavior; this will throw with a descriptive error.
-    return validateRequestJson(requestJson);
-  }
-
-  // Shorthand: decryptPrivateKeyWithPrf for LocalOnly decrypt/export flows.
-  if (isObject(parsed) && (parsed as any).schemaVersion === undefined) {
-    const r = parsed as {
-      type?: unknown;
-      sessionId?: unknown;
-      requestId?: unknown;
-      nearAccountId?: unknown;
-      txSigningRequests?: unknown;
-      rpcCall?: unknown;
-      message?: unknown;
-      recipient?: unknown;
-      contractId?: unknown;
-      nearRpcUrl?: unknown;
-      payload?: unknown;
-    };
-
-    // LocalOnly decrypt shorthand: { type: 'decryptPrivateKeyWithPrf', sessionId, nearAccountId }
-    if (r.type === 'decryptPrivateKeyWithPrf') {
-      const sessionId = String(r.sessionId || r.requestId || '');
-      const nearAccountId = String(r.nearAccountId || '');
-      if (!sessionId || !nearAccountId) {
-        throw new Error('decryptPrivateKeyWithPrf shorthand requires sessionId and nearAccountId');
-      }
-      const full: SecureConfirmRequest = {
-        schemaVersion: 2,
-        requestId: sessionId,
-        type: SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF,
-        summary: {
-          operation: 'Decrypt Private Key',
-          accountId: nearAccountId,
-          publicKey: '',
-          warning: 'Decrypting your private key grants full control of your account.',
-        },
-        payload: {
-          nearAccountId,
-          publicKey: '',
-        },
-      };
-      return full;
-    }
-
-    // Signing shorthand: { type: 'signTransaction', sessionId, payload or txSigningRequests/rpcCall }
-    if (r.type === 'signTransaction') {
-      const sessionId = String(r.sessionId || r.requestId || '');
-      if (!sessionId) {
-        throw new Error('signTransaction shorthand requires sessionId (or requestId)');
-      }
-      const payload = (r.payload as any) ?? {
-        txSigningRequests: r.txSigningRequests,
-        intentDigest: (r as any).intentDigest || '',
-        rpcCall: r.rpcCall,
-      };
-      const txs = (payload?.txSigningRequests as any[]) || [];
-      if (!Array.isArray(txs) || txs.length === 0 || !payload?.rpcCall) {
-        throw new Error('signTransaction shorthand requires txSigningRequests[] and rpcCall');
-      }
-      const receiverId = String(txs[0]?.receiverId || '');
-      const full: SecureConfirmRequest = {
-        schemaVersion: 2,
-        requestId: sessionId,
-        type: SecureConfirmationType.SIGN_TRANSACTION,
-        summary: {
-          receiverId,
-        } as any,
-        payload,
-      };
-      return full;
-    }
-
-    // NEP‑413 shorthand: { type: 'signNep413Message', sessionId, nearAccountId, message, recipient }
-    if (r.type === 'signNep413Message') {
-      const sessionId = String(r.sessionId || r.requestId || '');
-      const nearAccountId = String(r.nearAccountId || (r.payload as any)?.nearAccountId || '');
-      const message = String(r.message || (r.payload as any)?.message || '');
-      const recipient = String(r.recipient || (r.payload as any)?.recipient || '');
-      const contractId = String(r.contractId || (r.payload as any)?.contractId || '');
-      const nearRpcUrl = String(r.nearRpcUrl || (r.payload as any)?.nearRpcUrl || '');
-      if (!sessionId || !nearAccountId || !message || !recipient) {
-        throw new Error('signNep413Message shorthand requires sessionId, nearAccountId, message, and recipient');
-      }
-      const full: SecureConfirmRequest = {
-        schemaVersion: 2,
-        requestId: sessionId,
-        type: SecureConfirmationType.SIGN_NEP413_MESSAGE,
-        summary: {
-          operation: 'Sign NEP-413 Message',
-          message,
-          recipient,
-          accountId: nearAccountId,
-        } as any,
-        payload: {
-          nearAccountId,
-          message,
-          recipient,
-          ...(contractId ? { contractId } : {}),
-          ...(nearRpcUrl ? { nearRpcUrl } : {}),
-        } as any,
-      };
-      return full;
-    }
-  }
-
-  return validateRequestObject(parsed);
+function isConfirmResponseEnvelope(msg: unknown): msg is ConfirmResponseEnvelope {
+  if (!isObject(msg)) return false;
+  const type = (msg as { type?: unknown }).type;
+  if (type !== SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE) return false;
+  const data = (msg as { data?: unknown }).data;
+  if (!isObject(data)) return false;
+  const d = data as { requestId?: unknown; confirmed?: unknown };
+  return isString(d.requestId) && isBoolean(d.confirmed);
 }

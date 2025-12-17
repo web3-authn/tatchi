@@ -189,7 +189,7 @@ pub async fn verify_authentication_response_rpc_call(
                 request_type: "call_function",
                 account_id: contract_id,
                 method_name: VERIFY_AUTHENTICATION_RESPONSE_METHOD,
-                args_base64: base64_standard_encode(&contract_args_bytes),
+                args_base64: base64_url_encode(&contract_args_bytes),
                 finality: "final",
             },
         }
@@ -341,10 +341,6 @@ async fn execute_rpc_request(rpc_url: &str, rpc_body: &JsValue) -> Result<JsValu
     }
 
     Err(last_error.unwrap_or_else(|| "RPC request failed".to_string()))
-}
-
-fn base64_standard_encode(data: &[u8]) -> String {
-    base64_url_encode(data)
 }
 
 fn extract_error_message(obj: &JsValue, field: &str) -> Option<String> {

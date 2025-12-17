@@ -9,6 +9,7 @@ use wasm_bindgen::JsValue;
 #[cfg(target_arch = "wasm32")]
 use web_sys::MessagePort;
 
+mod await_secure_confirmation;
 mod config;
 mod errors;
 mod fetch;
@@ -68,19 +69,6 @@ pub use handlers::handle_shamir3pass_server::{
 };
 pub use handlers::handle_unlock_vrf_keypair::UnlockVrfKeypairRequest;
 
-// SecureConfirm response type reused from types module
-use js_sys::Promise;
-use types::WorkerConfirmationResponse;
-use wasm_bindgen_futures::JsFuture;
-
-// JS bridge exposed from web3authn-vrf.worker.ts:
-//   (globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_name = awaitSecureConfirmationV2)]
-    fn await_secure_confirmation_v2(request_json: String) -> Promise;
-}
-
 // Set up panic hook for better error messages
 #[wasm_bindgen(start)]
 pub fn main() {
@@ -91,18 +79,6 @@ pub fn main() {
         "Logging system initialized with level: {:?}",
         config::CURRENT_LOG_LEVEL
     );
-}
-
-/// Helper: call awaitSecureConfirmationV2 from Rust and deserialize the response.
-pub async fn vrf_await_secure_confirmation(
-    request_json: String,
-) -> Result<WorkerConfirmationResponse, String> {
-    let promise = await_secure_confirmation_v2(request_json);
-    let js_val = JsFuture::from(promise)
-        .await
-        .map_err(|e| format!("awaitSecureConfirmationV2 rejected: {:?}", e))?;
-    serde_wasm_bindgen::from_value(js_val)
-        .map_err(|e| format!("Failed to deserialize confirmation response: {}", e))
 }
 
 // === GLOBAL STATE ===

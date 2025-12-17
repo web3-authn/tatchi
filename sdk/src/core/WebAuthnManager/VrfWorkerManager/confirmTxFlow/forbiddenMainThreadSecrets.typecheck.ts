@@ -4,7 +4,7 @@
 // This file is compiled by `tsc` during `pnpm -C sdk build`. The `@ts-expect-error`
 // assertions ensure ForbiddenMainThreadSecrets remains enforced.
 
-import { sendConfirmResponse } from './flows/common';
+import { sendConfirmResponse } from './flows';
 
 type Decision = Parameters<typeof sendConfirmResponse>[1];
 
@@ -32,4 +32,3 @@ const badVrfSk: Decision = { requestId: 'r5', confirmed: true, vrf_sk: 'nope' };
 void badVrfSk;
 
 export {};
-

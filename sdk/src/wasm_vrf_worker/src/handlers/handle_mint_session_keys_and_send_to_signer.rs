@@ -234,9 +234,7 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
         &request.near_rpc_url,
         &request.session_id,
         &request.credential,
-    )
-    .await
-    {
+    ) .await {
         #[cfg(target_arch = "wasm32")]
         {
             let err = resp
@@ -366,6 +364,10 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
 
     VrfWorkerResponse::success(message_id, Some(payload))
 }
+
+////////////////////////////
+/// TESTS
+////////////////////////////
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod tests {

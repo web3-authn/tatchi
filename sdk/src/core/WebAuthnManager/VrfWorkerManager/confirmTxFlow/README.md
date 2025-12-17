@@ -14,7 +14,8 @@ High‑level phases: Classify → Prepare → Confirm UI → JIT Refresh → Col
 
 - Orchestrator: `handleSecureConfirmRequest.ts` (entry; validates, computes config, classifies, dispatches)
 - Flows: `flows/localOnly.ts`, `flows/registration.ts`, `flows/transactions.ts`
-- Shared helpers: `flows/common.ts` (NEAR context/nonce, VRF challenge + refresh, UI renderer, sanitize, type helpers)
+- Shared barrel: `flows/index.ts` (re-exports `adapters/*` to keep imports stable)
+- Adapters: `adapters/*` (NEAR context/nonce, VRF challenge + refresh, UI renderer, sanitize, type helpers)
 - Types: `types.ts` (discriminated unions bound to `request.type`)
 - Worker bridge: `awaitSecureConfirmation.ts` (worker-side helper that posts the request to the main thread and awaits a decision)
 - Config rules: `determineConfirmationConfig.ts` (merges user prefs + request overrides + iframe safety)
@@ -34,7 +35,7 @@ For `SecureConfirmationType.SIGN_TRANSACTION` / `SIGN_NEP413_MESSAGE`:
 
 For signing flows, the canonical initiator is the **VRF WASM worker**:
 
-1. VRF Rust calls `awaitSecureConfirmationV2(request_json)` (JS function exposed globally in the VRF worker runtime).
+1. VRF Rust calls `awaitSecureConfirmationV2(request)` (JS function exposed globally in the VRF worker runtime).
 2. `awaitSecureConfirmationV2` posts `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD` to the main thread.
 3. `VrfWorkerManager` intercepts that handshake message and runs `handlePromptUserConfirmInJsMainThread(...)` (confirmTxFlow) on the main thread.
 4. The main thread posts `USER_PASSKEY_CONFIRM_RESPONSE` back to the VRF worker.
@@ -153,4 +154,4 @@ Applied in `determineConfirmationConfig` after merging override + prefs:
 
 - Export viewer (ShowSecurePrivateKeyUi) posts `WALLET_UI_OPENED/CLOSED` to coordinate overlays
 - Errors are returned in a structured format; best‑effort cleanup always runs
-- Orchestrator imports helpers from `flows/common` and never performs side effects directly
+- Orchestrator imports helpers from `flows/index` + `adapters/requestAdapter` and never performs side effects directly

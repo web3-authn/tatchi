@@ -1,50 +1,60 @@
 use crate::manager::VRFKeyManager;
 use crate::types::{VrfWorkerResponse, WorkerConfirmationResponse};
+use crate::await_secure_confirmation::vrf_await_secure_confirmation;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
-
-use js_sys::{Array, Date, Reflect, JSON};
+use js_sys::{Array, Date, Reflect};
 
 /// Request payload: kick off confirmTxFlow from VRF WASM (via awaitSecureConfirmationV2).
 ///
-/// `requestJson` must be a schemaVersion=2 SecureConfirmRequest JSON string.
+/// `request` must be a schemaVersion=2 SecureConfirmRequest object.
 /// This handler will auto-set `payload.signingAuthMode` for signing requests when absent:
 /// - `warmSession` if a valid VRF session exists for `requestId` with enough remaining uses
 /// - otherwise `webauthn`
 #[wasm_bindgen]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ConfirmAndPrepareSigningSessionRequest {
-    #[wasm_bindgen(getter_with_clone, js_name = "requestJson")]
-    #[serde(rename = "requestJson")]
-    pub request_json: String,
+    // Structured request object; preserve so nested objects survive round-tripping.
+    #[wasm_bindgen(skip)]
+    #[serde(
+        rename = "request",
+        default = "js_undefined",
+        with = "serde_wasm_bindgen::preserve"
+    )]
+    pub request: JsValue,
 }
 
-fn has_signing_auth_mode(payload: &JsValue) -> bool {
-    Reflect::get(payload, &JsValue::from_str("signingAuthMode"))
-        .ok()
-        .and_then(|v| v.as_string())
-        .is_some()
+fn js_undefined() -> JsValue {
+    JsValue::UNDEFINED
 }
 
-fn get_string(obj: &JsValue, key: &str) -> Result<String, String> {
-    Reflect::get(obj, &JsValue::from_str(key))
-        .map_err(|e| format!("Failed to read {}: {:?}", key, e))?
-        .as_string()
-        .ok_or_else(|| format!("{} must be a string", key))
-}
+pub async fn handle_confirm_and_prepare_signing_session(
+    manager: Rc<RefCell<VRFKeyManager>>,
+    message_id: Option<String>,
+    request: ConfirmAndPrepareSigningSessionRequest,
+) -> VrfWorkerResponse {
+    debug!("[VRF] confirm_and_prepare_signing_session");
 
-fn get_object(obj: &JsValue, key: &str) -> Result<JsValue, String> {
-    let v = Reflect::get(obj, &JsValue::from_str(key))
-        .map_err(|e| format!("Failed to read {}: {:?}", key, e))?;
-    if v.is_object() {
-        Ok(v)
-    } else {
-        Err(format!("{} must be an object", key))
+    let request_val = request.request;
+    if request_val.is_undefined() || request_val.is_null() {
+        return VrfWorkerResponse::fail(message_id, "Missing request".to_string());
     }
+
+    if let Err(e) = inject_signing_auth_mode_if_missing(manager, &request_val) {
+        return VrfWorkerResponse::fail(message_id, e);
+    };
+
+    let decision: WorkerConfirmationResponse =
+        match vrf_await_secure_confirmation(request_val).await {
+            Ok(v) => v,
+            Err(e) => return VrfWorkerResponse::fail(message_id, e),
+        };
+
+    VrfWorkerResponse::success_from(message_id, Some(decision))
 }
 
 fn uses_needed_for_request(req_type: &str, payload: &JsValue) -> u32 {
@@ -81,22 +91,19 @@ fn warm_session_available(
 
 fn inject_signing_auth_mode_if_missing(
     manager: Rc<RefCell<VRFKeyManager>>,
-    request_json: String,
-) -> Result<String, String> {
-    let parsed =
-        JSON::parse(&request_json).map_err(|e| format!("Failed to parse requestJson: {:?}", e))?;
-
-    let req_type = get_string(&parsed, "type")?;
+    request: &JsValue,
+) -> Result<(), String> {
+    let req_type = get_string(request, "type")?;
     if req_type != "signTransaction" && req_type != "signNep413Message" {
-        return Ok(request_json);
+        return Ok(());
     }
 
-    let request_id = get_string(&parsed, "requestId")?;
-    let payload = get_object(&parsed, "payload")?;
+    let request_id = get_string(request, "requestId")?;
+    let payload = get_object(request, "payload")?;
 
     // Respect caller-provided auth mode if already present.
     if has_signing_auth_mode(&payload) {
-        return Ok(request_json);
+        return Ok(());
     }
 
     let uses_needed = uses_needed_for_request(&req_type, &payload);
@@ -117,30 +124,29 @@ fn inject_signing_auth_mode_if_missing(
         &JsValue::from_str(mode),
     )
     .map_err(|e| format!("Failed to set payload.signingAuthMode: {:?}", e))?;
-
-    JSON::stringify(&parsed)
-        .map_err(|e| format!("Failed to stringify request: {:?}", e))?
-        .as_string()
-        .ok_or_else(|| "JSON.stringify returned non-string".to_string())
+    Ok(())
 }
 
-pub async fn handle_confirm_and_prepare_signing_session(
-    manager: Rc<RefCell<VRFKeyManager>>,
-    message_id: Option<String>,
-    request: ConfirmAndPrepareSigningSessionRequest,
-) -> VrfWorkerResponse {
-    debug!("[VRF] confirm_and_prepare_signing_session");
+fn has_signing_auth_mode(payload: &JsValue) -> bool {
+    Reflect::get(payload, &JsValue::from_str("signingAuthMode"))
+        .ok()
+        .and_then(|v| v.as_string())
+        .is_some()
+}
 
-    let request_json = match inject_signing_auth_mode_if_missing(manager, request.request_json) {
-        Ok(s) => s,
-        Err(e) => return VrfWorkerResponse::fail(message_id, e),
-    };
+fn get_string(obj: &JsValue, key: &str) -> Result<String, String> {
+    Reflect::get(obj, &JsValue::from_str(key))
+        .map_err(|e| format!("Failed to read {}: {:?}", key, e))?
+        .as_string()
+        .ok_or_else(|| format!("{} must be a string", key))
+}
 
-    let decision: WorkerConfirmationResponse =
-        match crate::vrf_await_secure_confirmation(request_json).await {
-            Ok(v) => v,
-            Err(e) => return VrfWorkerResponse::fail(message_id, e),
-        };
-
-    VrfWorkerResponse::success_from(message_id, Some(decision))
+fn get_object(obj: &JsValue, key: &str) -> Result<JsValue, String> {
+    let v = Reflect::get(obj, &JsValue::from_str(key))
+        .map_err(|e| format!("Failed to read {}: {:?}", key, e))?;
+    if v.is_object() {
+        Ok(v)
+    } else {
+        Err(format!("{} must be an object", key))
+    }
 }

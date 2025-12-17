@@ -13,14 +13,14 @@ import { ensureDefined } from '../../../LitComponents/ensure-defined';
 import { W3A_EXPORT_VIEWER_IFRAME_ID } from '../../../LitComponents/tags';
 import type { ExportViewerIframeElement } from '../../../LitComponents/ExportPrivateKey/iframe-host';
 import {
-  collectAuthenticationCredentialWithPRF,
   getNearAccountId,
   getIntentDigest,
-  sendConfirmResponse,
   isUserCancelledSecureConfirm,
   ERROR_MESSAGES,
-} from './common';
+} from './index';
 import { errorMessage } from '../../../../../utils/errors';
+import { createConfirmSession } from '../adapters/session';
+import { createConfirmTxFlowAdapters } from '../adapters/createAdapters';
 
 async function mountExportViewer(
   payload: ShowSecurePrivateKeyUiPayload,
@@ -53,7 +53,15 @@ export async function handleLocalOnlyFlow(
   opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
 ): Promise<void> {
 
-  const { confirmationConfig } = opts;
+  const { confirmationConfig, transactionSummary } = opts;
+  const adapters = createConfirmTxFlowAdapters(ctx);
+  const session = createConfirmSession({
+    adapters,
+    worker,
+    request,
+    confirmationConfig,
+    transactionSummary,
+  });
   const nearAccountId = getNearAccountId(request);
 
   // SHOW_SECURE_PRIVATE_KEY_UI: purely visual; keep UI open and return confirmed immediately
@@ -61,14 +69,14 @@ export async function handleLocalOnlyFlow(
     try {
       await mountExportViewer(request.payload as ShowSecurePrivateKeyUiPayload, confirmationConfig);
       // Keep viewer open; do not close here.
-      sendConfirmResponse(worker, {
+      session.confirmAndCloseModal({
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: true,
       });
       return;
     } catch (err: unknown) {
-      return sendConfirmResponse(worker, {
+      return session.confirmAndCloseModal({
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: false,
@@ -82,8 +90,7 @@ export async function handleLocalOnlyFlow(
   if (request.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF) {
     const vrfChallenge = createRandomVRFChallenge() as VRFChallenge;
     try {
-      const credential = await collectAuthenticationCredentialWithPRF({
-        ctx,
+      const credential = await adapters.webauthn.collectAuthenticationCredentialWithPRF({
         nearAccountId,
         vrfChallenge,
         // Offline export / local decrypt needs both PRF outputs so the VRF worker can
@@ -91,7 +98,7 @@ export async function handleLocalOnlyFlow(
         includeSecondPrfOutput: true,
       });
       // No modal to keep open; export viewer will be shown by a subsequent request.
-      return sendConfirmResponse(worker, {
+      return session.confirmAndCloseModal({
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: true,
@@ -103,7 +110,7 @@ export async function handleLocalOnlyFlow(
       if (cancelled) {
         window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
       }
-      return sendConfirmResponse(worker, {
+      return session.confirmAndCloseModal({
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: false,

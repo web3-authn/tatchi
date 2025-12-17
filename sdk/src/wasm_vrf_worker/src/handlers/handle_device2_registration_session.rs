@@ -12,7 +12,10 @@ use crate::errors::HkdfError;
 use crate::manager::VRFKeyManager;
 use crate::types::{VrfWorkerResponse, WorkerConfirmationResponse};
 use crate::utils::{base64_url_decode, generate_wrap_key_salt_b64u};
-use crate::vrf_await_secure_confirmation;
+use crate::await_secure_confirmation::{
+    RpcCall, Summary, Payload, SecureConfirmRequest,
+    vrf_await_secure_confirmation,
+};
 
 /// Request payload for combined Device2 registration session.
 /// This combines registration credential collection + WrapKeySeed derivation in a single flow.
@@ -135,73 +138,25 @@ pub async fn handle_device2_registration_session(
         .unwrap_or_else(|| format!("device2-reg-{}-{}", near_account_id, device_number));
     let intent_digest = format!("device2-register:{}:{}", near_account_id, device_number);
 
-    #[derive(Serialize)]
-    #[allow(non_snake_case)]
-    struct Summary<'a> {
-        nearAccountId: &'a str,
-        deviceNumber: u32,
-        contractId: &'a str,
-    }
-
-    #[derive(Serialize)]
-    #[allow(non_snake_case)]
-    struct RpcCall<'a> {
-        contractId: &'a str,
-        nearRpcUrl: &'a str,
-        nearAccountId: &'a str,
-    }
-
-    #[derive(Serialize)]
-    #[allow(non_snake_case)]
-    struct Payload<'a> {
-        nearAccountId: &'a str,
-        deviceNumber: u32,
-        rpcCall: RpcCall<'a>,
-    }
-
-    #[derive(Serialize)]
-    #[allow(non_snake_case)]
-    struct SecureConfirmRequest<'a> {
-        schemaVersion: u32,
-        requestId: &'a str,
-        #[serde(rename = "type")]
-        request_type: &'static str,
-        summary: Summary<'a>,
-        payload: Payload<'a>,
-        intentDigest: &'a str,
-        #[serde(
-            skip_serializing_if = "is_undefined",
-            with = "serde_wasm_bindgen::preserve"
-        )]
-        confirmationConfig: JsValue,
-    }
-
-    fn is_undefined(v: &JsValue) -> bool {
-        v.is_undefined() || v.is_null()
-    }
-
-    let summary = Summary {
-        nearAccountId: &near_account_id,
-        deviceNumber: device_number,
-        contractId: &request.contract_id,
-    };
-    let payload = Payload {
-        nearAccountId: &near_account_id,
-        deviceNumber: device_number,
-        rpcCall: RpcCall {
-            contractId: &request.contract_id,
-            nearRpcUrl: &request.near_rpc_url,
-            nearAccountId: &near_account_id,
-        },
-    };
-
     let confirm_request = SecureConfirmRequest {
         schemaVersion: 2,
         requestId: &request_id,
         request_type: "registerAccount",
-        summary,
-        payload,
-        intentDigest: &intent_digest,
+        summary: Summary {
+            nearAccountId: &near_account_id,
+            deviceNumber: device_number,
+            contractId: Some(&request.contract_id),
+        },
+        payload: Payload {
+            nearAccountId: &near_account_id,
+            deviceNumber: device_number,
+            rpcCall: RpcCall {
+                contractId: &request.contract_id,
+                nearRpcUrl: &request.near_rpc_url,
+                nearAccountId: &near_account_id,
+            }
+        },
+        intentDigest: Some(&intent_digest),
         confirmationConfig: request.confirmation_config.clone(),
     };
 
@@ -216,28 +171,10 @@ pub async fn handle_device2_registration_session(
         Err(err) => return err,
     };
 
-    let request_json = match js_sys::JSON::stringify(&confirm_request_js) {
-        Ok(s) => match s.as_string() {
-            Some(str) => str,
-            None => {
-                return VrfWorkerResponse::fail(
-                    message_id.clone(),
-                    "Failed to stringify request".to_string(),
-                )
-            }
-        },
-        Err(e) => {
-            return VrfWorkerResponse::fail(
-                message_id,
-                format!("Failed to stringify request: {:?}", e),
-            )
-        }
-    };
-
     // === STEP 2: Run registration confirmation flow ===
 
     let decision: WorkerConfirmationResponse =
-        match vrf_await_secure_confirmation(request_json).await {
+        match vrf_await_secure_confirmation(confirm_request_js).await {
             Ok(res) => res,
             Err(e) => {
                 debug!("[VRF] Device2 registration confirmation failed: {}", e);

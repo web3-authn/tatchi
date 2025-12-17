@@ -1,6 +1,9 @@
 use crate::manager::VRFKeyManager;
 use crate::types::{EncryptedVRFKeypair, VrfWorkerResponse, WorkerConfirmationResponse};
-use crate::vrf_await_secure_confirmation;
+use crate::await_secure_confirmation::{
+    DecryptPrivateKeyWithPrfPayload, ExportSummary, SecureConfirmRequest,
+    vrf_await_secure_confirmation,
+};
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen;
 use std::cell::RefCell;
@@ -77,22 +80,23 @@ pub async fn handle_decrypt_session(
     let near_account_id = request.near_account_id.clone();
     let wrap_key_salt_b64u = request.wrap_key_salt_b64u.clone();
 
-    // Build SecureConfirmRequest JSON payload in JS (main thread) rather than Rust.
-    // Here we rely on a small JS shim attached to awaitSecureConfirmationV2 that
-    // accepts a JSON string and builds the correct request shape.
-    #[derive(Serialize)]
-    #[allow(non_snake_case)]
-    struct DecryptConfirmRequest<'a> {
-        sessionId: &'a str,
-        nearAccountId: &'a str,
-        #[serde(rename = "type")]
-        kind: &'static str,
-    }
-
-    let req = DecryptConfirmRequest {
-        sessionId: &session_id,
-        nearAccountId: &near_account_id,
-        kind: "decryptPrivateKeyWithPrf",
+    // Build a schemaVersion=2 SecureConfirmRequest object and hand it to awaitSecureConfirmationV2.
+    let req = SecureConfirmRequest {
+        schemaVersion: 2,
+        requestId: &session_id,
+        request_type: "decryptPrivateKeyWithPrf",
+        summary: ExportSummary {
+            operation: "Decrypt Private Key",
+            accountId: &near_account_id,
+            publicKey: "",
+            warning: "Decrypting your private key grants full control of your account.",
+        },
+        payload: DecryptPrivateKeyWithPrfPayload {
+            nearAccountId: &near_account_id,
+            publicKey: "",
+        },
+        intentDigest: None,
+        confirmationConfig: JsValue::UNDEFINED,
     };
 
     let request_js = match serde_wasm_bindgen::to_value(&req) {
@@ -100,26 +104,8 @@ pub async fn handle_decrypt_session(
         Err(e) => return VrfWorkerResponse::fail(message_id, e.to_string()),
     };
 
-    let request_json = match js_sys::JSON::stringify(&request_js) {
-        Ok(s) => match s.as_string() {
-            Some(str) => str,
-            None => {
-                return VrfWorkerResponse::fail(
-                    message_id,
-                    "Failed to stringify decrypt request".to_string(),
-                )
-            }
-        },
-        Err(e) => {
-            return VrfWorkerResponse::fail(
-                message_id,
-                format!("Failed to stringify decrypt request: {:?}", e),
-            )
-        }
-    };
-
     let decision: WorkerConfirmationResponse =
-        match vrf_await_secure_confirmation(request_json).await {
+        match vrf_await_secure_confirmation(request_js).await {
             Ok(res) => res,
             Err(e) => return VrfWorkerResponse::fail(message_id, e),
         };
