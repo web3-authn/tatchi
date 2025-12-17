@@ -15,22 +15,18 @@ import {
   WorkerRequestTypeMap,
 } from '../../types/signer-worker';
 import { VrfWorkerManager } from '../VrfWorkerManager';
-import { runSecureConfirm } from '../VrfWorkerManager/secureConfirmBridge';
-import { SecureConfirmationType } from '../VrfWorkerManager/confirmTxFlow/types';
 import { VRFChallenge } from '../../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../../types/actions';
 import type { DelegateActionInput } from '../../types/delegate';
 import type { onProgressEvents } from '../../types/sdkSentEvents';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
-import { AccountId, toAccountId } from "../../types/accountIds";
+import { AccountId } from "../../types/accountIds";
 import { TransactionContext } from '../../types/rpc';
 import {
   ConfirmationConfig,
   WasmSignedDelegate,
-  isDecryptPrivateKeyWithPrfSuccess
 } from '../../types/signer-worker';
 import { TouchIdPrompt } from "../touchIdPrompt";
-import { getLastLoggedInDeviceNumber } from './getDeviceNumber';
 import { isSignerWorkerControlMessage } from './sessionMessages';
 import { WorkerControlMessage } from '../../workerControlMessages';
 
@@ -42,10 +38,10 @@ import {
   extractCosePublicKey,
   signTransactionWithKeyPair,
   signNep413Message,
-  requestRegistrationCredentialConfirmation,
   deriveNearKeypairAndEncryptFromSerialized,
   signDelegateAction,
   registerDevice2WithDerivedKey,
+  exportNearKeypairUi,
 } from './handlers';
 import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
@@ -54,6 +50,10 @@ import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from
 import { toError } from '@/utils/errors';
 import { withSessionId } from './handlers/session';
 import { attachSessionPort } from './sessionHandshake.js';
+
+type WithOptionalSessionId<T> = T extends { sessionId: string }
+  ? Omit<T, 'sessionId'> & { sessionId?: string }
+  : T;
 
 type SigningSessionEntry = {
   worker: Worker;
@@ -73,7 +73,7 @@ export interface SignerWorkerManagerContext {
   sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
     message: {
       type: T;
-      payload: WorkerRequestTypeMap[T]['request'];
+      payload: WithOptionalSessionId<WorkerRequestTypeMap[T]['request']>;
     };
     onEvent?: (update: onProgressEvents) => void;
     timeoutMs?: number;
@@ -189,15 +189,7 @@ export class SignerWorkerManager {
   }
 
   /**
-   * Get the signing session entry for a given sessionId.
-   * Used internally to access worker and port information.
-   */
-  private getSigningSession(sessionId: string) {
-    return this.signingSessions.get(sessionId);
-  }
-
-  /**
-   * Reserve a signer worker "session" (JS-side orchestration).
+   * Reserve a signer worker "session"
    *
    * What this does:
    * - Reserves a specific `Worker` instance from the pool and pins it to `sessionId`.
@@ -375,24 +367,37 @@ export class SignerWorkerManager {
   }
 
   private async sendMessage<T extends WorkerRequestType>({
+    sessionId,
     message,
     onEvent,
     timeoutMs = SIGNER_WORKER_MANAGER_CONFIG.TIMEOUTS.DEFAULT, // 60s
-    sessionId,
   }: {
-    message: { type: T; payload: WorkerRequestTypeMap[T]['request'] };
+    sessionId?: string;
+    message: { type: T; payload: WithOptionalSessionId<WorkerRequestTypeMap[T]['request']> };
     onEvent?: (update: onProgressEvents) => void;
     timeoutMs?: number;
-    sessionId?: string;
   }): Promise<WorkerResponseForRequest<T>> {
 
     // Clean up any expired signing sessions before allocating a worker
     this.sweepExpiredSigningSessions();
 
-    const sessionEntry = sessionId ? this.signingSessions.get(sessionId) : undefined;
-    if (sessionId && !sessionEntry) {
-      throw new Error(`Signing session not found for id: ${sessionId}`);
+    const payloadSessionId = (message.payload as any)?.sessionId as string | undefined;
+    if (sessionId && payloadSessionId && payloadSessionId !== sessionId) {
+      throw new Error(
+        `sendMessage: payload.sessionId (${payloadSessionId}) does not match provided sessionId (${sessionId})`
+      );
     }
+
+    const effectiveSessionId = sessionId || payloadSessionId;
+    const sessionEntry = effectiveSessionId ? this.signingSessions.get(effectiveSessionId) : undefined;
+    if (effectiveSessionId && !sessionEntry) {
+      throw new Error(`Signing session not found for id: ${effectiveSessionId}`);
+    }
+
+    // Normalize/inject sessionId into payload once to avoid duplication at call sites.
+    const finalPayload = effectiveSessionId
+      ? withSessionId(effectiveSessionId, message.payload)
+      : (message.payload);
 
     const worker = sessionEntry ? sessionEntry.worker : this.getWorkerFromPool();
     const isSessionWorker = !!sessionEntry;
@@ -400,9 +405,9 @@ export class SignerWorkerManager {
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         try {
-          if (isSessionWorker && sessionId) {
+          if (isSessionWorker && effectiveSessionId) {
             // Release reserved session to avoid leaking worker/port
-            this.releaseSigningSession(sessionId);
+            this.releaseSigningSession(effectiveSessionId);
           } else {
             this.terminateAndReplaceWorker(worker);
           }
@@ -500,7 +505,7 @@ export class SignerWorkerManager {
       // Format message for Rust SignerWorkerMessage structure using WASM types
       const formattedMessage = {
         type: message.type, // Numeric enum value from WorkerRequestType
-        payload: message.payload,
+        payload: finalPayload,
       };
 
       worker.postMessage(formattedMessage);
@@ -644,9 +649,7 @@ export class SignerWorkerManager {
   }): Promise<{
     publicKey: string;
     encryptedPrivateKey: string;
-    /**
-     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
-     */
+    /** Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for encrypted key */
     chacha20NonceB64u: string;
     accountIdHint?: string;
     wrapKeySalt: string;
@@ -721,62 +724,7 @@ export class SignerWorkerManager {
     theme?: 'dark'|'light',
     sessionId: string,
   }): Promise<void> {
-    const ctx = this.getContext();
-    const accountId = toAccountId(args.nearAccountId);
-    const sessionId = args.sessionId;
-
-    // Gather encrypted key + ChaCha20 nonce and public key from IndexedDB
-    const deviceNumber = await getLastLoggedInDeviceNumber(accountId, ctx.indexedDB.clientDB);
-    const [keyData, user] = await Promise.all([
-      ctx.indexedDB.nearKeysDB.getEncryptedKey(accountId, deviceNumber),
-      ctx.indexedDB.clientDB.getUserByDevice(accountId, deviceNumber),
-    ]);
-    const publicKey = user?.clientNearPublicKey || '';
-    if (!keyData || !publicKey) {
-      throw new Error('Missing local key material for export. Re-register to upgrade vault.');
-    }
-
-    // Decrypt inside signer worker using the reserved session
-    const response = await ctx.sendMessage<WorkerRequestType.DecryptPrivateKeyWithPrf>({
-      message: {
-        type: WorkerRequestType.DecryptPrivateKeyWithPrf,
-        payload: withSessionId(sessionId, {
-          nearAccountId: accountId,
-          encryptedPrivateKeyData: keyData.encryptedData,
-          encryptedPrivateKeyChacha20NonceB64u: keyData.chacha20NonceB64u,
-        }),
-      },
-      sessionId,
-    });
-
-    if (!isDecryptPrivateKeyWithPrfSuccess(response)) {
-      console.error('WebAuthnManager: Export decrypt failed:', response);
-      const payloadError = isObject(response?.payload) && response?.payload?.error;
-      const msg = String(payloadError || 'Export decrypt failed');
-      throw new Error(msg);
-    }
-
-    const privateKey = response.payload.privateKey;
-
-    // Phase 2: show secure UI (VRF-driven viewer)
-    const showReq = {
-      schemaVersion: 2 as const,
-      requestId: sessionId,
-      type: SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI,
-      summary: {
-        operation: 'Export Private Key',
-        accountId,
-        publicKey,
-      },
-      payload: {
-        nearAccountId: accountId,
-        publicKey,
-        privateKey,
-        variant: args.variant,
-        theme: args.theme,
-      },
-    };
-    await runSecureConfirm(ctx, showReq);
+    return exportNearKeypairUi({ ctx: this.getContext(), ...args });
   }
 
 }

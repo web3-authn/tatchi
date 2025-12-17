@@ -7,5 +7,5 @@ export * from './recoverKeypairFromPasskey';
 export * from './extractCosePublicKey';
 export * from './signTransactionWithKeyPair';
 export * from './signNep413Message';
-export * from './requestRegistrationCredentialConfirmation';
 export * from './registerDevice2WithDerivedKey';
+export * from './exportNearKeypairUi';

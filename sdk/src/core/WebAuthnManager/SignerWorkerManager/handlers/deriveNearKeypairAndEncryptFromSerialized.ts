@@ -48,6 +48,7 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     if (!sessionId) throw new Error('Missing sessionId for registration WrapKeySeed delivery');
 
     const response = await ctx.sendMessage<WorkerRequestType.DeriveNearKeypairAndEncrypt>({
+      sessionId,
       message: {
         type: WorkerRequestType.DeriveNearKeypairAndEncrypt,
         payload: withSessionId(sessionId, {
@@ -59,7 +60,6 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
           } : undefined,
         })
       },
-      sessionId,
     });
 
     if (!isDeriveNearKeypairAndEncryptSuccess(response)) {

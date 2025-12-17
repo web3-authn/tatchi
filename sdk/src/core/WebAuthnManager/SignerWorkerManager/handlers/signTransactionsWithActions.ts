@@ -15,7 +15,6 @@ import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../defaultConfigs';
 import { toAccountId } from '../../../types/accountIds';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { isObject } from '../../../WalletIframe/validation';
-import { withSessionId } from './session';
 import { generateSessionId } from '../sessionHandshake.js';
 
 /**
@@ -106,9 +105,10 @@ export async function signTransactionsWithActions({
 
     // Send batch signing request to WASM worker
     const response = await ctx.sendMessage({
+      sessionId,
       message: {
         type: WorkerRequestType.SignTransactionsWithActions,
-        payload: withSessionId(sessionId, {
+        payload: {
           rpcCall: resolvedRpcCall,
           createdAt: Date.now(),
           decryption: {
@@ -119,10 +119,9 @@ export async function signTransactionsWithActions({
           intentDigest,
           transactionContext,
           credential,
-        })
+        }
       },
       onEvent,
-      sessionId,
     });
 
     if (!isSignTransactionsWithActionsSuccess(response)) {

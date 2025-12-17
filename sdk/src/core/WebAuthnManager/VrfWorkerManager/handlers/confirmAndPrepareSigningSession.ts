@@ -188,8 +188,8 @@ export async function confirmAndPrepareSigningSession(
     type: 'CONFIRM_AND_PREPARE_SIGNING_SESSION',
     id: handlerCtx.generateMessageId(),
     payload: {
-      requestJson: JSON.stringify(request),
-    } as any,
+      request,
+    },
   };
   const response = await handlerCtx.sendMessage<WasmConfirmAndPrepareSigningSessionRequest>(message);
   if (!response.success) {

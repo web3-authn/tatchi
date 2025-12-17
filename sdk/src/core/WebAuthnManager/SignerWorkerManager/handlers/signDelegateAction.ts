@@ -13,18 +13,9 @@ import {
 } from '../../../types/signer-worker';
 import { SignerWorkerManagerContext } from '..';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
-import { withSessionId } from './session';
-import { base58Encode } from '../../../../utils/base58';
 import { generateSessionId } from '../sessionHandshake.js';
+import { toPublicKeyString } from './validation';
 
-const ensureEd25519Prefix = (value: string) => value.startsWith('ed25519:') ? value : `ed25519:${value}`;
-
-const toPublicKeyString = (pk: DelegateActionInput['publicKey']): string => {
-  if (typeof pk === 'string') {
-    return pk;
-  }
-  return ensureEd25519Prefix(base58Encode(pk.keyData));
-};
 
 export async function signDelegateAction({
   ctx,
@@ -96,9 +87,10 @@ export async function signDelegateAction({
   const credential = confirmation.credential ? JSON.stringify(confirmation.credential) : undefined;
 
   const response = await ctx.sendMessage({
+    sessionId,
     message: {
       type: WorkerRequestType.SignDelegateAction,
-      payload: withSessionId(sessionId, {
+      payload: {
         rpcCall: resolvedRpcCall,
         createdAt: Date.now(),
         decryption: {
@@ -116,10 +108,9 @@ export async function signDelegateAction({
         intentDigest,
         transactionContext,
         credential,
-      }),
+      },
     },
     onEvent,
-    sessionId,
   });
 
   // eslint-disable-next-line no-console

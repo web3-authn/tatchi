@@ -46,6 +46,7 @@ export async function recoverKeypairFromPasskey({
 
     // Use generic sendMessage with specific request type for better type safety
     const response = await ctx.sendMessage<WorkerRequestType.RecoverKeypairFromPasskey>({
+      sessionId,
       message: {
         type: WorkerRequestType.RecoverKeypairFromPasskey,
         payload: withSessionId(sessionId, {
@@ -53,7 +54,6 @@ export async function recoverKeypairFromPasskey({
           accountIdHint,
         })
       },
-      sessionId,
     });
 
     // response is RecoverKeypairSuccessResponse | RecoverKeypairFailureResponse

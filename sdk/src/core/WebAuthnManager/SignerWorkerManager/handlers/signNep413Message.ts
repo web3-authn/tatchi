@@ -3,7 +3,6 @@ import { WorkerRequestType, isSignNep413MessageSuccess } from '../../../types/si
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
 import { isObject } from '../../../WalletIframe/validation';
-import { withSessionId } from './session';
 import { generateSessionId } from '../sessionHandshake.js';
 
 /**
@@ -58,9 +57,10 @@ export async function signNep413Message({ ctx, payload }: {
     });
 
     const response = await ctx.sendMessage<WorkerRequestType.SignNep413Message>({
+      sessionId,
       message: {
         type: WorkerRequestType.SignNep413Message,
-        payload: withSessionId(sessionId, {
+        payload: {
           message: payload.message,
           recipient: payload.recipient,
           nonce: payload.nonce,
@@ -68,9 +68,8 @@ export async function signNep413Message({ ctx, payload }: {
           accountId: payload.accountId,
           encryptedPrivateKeyData: encryptedKeyData.encryptedData,
           encryptedPrivateKeyChacha20NonceB64u: encryptedKeyData.chacha20NonceB64u,
-        })
+        }
       },
-      sessionId,
     });
 
     if (!isSignNep413MessageSuccess(response)) {

@@ -8,6 +8,7 @@ import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from
 import { ConfirmationConfig } from './signer-worker';
 import { AccountId } from "./accountIds.js";
 import { base64UrlDecode, base64UrlEncode } from "../../utils/encoders.js";
+import type { SecureConfirmRequest } from "../WebAuthnManager/VrfWorkerManager/confirmTxFlow/types";
 
 export type WasmGenerateVrfKeypairBootstrapRequest = StripFree<wasmModule.GenerateVrfKeypairBootstrapRequest>;
 export type WasmGenerateVrfChallengeRequest = StripFree<wasmModule.GenerateVrfChallengeRequest>;
@@ -40,7 +41,7 @@ export type WasmDispenseSessionKeyRequest = StripFree<wasmModule.DispenseSession
 export type WasmCheckSessionStatusRequest = StripFree<wasmModule.CheckSessionStatusRequest>;
 export type WasmClearSessionRequest = StripFree<wasmModule.ClearSessionRequest>;
 export type WasmConfirmAndPrepareSigningSessionRequest = {
-  requestJson: string;
+  request: SecureConfirmRequest;
 };
 export type WasmDecryptSessionRequest = StripFree<wasmModule.DecryptSessionRequest>;
 export type WasmRegistrationCredentialConfirmationRequest = StripFree<wasmModule.RegistrationCredentialConfirmationRequest> & {

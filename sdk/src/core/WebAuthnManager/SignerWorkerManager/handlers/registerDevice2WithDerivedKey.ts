@@ -104,6 +104,7 @@ export async function registerDevice2WithDerivedKey({
 
     // Build request payload for combined Device2 registration
     const response = await ctx.sendMessage<WorkerRequestType.RegisterDevice2WithDerivedKey>({
+      sessionId,
       message: {
         type: WorkerRequestType.RegisterDevice2WithDerivedKey,
         payload: withSessionId(sessionId, {
@@ -118,7 +119,6 @@ export async function registerDevice2WithDerivedKey({
           contractArgsJson: JSON.stringify(finalContractArgs),
         }),
       },
-      sessionId,
     });
 
     if (!isRegisterDevice2WithDerivedKeySuccess(response)) {
