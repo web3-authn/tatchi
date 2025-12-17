@@ -1,17 +1,17 @@
-// Canonical transaction digest helpers for UI/host validation
+// Canonical transaction digest helpers for UI/host validation.
+// Used by both VRF-driven flows and signer-worker signing flows.
+//
 // Uses Web Crypto API (crypto.subtle). Import a minimal base64url helper that does not pull bs58.
 import { ActionArgsWasm, TransactionInputWasm } from '@/core/types';
-import { isObject } from '../../../WalletIframe/validation';
+import { isObject } from '../WalletIframe/validation';
 import { base64UrlEncode } from '@/utils/base64';
 
 // Deterministic stringify by alphabetizing object keys recursively.
 export function alphabetizeStringify(input: unknown): string {
   const normalizeValue = (value: unknown): unknown => {
-    // Arrays: preserve order, normalize each element
     if (Array.isArray(value)) {
       return value.map(normalizeValue);
     }
-    // Objects: sort keys alphabetically and normalize each nested value
     if (isObject(value)) {
       const obj = value as Record<string, unknown>;
       const sortedKeys = Object.keys(obj).sort();
@@ -35,19 +35,18 @@ export async function sha256Base64UrlUtf8(input: string): Promise<string> {
 }
 
 // Canonical intent digest for signing flows.
-// Both VRF-side code (confirmAndPrepareSigningSession) and all UI confirmers
-// MUST call this with TransactionInputWasm[] built from:
+// Both VRF-side code (confirmAndPrepareSigningSession) and all UI confirmers MUST call this with
+// TransactionInputWasm[] built from:
 //   { receiverId, actions: ActionArgsWasm[] }
 // where each ActionArgsWasm has been normalized via orderActionForDigest.
+//
 // IMPORTANT:
-// - The order of transactions and the order of actions within each transaction
-//   is preserved as provided by the caller.
-// - Only the *keys inside each object* are alphabetically sorted to produce
-//   a stable JSON encoding; the arrays themselves are not reordered.
-// Do NOT include nonce or other per-tx fields in the digest input, or
-// INTENT_DIGEST_MISMATCH errors will occur.
+// - The order of transactions and the order of actions within each transaction is preserved.
+// - Only the *keys inside each object* are alphabetically sorted to produce a stable JSON encoding.
+//   The arrays themselves are not reordered.
+// - Do NOT include nonce or other per-tx fields in the digest input, or INTENT_DIGEST_MISMATCH errors will occur.
 export async function computeUiIntentDigestFromTxs(txInputs: TransactionInputWasm[]): Promise<string> {
-  // Important: preserve property insertion order and array order via JSON.stringify.
+  // Preserve property insertion order and array order via JSON.stringify over a normalized tree.
   // This must match the Rust worker's serde_json::to_string over the same shape.
   const json = alphabetizeStringify(txInputs);
   return sha256Base64UrlUtf8(json);

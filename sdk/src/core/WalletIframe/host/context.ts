@@ -2,15 +2,16 @@ import { MinimalNearClient } from '../../NearClient';
 import { TatchiPasskey as PasskeyManager } from '../../TatchiPasskey';
 import { __setWalletIframeHostMode } from '../host-mode';
 import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
-import type { TatchiPasskeyConfigs } from '../../types/passkeyManager';
+import type { TatchiConfigsInput } from '../../types/tatchi';
 import type { PMSetConfigPayload } from '../shared/messages';
 import { isString } from '../validation';
 import { setEmbeddedBase } from '../../sdkPaths';
+import { assertWalletHostConfigsNoNestedIframeWallet, sanitizeWalletHostConfigs } from './config-guards';
 
 export interface HostContext {
   parentOrigin: string | null;
   port: MessagePort | null;
-  walletConfigs: TatchiPasskeyConfigs | null;
+  walletConfigs: TatchiConfigsInput | null;
   nearClient: MinimalNearClient | null;
   passkeyManager: PasskeyManager | TatchiPasskeyIframe | null;
   themeUnsubscribe?: () => void;
@@ -41,17 +42,8 @@ export function ensurePasskeyManager(ctx: HostContext): void {
     ctx.nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
   }
   if (!ctx.passkeyManager) {
-    const cfg = {
-      ...walletConfigs,
-      iframeWallet: {
-        ...(walletConfigs?.iframeWallet || {}),
-        // IMPORTANT: The wallet host must not consider itself an iframe client.
-        // Clear walletOrigin/servicePath so SignerWorkerManager does NOT enable nested iframe mode.
-        walletOrigin: undefined,
-        walletServicePath: undefined,
-        rpIdOverride: walletConfigs?.iframeWallet?.rpIdOverride,
-      },
-    } as TatchiPasskeyConfigs;
+    const cfg = sanitizeWalletHostConfigs(walletConfigs);
+    assertWalletHostConfigsNoNestedIframeWallet(cfg);
     __setWalletIframeHostMode(true);
     ctx.passkeyManager = new PasskeyManager(cfg, ctx.nearClient);
     try {
@@ -81,8 +73,8 @@ export function updateThemeBridge(ctx: HostContext): void {
 }
 
 export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload): void {
-  const prev = ctx.walletConfigs || ({} as TatchiPasskeyConfigs);
-  ctx.walletConfigs = {
+  const prev = ctx.walletConfigs || ({} as TatchiConfigsInput);
+  const base = {
     nearRpcUrl: payload?.nearRpcUrl || prev.nearRpcUrl || '',
     nearNetwork: payload?.nearNetwork || prev.nearNetwork || 'testnet',
     contractId: payload?.contractId || prev.contractId || '',
@@ -93,11 +85,10 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
     walletTheme: payload?.theme || prev.walletTheme,
     iframeWallet: {
       ...(prev.iframeWallet || {}),
-      walletOrigin: undefined,
-      walletServicePath: undefined,
       rpIdOverride: payload?.rpIdOverride || prev.iframeWallet?.rpIdOverride,
     },
-  } as TatchiPasskeyConfigs;
+  } as TatchiConfigsInput;
+  ctx.walletConfigs = sanitizeWalletHostConfigs(base);
 
   // Configure SDK embedded asset base for Lit modal/embedded components
   try {

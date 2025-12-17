@@ -2,15 +2,14 @@ import type { NearClient, SignedTransaction } from '../NearClient';
 import { validateNearAccountId } from '../../utils/validation';
 import type {
   RegistrationHooksOptions,
-  RegistrationResult,
   RegistrationSSEEvent,
-} from '../types/passkeyManager';
+} from '../types/sdkSentEvents';
+import type { RegistrationResult, TatchiConfigs } from '../types/tatchi';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
-import { RegistrationPhase, RegistrationStatus } from '../types/passkeyManager';
+import { RegistrationPhase, RegistrationStatus } from '../types/sdkSentEvents';
 import {
   createAccountAndRegisterWithRelayServer
 } from './faucets/createAccountRelayServer';
-import { TatchiPasskeyConfigs } from '../types/passkeyManager';
 import { PasskeyManagerContext } from './index';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { VRFChallenge } from '../types/vrf-worker';
@@ -19,7 +18,6 @@ import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
-import { extractPrfFromCredential } from '../WebAuthnManager/credentialsHelpers';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
@@ -87,70 +85,59 @@ export async function registerPasskeyInternal(
 
     const credential = registrationSession.credential;
     const vrfChallenge = registrationSession.vrfChallenge;
-    const { chacha20PrfOutput } = extractPrfFromCredential({
-      credential,
-      firstPrfOutput: true,
-      secondPrfOutput: false,
-    });
-    if (!chacha20PrfOutput) {
-      throw new Error('Missing PRF output from registration credential');
-    }
 
     onEvent?.({
       step: 1,
       phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
       status: RegistrationStatus.SUCCESS,
-      message: 'WebAuthn ceremony successful, PRF output obtained'
+      message: 'WebAuthn ceremony successful'
     });
 
-    // Derive deterministic VRF and NEAR keypairs from PRF, and check registration in parallel
-    const {
-      deterministicVrfKeyResult,
-      nearKeyResult,
-      canRegisterUserResult,
-    } = await Promise.all([
-      webAuthnManager.deriveVrfKeypairFromRawPrf({
-        prfOutput: chacha20PrfOutput,
-        nearAccountId,
-        saveInMemory: true,
-      }),
-      webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
-        credential,
-        nearAccountId,
-      }),
-      webAuthnManager.checkCanRegisterUser({
-        contractId: context.configs.contractId,
-        credential,
-        vrfChallenge,
-        onEvent: (progress) => {
-          console.debug(`Registration progress: ${progress.step} - ${progress.message}`);
-          onEvent?.({
-            step: 3,
-            phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK,
-            status: RegistrationStatus.PROGRESS,
-            message: `Pre-check: ${progress.message}`
-          });
-        },
-      }),
-    ]).then(([deterministicVrfKeyResult, nearKeyResult, canRegisterUserResult]) => {
-      if (!deterministicVrfKeyResult.success || !deterministicVrfKeyResult.vrfPublicKey) {
-        throw new Error('Failed to derive deterministic VRF keypair from PRF');
-      }
-      if (!nearKeyResult.success || !nearKeyResult.publicKey) {
-        const reason = nearKeyResult?.error || 'Failed to generate NEAR keypair with PRF';
-        throw new Error(reason);
-      }
-      if (!canRegisterUserResult.verified) {
-        console.error(canRegisterUserResult);
-        const errorMessage = canRegisterUserResult.error || 'User verification failed - account may already exist or contract is unreachable';
-        throw new Error(`Web3Authn contract registration check failed: ${errorMessage}`);
-      }
-      return {
-        deterministicVrfKeyResult,
-        nearKeyResult,
-        canRegisterUserResult
-      };
+    // Start the contract pre-check, run it in parallel to key derivation (await later)
+    const canRegisterUserPromise = webAuthnManager.checkCanRegisterUser({
+      contractId: context.configs.contractId,
+      credential,
+      vrfChallenge,
+      onEvent: (progress) => {
+        console.debug(`Registration progress: ${progress.step} - ${progress.message}`);
+        onEvent?.({
+          step: 3,
+          phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK,
+          status: RegistrationStatus.PROGRESS,
+          message: `Pre-check: ${progress.message}`
+        });
+      },
     });
+
+    // 1) Ensure VRF keypair is derived and loaded in-memory
+    // before deriving WrapKeySeed for NEAR key encryption
+    const deterministicVrfKeyResult = await webAuthnManager.deriveVrfKeypair({
+      credential,
+      nearAccountId,
+      saveInMemory: true,
+    });
+    if (!deterministicVrfKeyResult.success || !deterministicVrfKeyResult.vrfPublicKey) {
+      throw new Error('Failed to derive deterministic VRF keypair from PRF');
+    }
+
+    // 2) Derive NEAR key after VRF keypair exists
+    const nearKeyResult = await webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
+      credential,
+      nearAccountId,
+      options: { deviceNumber: 1 },
+    });
+    if (!nearKeyResult.success || !nearKeyResult.publicKey) {
+      const reason = nearKeyResult?.error || 'Failed to generate NEAR keypair with PRF';
+      throw new Error(reason);
+    }
+
+    // 3) Await contract registration check (main blocker)
+    const canRegisterUserResult = await canRegisterUserPromise;
+    if (!canRegisterUserResult.verified) {
+      console.error(canRegisterUserResult);
+      const errorMessage = canRegisterUserResult.error || 'User verification failed - account may already exist or contract is unreachable';
+      throw new Error(`Web3Authn contract registration check failed: ${errorMessage}`);
+    }
 
     // Step 4-5: Create account and register with contract using the relay (atomic)
     onEvent?.({
@@ -225,7 +212,6 @@ export async function registerPasskeyInternal(
       encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
       vrfPublicKey: deterministicVrfKeyResult.vrfPublicKey,
       serverEncryptedVrfKeypair: deterministicVrfKeyResult.serverEncryptedVrfKeypair,
-      wrapKeySalt: nearKeyResult.wrapKeySalt,
     });
 
     // Mark database as stored for rollback tracking
@@ -261,10 +247,10 @@ export async function registerPasskeyInternal(
         blockHeight: txBlockHeight,
       });
       const authenticators = await webAuthnManager.getAuthenticatorsByUser(nearAccountId);
-      const authCredential = await webAuthnManager.getAuthenticationCredentialsSerialized({
+      const authCredential = await webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
         nearAccountId,
         challenge: vrfChallenge2,
-        allowCredentials: authenticatorsToAllowCredentials(authenticators),
+        credentialIds: authenticators.map((a) => a.credentialId),
       });
       const unlockResult = await webAuthnManager.unlockVRFKeypair({
         nearAccountId: nearAccountId,
@@ -409,7 +395,7 @@ export async function generateBootstrapVrfChallenge(
  */
 const validateRegistrationInputs = async (
   context: {
-    configs: TatchiPasskeyConfigs,
+    configs: TatchiConfigs,
     webAuthnManager: WebAuthnManager,
     nearClient: NearClient,
   },

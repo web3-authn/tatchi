@@ -1,33 +1,41 @@
+pub mod handle_check_session_status;
+pub mod handle_clear_session;
+pub mod handle_confirm_and_prepare_signing_session;
+pub mod handle_decrypt_session;
 pub mod handle_derive_vrf_keypair_from_prf;
+pub mod handle_device2_registration_session;
+pub mod handle_dispense_session_key;
 pub mod handle_generate_vrf_challenge;
 pub mod handle_generate_vrf_keypair_bootstrap;
+pub mod handle_mint_session_keys_and_send_to_signer;
+pub mod handle_registration_credential_confirmation;
 pub mod handle_shamir3pass_client;
 pub mod handle_shamir3pass_config;
 pub mod handle_shamir3pass_server;
 pub mod handle_unlock_vrf_keypair;
-pub mod handle_derive_wrap_key_seed_and_session;
-pub mod handle_decrypt_session;
-pub mod handle_registration_credential_confirmation;
-pub mod handle_device2_registration_session;
 
+pub use handle_check_session_status::*;
+pub use handle_clear_session::*;
+pub use handle_confirm_and_prepare_signing_session::*;
+pub use handle_decrypt_session::*;
 pub use handle_derive_vrf_keypair_from_prf::*;
+pub use handle_device2_registration_session::*;
+pub use handle_dispense_session_key::*;
 pub use handle_generate_vrf_challenge::*;
 pub use handle_generate_vrf_keypair_bootstrap::*;
+pub use handle_mint_session_keys_and_send_to_signer::*;
+pub use handle_registration_credential_confirmation::*;
 pub use handle_shamir3pass_client::*;
 pub use handle_shamir3pass_config::*;
 pub use handle_shamir3pass_server::*;
 pub use handle_unlock_vrf_keypair::*;
-pub use handle_derive_wrap_key_seed_and_session::*;
-pub use handle_decrypt_session::*;
-pub use handle_registration_credential_confirmation::*;
-pub use handle_device2_registration_session::*;
 
 use crate::manager::VRFKeyManager;
 use crate::types::VrfWorkerResponse;
+use js_sys::Date;
+use serde::Serialize;
 use std::cell::RefCell;
 use std::rc::Rc;
-use serde::Serialize;
-use js_sys::Date;
 
 /// Handle PING message
 pub fn handle_ping(message_id: Option<String>) -> VrfWorkerResponse {
@@ -56,7 +64,7 @@ pub fn handle_check_vrf_status(
     VrfWorkerResponse::success_from(message_id, Some(status))
 }
 
-/// Handle LOGOUT message
+/// Handle CLEAR_VRF message
 pub fn handle_logout(
     manager: Rc<RefCell<VRFKeyManager>>,
     message_id: Option<String>,

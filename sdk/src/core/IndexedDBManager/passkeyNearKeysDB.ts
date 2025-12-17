@@ -11,11 +11,14 @@ export interface EncryptedKeyData {
   nearAccountId: string;
   deviceNumber: number; // 1-indexed device number
   encryptedData: string;
-  iv: string;
+  /**
+   * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for `encryptedData`.
+   */
+  chacha20NonceB64u: string;
   /**
    * HKDF salt used alongside WrapKeySeed for KEK derivation.
-   * Required for v2+ vaults; may be undefined only for legacy entries
-   * that predate VRF‑owned WrapKeySeed derivation.
+   * Required for v2+ vaults; entries missing `wrapKeySalt` are considered invalid
+   * and require re-registration to upgrade the vault format.
    */
   wrapKeySalt?: string;
   version?: number;
@@ -72,6 +75,9 @@ export class PasskeyNearKeysDBManager {
    */
   async storeEncryptedKey(data: EncryptedKeyData): Promise<void> {
     const db = await this.getDB();
+    if (!data.chacha20NonceB64u) {
+      throw new Error('PasskeyNearKeysDB: Missing chacha20NonceB64u');
+    }
     await db.put(this.config.storeName, data);
   }
 
@@ -80,11 +86,23 @@ export class PasskeyNearKeysDBManager {
    */
   async getEncryptedKey(nearAccountId: string, deviceNumber: number): Promise<EncryptedKeyData | null> {
     const db = await this.getDB();
+    const sanitize = (rec: any): EncryptedKeyData | null => {
+      if (!rec?.encryptedData || !rec?.chacha20NonceB64u) return null;
+      return {
+        nearAccountId: rec.nearAccountId,
+        deviceNumber: rec.deviceNumber,
+        encryptedData: rec.encryptedData,
+        chacha20NonceB64u: rec.chacha20NonceB64u,
+        wrapKeySalt: rec.wrapKeySalt,
+        version: rec.version,
+        timestamp: rec.timestamp,
+      };
+    };
+
     if (typeof deviceNumber === 'number') {
       const res = await db.get(this.config.storeName, [nearAccountId, deviceNumber]);
-      if (res?.encryptedData) {
-        return res;
-      }
+      const direct = sanitize(res);
+      if (direct) return direct;
       // Fallback: if specific device key missing, return the most recent key for the account
       if (nearAccountId !== '_init_check') {
         console.warn('PasskeyNearKeysDB: getEncryptedKey - No result for device', deviceNumber, '→ falling back to any key for account');
@@ -94,8 +112,8 @@ export class PasskeyNearKeysDBManager {
         const all = await idx.getAll(nearAccountId);
         if (Array.isArray(all) && all.length > 0) {
           // Choose the most recently stored entry by timestamp
-          const latest = (all as EncryptedKeyData[]).reduce((a, b) => (a.timestamp >= b.timestamp ? a : b));
-          return latest;
+          const latest = (all as any[]).reduce((a, b) => (a.timestamp >= b.timestamp ? a : b));
+          return sanitize(latest);
         }
       } catch {}
       return null;
@@ -106,8 +124,8 @@ export class PasskeyNearKeysDBManager {
       // Prefer all+latest even in generic path for consistency
       const all = await idx.getAll(nearAccountId);
       if (Array.isArray(all) && all.length > 0) {
-        const latest = (all as EncryptedKeyData[]).reduce((a, b) => (a.timestamp >= b.timestamp ? a : b));
-        return latest;
+        const latest = (all as any[]).reduce((a, b) => (a.timestamp >= b.timestamp ? a : b));
+        return sanitize(latest);
       }
     } catch {}
     return null;
@@ -147,7 +165,21 @@ export class PasskeyNearKeysDBManager {
    */
   async getAllEncryptedKeys(): Promise<EncryptedKeyData[]> {
     const db = await this.getDB();
-    return await db.getAll(this.config.storeName);
+    const all = await db.getAll(this.config.storeName);
+    return (all as any[])
+      .map((rec) => {
+        if (!rec?.encryptedData || !rec?.chacha20NonceB64u) return null;
+        return {
+          nearAccountId: rec.nearAccountId,
+          deviceNumber: rec.deviceNumber,
+          encryptedData: rec.encryptedData,
+          chacha20NonceB64u: rec.chacha20NonceB64u,
+          wrapKeySalt: rec.wrapKeySalt,
+          version: rec.version,
+          timestamp: rec.timestamp,
+        } as EncryptedKeyData;
+      })
+      .filter((rec): rec is EncryptedKeyData => rec !== null);
   }
 
   /**

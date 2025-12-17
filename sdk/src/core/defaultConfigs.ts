@@ -1,9 +1,9 @@
-import type { TatchiPasskeyConfigs } from './types/passkeyManager';
+import type { TatchiConfigs, TatchiConfigsInput } from './types/tatchi';
 
 // Default SDK configs suitable for local dev.
 // Cross-origin wallet isolation is recommended; set iframeWallet in your app config when you have a dedicated origin.
 // Consumers can shallow-merge overrides by field.
-export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiPasskeyConfigs = {
+export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
   // You can provide a single URL or a comma-separated list for failover.
   // First URL is treated as primary, subsequent URLs are fallbacks.
   // nearRpcUrl: 'https://rpc.testnet.near.org',
@@ -11,6 +11,12 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiPasskeyConfigs = {
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',
   nearExplorerUrl: 'https://testnet.nearblocks.io',
+  // Warm signing session defaults used by login/unlock flows.
+  // Enforcement (TTL/uses) is owned by the VRF worker; signer workers remain one-shot.
+  signingSessionDefaults: {
+    ttlMs: 5 * 60 * 1000, // 5 minutes
+    remainingUses: 3,
+  },
   relayer: {
     // accountId: 'w3a-v1.testnet',
     // No default relayer URL. Force apps to configure via env/overrides.
@@ -44,60 +50,90 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiPasskeyConfigs = {
       applyServerLockRoute: '/vrf/apply-server-lock',
       removeServerLockRoute: '/vrf/remove-server-lock',
     }
-  }
+  },
   // Configure iframeWallet in application code to point at your dedicated wallet origin when available.
-  // Example:
-  // iframeWallet: {
-  //   walletOrigin: 'https://wallet.example.localhost',
-  //   walletServicePath: '/wallet-service',
-  //   rpIdOverride: 'example.localhost',
-  // }
+  iframeWallet: {
+    walletOrigin: 'https://wallet.example.localhost',
+    walletServicePath: '/wallet-service',
+    sdkBasePath: '/sdk',
+    rpIdOverride: 'example.localhost',
+  }
 };
 
-// Minimal builder: merge defaults with overrides
-export function buildConfigsFromEnv(overrides: Partial<TatchiPasskeyConfigs> = {}): TatchiPasskeyConfigs {
-  const shamir3passDefaults = PASSKEY_MANAGER_DEFAULT_CONFIGS?.vrfWorkerConfigs?.shamir3pass;
+// Merge defaults with overrides
+export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiConfigs {
+
+  const defaults = PASSKEY_MANAGER_DEFAULT_CONFIGS;
+  const relayerUrl = overrides.relayer?.url ?? defaults.relayer?.url ?? '';
   // Prefer explicit override for relayer URL; fall back to default preset.
   // Used below to default VRF relayServerUrl when it is undefined.
-  const overrideRelayerUrl = overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url;
+  const relayServerUrlDefault = relayerUrl;
 
-  const merged: TatchiPasskeyConfigs = {
-    ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
-    ...overrides,
-    contractId: overrides.contractId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
-    relayer: {
-      // accountId: overrides.relayer?.accountId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.accountId,
-      url: overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url,
-      delegateActionRoute: overrides.relayer?.delegateActionRoute
-        ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.delegateActionRoute,
-      emailRecovery: overrides.relayer?.emailRecovery ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.emailRecovery,
+  const merged: TatchiConfigs = {
+    nearRpcUrl: overrides.nearRpcUrl ?? defaults.nearRpcUrl,
+    nearNetwork: overrides.nearNetwork ?? defaults.nearNetwork,
+    contractId: overrides.contractId ?? defaults.contractId,
+    nearExplorerUrl: overrides.nearExplorerUrl ?? defaults.nearExplorerUrl,
+    walletTheme: overrides.walletTheme ?? defaults.walletTheme,
+    signingSessionDefaults: {
+      ttlMs: overrides.signingSessionDefaults?.ttlMs
+        ?? defaults.signingSessionDefaults?.ttlMs,
+      remainingUses: overrides.signingSessionDefaults?.remainingUses
+        ?? defaults.signingSessionDefaults?.remainingUses,
     },
+    relayer: {
+      url: relayerUrl,
+      delegateActionRoute: overrides.relayer?.delegateActionRoute
+        ?? defaults.relayer?.delegateActionRoute,
+      emailRecovery: {
+        minBalanceYocto: overrides.relayer?.emailRecovery?.minBalanceYocto
+          ?? defaults.relayer?.emailRecovery?.minBalanceYocto,
+        pollingIntervalMs: overrides.relayer?.emailRecovery?.pollingIntervalMs
+          ?? defaults.relayer?.emailRecovery?.pollingIntervalMs,
+        maxPollingDurationMs: overrides.relayer?.emailRecovery?.maxPollingDurationMs
+          ?? defaults.relayer?.emailRecovery?.maxPollingDurationMs,
+        pendingTtlMs: overrides.relayer?.emailRecovery?.pendingTtlMs
+          ?? defaults.relayer?.emailRecovery?.pendingTtlMs,
+        mailtoAddress: overrides.relayer?.emailRecovery?.mailtoAddress
+          ?? defaults.relayer?.emailRecovery?.mailtoAddress,
+        dkimVerifierAccountId: overrides.relayer?.emailRecovery?.dkimVerifierAccountId
+          ?? defaults.relayer?.emailRecovery?.dkimVerifierAccountId,
+        verificationViewMethod: overrides.relayer?.emailRecovery?.verificationViewMethod
+          ?? defaults.relayer?.emailRecovery?.verificationViewMethod,
+      },
+    },
+    authenticatorOptions: overrides.authenticatorOptions ?? defaults.authenticatorOptions,
     vrfWorkerConfigs: {
       shamir3pass: {
         p: overrides.vrfWorkerConfigs?.shamir3pass?.p
-          ?? shamir3passDefaults?.p,
-        removeServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute
-          ?? shamir3passDefaults?.removeServerLockRoute,
-        applyServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute
-          ?? shamir3passDefaults?.applyServerLockRoute,
-        // Default VRF relayServerUrl to relayer.url when undefined
+          ?? defaults.vrfWorkerConfigs?.shamir3pass?.p,
         relayServerUrl: overrides.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
-          ?? overrideRelayerUrl
-      }
+          ?? defaults.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
+          ?? relayServerUrlDefault,
+        applyServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute
+          ?? defaults.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
+        removeServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute
+          ?? defaults.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
+      },
     },
-    ...(overrides.iframeWallet ? { iframeWallet: overrides.iframeWallet } : {}),
-  } as TatchiPasskeyConfigs;
-
-  // Normalize iframeWallet defaults when iframe mode is configured
-  if (merged.iframeWallet) {
-    // Default wallet service route and SDK base path if unspecified
-    merged.iframeWallet.walletServicePath = merged.iframeWallet.walletServicePath ?? '/wallet-service';
-    merged.iframeWallet.sdkBasePath = merged.iframeWallet.sdkBasePath ?? '/sdk';
+    iframeWallet: {
+      walletOrigin: overrides.iframeWallet?.walletOrigin
+        ?? defaults.iframeWallet?.walletOrigin,
+      walletServicePath: overrides.iframeWallet?.walletServicePath
+        ?? defaults.iframeWallet?.walletServicePath
+        ?? '/wallet-service',
+      sdkBasePath: overrides.iframeWallet?.sdkBasePath
+        ?? defaults.iframeWallet?.sdkBasePath
+        ?? '/sdk',
+      rpIdOverride: overrides.iframeWallet?.rpIdOverride
+        ?? defaults.iframeWallet?.rpIdOverride,
+    }
+  };
+  if (!merged.contractId) {
+    throw new Error('[configPresets] Missing required config: contractId');
   }
-
-  if (!merged.relayer?.url) {
-    throw new Error('[configPresets] Missing relayer config: relayer.url');
+  if (!merged.relayer.url) {
+    throw new Error('[configPresets] Missing required config: relayer.url');
   }
-
   return merged;
 }

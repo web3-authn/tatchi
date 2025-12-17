@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
-use serde_wasm_bindgen;
 
 pub mod http;
 pub mod worker_messages;
@@ -20,7 +20,7 @@ pub struct VRFKeypairData {
 }
 
 #[wasm_bindgen]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EncryptedVRFKeypair {
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedVrfDataB64u")]
     #[serde(rename = "encryptedVrfDataB64u")]
@@ -107,9 +107,6 @@ pub struct WorkerConfirmationResponse {
     pub confirmed: bool,
     #[serde(default = "js_undefined", with = "serde_wasm_bindgen::preserve")]
     pub credential: JsValue,
-    pub prf_output: Option<String>,
-    pub wrap_key_seed: Option<String>,
-    pub wrap_key_salt: Option<String>,
     #[serde(default = "js_undefined", with = "serde_wasm_bindgen::preserve")]
     pub vrf_challenge: JsValue,
     #[serde(default = "js_undefined", with = "serde_wasm_bindgen::preserve")]

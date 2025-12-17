@@ -37,20 +37,7 @@ In Cloudflare Workers:
 
 **2. Module Isolation in Cloudflare Workers Bundler**
 
-Initial attempts to fix this using a global override pattern failed due to module isolation:
-
-```typescript
-// This approach didn't work:
-import shamirWasmModule from './wasm_vrf_worker_bg.wasm';
-configureCloudflareShamirWasm(shamirWasmModule);  // Module-level call
-
-// Later, when shamirWorker.ts initializes:
-function ensureWasmInitialized() {
-    if (wasmModuleOverride) {  // ❌ This was null!
-        // ...
-    }
-}
-```
+Initial attempts to fix this using a global override pattern failed due to module isolation
 
 Cloudflare's bundler creates separate module instances, so the override set in one instance wasn't visible in another.
 

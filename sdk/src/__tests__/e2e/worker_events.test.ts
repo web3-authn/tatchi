@@ -55,7 +55,7 @@ test.describe('Worker Communication Protocol', () => {
         }
 
         // Login to activate session
-        const loginResult = await passkeyManager.loginPasskey(testAccountId, {
+        const loginResult = await passkeyManager.loginAndCreateSession(testAccountId, {
           onEvent: (event: any) => {
             console.log(`Login [${event.step}]: ${event.phase} - ${event.message}`);
           }
@@ -231,7 +231,7 @@ test.describe('Worker Communication Protocol', () => {
 
         const capturedEvents: Array<{ phase: string; status: string; message: string }> = [];
 
-        const loginResult = await passkeyManager.loginPasskey(testAccountId, {
+        const loginResult = await passkeyManager.loginAndCreateSession(testAccountId, {
           onEvent: (event: any) => {
             capturedEvents.push({
               phase: event?.phase ?? '',
@@ -305,7 +305,7 @@ test.describe('Worker Communication Protocol', () => {
           throw new Error(`Registration failed unexpectedly: ${registrationResult?.error}`);
         }
 
-        const loginResult = await utils.passkeyManager.loginPasskey(testAccountId, {
+        const loginResult = await utils.passkeyManager.loginAndCreateSession(testAccountId, {
           onEvent: (event: any) => {
             loginEvents.push({
               phase: event?.phase ?? '',
@@ -378,7 +378,7 @@ test.describe('Worker Communication Protocol', () => {
           }, cfg2);
 
           // Test login flow (should generate various progress messages)
-          await passkeyManager.loginPasskey(testAccountId, {
+          await passkeyManager.loginAndCreateSession(testAccountId, {
             onEvent: (event: any) => {
               progressEvents.push(event);
               messageTypes.add(`${event.phase}:${event.status}`);

@@ -1,7 +1,7 @@
 
 export function withSessionId<T>(
+  sessionId: string,
   payload: T,
-  sessionId: string
 ): T & { sessionId: string } {
 
   if (!sessionId) {

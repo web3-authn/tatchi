@@ -42,17 +42,11 @@ export interface ClientUserData {
   preferences?: UserPreferences;
 }
 
-// TODO: fix typings
 export type StoreUserDataInput = Omit<ClientUserData, 'deviceNumber' | 'lastLogin' | 'registeredAt'>
   & {
     deviceNumber?: number;
     serverEncryptedVrfKeypair?: ClientUserData['serverEncryptedVrfKeypair'];
     version?: number;
-    /**
-     * @deprecated See ClientUserData.wrapKeySalt. New registrations should
-     * rely on PasskeyNearKeysDB.EncryptedKeyData.wrapKeySalt instead.
-     */
-    wrapKeySalt?: string;
   };
 
 export interface UserPreferences {
@@ -604,7 +598,6 @@ export class PasskeyClientDBManager {
     clientNearPublicKey: string;
     lastUpdated?: number;
     version?: number;
-    wrapKeySalt?: string;
     passkeyCredential: {
       id: string;
       rawId: string;
@@ -640,7 +633,6 @@ export class PasskeyClientDBManager {
         passkeyCredential: userData.passkeyCredential,
         encryptedVrfKeypair: userData.encryptedVrfKeypair,
         version: userData.version || 2,
-        wrapKeySalt: userData.wrapKeySalt,
         serverEncryptedVrfKeypair: userData.serverEncryptedVrfKeypair,
       });
     }

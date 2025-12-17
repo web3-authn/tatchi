@@ -4,28 +4,34 @@ import {
   SecureConfirmationType,
   TransactionSummary,
   SigningSecureConfirmRequest,
+  SigningAuthMode,
 } from '../types';
 import { VRFChallenge, TransactionContext } from '../../../../types';
 import {
-  renderConfirmUI,
-  fetchNearContext,
-  maybeRefreshVrfChallenge,
   getNearAccountId,
   getIntentDigest,
   getTxCount,
-  sendConfirmResponse,
-  closeModalSafely,
   isUserCancelledSecureConfirm,
-  releaseReservedNonces,
   ERROR_MESSAGES,
   getSignTransactionPayload,
-} from './common';
-import { serializeAuthenticationCredentialWithPRF, extractPrfFromCredential } from '../../../credentialsHelpers';
+} from './index';
 import { toAccountId } from '../../../../types/accountIds';
 import { getLastLoggedInDeviceNumber } from '../../../SignerWorkerManager/getDeviceNumber';
-import { authenticatorsToAllowCredentials } from '../../../touchIdPrompt';
 import { toError } from '../../../../../utils/errors';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../../defaultConfigs';
+import { createConfirmSession } from '../adapters/session';
+import { createConfirmTxFlowAdapters } from '../adapters/createAdapters';
+
+function getSigningAuthMode(request: SigningSecureConfirmRequest): SigningAuthMode {
+  if (request.type === SecureConfirmationType.SIGN_TRANSACTION) {
+    return getSignTransactionPayload(request).signingAuthMode ?? 'webauthn';
+  }
+  if (request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE) {
+    const p = request.payload as any;
+    return (p?.signingAuthMode as SigningAuthMode | undefined) ?? 'webauthn';
+  }
+  return 'webauthn';
+}
 
 export async function handleTransactionSigningFlow(
   ctx: VrfWorkerManagerContext,
@@ -34,47 +40,65 @@ export async function handleTransactionSigningFlow(
   opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
 ): Promise<void> {
   const { confirmationConfig, transactionSummary } = opts;
+  const adapters = createConfirmTxFlowAdapters(ctx);
+  const session = createConfirmSession({
+    adapters,
+    worker,
+    request,
+    confirmationConfig,
+    transactionSummary,
+  });
   const nearAccountId = getNearAccountId(request);
+  const signingAuthMode = getSigningAuthMode(request);
+  const usesNeeded = getTxCount(request);
 
   // 1) NEAR context + nonce reservation
-  const nearRpc = await fetchNearContext(ctx, { nearAccountId, txCount: getTxCount(request) });
+  const nearRpc = await adapters.near.fetchNearContext({ nearAccountId, txCount: usesNeeded, reserveNonces: true });
   if (nearRpc.error && !nearRpc.transactionContext) {
     // eslint-disable-next-line no-console
     console.error('[SigningFlow] fetchNearContext failed', { error: nearRpc.error, details: nearRpc.details });
-    return sendConfirmResponse(worker, {
+    return session.confirmAndCloseModal({
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
       error: `${ERROR_MESSAGES.nearRpcFailed}: ${nearRpc.details}`,
     });
   }
+  session.setReservedNonces(nearRpc.reservedNonces);
   let transactionContext = nearRpc.transactionContext as TransactionContext;
 
-  // 2) Initial VRF challenge
-  if (!ctx.vrfWorkerManager) throw new Error('VrfWorkerManager not available');
-  const rpId = ctx.touchIdPrompt.getRpId();
-  let uiVrfChallenge: VRFChallenge = await ctx.vrfWorkerManager.generateVrfChallengeForSession(
-    {
-      userId: nearAccountId,
-      rpId,
-      blockHeight: transactionContext.txBlockHeight,
-      blockHash: transactionContext.txBlockHash,
-    },
-    request.requestId,
-  );
+  // 2) Security context shown in the confirmer (rpId + block height).
+  // For warmSession signing we still want to show this context even though
+  // we won't collect a WebAuthn credential.
+  const rpId = adapters.vrf.getRpId();
+  let uiVrfChallenge: VRFChallenge | undefined;
+  let uiVrfChallengeForUi: Partial<VRFChallenge> | undefined = rpId
+    ? {
+        userId: nearAccountId,
+        rpId,
+        blockHeight: transactionContext.txBlockHeight,
+        blockHash: transactionContext.txBlockHash,
+      }
+    : undefined;
+
+  // Initial VRF challenge (only needed for WebAuthn credential collection)
+  if (signingAuthMode === 'webauthn') {
+    uiVrfChallenge = await adapters.vrf.generateVrfChallengeForSession(
+      {
+        userId: nearAccountId,
+        rpId,
+        blockHeight: transactionContext.txBlockHeight,
+        blockHash: transactionContext.txBlockHash,
+      },
+      request.requestId,
+    );
+    uiVrfChallengeForUi = uiVrfChallenge;
+  }
 
   // 3) UI confirm
-  const { confirmed, confirmHandle, error: uiError } = await renderConfirmUI({
-    ctx,
-    request,
-    confirmationConfig,
-    transactionSummary,
-    vrfChallenge: uiVrfChallenge,
-  });
+  const { confirmed, error: uiError } = await session.promptUser({ vrfChallenge: uiVrfChallengeForUi });
   if (!confirmed) {
-    releaseReservedNonces(ctx, nearRpc.reservedNonces);
-    closeModalSafely(false, confirmHandle);
-    return sendConfirmResponse(worker, {
+    return session.confirmAndCloseModal({
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
@@ -82,62 +106,66 @@ export async function handleTransactionSigningFlow(
     });
   }
 
-  // 4) JIT refresh VRF + ctx (best-effort)
+  // 4) Warm session: dispense WrapKeySeed and skip WebAuthn
+  if (signingAuthMode === 'warmSession') {
+    try {
+      await adapters.vrf.dispenseSessionKey({ sessionId: request.requestId, uses: usesNeeded });
+    } catch (err: unknown) {
+      const msg = String((toError(err))?.message || err || '');
+      return session.confirmAndCloseModal({
+        requestId: request.requestId,
+        intentDigest: getIntentDigest(request),
+        confirmed: false,
+        error: msg || 'Failed to dispense warm session key',
+      });
+    }
+
+    session.confirmAndCloseModal({
+      requestId: request.requestId,
+      intentDigest: getIntentDigest(request),
+      confirmed: true,
+      transactionContext,
+    });
+    return;
+  }
+
+  // 5) JIT refresh VRF + ctx (best-effort)
   try {
-    const refreshed = await maybeRefreshVrfChallenge(ctx, request, nearAccountId);
+    const refreshed = await adapters.vrf.maybeRefreshVrfChallenge(request, nearAccountId);
     uiVrfChallenge = refreshed.vrfChallenge;
     transactionContext = refreshed.transactionContext;
-    confirmHandle?.update?.({ vrfChallenge: uiVrfChallenge });
+    session.updateUI({ vrfChallenge: uiVrfChallenge });
   } catch (e) {
     console.debug('[SigningFlow] VRF JIT refresh skipped', e);
   }
 
-  // 5) Collect authentication credential
+  // 6) Collect authentication credential
   try {
-    const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
-    const { authenticatorsForPrompt } = await ctx.indexedDB.clientDB.ensureCurrentPasskey(
-      toAccountId(nearAccountId),
-      authenticators,
-    );
-    console.debug('[SigningFlow] Authenticators for transaction signing', {
-      nearAccountId,
-      authenticatorCount: authenticatorsForPrompt.length,
-      authenticators: authenticatorsForPrompt.map(a => ({
-        deviceNumber: a.deviceNumber,
-        vrfPublicKey: a.vrfPublicKey,
-        credentialId: a.credentialId,
-      })),
-      vrfChallengePublicKey: uiVrfChallenge.vrfPublicKey,
-    });
-
-    const credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
-      nearAccountId,
-      challenge: uiVrfChallenge,
-      allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
-    });
-
-    // Validate that the chosen credential matches the current device, if applicable.
-    const { wrongPasskeyError } = await ctx.indexedDB.clientDB.ensureCurrentPasskey(
-      toAccountId(nearAccountId),
-      authenticators,
-      (credential as any)?.rawId,
-    );
-    if (wrongPasskeyError) {
-      throw new Error(wrongPasskeyError);
+    if (!uiVrfChallenge) {
+      throw new Error('Missing vrfChallenge for WebAuthn signing flow');
     }
-
-    const dualPrfOutputs = extractPrfFromCredential({
-      credential,
-      firstPrfOutput: true,
-      secondPrfOutput: false  // PRF.second not needed for normal transaction signing (only registration/linking)
+    const serializedCredential = await adapters.webauthn.collectAuthenticationCredentialWithPRF({
+      nearAccountId,
+      vrfChallenge: uiVrfChallenge,
+      onBeforePrompt: ({ authenticatorsForPrompt, vrfChallenge }) => {
+        console.debug('[SigningFlow] Authenticators for transaction signing', {
+          nearAccountId,
+          authenticatorCount: authenticatorsForPrompt.length,
+          authenticators: authenticatorsForPrompt.map(a => ({
+            deviceNumber: a.deviceNumber,
+            vrfPublicKey: a.vrfPublicKey,
+            credentialId: a.credentialId,
+          })),
+          vrfChallengePublicKey: vrfChallenge.vrfPublicKey,
+        });
+      },
     });
-    const serialized = serializeAuthenticationCredentialWithPRF({ credential });
 
     // 5c) Derive WrapKeySeed inside the VRF worker and deliver it to the signer worker via
     // the reserved WrapKeySeed MessagePort. Main thread only sees wrapKeySalt metadata.
     try {
       // Ensure VRF session is active and bound to the same account we are signing for.
-      const vrfStatus = await ctx.vrfWorkerManager.checkVrfStatus();
+      const vrfStatus = await adapters.vrf.checkVrfStatus();
       if (!vrfStatus.active) {
         throw new Error('VRF keypair not active in memory. VRF session may have expired or was not properly initialized. Please refresh and try again.');
       }
@@ -147,19 +175,15 @@ export async function handleTransactionSigningFlow(
 
       const deviceNumber = await getLastLoggedInDeviceNumber(toAccountId(nearAccountId), ctx.indexedDB.clientDB);
       const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
-      // For v2+ vaults, wrapKeySalt is the canonical salt. iv fallback is retained
-      // only for legacy entries that predate VRF‑owned WrapKeySeed derivation.
-      const wrapKeySalt = encryptedKeyData?.wrapKeySalt || encryptedKeyData?.iv || '';
+      // For v2+ vaults, wrapKeySalt is the canonical salt.
+      const wrapKeySalt = encryptedKeyData?.wrapKeySalt || '';
       if (!wrapKeySalt) {
         throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
-      }
-      if (!ctx.vrfWorkerManager) {
-        throw new Error('VrfWorkerManager not available for WrapKeySeed derivation');
       }
 
       // Extract contract verification context when available.
       // - SIGN_TRANSACTION: use per-request rpcCall (already normalized by caller).
-      // - SIGN_NEP413_MESSAGE: use default contract/rpc from PASSKEY_MANAGER_DEFAULT_CONFIGS.
+      // - SIGN_NEP413_MESSAGE: allow per-request override; fall back to PASSKEY_MANAGER_DEFAULT_CONFIGS.
       let contractId: string | undefined;
       let nearRpcUrl: string | undefined;
       if (request.type === SecureConfirmationType.SIGN_TRANSACTION) {
@@ -167,36 +191,37 @@ export async function handleTransactionSigningFlow(
         contractId = payload?.rpcCall?.contractId;
         nearRpcUrl = payload?.rpcCall?.nearRpcUrl;
       } else if (request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE) {
-        contractId = PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId;
-        const defaultRpc = PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl;
-        nearRpcUrl = defaultRpc.split(',')[0] || defaultRpc;
+        const payload = request.payload as any;
+        contractId = payload?.contractId
+          || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId;
+        nearRpcUrl = payload?.nearRpcUrl
+          || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl;
       }
-      await ctx.vrfWorkerManager.deriveWrapKeySeedAndSendToSigner({
+
+      await adapters.vrf.mintSessionKeysAndSendToSigner({
         sessionId: request.requestId,
-        prfFirstAuthB64u: dualPrfOutputs.chacha20PrfOutput,
         wrapKeySalt,
         contractId,
         nearRpcUrl,
-        credential: serialized,
+        credential: serializedCredential,
       });
+
     } catch (err) {
       console.error('[SigningFlow] WrapKeySeed derivation failed:', err);
       throw err; // Don't silently ignore - propagate the error
     }
 
-  // 6) Respond; keep nonces reserved for worker to use
-  const response = {
-    requestId: request.requestId,
-    intentDigest: getIntentDigest(request),
-    confirmed: true,
-    credential: serialized,
-    // prfOutput intentionally omitted to keep signer PRF-free
-    // WrapKeySeed travels only over the dedicated VRF→Signer MessagePort; do not echo in the main-thread envelope
-    vrfChallenge: uiVrfChallenge,
-    transactionContext,
-  };
-  sendConfirmResponse(worker, response);
-    closeModalSafely(true, confirmHandle);
+    // 6) Respond; keep nonces reserved for worker to use
+    session.confirmAndCloseModal({
+      requestId: request.requestId,
+      intentDigest: getIntentDigest(request),
+      confirmed: true,
+      credential: serializedCredential,
+      // prfOutput intentionally omitted to keep signer PRF-free
+      // WrapKeySeed travels only over the dedicated VRF→Signer MessagePort; do not echo in the main-thread envelope
+      vrfChallenge: uiVrfChallenge,
+      transactionContext,
+    });
   } catch (err: unknown) {
     // Treat TouchID/FaceID cancellation and related errors as a negative decision
     const cancelled = isUserCancelledSecureConfirm(err);
@@ -204,19 +229,13 @@ export async function handleTransactionSigningFlow(
     const msg = String((toError(err))?.message || err || '');
     if (/Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg)) {
       // Ensure UI is closed and nonces released, then rethrow
-      releaseReservedNonces(ctx, nearRpc.reservedNonces);
-      closeModalSafely(false, confirmHandle);
-      throw err;
+      return session.cleanupAndRethrow(err);
     }
     if (cancelled) {
       window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
     }
-    // Release any reserved nonces on failure
-    releaseReservedNonces(ctx, nearRpc.reservedNonces);
-    // Close the UI to avoid stale element flashing on next open
-    closeModalSafely(false, confirmHandle);
     const isWrongPasskeyError = /multiple passkeys \(devicenumbers\) for account/i.test(msg);
-    return sendConfirmResponse(worker, {
+    return session.confirmAndCloseModal({
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,

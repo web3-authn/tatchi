@@ -49,7 +49,7 @@ onMounted(async () => {
     iframeReady.value = !!pm.getWalletIframeClient()?.isReady()
   } catch (e) { console.warn('[vue] iframe init warn:', e) }
   try {
-    const st = await pm.getLoginState()
+    const { login: st } = await pm.getLoginSession()
     isLoggedIn.value = !!st.vrfActive
     currentAccount.value = st.nearAccountId || null
     loginDetails.value = st as any
@@ -78,7 +78,7 @@ async function register() {
     })
     if (res?.success) {
       notifyToast('Registered successfully', 'success')
-      const st = await pm.getLoginState(fullId)
+      const { login: st } = await pm.getLoginSession(fullId)
       isLoggedIn.value = !!st.vrfActive
       currentAccount.value = fullId
       loginDetails.value = st as any
@@ -99,13 +99,13 @@ async function login() {
   waiting.value = true
   notifyToast('Starting login…')
   try {
-    const res = await pm.loginPasskey(fullId, {
+    const res = await pm.loginAndCreateSession(fullId, {
       onEvent: (ev) => { notifyToast(`${ev.phase ?? ev.step}: ${ev.message}`) },
       onError: (err) => { notifyToast(err.message || String(err), 'error') },
     })
     if (res?.success) {
       notifyToast('Logged in successfully', 'success')
-      const st = await pm.getLoginState(fullId)
+      const { login: st } = await pm.getLoginSession(fullId)
       isLoggedIn.value = !!st.vrfActive
       currentAccount.value = fullId
       loginDetails.value = st as any

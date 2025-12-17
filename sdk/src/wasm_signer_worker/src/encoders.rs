@@ -45,8 +45,8 @@ pub fn base64_standard_decode(input: &str) -> Result<Vec<u8>, String> {
 
 /// Encode DelegateAction with the NEP-461 prefix, mirroring @near-js/transactions encodeDelegateAction.
 pub fn encode_delegate_action(delegate: &DelegateAction) -> Result<Vec<u8>, String> {
-    let mut encoded =
-        borsh::to_vec(&DELEGATE_ACTION_PREFIX).map_err(|e| format!("Prefix encode error: {}", e))?;
+    let mut encoded = borsh::to_vec(&DELEGATE_ACTION_PREFIX)
+        .map_err(|e| format!("Prefix encode error: {}", e))?;
     let mut delegate_bytes =
         borsh::to_vec(delegate).map_err(|e| format!("Delegate encode error: {}", e))?;
     encoded.append(&mut delegate_bytes);

@@ -13,21 +13,22 @@ import type { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import { OFFLINE_EXPORT_FALLBACK, EXPORT_NEAR_KEYPAIR_CANCELLED, WALLET_UI_CLOSED } from '../../OfflineExport/messages';
 import { isTouchIdCancellationError } from '../../../utils/errors';
 import type {
-  RegistrationHooksOptions,
-  RegistrationResult,
-  LoginHooksOptions,
-  ActionHooksOptions,
-  SignAndSendTransactionHooksOptions,
-  SendTransactionHooksOptions,
-  SignNEP413HooksOptions,
   AccountRecoveryHooksOptions,
-  LoginResult,
-  LoginState,
-  SignTransactionResult,
+  ActionHooksOptions,
+  LoginHooksOptions,
+  RegistrationHooksOptions,
+  SendTransactionHooksOptions,
+  SignAndSendTransactionHooksOptions,
+  SignNEP413HooksOptions,
+  SignTransactionHooksOptions,
+} from '../../types/sdkSentEvents';
+import type {
   ActionResult,
   GetRecentLoginsResult,
-  SignTransactionHooksOptions,
-} from '../../types/passkeyManager';
+  LoginSession,
+  RegistrationResult,
+  SignTransactionResult,
+} from '../../types/tatchi';
 import type {
   DeviceLinkingQRData,
   ScanAndLinkDeviceOptionsDevice1,
@@ -67,7 +68,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const pm = getTatchiPasskey();
       const { nearAccountId, options } = req.payload!;
       if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.loginPasskey(nearAccountId, {
+      const result = await pm.loginAndCreateSession(nearAccountId, {
         ...options,
         onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
       } as LoginHooksOptions);
@@ -77,14 +78,14 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
 
     PM_LOGOUT: async (req: Req<'PM_LOGOUT'>) => {
       const pm = getTatchiPasskey();
-      await pm.logoutAndClearVrfSession();
+      await pm.logoutAndClearSession();
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
-    PM_GET_LOGIN_STATE: async (req: Req<'PM_GET_LOGIN_STATE'>) => {
+    PM_GET_LOGIN_SESSION: async (req: Req<'PM_GET_LOGIN_SESSION'>) => {
       const pm = getTatchiPasskey();
-      const state = await pm.getLoginState(req.payload?.nearAccountId);
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result: state } });
+      const result: LoginSession = await pm.getLoginSession(req.payload?.nearAccountId);
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
     PM_REGISTER: async (req: Req<'PM_REGISTER'>) => {
@@ -287,9 +288,9 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const incoming = (req.payload?.config || {}) as Record<string, unknown>;
       let patch: Record<string, unknown> = { ...incoming };
       if (nearAccountId) {
-        await pm.getLoginState(nearAccountId)
-          .then((loginState) => {
-            const existing = (loginState?.userData?.preferences?.confirmationConfig || {}) as Record<string, unknown>;
+        await pm.getLoginSession(nearAccountId)
+          .then(({ login }) => {
+            const existing = (login?.userData?.preferences?.confirmationConfig || {}) as Record<string, unknown>;
             patch = { ...existing, ...incoming };
           })
           .catch(() => undefined);

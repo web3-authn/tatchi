@@ -1,9 +1,9 @@
 // === WORKER MESSAGES: REQUEST & RESPONSE TYPES ===
 
+use js_sys::Reflect;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
-use js_sys::Reflect;
 
 // === PAYLOAD & ENVELOPE HELPERS ===
 
@@ -14,12 +14,8 @@ pub fn parse_typed_payload<T: DeserializeOwned>(
     payload: Option<JsValue>,
     request_type: WorkerRequestType,
 ) -> Result<T, JsValue> {
-    let payload_js = payload.ok_or_else(|| {
-        JsValue::from_str(&format!(
-            "{}: Missing payload",
-            request_type.name()
-        ))
-    })?;
+    let payload_js = payload
+        .ok_or_else(|| JsValue::from_str(&format!("{}: Missing payload", request_type.name())))?;
 
     serde_wasm_bindgen::from_value(payload_js).map_err(|e| {
         JsValue::from_str(&format!(
@@ -39,17 +35,12 @@ pub struct VrfWorkerMessage {
     pub payload: Option<JsValue>,
 }
 
-pub fn parse_worker_request_envelope(
-    message_val: JsValue,
-) -> Result<VrfWorkerMessage, JsValue> {
+pub fn parse_worker_request_envelope(message_val: JsValue) -> Result<VrfWorkerMessage, JsValue> {
     // Support both Object (Browser) and JSON String (Node.js/Server) inputs.
     let message_obj = if message_val.is_string() {
         let json_str = message_val.as_string().unwrap_or_default();
         js_sys::JSON::parse(&json_str).map_err(|e| {
-            JsValue::from_str(&format!(
-                "Failed to parse JSON string input: {:?}",
-                e
-            ))
+            JsValue::from_str(&format!("Failed to parse JSON string input: {:?}", e))
         })?
     } else {
         message_val
@@ -99,7 +90,7 @@ pub enum WorkerRequestType {
     GenerateVrfKeypairBootstrap,
     UnlockVrfKeypair,
     CheckVrfStatus,
-    Logout,
+    ClearVrf,
     DeriveVrfKeypairFromPrf,
     Shamir3PassClientEncryptCurrentVrfKeypair,
     Shamir3PassClientDecryptVrfKeypair,
@@ -108,10 +99,14 @@ pub enum WorkerRequestType {
     Shamir3PassRemoveServerLock,
     Shamir3PassConfigP,
     Shamir3PassConfigServerUrls,
-    DeriveWrapKeySeedAndSession,
+    MintSessionKeysAndSendToSigner,
     DecryptSession,
     RegistrationCredentialConfirmation,
     Device2RegistrationSession,
+    DispenseSessionKey,
+    CheckSessionStatus,
+    ClearSession,
+    ConfirmAndPrepareSigningSession,
 }
 
 impl WorkerRequestType {
@@ -119,10 +114,12 @@ impl WorkerRequestType {
         match value {
             "PING" => Some(WorkerRequestType::Ping),
             "GENERATE_VRF_CHALLENGE" => Some(WorkerRequestType::GenerateVrfChallenge),
-            "GENERATE_VRF_KEYPAIR_BOOTSTRAP" => Some(WorkerRequestType::GenerateVrfKeypairBootstrap),
+            "GENERATE_VRF_KEYPAIR_BOOTSTRAP" => {
+                Some(WorkerRequestType::GenerateVrfKeypairBootstrap)
+            }
             "UNLOCK_VRF_KEYPAIR" => Some(WorkerRequestType::UnlockVrfKeypair),
             "CHECK_VRF_STATUS" => Some(WorkerRequestType::CheckVrfStatus),
-            "LOGOUT" => Some(WorkerRequestType::Logout),
+            "CLEAR_VRF" => Some(WorkerRequestType::ClearVrf),
             "DERIVE_VRF_KEYPAIR_FROM_PRF" => Some(WorkerRequestType::DeriveVrfKeypairFromPrf),
             "SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR" => {
                 Some(WorkerRequestType::Shamir3PassClientEncryptCurrentVrfKeypair)
@@ -133,16 +130,30 @@ impl WorkerRequestType {
             "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR" => {
                 Some(WorkerRequestType::Shamir3PassGenerateServerKeypair)
             }
-            "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK" => Some(WorkerRequestType::Shamir3PassApplyServerLock),
-            "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK" => Some(WorkerRequestType::Shamir3PassRemoveServerLock),
+            "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK" => {
+                Some(WorkerRequestType::Shamir3PassApplyServerLock)
+            }
+            "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK" => {
+                Some(WorkerRequestType::Shamir3PassRemoveServerLock)
+            }
             "SHAMIR3PASS_CONFIG_P" => Some(WorkerRequestType::Shamir3PassConfigP),
-            "SHAMIR3PASS_CONFIG_SERVER_URLS" => Some(WorkerRequestType::Shamir3PassConfigServerUrls),
-            "DERIVE_WRAP_KEY_SEED_AND_SESSION" => Some(WorkerRequestType::DeriveWrapKeySeedAndSession),
+            "SHAMIR3PASS_CONFIG_SERVER_URLS" => {
+                Some(WorkerRequestType::Shamir3PassConfigServerUrls)
+            }
+            "MINT_SESSION_KEYS_AND_SEND_TO_SIGNER" => {
+                Some(WorkerRequestType::MintSessionKeysAndSendToSigner)
+            }
             "DECRYPT_SESSION" => Some(WorkerRequestType::DecryptSession),
             "REGISTRATION_CREDENTIAL_CONFIRMATION" => {
                 Some(WorkerRequestType::RegistrationCredentialConfirmation)
             }
             "DEVICE2_REGISTRATION_SESSION" => Some(WorkerRequestType::Device2RegistrationSession),
+            "DISPENSE_SESSION_KEY" => Some(WorkerRequestType::DispenseSessionKey),
+            "CHECK_SESSION_STATUS" => Some(WorkerRequestType::CheckSessionStatus),
+            "CLEAR_SESSION" => Some(WorkerRequestType::ClearSession),
+            "CONFIRM_AND_PREPARE_SIGNING_SESSION" => {
+                Some(WorkerRequestType::ConfirmAndPrepareSigningSession)
+            }
             _ => None,
         }
     }
@@ -154,7 +165,7 @@ impl WorkerRequestType {
             WorkerRequestType::GenerateVrfKeypairBootstrap => "GENERATE_VRF_KEYPAIR_BOOTSTRAP",
             WorkerRequestType::UnlockVrfKeypair => "UNLOCK_VRF_KEYPAIR",
             WorkerRequestType::CheckVrfStatus => "CHECK_VRF_STATUS",
-            WorkerRequestType::Logout => "LOGOUT",
+            WorkerRequestType::ClearVrf => "CLEAR_VRF",
             WorkerRequestType::DeriveVrfKeypairFromPrf => "DERIVE_VRF_KEYPAIR_FROM_PRF",
             WorkerRequestType::Shamir3PassClientEncryptCurrentVrfKeypair => {
                 "SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR"
@@ -165,29 +176,23 @@ impl WorkerRequestType {
             WorkerRequestType::Shamir3PassGenerateServerKeypair => {
                 "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR"
             }
-            WorkerRequestType::Shamir3PassApplyServerLock => {
-                "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK"
+            WorkerRequestType::Shamir3PassApplyServerLock => "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK",
+            WorkerRequestType::Shamir3PassRemoveServerLock => "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK",
+            WorkerRequestType::Shamir3PassConfigP => "SHAMIR3PASS_CONFIG_P",
+            WorkerRequestType::Shamir3PassConfigServerUrls => "SHAMIR3PASS_CONFIG_SERVER_URLS",
+            WorkerRequestType::MintSessionKeysAndSendToSigner => {
+                "MINT_SESSION_KEYS_AND_SEND_TO_SIGNER"
             }
-            WorkerRequestType::Shamir3PassRemoveServerLock => {
-                "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK"
-            }
-            WorkerRequestType::Shamir3PassConfigP => {
-                "SHAMIR3PASS_CONFIG_P"
-            }
-            WorkerRequestType::Shamir3PassConfigServerUrls => {
-                "SHAMIR3PASS_CONFIG_SERVER_URLS"
-            }
-            WorkerRequestType::DeriveWrapKeySeedAndSession => {
-                "DERIVE_WRAP_KEY_SEED_AND_SESSION"
-            }
-            WorkerRequestType::DecryptSession => {
-                "DECRYPT_SESSION"
-            }
+            WorkerRequestType::DecryptSession => "DECRYPT_SESSION",
             WorkerRequestType::RegistrationCredentialConfirmation => {
                 "REGISTRATION_CREDENTIAL_CONFIRMATION"
             }
-            WorkerRequestType::Device2RegistrationSession => {
-                "DEVICE2_REGISTRATION_SESSION"
+            WorkerRequestType::Device2RegistrationSession => "DEVICE2_REGISTRATION_SESSION",
+            WorkerRequestType::DispenseSessionKey => "DISPENSE_SESSION_KEY",
+            WorkerRequestType::CheckSessionStatus => "CHECK_SESSION_STATUS",
+            WorkerRequestType::ClearSession => "CLEAR_SESSION",
+            WorkerRequestType::ConfirmAndPrepareSigningSession => {
+                "CONFIRM_AND_PREPARE_SIGNING_SESSION"
             }
         }
     }
@@ -201,7 +206,7 @@ impl From<u32> for WorkerRequestType {
             2 => WorkerRequestType::GenerateVrfKeypairBootstrap,
             3 => WorkerRequestType::UnlockVrfKeypair,
             4 => WorkerRequestType::CheckVrfStatus,
-            5 => WorkerRequestType::Logout,
+            5 => WorkerRequestType::ClearVrf,
             6 => WorkerRequestType::DeriveVrfKeypairFromPrf,
             7 => WorkerRequestType::Shamir3PassClientEncryptCurrentVrfKeypair,
             8 => WorkerRequestType::Shamir3PassClientDecryptVrfKeypair,
@@ -210,10 +215,14 @@ impl From<u32> for WorkerRequestType {
             11 => WorkerRequestType::Shamir3PassRemoveServerLock,
             12 => WorkerRequestType::Shamir3PassConfigP,
             13 => WorkerRequestType::Shamir3PassConfigServerUrls,
-            14 => WorkerRequestType::DeriveWrapKeySeedAndSession,
+            14 => WorkerRequestType::MintSessionKeysAndSendToSigner,
             15 => WorkerRequestType::DecryptSession,
             16 => WorkerRequestType::RegistrationCredentialConfirmation,
             17 => WorkerRequestType::Device2RegistrationSession,
+            18 => WorkerRequestType::DispenseSessionKey,
+            19 => WorkerRequestType::CheckSessionStatus,
+            20 => WorkerRequestType::ClearSession,
+            21 => WorkerRequestType::ConfirmAndPrepareSigningSession,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }
@@ -236,7 +245,7 @@ pub enum WorkerResponseType {
     GenerateVrfKeypairBootstrapSuccess,
     UnlockVrfKeypairSuccess,
     CheckVrfStatusSuccess,
-    LogoutSuccess,
+    ClearVrfSuccess,
     DeriveVrfKeypairFromPrfSuccess,
     Shamir3PassClientEncryptCurrentVrfKeypairSuccess,
     Shamir3PassClientDecryptVrfKeypairSuccess,
@@ -245,7 +254,7 @@ pub enum WorkerResponseType {
     Shamir3PassRemoveServerLockSuccess,
     Shamir3PassConfigPSuccess,
     Shamir3PassConfigServerUrlsSuccess,
-    DeriveWrapKeySeedAndSessionSuccess,
+    MintSessionKeysAndSendToSignerSuccess,
     DecryptSessionSuccess,
 }
 
@@ -257,7 +266,7 @@ impl From<WorkerResponseType> for u32 {
             WorkerResponseType::GenerateVrfKeypairBootstrapSuccess => 2,
             WorkerResponseType::UnlockVrfKeypairSuccess => 3,
             WorkerResponseType::CheckVrfStatusSuccess => 4,
-            WorkerResponseType::LogoutSuccess => 5,
+            WorkerResponseType::ClearVrfSuccess => 5,
             WorkerResponseType::DeriveVrfKeypairFromPrfSuccess => 6,
             WorkerResponseType::Shamir3PassClientEncryptCurrentVrfKeypairSuccess => 7,
             WorkerResponseType::Shamir3PassClientDecryptVrfKeypairSuccess => 8,
@@ -266,7 +275,7 @@ impl From<WorkerResponseType> for u32 {
             WorkerResponseType::Shamir3PassRemoveServerLockSuccess => 11,
             WorkerResponseType::Shamir3PassConfigPSuccess => 12,
             WorkerResponseType::Shamir3PassConfigServerUrlsSuccess => 13,
-            WorkerResponseType::DeriveWrapKeySeedAndSessionSuccess => 14,
+            WorkerResponseType::MintSessionKeysAndSendToSignerSuccess => 14,
             WorkerResponseType::DecryptSessionSuccess => 15,
         }
     }
@@ -280,7 +289,7 @@ impl From<u32> for WorkerResponseType {
             2 => WorkerResponseType::GenerateVrfKeypairBootstrapSuccess,
             3 => WorkerResponseType::UnlockVrfKeypairSuccess,
             4 => WorkerResponseType::CheckVrfStatusSuccess,
-            5 => WorkerResponseType::LogoutSuccess,
+            5 => WorkerResponseType::ClearVrfSuccess,
             6 => WorkerResponseType::DeriveVrfKeypairFromPrfSuccess,
             7 => WorkerResponseType::Shamir3PassClientEncryptCurrentVrfKeypairSuccess,
             8 => WorkerResponseType::Shamir3PassClientDecryptVrfKeypairSuccess,
@@ -289,7 +298,7 @@ impl From<u32> for WorkerResponseType {
             11 => WorkerResponseType::Shamir3PassRemoveServerLockSuccess,
             12 => WorkerResponseType::Shamir3PassConfigPSuccess,
             13 => WorkerResponseType::Shamir3PassConfigServerUrlsSuccess,
-            14 => WorkerResponseType::DeriveWrapKeySeedAndSessionSuccess,
+            14 => WorkerResponseType::MintSessionKeysAndSendToSignerSuccess,
             15 => WorkerResponseType::DecryptSessionSuccess,
             _ => panic!("Invalid WorkerResponseType value: {}", value),
         }
@@ -312,12 +321,7 @@ fn serialize_data<T: Serialize>(value: T) -> JsValue {
 }
 
 impl VrfWorkerResponse {
-    pub fn new(
-        id: Option<String>,
-        success: bool,
-        data: JsValue,
-        error: Option<String>,
-    ) -> Self {
+    pub fn new(id: Option<String>, success: bool, data: JsValue, error: Option<String>) -> Self {
         Self {
             id,
             success,

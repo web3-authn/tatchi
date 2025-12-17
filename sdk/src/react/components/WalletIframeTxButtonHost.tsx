@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTatchi } from '@/react/context';
 import { TransactionInput } from '../../core/types';
-import type { TatchiPasskeyConfigs, ActionResult } from '@/core/types/passkeyManager';
+import type { TatchiConfigs, ActionResult } from '@/core/types/tatchi';
 import { isObject, isString, isFiniteNumber } from '@/core/WalletIframe/validation';
 
 export interface WalletIframeTxButtonHostProps {
@@ -44,7 +44,7 @@ export function WalletIframeTxButtonHost({
 }: WalletIframeTxButtonHostProps) {
 
   const ctx = useTatchi();
-  const pmConfigs: TatchiPasskeyConfigs | undefined = (ctx as any)?.tatchi?.configs;
+  const pmConfigs: TatchiConfigs | undefined = (ctx as any)?.tatchi?.configs;
   const walletOrigin = pmConfigs?.iframeWallet?.walletOrigin;
   const walletServicePath = pmConfigs?.iframeWallet?.walletServicePath;
 

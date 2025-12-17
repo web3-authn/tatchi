@@ -5,7 +5,10 @@ use crate::config::{
     CHACHA20_KEY_SIZE, CHACHA20_NONCE_SIZE, HKDF_CHACHA20_KEY_INFO, HKDF_VRF_KEYPAIR_INFO,
     VRF_DOMAIN_SEPARATOR, VRF_SEED_SIZE,
 };
-use crate::handlers::handle_derive_wrap_key_seed_and_session::verify_authentication_if_needed;
+use crate::errors::VrfWorkerError;
+#[cfg(target_arch = "wasm32")]
+use crate::handlers::handle_mint_session_keys_and_send_to_signer::verify_authentication_if_needed;
+use crate::manager::{VRFKeyManager, VrfSessionData};
 use crate::shamir3pass::{decode_biguint_b64u, encode_biguint_b64u};
 use crate::utils::{base64_url_decode, base64_url_encode};
 use num_bigint::BigUint;
@@ -17,6 +20,96 @@ fn create_test_prf_output() -> Vec<u8> {
 
 fn create_test_account_id() -> String {
     "test-account.testnet".to_string()
+}
+
+#[test]
+fn session_ttl_is_enforced_on_dispense() {
+    let mut mgr = VRFKeyManager::new(None, None, None, None);
+    let session_id = "sess-ttl";
+
+    mgr.upsert_session(
+        session_id,
+        VrfSessionData {
+            wrap_key_seed: vec![7u8; 32],
+            wrap_key_salt_b64u: "salt".to_string(),
+            created_at_ms: 0.0,
+            expires_at_ms: Some(100.0),
+            remaining_uses: Some(5),
+        },
+    );
+
+    let res = mgr.dispense_session_key(session_id, 1, 100.0);
+    assert!(matches!(res, Err(VrfWorkerError::SessionExpired)));
+    assert!(mgr.sessions.get(session_id).is_none());
+}
+
+#[test]
+fn session_remaining_uses_are_enforced_on_dispense() {
+    let mut mgr = VRFKeyManager::new(None, None, None, None);
+    let session_id = "sess-uses";
+
+    mgr.upsert_session(
+        session_id,
+        VrfSessionData {
+            wrap_key_seed: vec![9u8; 32],
+            wrap_key_salt_b64u: "salt".to_string(),
+            created_at_ms: 0.0,
+            expires_at_ms: Some(1_000_000.0),
+            remaining_uses: Some(1),
+        },
+    );
+
+    // First dispense consumes the last use but succeeds (session remains until next attempt).
+    let res1 = mgr.dispense_session_key(session_id, 1, 0.0);
+    assert!(res1.is_ok());
+    assert_eq!(
+        mgr.sessions.get(session_id).unwrap().remaining_uses,
+        Some(0)
+    );
+
+    // Second dispense should fail and clear the session.
+    let res2 = mgr.dispense_session_key(session_id, 1, 0.0);
+    assert!(matches!(res2, Err(VrfWorkerError::SessionExhausted)));
+    assert!(mgr.sessions.get(session_id).is_none());
+}
+
+#[test]
+fn logout_clears_cached_sessions_and_challenges() {
+    let mut mgr = VRFKeyManager::new(None, None, None, None);
+
+    // Seed dummy session + challenge state
+    mgr.session_active = true;
+    mgr.session_start_time = 123.0;
+    mgr.vrf_challenges.insert(
+        "sess-chal".to_string(),
+        crate::types::VRFChallengeData {
+            vrf_input: "in".to_string(),
+            vrf_output: "out".to_string(),
+            vrf_proof: "proof".to_string(),
+            vrf_public_key: "pk".to_string(),
+            user_id: "u".to_string(),
+            rp_id: "rp".to_string(),
+            block_height: "1".to_string(),
+            block_hash: "h".to_string(),
+        },
+    );
+    mgr.upsert_session(
+        "sess-logout",
+        VrfSessionData {
+            wrap_key_seed: vec![1u8; 32],
+            wrap_key_salt_b64u: "salt".to_string(),
+            created_at_ms: 0.0,
+            expires_at_ms: Some(1_000_000.0),
+            remaining_uses: Some(5),
+        },
+    );
+
+    mgr.logout().expect("logout should succeed");
+
+    assert!(!mgr.session_active);
+    assert_eq!(mgr.session_start_time, 0.0);
+    assert!(mgr.vrf_challenges.is_empty());
+    assert!(mgr.sessions.is_empty());
 }
 
 #[test]
@@ -44,9 +137,7 @@ fn verify_authentication_fails_when_challenge_missing() {
     };
     let cred_js: JsValue = serde_wasm_bindgen::to_value(&cred).expect("serialize credential");
 
-    let manager = Rc::new(RefCell::new(VRFKeyManager::new(
-        None, None, None, None,
-    )));
+    let manager = Rc::new(RefCell::new(VRFKeyManager::new(None, None, None, None)));
     let message_id = Some("msg-verify-missing-challenge".to_string());
     let session_id = "sess-missing-challenge";
 
@@ -98,10 +189,17 @@ fn reject_near_sk_in_payload() {
     };
     let js_val = serde_wasm_bindgen::to_value(&msg).expect("serialize forbidden payload");
     let result = futures::executor::block_on(crate::handle_message(js_val));
-    assert!(result.is_err(), "VRF worker should reject near_sk in payload");
+    assert!(
+        result.is_err(),
+        "VRF worker should reject near_sk in payload"
+    );
     let err = result.err().unwrap();
     let err_str = err.as_string().unwrap_or_default();
-    assert!(err_str.contains("Forbidden secret field"), "unexpected error: {}", err_str);
+    assert!(
+        err_str.contains("Forbidden secret field"),
+        "unexpected error: {}",
+        err_str
+    );
 }
 
 #[test]
@@ -149,8 +247,8 @@ fn test_vrf_data_structures_serialization() {
         chacha20_nonce_b64u: base64_url_encode(&vec![2u8; 12]),
     };
 
-    let json_val =
-        serde_wasm_bindgen::to_value(&encrypted_keypair).expect("Should serialize EncryptedVRFKeypair");
+    let json_val = serde_wasm_bindgen::to_value(&encrypted_keypair)
+        .expect("Should serialize EncryptedVRFKeypair");
     let deserialized: EncryptedVRFKeypair =
         serde_wasm_bindgen::from_value(json_val).expect("Should deserialize EncryptedVRFKeypair");
 
@@ -293,12 +391,37 @@ fn test_configuration_constants() {
         !HKDF_VRF_KEYPAIR_INFO.is_empty(),
         "HKDF VRF info should not be empty"
     );
+    assert_eq!(
+        HKDF_VRF_KEYPAIR_INFO,
+        b"tatchi:v1:vrf-sk",
+        "HKDF VRF info must match spec"
+    );
     assert_ne!(
         HKDF_CHACHA20_KEY_INFO, HKDF_VRF_KEYPAIR_INFO,
         "HKDF info strings should be different"
     );
 
     println!("[Passed] Configuration constants test passed");
+}
+
+#[test]
+fn deterministic_vrf_keypair_derivation_is_stable() {
+    let mgr = VRFKeyManager::new(None, None, None, None);
+    let prf_output = create_test_prf_output();
+    let account_id = create_test_account_id();
+
+    let kp1 = mgr
+        .generate_vrf_keypair_from_seed(&prf_output, &account_id)
+        .expect("derive should succeed");
+    let kp2 = mgr
+        .generate_vrf_keypair_from_seed(&prf_output, &account_id)
+        .expect("derive should succeed");
+
+    assert_eq!(
+        kp1.secret_key_bytes(),
+        kp2.secret_key_bytes(),
+        "Deterministic VRF secret key must be stable for same seed"
+    );
 }
 
 #[test]
@@ -419,39 +542,72 @@ fn test_worker_message_prf_field_extraction() {
         "Decoded PRF should match original bytes"
     );
 
-    // Test message with prfOutput field (for derivation operations)
-    #[derive(Serialize, Deserialize)]
-    struct PrfOutputMessage<'a> {
-        #[serde(rename = "prfOutput")]
-        prf_output: &'a str,
+    // Derivation operations now forward the full WebAuthn credential; PRF output must be embedded
+    // inside credential.clientExtensionResults.prf.results.first (or response.clientExtensionResults...).
+    #[derive(Serialize)]
+    struct Results<'a> {
+        first: &'a str,
+    }
+    #[derive(Serialize)]
+    struct Prf<'a> {
+        results: Results<'a>,
+    }
+    #[derive(Serialize)]
+    struct ClientExt<'a> {
+        prf: Prf<'a>,
+    }
+    #[derive(Serialize)]
+    struct Cred<'a> {
+        #[serde(rename = "clientExtensionResults")]
+        client_ext: ClientExt<'a>,
+    }
+    #[derive(Serialize)]
+    struct DerivationMessage<'a> {
+        credential: Cred<'a>,
         #[serde(rename = "nearAccountId")]
         near_account_id: &'a str,
     }
 
-    let derivation_data = PrfOutputMessage {
-        prf_output: &test_prf_base64url,
+    let derivation_data = DerivationMessage {
+        credential: Cred {
+            client_ext: ClientExt {
+                prf: Prf {
+                    results: Results {
+                        first: &test_prf_base64url,
+                    },
+                },
+            },
+        },
         near_account_id: "test.testnet",
     };
 
-    let prf_output_map: HashMap<String, String> =
-        serde_wasm_bindgen::from_value(serde_wasm_bindgen::to_value(&derivation_data).unwrap())
-            .expect("prf output map");
-    let prf_output_field = prf_output_map
-        .get("prfOutput")
-        .map(String::as_str)
-        .unwrap_or("");
-    assert_eq!(
-        prf_output_field, test_prf_base64url,
-        "PRF output field should match original"
-    );
+    let message_val = serde_wasm_bindgen::to_value(&derivation_data).unwrap();
+    let cred_val =
+        js_sys::Reflect::get(&message_val, &wasm_bindgen::JsValue::from_str("credential"))
+            .expect("credential field should exist");
 
-    let decoded_output = base64_url_decode(prf_output_field).expect("Should decode PRF output");
-    assert_eq!(
-        decoded_output, test_prf_bytes,
-        "Decoded PRF output should match original bytes"
-    );
+    fn get_nested_str(root: &wasm_bindgen::JsValue, path: &[&str]) -> Option<String> {
+        let mut cur = root.clone();
+        for key in path {
+            let next = js_sys::Reflect::get(&cur, &wasm_bindgen::JsValue::from_str(key)).ok()?;
+            if next.is_null() || next.is_undefined() {
+                return None;
+            }
+            cur = next;
+        }
+        cur.as_string()
+    }
 
-    println!("[Passed] Worker message PRF field extraction test passed");
+    let first_b64u = get_nested_str(
+        &cred_val,
+        &["clientExtensionResults", "prf", "results", "first"],
+    )
+    .expect("should find credential PRF.first");
+    assert_eq!(first_b64u, test_prf_base64url);
+    let decoded_output = base64_url_decode(&first_b64u).expect("Should decode PRF.first");
+    assert_eq!(decoded_output, test_prf_bytes);
+
+    println!("[Passed] Worker message credential PRF extraction test passed");
 }
 
 #[test]
@@ -462,16 +618,25 @@ fn test_vrf_challenge_camelcase_deserialization() {
 
     let mut camelcase_map = BTreeMap::new();
     camelcase_map.insert("vrfInput".to_string(), "dGVzdF9pbnB1dF9kYXRh".to_string());
-    camelcase_map.insert("vrfOutput".to_string(), "dGVzdF9vdXRwdXRfZGF0YQ".to_string());
+    camelcase_map.insert(
+        "vrfOutput".to_string(),
+        "dGVzdF9vdXRwdXRfZGF0YQ".to_string(),
+    );
     camelcase_map.insert("vrfProof".to_string(), "dGVzdF9wcm9vZl9kYXRh".to_string());
-    camelcase_map.insert("vrfPublicKey".to_string(), "dGVzdF9wdWJsaWNfa2V5X2RhdGE".to_string());
+    camelcase_map.insert(
+        "vrfPublicKey".to_string(),
+        "dGVzdF9wdWJsaWNfa2V5X2RhdGE".to_string(),
+    );
     camelcase_map.insert("userId".to_string(), "test-user.testnet".to_string());
     camelcase_map.insert("rpId".to_string(), "example.com".to_string());
     camelcase_map.insert("blockHeight".to_string(), "12345".to_string());
-    camelcase_map.insert("blockHash".to_string(), "dGVzdF9ibG9ja19oYXNoX2RhdGE".to_string());
+    camelcase_map.insert(
+        "blockHash".to_string(),
+        "dGVzdF9ibG9ja19oYXNoX2RhdGE".to_string(),
+    );
 
-    let camelcase_js = serde_wasm_bindgen::to_value(&camelcase_map)
-        .expect("Should serialize camelCase map");
+    let camelcase_js =
+        serde_wasm_bindgen::to_value(&camelcase_map).expect("Should serialize camelCase map");
 
     // Deserialize the JSON-shaped value into VRFChallengeData
     let vrf_challenge: VRFChallengeData = serde_wasm_bindgen::from_value(camelcase_js.clone())
@@ -514,14 +679,38 @@ fn test_vrf_challenge_camelcase_deserialization() {
     // Test that the serialized value contains camelCase field names (for TypeScript compatibility)
     let serialized_map: BTreeMap<String, String> =
         serde_wasm_bindgen::from_value(serialized_js).expect("map from serialized value");
-    assert!(serialized_map.contains_key("vrfInput"), "Serialized value should contain camelCase vrfInput");
-    assert!(serialized_map.contains_key("vrfOutput"), "Serialized value should contain camelCase vrfOutput");
-    assert!(serialized_map.contains_key("vrfProof"), "Serialized value should contain camelCase vrfProof");
-    assert!(serialized_map.contains_key("vrfPublicKey"), "Serialized value should contain camelCase vrfPublicKey");
-    assert!(serialized_map.contains_key("userId"), "Serialized value should contain camelCase userId");
-    assert!(serialized_map.contains_key("rpId"), "Serialized value should contain camelCase rpId");
-    assert!(serialized_map.contains_key("blockHeight"), "Serialized value should contain camelCase blockHeight");
-    assert!(serialized_map.contains_key("blockHash"), "Serialized value should contain camelCase blockHash");
+    assert!(
+        serialized_map.contains_key("vrfInput"),
+        "Serialized value should contain camelCase vrfInput"
+    );
+    assert!(
+        serialized_map.contains_key("vrfOutput"),
+        "Serialized value should contain camelCase vrfOutput"
+    );
+    assert!(
+        serialized_map.contains_key("vrfProof"),
+        "Serialized value should contain camelCase vrfProof"
+    );
+    assert!(
+        serialized_map.contains_key("vrfPublicKey"),
+        "Serialized value should contain camelCase vrfPublicKey"
+    );
+    assert!(
+        serialized_map.contains_key("userId"),
+        "Serialized value should contain camelCase userId"
+    );
+    assert!(
+        serialized_map.contains_key("rpId"),
+        "Serialized value should contain camelCase rpId"
+    );
+    assert!(
+        serialized_map.contains_key("blockHeight"),
+        "Serialized value should contain camelCase blockHeight"
+    );
+    assert!(
+        serialized_map.contains_key("blockHash"),
+        "Serialized value should contain camelCase blockHash"
+    );
 
     println!("[Passed] VRFChallenge camelCase deserialization test passed");
 }
@@ -581,18 +770,19 @@ fn test_shamir_biguint_b64u_invalid_inputs() {
 
 #[test]
 #[cfg(target_arch = "wasm32")]
-fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
+fn mint_session_keys_and_send_to_signer_uses_caller_wrap_key_salt_when_provided() {
     // Session id and PRF first auth are arbitrary but well-formed
-    let req = DeriveWrapKeySeedAndSessionRequest {
+    let req = MintSessionKeysAndSendToSignerRequest {
         session_id: "sess-123".to_string(),
-        prf_first_auth_b64u: base64_url_encode(&create_test_prf_output()),
         wrap_key_salt_b64u: "explicit-salt".to_string(),
         contract_id: None,
         near_rpc_url: None,
+        ttl_ms: None,
+        remaining_uses: None,
         credential: JsValue::UNDEFINED,
     };
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
-    let parsed: DeriveWrapKeySeedAndSessionRequest =
+    let parsed: MintSessionKeysAndSendToSignerRequest =
         serde_wasm_bindgen::from_value(json).expect("deserialize");
     assert_eq!(
         parsed.wrap_key_salt_b64u, "explicit-salt",
@@ -602,18 +792,19 @@ fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
 
 #[test]
 #[cfg(target_arch = "wasm32")]
-fn derive_wrap_key_seed_and_session_generates_salt_when_empty() {
-    let req = DeriveWrapKeySeedAndSessionRequest {
+fn mint_session_keys_and_send_to_signer_generates_salt_when_empty() {
+    let req = MintSessionKeysAndSendToSignerRequest {
         session_id: "sess-456".to_string(),
-        prf_first_auth_b64u: base64_url_encode(&create_test_prf_output()),
         wrap_key_salt_b64u: "  ".to_string(),
         contract_id: None,
         near_rpc_url: None,
+        ttl_ms: None,
+        remaining_uses: None,
         credential: JsValue::UNDEFINED,
     };
     // The handler itself runs under wasm32, but the request shape must be JSON-compatible.
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
-    let parsed: DeriveWrapKeySeedAndSessionRequest =
+    let parsed: MintSessionKeysAndSendToSignerRequest =
         serde_wasm_bindgen::from_value(json).expect("deserialize");
     assert!(
         parsed.wrap_key_salt_b64u.trim().is_empty(),
@@ -636,7 +827,10 @@ fn generate_vrf_keypair_bootstrap_request_allows_optional_input() {
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
     let parsed: GenerateVrfKeypairBootstrapRequest =
         serde_wasm_bindgen::from_value(json).expect("deserialize");
-    assert!(parsed.vrf_input_data.is_some(), "vrfInputData should survive round-trip");
+    assert!(
+        parsed.vrf_input_data.is_some(),
+        "vrfInputData should survive round-trip"
+    );
 }
 
 #[test]
@@ -660,8 +854,37 @@ fn generate_vrf_challenge_request_requires_input() {
 #[test]
 #[cfg(target_arch = "wasm32")]
 fn derive_vrf_keypair_from_prf_request_uses_defaults() {
+    let prf_first_b64u = base64_url_encode(&create_test_prf_output());
+    #[derive(Serialize)]
+    struct Results<'a> {
+        first: &'a str,
+    }
+    #[derive(Serialize)]
+    struct Prf<'a> {
+        results: Results<'a>,
+    }
+    #[derive(Serialize)]
+    struct ClientExt<'a> {
+        prf: Prf<'a>,
+    }
+    #[derive(Serialize)]
+    struct Cred<'a> {
+        #[serde(rename = "clientExtensionResults")]
+        client_ext: ClientExt<'a>,
+    }
+    let credential = serde_wasm_bindgen::to_value(&Cred {
+        client_ext: ClientExt {
+            prf: Prf {
+                results: Results {
+                    first: &prf_first_b64u,
+                },
+            },
+        },
+    })
+    .expect("serialize credential");
+
     let req = DeriveVrfKeypairFromPrfRequest {
-        prf_output: base64_url_encode(&create_test_prf_output()),
+        credential,
         near_account_id: create_test_account_id(),
         save_in_memory: true,
         vrf_input_data: None,
@@ -670,5 +893,8 @@ fn derive_vrf_keypair_from_prf_request_uses_defaults() {
     let parsed: DeriveVrfKeypairFromPrfRequest =
         serde_wasm_bindgen::from_value(json).expect("deserialize");
     assert!(parsed.save_in_memory, "saveInMemory default should be true");
-    assert!(parsed.vrf_input_data.is_none(), "vrfInputData can be omitted");
+    assert!(
+        parsed.vrf_input_data.is_none(),
+        "vrfInputData can be omitted"
+    );
 }

@@ -28,7 +28,7 @@ This document describes a full implementation plan for an **email‑based accoun
   - This part is already wired in the relayer + contract (see `docs/zk-email-recovery.md` and the Cloudflare worker).
 - **SDK primitives to reuse**
   - WebAuthn secure confirm: `webAuthnManager.requestRegistrationCredentialConfirmation`.
-  - Deterministic key derivation: `deriveVrfKeypairFromRawPrf`, `deriveNearKeypairAndEncryptFromSerialized`.
+  - Deterministic key derivation: `deriveVrfKeypair`, `deriveNearKeypairAndEncryptFromSerialized`.
   - Nonce / tx handling: `NonceManager`.
   - Local storage: `IndexedDBManager`, `webAuthnManager.storeUserData`.
   - Auto‑login: logic from `LinkDeviceFlow.attemptAutoLogin`.
@@ -147,7 +147,7 @@ Show a LinkDevice‑style confirmation modal in the wallet iframe:
   - `nearRpcUrl: configs.nearRpcUrl`
 - Behavior:
   - Browser shows a TouchID/FaceID registration prompt.
-  - On success, we get `{ confirmed, credential, prfOutput, vrfChallenge }`.
+  - On success, we get `{ confirmed, credential, vrfChallenge }`.
   - On cancel, abort the flow with a UI error (“Recovery cancelled”).
 
 This is identical to the **Option F** branch in `LinkDeviceFlow.deriveDeterministicKeysAndRegisterAccount`, except we don’t perform key swap or registration yet.
@@ -157,7 +157,7 @@ This is identical to the **Option F** branch in `LinkDeviceFlow.deriveDeterminis
 Reuse the same deterministic derivation as LinkDevice:
 
 1. VRF keypair from PRF:
-   - `deriveVrfKeypairFromRawPrf({ prfOutput, nearAccountId: accountId })`
+   - `deriveVrfKeypair({ credential, nearAccountId: accountId })`
    - returns `{ encryptedVrfKeypair, serverEncryptedVrfKeypair, vrfPublicKey }`.
 
 2. NEAR keypair (deterministic `new_public_key`, no transaction signing yet):
@@ -400,14 +400,14 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
 - [ ] Read:
   - `sdk/src/core/TatchiPasskey/linkDevice.ts` (flow structure, events, retry/polling patterns).
   - `sdk/src/core/TatchiPasskey/recoverAccount.ts` (recovery flow + VRF derivation).
-  - `sdk/src/core/types/passkeyManager.ts` (event types, phases, status enums).
+  - `sdk/src/core/types/sdkSentEvents.ts` (event types, phases, status enums).
   - `sdk/src/core/WebAuthnManager/index.ts` (registration + VRF helpers).
   - `sdk/src/core/IndexedDBManager/index.ts` and `sdk/src/core/IndexedDBManager/passkeyClientDB.ts` (appState + recovery email storage).
   - `sdk/src/core/NearClient.ts` (viewAccessKey, sendTransaction, viewBlock helpers).
 - [x] In `sdk/src/core/TatchiPasskey/emailRecovery.ts`:
   - Define `PendingEmailRecovery` (copy the shape from section 3 of this doc).
   - Define `EmailRecoveryFlowOptions` (callbacks: `onEvent`, `onError`, `afterCall` similar to `AccountRecoveryHooksOptions`).
-  - In `sdk/src/core/types/passkeyManager.ts`, define:
+  - In `sdk/src/core/types/sdkSentEvents.ts`, define:
     - `EmailRecoveryPhase` enum with phases matching this doc (e.g. PREPARE → TOUCH_ID → AWAIT_EMAIL → POLLING → FINALIZING → COMPLETE/ERROR).
     - `EmailRecoveryStatus` enum (`PROGRESS`/`SUCCESS`/`ERROR`).
     - `EmailRecoverySSEEvent` type (mirroring `DeviceLinkingSSEEvent` / `AccountRecoverySSEEvent`).
@@ -448,7 +448,7 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
     - `nearRpcUrl: configs.nearRpcUrl`.
   - Handle user cancel by emitting an error event and aborting without writing `PendingEmailRecovery`.
 - [x] Derive VRF + NEAR keys (offline):
-  - Call `deriveVrfKeypairFromRawPrf({ prfOutput, nearAccountId: accountId })`.
+  - Call `deriveVrfKeypair({ credential, nearAccountId: accountId })`.
   - Call `deriveNearKeypairAndEncryptFromSerialized({ nearAccountId: accountId, credential, options: { deviceNumber: nextDeviceNumber } })`.
 - [x] Persist `PendingEmailRecovery` via the helpers from 10.2 with `status: 'awaiting-email'`.
 - [x] Emit appropriate PREPARE / TOUCH_ID / AWAIT_EMAIL events via `onEvent`.
@@ -557,7 +557,7 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
 
 ### 10.10 Config knobs (`TatchiPasskeyConfigs.relayer.emailRecovery`)
 
-- [x] Extend `TatchiPasskeyConfigs` in `sdk/src/core/types/passkeyManager.ts`:
+- [x] Extend `TatchiConfigsInput` / `TatchiConfigs` in `sdk/src/core/types/tatchi.ts`:
   - under `relayer`, add an `emailRecovery` config object, for example:
     - `minBalanceYocto?: string` – minimum available balance required to start Phase A (prevents underfunded accounts from entering the flow).
     - `pollingIntervalMs?: number` – override for email recovery polling interval.

@@ -2,7 +2,7 @@ import type { ConfirmationConfig } from '../../../types/signer-worker';
 import type { VrfWorkerManagerContext } from '../';
 import type { SecureConfirmRequest } from './types';
 import { SecureConfirmationType } from './types';
-import { isIOS, isMobileDevice, needsExplicitActivation } from '@/utils';
+import { needsExplicitActivation } from '@/utils';
 
 /**
  * determineConfirmationConfig
@@ -16,13 +16,9 @@ import { isIOS, isMobileDevice, needsExplicitActivation } from '@/utils';
  * 3) Runtime safety rules (wallet‑iframe registration/link flows) that may clamp behavior.
  *
  * Wallet‑iframe registration/link safety rule:
- * - We allow callers to explicitly opt‑in to auto‑proceed (or skip) for these flows
- *   when they already captured a fresh activation inside the wallet iframe (e.g., via a
- *   host-rendered embedded control). This keeps the default safe, while
- *   enabling a one‑click UX for trusted entry points.
- *   Concretely: if the effective config resolves to { uiMode: 'skip' } or
- *   { uiMode: 'modal', behavior: 'autoProceed' }, we honor it; otherwise we clamp to
- *   { uiMode: 'modal', behavior: 'requireClick' } for registration/link flows.
+ * - When running inside the wallet-iframe host context, always clamp registration/link flows to
+ *   `{ uiMode: 'modal', behavior: 'requireClick' }` so the user activation happens inside the iframe.
+ *   This intentionally overrides both user preferences and request-level overrides.
  *
  * Notes
  * - The function is pure (does not mutate the input object) and safe to call multiple times.
@@ -48,7 +44,7 @@ export function determineConfirmationConfig(
   // Default decrypt-private-key confirmations to 'skip' UI. The flow collects
   // WebAuthn credentials silently and the worker may follow up with a
   // SHOW_SECURE_PRIVATE_KEY_UI request to display the key.
-  if (request?.type === 'decryptPrivateKeyWithPrf') {
+  if (request?.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF) {
     return {
       uiMode: 'skip',
       behavior: cfg.behavior,

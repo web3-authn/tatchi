@@ -46,6 +46,7 @@ import init, {
 } from '../wasm_signer_worker/pkg/wasm_signer_worker.js';
 import { resolveWasmUrl } from './sdkPaths/wasm-loader';
 import { errorMessage } from '../utils/errors';
+import { WorkerControlMessage } from './workerControlMessages';
 
 /**
  * WASM Asset Path Resolution for Signer Worker
@@ -127,21 +128,9 @@ function sendProgressMessage(
 // Important: Make sendProgressMessage available globally for WASM to call
 (globalThis as any).sendProgressMessage = sendProgressMessage;
 
-/**
- * Function called by WASM when a WrapKeySeed is successfully stored in WRAP_KEY_SEED_SESSIONS.
- * This guarantees the seed is ready for signing operations.
- *
- * @param sessionId - The session ID for which the seed is ready
- */
-function notifyWrapKeySeedReady(sessionId: string): void {
-  self.postMessage({
-    type: 'WRAP_KEY_SEED_READY',
-    sessionId,
-  });
-}
-
-// Make notifyWrapKeySeedReady available globally for WASM to call
-(globalThis as any).notifyWrapKeySeedReady = notifyWrapKeySeedReady;
+// NOTE: The signer WASM now awaits WrapKeySeed internally. We intentionally do not
+// emit a separate WRAP_KEY_SEED_READY control message; readiness is implied by the
+// ability to complete the signing request once the seed arrives over the MessagePort.
 
 /**
  * Initialize WASM module
@@ -158,7 +147,7 @@ async function initializeWasm(): Promise<void> {
 // Signal readiness so the main thread can health‑check worker pooling
 // Delay one tick to allow listener registration on main thread
 setTimeout(() => {
-  (self as any).postMessage({ type: 'WORKER_READY', ready: true });
+  (self as any).postMessage({ type: WorkerControlMessage.WORKER_READY, ready: true });
 }, 0);
 
 /**
@@ -247,7 +236,7 @@ self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestTyp
   // - The signer worker’s main Rust handler is designed as a one-shot JSON request/response
   //   pipeline; attaching the port is a separate control path that must keep the worker alive
   //   for subsequent signing requests sharing the same session.
-  if (eventType === 'ATTACH_WRAP_KEY_SEED_PORT') {
+  if (eventType === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT) {
     await handleAttachWrapKeySeedPort(event);
     return;
   }
@@ -287,7 +276,7 @@ async function handleAttachWrapKeySeedPort(
   if (!sessionId || !port) {
     console.error('[signer-worker]: ATTACH_WRAP_KEY_SEED_PORT missing sessionId or MessagePort');
     self.postMessage({
-      type: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR',
+      type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
       sessionId: sessionId || 'unknown',
       error: 'Missing sessionId or MessagePort'
     });
@@ -301,7 +290,7 @@ async function handleAttachWrapKeySeedPort(
 
     // Emit success ACK to main thread
     self.postMessage({
-      type: 'ATTACH_WRAP_KEY_SEED_PORT_OK',
+      type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK,
       sessionId,
     });
   } catch (err) {
@@ -309,7 +298,7 @@ async function handleAttachWrapKeySeedPort(
 
     // Emit error control message first (for early detection)
     self.postMessage({
-      type: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR',
+      type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
       sessionId,
       error: errorMessage(err)
     });

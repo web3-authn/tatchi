@@ -2,21 +2,12 @@ use crate::actions::ActionParams;
 use crate::encoders::hash_delegate_action;
 use crate::transaction::build_actions_from_params;
 use crate::types::progress::{
-    send_completion_message,
-    send_progress_message,
-    ProgressMessageType,
-    ProgressStep,
-    ProgressData,
+    send_completion_message, send_progress_message, ProgressData, ProgressMessageType, ProgressStep,
 };
 use crate::types::{
     handlers::{ConfirmationConfig, RpcCallPayload},
     wasm_to_json::WasmSignedDelegate,
-    AccountId,
-    DecryptionPayload,
-    DelegateAction,
-    PublicKey,
-    Signature,
-    SignedDelegate,
+    AccountId, DecryptionPayload, DelegateAction, PublicKey, Signature, SignedDelegate,
 };
 use crate::WrapKey;
 use bs58;
@@ -109,9 +100,7 @@ pub async fn handle_sign_delegate_action(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::UserConfirmation,
         "Using pre-confirmed VRF/WebAuthn session for delegate signing...",
-        Some(
-            &ProgressData::new(1, 4).with_context("delegate"),
-        ),
+        Some(&ProgressData::new(1, 4).with_context("delegate")),
     );
 
     let intent_digest = request
@@ -202,10 +191,7 @@ pub async fn handle_sign_delegate_action(
     // derive one from the transaction context when available.
     if max_block_height == 0 {
         if let Some(ctx) = &request.transaction_context {
-            let base: u64 = ctx
-                .tx_block_height
-                .parse()
-                .unwrap_or(0);
+            let base: u64 = ctx.tx_block_height.parse().unwrap_or(0);
             // Give a generous horizon in blocks to avoid accidental expiry
             // while keeping the delegate bounded.
             max_block_height = base.saturating_add(10_000);
@@ -216,7 +202,10 @@ pub async fn handle_sign_delegate_action(
         } else {
             // Fallback: choose a fixed horizon if no context is present.
             max_block_height = 10_000;
-            logs.push("Normalized delegate maxBlockHeight from 0 to fallback 10000 (no tx context)".to_string());
+            logs.push(
+                "Normalized delegate maxBlockHeight from 0 to fallback 10000 (no tx context)"
+                    .to_string(),
+            );
         }
     }
 
@@ -249,7 +238,7 @@ pub async fn handle_sign_delegate_action(
     let kek = wrap_key.derive_kek()?;
     let decrypted_private_key_str = crate::crypto::decrypt_data_chacha20(
         &request.decryption.encrypted_private_key_data,
-        &request.decryption.encrypted_private_key_iv,
+        &request.decryption.encrypted_private_key_chacha20_nonce_b64u,
         &kek,
     )
     .map_err(|e| format!("Decryption failed: {}", e))?;
@@ -345,7 +334,7 @@ pub async fn handle_sign_delegate_action(
             &ProgressData::new(4, 4)
                 .with_context("delegate")
                 .with_success(true)
-                .with_hash(delegate_hash_hex.clone())
+                .with_hash(delegate_hash_hex.clone()),
         ),
     );
 

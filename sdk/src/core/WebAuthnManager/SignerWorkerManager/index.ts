@@ -1,9 +1,8 @@
-
-import { SignedTransaction, type NearClient } from '../../NearClient';
+import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
 import { ClientAuthenticatorData, UnifiedIndexedDBManager } from '../../IndexedDBManager';
 import { IndexedDBManager } from '../../IndexedDBManager';
-import { TouchIdPrompt } from "../touchIdPrompt";
-import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
+import { SignedTransaction, type NearClient } from '../../NearClient';
+import { isObject } from '../../WalletIframe/validation';
 import { resolveWorkerUrl } from '../../sdkPaths';
 import {
   WorkerRequestType,
@@ -15,20 +14,21 @@ import {
   WorkerErrorResponse,
   WorkerRequestTypeMap,
 } from '../../types/signer-worker';
-import { isSignerWorkerControlMessage } from './sessionMessages.js';
-import { VRFChallenge } from '../../types/vrf-worker';
 import { VrfWorkerManager } from '../VrfWorkerManager';
+import { VRFChallenge } from '../../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../../types/actions';
 import type { DelegateActionInput } from '../../types/delegate';
-import type { onProgressEvents } from '../../types/passkeyManager';
+import type { onProgressEvents } from '../../types/sdkSentEvents';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { AccountId } from "../../types/accountIds";
-import { ConfirmationConfig, WasmSignedDelegate, isDecryptPrivateKeyWithPrfSuccess } from '../../types/signer-worker';
-import { toAccountId } from '../../types/accountIds';
-import { SecureConfirmationType } from '../VrfWorkerManager/confirmTxFlow/types';
-import { getLastLoggedInDeviceNumber } from './getDeviceNumber';
-import { isObject } from '../../WalletIframe/validation';
-import { runSecureConfirm } from '../VrfWorkerManager/secureConfirmBridge';
+import { TransactionContext } from '../../types/rpc';
+import {
+  ConfirmationConfig,
+  WasmSignedDelegate,
+} from '../../types/signer-worker';
+import { TouchIdPrompt } from "../touchIdPrompt";
+import { isSignerWorkerControlMessage } from './sessionMessages';
+import { WorkerControlMessage } from '../../workerControlMessages';
 
 import {
   decryptPrivateKeyWithPrf,
@@ -38,10 +38,10 @@ import {
   extractCosePublicKey,
   signTransactionWithKeyPair,
   signNep413Message,
-  requestRegistrationCredentialConfirmation,
   deriveNearKeypairAndEncryptFromSerialized,
   signDelegateAction,
   registerDevice2WithDerivedKey,
+  exportNearKeypairUi,
 } from './handlers';
 import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
@@ -49,7 +49,17 @@ import { NonceManager } from '../../nonceManager';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
 import { toError } from '@/utils/errors';
 import { withSessionId } from './handlers/session';
-import { attachSessionPort, waitForSessionReady } from './sessionHandshake.js';
+import { attachSessionPort } from './sessionHandshake.js';
+
+type WithOptionalSessionId<T> = T extends { sessionId: string }
+  ? Omit<T, 'sessionId'> & { sessionId?: string }
+  : T;
+
+type SigningSessionEntry = {
+  worker: Worker;
+  wrapKeySeedPort?: MessagePort;
+  createdAt: number;
+};
 
 export interface SignerWorkerManagerContext {
   touchIdPrompt: TouchIdPrompt;
@@ -63,7 +73,7 @@ export interface SignerWorkerManagerContext {
   sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
     message: {
       type: T;
-      payload: WorkerRequestTypeMap[T]['request'];
+      payload: WithOptionalSessionId<WorkerRequestTypeMap[T]['request']>;
     };
     onEvent?: (update: onProgressEvents) => void;
     timeoutMs?: number;
@@ -161,11 +171,7 @@ export class SignerWorkerManager {
   private workerPool: Worker[] = [];
   private readonly MAX_WORKER_POOL_SIZE = 3; // Increased for security model
   // Map of active signing sessions to reserved workers and optional WrapKeySeed ports
-  private signingSessions: Map<string, {
-    worker: Worker;
-    wrapKeySeedPort?: MessagePort;
-    createdAt: number;
-  }> = new Map();
+  private signingSessions: Map<string, SigningSessionEntry> = new Map();
   private readonly SIGNING_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   private getWorkerFromPool(): Worker {
@@ -183,38 +189,36 @@ export class SignerWorkerManager {
   }
 
   /**
-   * Get the signing session entry for a given sessionId.
-   * Used internally to access worker and port information.
+   * Reserve a signer worker "session"
+   *
+   * What this does:
+   * - Reserves a specific `Worker` instance from the pool and pins it to `sessionId`.
+   * - Ensures the signer worker has a dedicated `MessagePort` attached for receiving `WrapKeySeed`
+   *   from the VRF worker (VRF → Signer channel).
+   *
+   * Port wiring:
+   * - The VRF worker retains one end of a `MessageChannel` and the signer worker receives the other.
+   * - This method attaches the signer-facing port via a control message (`ATTACH_WRAP_KEY_SEED_PORT`)
+   *   and waits for an ACK (`ATTACH_WRAP_KEY_SEED_PORT_OK`) before exposing the session.
+   *
+   * @param sessionId - Session identifier used to correlate MessagePorts + ready signals.
+   * @param opts.signerPort - Optional signer-facing `MessagePort` created/owned by the caller (VRF-created channel).
+   *                         If omitted, this method creates a fresh `MessageChannel` and returns `vrfPort` so the
+   *                         caller can transfer it to the VRF worker.
+   * @returns `{ worker, signerPort, vrfPort }` where `vrfPort` is only present when we created the channel here.
    */
-  private getSigningSession(sessionId: string) {
-    return this.signingSessions.get(sessionId);
-  }
-
-  /**
-   * Wait for a WrapKeySeed to be ready for the given session.
-   * Public wrapper that looks up the worker and waits for the seed-ready signal.
-   */
-  async waitForSeedReady(sessionId: string, timeoutMs: number = 2000): Promise<void> {
-    const entry = this.getSigningSession(sessionId);
-    if (!entry) {
-      throw new Error(`No signing session found for id: ${sessionId}`);
-    }
-    await waitForSessionReady(entry.worker, sessionId, timeoutMs);
-  }
-
-  /**
-   * Reserve a worker for a signing session.
-   * If a signerPort is provided (VRF-created channel), attach it; otherwise create a fresh MessageChannel.
-   * Returns the reserved worker and ports (vrfPort for VRF when we create the channel).
-   */
-  async reserveSigningSession(sessionId: string, opts?: { signerPort?: MessagePort }): Promise<{ worker: Worker; signerPort?: MessagePort; vrfPort?: MessagePort }> {
+  async reserveSignerWorkerSession(sessionId: string, opts?: { signerPort?: MessagePort }): Promise<{ worker: Worker; signerPort?: MessagePort; vrfPort?: MessagePort }> {
     if (this.signingSessions.has(sessionId)) {
       throw new Error(`Signing session already exists for id: ${sessionId}`);
     }
+    // Reserve a worker from the pool for this sessionId.
     const worker = this.getWorkerFromPool();
     let signerPort = opts?.signerPort;
     let vrfPort: MessagePort | undefined;
     if (!signerPort) {
+      // If caller did not provide a signer-facing port, create a channel.
+      // - port1 => signer worker (receiver)
+      // - port2 => VRF worker (sender) returned to caller
       const channel = new MessageChannel();
       signerPort = channel.port1;
       vrfPort = channel.port2;
@@ -230,6 +234,7 @@ export class SignerWorkerManager {
       await attachSessionPort(worker, sessionId, signerPort);
 
       // Only add to signingSessions after successful attachment
+      // (prevents callers from observing a session that can't receive WrapKeySeed yet).
       this.signingSessions.set(sessionId, {
         worker,
         wrapKeySeedPort: signerPort,
@@ -280,7 +285,7 @@ export class SignerWorkerManager {
         const timeout = setTimeout(() => reject(new Error('Health check timeout')), 5000);
 
         const onMessage = (event: MessageEvent) => {
-          if (event.data?.type === 'WORKER_READY' || event.data?.ready) {
+          if (event.data?.type === WorkerControlMessage.WORKER_READY || event.data?.ready) {
             worker.removeEventListener('message', onMessage);
             clearTimeout(timeout);
             resolve();
@@ -322,7 +327,7 @@ export class SignerWorkerManager {
 
             // Set up one-time ready handler
             const onReady = (event: MessageEvent) => {
-              if (event.data?.type === 'WORKER_READY' || event.data?.ready) {
+              if (event.data?.type === WorkerControlMessage.WORKER_READY || event.data?.ready) {
                 worker.removeEventListener('message', onReady);
                 this.terminateAndReplaceWorker(worker);
                 resolve();
@@ -362,24 +367,37 @@ export class SignerWorkerManager {
   }
 
   private async sendMessage<T extends WorkerRequestType>({
+    sessionId,
     message,
     onEvent,
     timeoutMs = SIGNER_WORKER_MANAGER_CONFIG.TIMEOUTS.DEFAULT, // 60s
-    sessionId,
   }: {
-    message: { type: T; payload: WorkerRequestTypeMap[T]['request'] };
+    sessionId?: string;
+    message: { type: T; payload: WithOptionalSessionId<WorkerRequestTypeMap[T]['request']> };
     onEvent?: (update: onProgressEvents) => void;
     timeoutMs?: number;
-    sessionId?: string;
   }): Promise<WorkerResponseForRequest<T>> {
 
     // Clean up any expired signing sessions before allocating a worker
     this.sweepExpiredSigningSessions();
 
-    const sessionEntry = sessionId ? this.signingSessions.get(sessionId) : undefined;
-    if (sessionId && !sessionEntry) {
-      throw new Error(`Signing session not found for id: ${sessionId}`);
+    const payloadSessionId = (message.payload as any)?.sessionId as string | undefined;
+    if (sessionId && payloadSessionId && payloadSessionId !== sessionId) {
+      throw new Error(
+        `sendMessage: payload.sessionId (${payloadSessionId}) does not match provided sessionId (${sessionId})`
+      );
     }
+
+    const effectiveSessionId = sessionId || payloadSessionId;
+    const sessionEntry = effectiveSessionId ? this.signingSessions.get(effectiveSessionId) : undefined;
+    if (effectiveSessionId && !sessionEntry) {
+      throw new Error(`Signing session not found for id: ${effectiveSessionId}`);
+    }
+
+    // Normalize/inject sessionId into payload once to avoid duplication at call sites.
+    const finalPayload = effectiveSessionId
+      ? withSessionId(effectiveSessionId, message.payload)
+      : (message.payload);
 
     const worker = sessionEntry ? sessionEntry.worker : this.getWorkerFromPool();
     const isSessionWorker = !!sessionEntry;
@@ -387,9 +405,9 @@ export class SignerWorkerManager {
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         try {
-          if (isSessionWorker && sessionId) {
+          if (isSessionWorker && effectiveSessionId) {
             // Release reserved session to avoid leaking worker/port
-            this.releaseSigningSession(sessionId);
+            this.releaseSigningSession(effectiveSessionId);
           } else {
             this.terminateAndReplaceWorker(worker);
           }
@@ -411,7 +429,7 @@ export class SignerWorkerManager {
             return;
           }
           // Ignore readiness pings that can arrive if a worker was just spawned
-          if (event?.data?.type === 'WORKER_READY' || event?.data?.ready) {
+          if (event?.data?.type === WorkerControlMessage.WORKER_READY || event?.data?.ready) {
             return; // not a response to an operation
           }
           // Use strong typing from WASM-generated types
@@ -487,7 +505,7 @@ export class SignerWorkerManager {
       // Format message for Rust SignerWorkerMessage structure using WASM types
       const formattedMessage = {
         type: message.type, // Numeric enum value from WorkerRequestType
-        payload: message.payload,
+        payload: finalPayload,
       };
 
       worker.postMessage(formattedMessage);
@@ -509,7 +527,10 @@ export class SignerWorkerManager {
     success: boolean;
     nearAccountId: AccountId;
     publicKey: string;
-    iv?: string;
+    /**
+     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+     */
+    chacha20NonceB64u?: string;
     wrapKeySalt?: string;
   }> {
     return deriveNearKeypairAndEncryptFromSerialized({ ctx: this.getContext(), ...args });
@@ -559,7 +580,7 @@ export class SignerWorkerManager {
     nearAccountId: AccountId;
     credential: WebAuthnRegistrationCredential;
     vrfChallenge: VRFChallenge;
-    transactionContext: import('../../types/rpc').TransactionContext;
+    transactionContext: TransactionContext;
     contractId: string;
     wrapKeySalt: string;
     deviceNumber?: number;
@@ -570,7 +591,10 @@ export class SignerWorkerManager {
     signedTransaction: any;
     wrapKeySalt: string;
     encryptedData?: string;
-    iv?: string;
+    /**
+     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+     */
+    chacha20NonceB64u?: string;
     error?: string;
   }> {
     return registerDevice2WithDerivedKey({ ctx: this.getContext(), ...args });
@@ -625,9 +649,10 @@ export class SignerWorkerManager {
   }): Promise<{
     publicKey: string;
     encryptedPrivateKey: string;
-    iv: string;
+    /** Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for encrypted key */
+    chacha20NonceB64u: string;
     accountIdHint?: string;
-    wrapKeySalt?: string;
+    wrapKeySalt: string;
   }> {
     return recoverKeypairFromPasskey({ ctx: this.getContext(), ...args });
   }
@@ -671,6 +696,8 @@ export class SignerWorkerManager {
     state: string | null;
     accountId: string;
     sessionId: string;
+    contractId?: string;
+    nearRpcUrl?: string;
   }): Promise<{
     success: boolean;
     accountId: string;
@@ -697,67 +724,7 @@ export class SignerWorkerManager {
     theme?: 'dark'|'light',
     sessionId: string,
   }): Promise<void> {
-    const ctx = this.getContext();
-    const accountId = toAccountId(args.nearAccountId);
-    const sessionId = args.sessionId;
-
-    // Gather encrypted key + IV and public key from IndexedDB
-    const deviceNumber = await getLastLoggedInDeviceNumber(accountId, ctx.indexedDB.clientDB);
-    const [keyData, user] = await Promise.all([
-      ctx.indexedDB.nearKeysDB.getEncryptedKey(accountId, deviceNumber),
-      ctx.indexedDB.clientDB.getUserByDevice(accountId, deviceNumber),
-    ]);
-    const publicKey = user?.clientNearPublicKey || '';
-    if (!keyData || !publicKey) {
-      throw new Error('Missing local key material for export. Re-register to upgrade vault.');
-    }
-
-    // Decrypt inside signer worker using the reserved session
-    const response = await ctx.sendMessage({
-      message: {
-        type: WorkerRequestType.DecryptPrivateKeyWithPrf,
-        payload: withSessionId({
-          nearAccountId: accountId,
-          encryptedPrivateKeyData: keyData.encryptedData,
-          encryptedPrivateKeyIv: keyData.iv,
-        } as any, sessionId),
-      },
-      sessionId,
-    });
-
-    if (!isDecryptPrivateKeyWithPrfSuccess(response)) {
-      console.error('WebAuthnManager: Export decrypt failed:', response);
-      const payloadError = isObject(response?.payload) && response?.payload?.error;
-      const msg = String(payloadError || 'Export decrypt failed');
-      // Treat AEAD/KEK mismatches as effectively "missing" local key material so
-      // callers (including offline-export) can trigger recovery and rewrite the vault.
-      if (msg.includes('Decryption failed: Decryption error: aead::Error')) {
-        throw new Error('Missing local key material for export');
-      }
-      throw new Error(msg);
-    }
-
-    const privateKey = response.payload.privateKey;
-
-    // Phase 2: show secure UI (VRF-driven viewer)
-    const showReq = {
-      schemaVersion: 2 as const,
-      requestId: sessionId,
-      type: SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI,
-      summary: {
-        operation: 'Export Private Key',
-        accountId,
-        publicKey,
-      },
-      payload: {
-        nearAccountId: accountId,
-        publicKey,
-        privateKey,
-        variant: args.variant,
-        theme: args.theme,
-      },
-    };
-    await runSecureConfirm(ctx, showReq);
+    return exportNearKeypairUi({ ctx: this.getContext(), ...args });
   }
 
 }

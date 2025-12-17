@@ -204,7 +204,7 @@ document.body.appendChild(host);
 ```
 
 Reference in codebase:
-- `VrfWorkerManager/confirmTxFlow/flows/common.ts` dynamically imports `ExportPrivateKey/iframe-host` before `createElement('w3a-export-viewer-iframe')`.
+- `VrfWorkerManager/confirmTxFlow/flows/localOnly.ts` dynamically imports `ExportPrivateKey/iframe-host` before `createElement('w3a-export-viewer-iframe')`.
 
 ### Keep‑imports in wallet host (secondary defense)
 

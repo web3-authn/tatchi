@@ -1,12 +1,12 @@
 use crate::manager::VRFKeyManager;
 use crate::types::VRFInputData;
 use crate::types::VrfWorkerResponse;
-use log::{error, debug};
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
-use serde_wasm_bindgen;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -36,9 +36,10 @@ pub fn handle_generate_vrf_keypair_bootstrap(
             debug!("VRF keypair bootstrap completed successfully");
             // Cache VRF challenge for this session if present so future contract
             // verification can rely on worker-owned state instead of JS-provided data.
-            if let (Some(challenge), Some(session_id)) =
-                (bootstrap_data.vrf_challenge_data.clone(), payload.session_id.as_ref())
-            {
+            if let (Some(challenge), Some(session_id)) = (
+                bootstrap_data.vrf_challenge_data.clone(),
+                payload.session_id.as_ref(),
+            ) {
                 manager_mut.set_challenge(session_id, challenge);
             }
             // Structure response to match expected format
@@ -54,8 +55,8 @@ pub fn handle_generate_vrf_keypair_bootstrap(
                 vrf_challenge_data: bootstrap_data.vrf_challenge_data.as_ref(),
             };
 
-            let response_js = serde_wasm_bindgen::to_value(&response)
-                .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+            let response_js =
+                serde_wasm_bindgen::to_value(&response).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
 
             VrfWorkerResponse::success(message_id, Some(response_js))
         }

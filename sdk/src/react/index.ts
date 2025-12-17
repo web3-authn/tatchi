@@ -32,7 +32,7 @@ export {
 // === RE-EXPORT CORE TYPES ===
 export { TatchiPasskey } from '../core/TatchiPasskey';
 export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../core/defaultConfigs';
-export type { TatchiPasskeyConfigs } from '../core/types/passkeyManager';
+export type { TatchiConfigs, TatchiConfigsInput } from '../core/types/tatchi';
 export type { StoreUserDataInput } from '../core/IndexedDBManager/passkeyClientDB';
 
 // === RE-EXPORT ACTION TYPES ===
@@ -136,8 +136,8 @@ export { LIGHT_TOKENS, DARK_TOKENS } from './components/theme';
 export {
   AccountRecoveryPhase,
   AccountRecoveryStatus,
-  type ActionResult,
-} from '../core/types/passkeyManager';
+} from '../core/types/sdkSentEvents';
+export type { ActionResult } from '../core/types/tatchi';
 
 // === DEVICE LINKING ENUMS ===
 export {
@@ -150,7 +150,7 @@ export {
   ActionPhase,
   ActionStatus,
   DelegateActionPhase
-} from '../core/types/passkeyManager';
+} from '../core/types/sdkSentEvents';
 
 // === PROFILE BUTTON TYPES ===
 export { PROFILE_MENU_ITEM_IDS } from './components/AccountMenuButton/types';

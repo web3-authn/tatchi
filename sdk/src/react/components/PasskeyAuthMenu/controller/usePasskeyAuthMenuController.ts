@@ -1,5 +1,5 @@
 import React from 'react';
-import type { DeviceLinkingSSEEvent } from '@/core/types/passkeyManager';
+import type { DeviceLinkingSSEEvent } from '@/core/types/sdkSentEvents';
 import type { PasskeyAuthMenuRuntime } from '../adapters/tatchi';
 import { AuthMenuMode, type PasskeyAuthMenuProps } from '../types';
 import { useAuthMenuMode } from './mode';
@@ -60,6 +60,7 @@ export function usePasskeyAuthMenuController(
   const prefilledFromRecentRef = React.useRef(false);
   const prefilledValueRef = React.useRef<string>('');
   const prevModeRef = React.useRef<AuthMenuMode | null>(null);
+  const lastUserSelectedModeRef = React.useRef<AuthMenuMode | null>(null);
 
   const clearPrefillMarkers = React.useCallback(() => {
     prefilledFromRecentRef.current = false;
@@ -68,6 +69,7 @@ export function usePasskeyAuthMenuController(
 
   const onSegmentChange = React.useCallback(
     (next: AuthMenuMode) => {
+      lastUserSelectedModeRef.current = next;
       if (mode === AuthMenuMode.Login && next !== AuthMenuMode.Login) {
         if (prefilledFromRecentRef.current && currentValue === prefilledValueRef.current) {
           setCurrentValue('');
@@ -98,6 +100,16 @@ export function usePasskeyAuthMenuController(
 
   const [waiting, setWaiting] = React.useState(false);
   const [showScanDevice, setShowScanDevice] = React.useState(false);
+
+  // If the user is attempting to register but we discover the account already exists,
+  // automatically switch them to the Login tab.
+  React.useEffect(() => {
+    if (waiting) return;
+    if (mode !== AuthMenuMode.Register) return;
+    if (!runtime.accountExists) return;
+    if (lastUserSelectedModeRef.current === AuthMenuMode.Register) return;
+    setMode(AuthMenuMode.Login);
+  }, [mode, runtime.accountExists, setMode, waiting]);
 
   // Lazy feature-island: entering Login can prefill the last used account username.
   React.useEffect(() => {
@@ -163,6 +175,7 @@ export function usePasskeyAuthMenuController(
     } else {
       setShowScanDevice(false);
     }
+    lastUserSelectedModeRef.current = null;
     resetToDefault();
     setCurrentValue('');
     clearPrefillMarkers();

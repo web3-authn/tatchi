@@ -11,10 +11,11 @@ import { IndexedDBManager } from '../IndexedDBManager';
 import { MinimalNearClient } from '../NearClient';
 import { toAccountId } from '../types/accountIds';
 import { OFFLINE_EXPORT_DONE, OFFLINE_EXPORT_ERROR } from './messages';
-import type { TatchiPasskeyConfigs } from '../types/passkeyManager';
+import type { TatchiConfigsInput } from '../types/tatchi';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { TouchIdPrompt } from '../WebAuthnManager/touchIdPrompt';
 import { createRandomVRFChallenge, type VRFChallenge } from '../types/vrf-worker';
+import { buildConfigsFromEnv } from '../defaultConfigs';
 
 async function registerServiceWorker(): Promise<void> {
   if (!('serviceWorker' in navigator)) return;
@@ -86,7 +87,7 @@ function renderShell(message: string, canExport = false): HTMLButtonElement | nu
   const root = document.createElement('div');
   root.className = 'offline-root'
   const h = document.createElement('h1');
-  h.textContent = 'Offline NEAR Key Export';
+  h.textContent = 'Offline Export';
   h.className = 'offline-title'
   const p = document.createElement('p');
   p.textContent = message;
@@ -113,7 +114,7 @@ function renderShell(message: string, canExport = false): HTMLButtonElement | nu
     info.textContent = '✓ Wallet origin: (unknown)';
   }
   const btn = document.createElement('button');
-  btn.textContent = 'Export Key';
+  btn.textContent = 'Export My Key';
   btn.className = 'offline-btn'
   btn.disabled = !canExport;
   root.appendChild(h);
@@ -220,7 +221,7 @@ async function main(): Promise<void> {
 
         // Instantiate WebAuthnManager with minimal offline configs. No network RPC is used in export flow.
         const near = new MinimalNearClient('https://rpc.invalid.local');
-        const offlineConfigs: TatchiPasskeyConfigs = {
+        const offlineConfigsInput: TatchiConfigsInput = {
           nearRpcUrl: 'https://rpc.invalid.local',
           nearNetwork: 'testnet',
           contractId: 'w3a-v1.testnet',
@@ -229,8 +230,8 @@ async function main(): Promise<void> {
           relayer: {
             url: 'https://rpc.invalid.local',
           },
-          vrfWorkerConfigs: undefined,
         };
+        const offlineConfigs = buildConfigsFromEnv(offlineConfigsInput);
         const webAuthnManager = new WebAuthnManager(offlineConfigs, near);
         console.debug('[offline-export] rpId (hostname):', window.location.hostname);
         if (effectiveRpIdOverride) {
@@ -244,42 +245,71 @@ async function main(): Promise<void> {
           });
         } catch (err: any) {
           const msg = String(err?.message || err || '');
-          if (msg.includes('Missing local key material for export')) {
+          const isMissingLocalKeyMaterial = msg.includes('Missing local key material for export');
+          const isAeadDecryptMismatch =
+            msg.includes('Decryption failed: Decryption error: aead::Error') || msg.includes('aead::Error');
+
+          if (isMissingLocalKeyMaterial || isAeadDecryptMismatch) {
             // Attempt local recovery of key material from passkey, then retry
-            statusEl.textContent = 'Missing local key material. Attempting recovery with your passkey…';
+            statusEl.textContent = isAeadDecryptMismatch
+              ? 'Decryption failed. Attempting recovery with your passkey…'
+              : 'Missing local key material. Attempting recovery with your passkey…';
             const tip = new TouchIdPrompt(effectiveRpIdOverride);
             const challenge = createRandomVRFChallenge() as VRFChallenge;
             const allowCredentials = Array.isArray(authenticators) && authenticators.length > 0
               ? authenticators.map((a: any) => ({ id: a.credentialId, type: 'public-key', transports: a.transports as any }))
               : [];
-            const authCred = await tip.getAuthenticationCredentialsForRecovery({
+            const authCred = await tip.getAuthenticationCredentialsSerializedDualPrf({
               nearAccountId: account,
               challenge,
               allowCredentials,
             });
             // Recover NEAR keypair using WebAuthnManager's recovery flow
             const rec = await webAuthnManager.recoverKeypairFromPasskey(authCred, account);
+            if (!rec.wrapKeySalt) {
+              throw new Error('Missing wrapKeySalt in recovered key material; re-register to upgrade vault format.');
+            }
             // Store encrypted key locally for this device. Prefer the last logged-in
             // device for this account; fall back to device 1 for legacy cases.
-            const last = await IndexedDBManager.clientDB.getLastUser().catch(() => null);
             const accountId = toAccountId(account);
+            const [last, latest] = await Promise.all([
+              IndexedDBManager.clientDB.getLastUser().catch(() => null),
+              IndexedDBManager.clientDB.getLastDBUpdatedUser(accountId).catch(() => null),
+            ]);
             const deviceNumber =
-              last && last.nearAccountId === accountId && last.deviceNumber
+              (last && last.nearAccountId === accountId && typeof last.deviceNumber === 'number')
                 ? last.deviceNumber
-                : 1;
+                : (latest && latest.nearAccountId === accountId && typeof latest.deviceNumber === 'number')
+                  ? latest.deviceNumber
+                  : 1;
+
+            // Safety check: only overwrite local vault material if the recovered public key
+            // matches what we already have for this account/device.
+            const existing = await IndexedDBManager.clientDB.getUserByDevice(accountId, deviceNumber).catch(() => null);
+            if (isAeadDecryptMismatch && !existing) {
+              throw new Error(
+                `Decryption failed and no local user record was found for '${account}'. ` +
+                'Open the wallet once online on this device to restore local vault state, then retry offline export.'
+              );
+            }
+            const expectedPublicKey = String(existing?.clientNearPublicKey || '');
+            if (expectedPublicKey && expectedPublicKey !== rec.publicKey) {
+              throw new Error(
+                `Selected passkey does not match the existing key for '${account}'. ` +
+                'Please select the correct passkey for this account and try again.'
+              );
+            }
+
             await IndexedDBManager.nearKeysDB.storeEncryptedKey({
               nearAccountId: account,
               deviceNumber,
               encryptedData: rec.encryptedPrivateKey,
-              iv: rec.iv,
-              // Prefer the true wrapKeySalt returned by recovery; fall back to iv
-              // only if missing for backwards compatibility.
-              wrapKeySalt: rec.wrapKeySalt || rec.iv,
+              chacha20NonceB64u: rec.chacha20NonceB64u,
+              wrapKeySalt: rec.wrapKeySalt,
               version: 2,
               timestamp: Date.now(),
             });
             // Upsert public key if missing for this device
-            const existing = await IndexedDBManager.clientDB.getUserByDevice(accountId, deviceNumber).catch(() => null);
             if (!existing?.clientNearPublicKey) {
               try { await IndexedDBManager.clientDB.updateUser(accountId, { clientNearPublicKey: rec.publicKey }); } catch {}
             }

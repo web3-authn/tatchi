@@ -231,17 +231,12 @@ pub struct SignerWorkerMessage {
     pub payload: JsValue,
 }
 
-pub fn parse_worker_request_envelope(
-    message_val: JsValue,
-) -> Result<SignerWorkerMessage, JsValue> {
+pub fn parse_worker_request_envelope(message_val: JsValue) -> Result<SignerWorkerMessage, JsValue> {
     // Support both Object (Browser) and JSON String (Node.js/Server) inputs.
     let message_obj = if message_val.is_string() {
         let json_str = message_val.as_string().unwrap_or_default();
         js_sys::JSON::parse(&json_str).map_err(|e| {
-            JsValue::from_str(&format!(
-                "Failed to parse JSON string input: {:?}",
-                e
-            ))
+            JsValue::from_str(&format!("Failed to parse JSON string input: {:?}", e))
         })?
     } else {
         message_val
@@ -253,7 +248,8 @@ pub fn parse_worker_request_envelope(
         .map_err(|e| JsValue::from_str(&format!("Failed to read message.type: {:?}", e)))?;
     let msg_type_num = msg_type_js
         .as_f64()
-        .ok_or_else(|| JsValue::from_str("message.type must be a number"))? as u32;
+        .ok_or_else(|| JsValue::from_str("message.type must be a number"))?
+        as u32;
     let request_type = WorkerRequestType::from(msg_type_num);
 
     let payload_js = js_sys::Reflect::get(&message_obj, &JsValue::from_str("payload"))

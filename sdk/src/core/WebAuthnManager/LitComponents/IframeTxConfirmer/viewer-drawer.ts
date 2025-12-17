@@ -35,7 +35,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   declare nearAccountId: string;
   declare txSigningRequests: TransactionInputWasm[];
-  declare vrfChallenge?: VRFChallenge;
+  declare vrfChallenge?: Partial<VRFChallenge>;
   // Theme tokens now come from external CSS (tx-confirmer.css)
   // style injection has been removed to satisfy strict CSP.
   declare theme: ThemeName;
@@ -47,7 +47,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   declare deferClose: boolean;
   declare nearExplorerUrl?: string;
   declare intentDigest?: string;
-  declare delegateMeta?: Record<string, unknown>;
 
   // Keep essential custom elements from being tree-shaken
   private _ensureDrawerDefinition = DrawerElement;
@@ -259,7 +258,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
                     <path d="m3.3 7 8.7 5 8.7-5"/>
                     <path d="M12 22V12"/>
                   </svg>
-                  ${this.vrfChallenge?.rpId
+                  ${this.vrfChallenge?.blockHeight
                     ? html`block ${this.vrfChallenge.blockHeight}`
                     : ''}
                 </span>
@@ -274,7 +273,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
               .vrfChallenge=${this.vrfChallenge}
               .theme=${this.theme}
               .nearExplorerUrl=${this.nearExplorerUrl}
-              .delegateMeta=${this.delegateMeta}
               .showShadow=${false}
               .loading=${this.loading}
               .errorMessage=${this.errorMessage || ''}

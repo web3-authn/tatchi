@@ -8,16 +8,41 @@ import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from
 import { ConfirmationConfig } from './signer-worker';
 import { AccountId } from "./accountIds.js";
 import { base64UrlDecode, base64UrlEncode } from "../../utils/encoders.js";
+import type { SecureConfirmRequest } from "../WebAuthnManager/VrfWorkerManager/confirmTxFlow/types";
 
 export type WasmGenerateVrfKeypairBootstrapRequest = StripFree<wasmModule.GenerateVrfKeypairBootstrapRequest>;
 export type WasmGenerateVrfChallengeRequest = StripFree<wasmModule.GenerateVrfChallengeRequest>;
-export type WasmUnlockVrfKeypairRequest = StripFree<wasmModule.UnlockVrfKeypairRequest>;
-export type WasmDeriveVrfKeypairFromPrfRequest = StripFree<wasmModule.DeriveVrfKeypairFromPrfRequest>;
-export type WasmDeriveWrapKeySeedAndSessionRequest =
-  StripFree<wasmModule.DeriveWrapKeySeedAndSessionRequest> & {
-    // Optional credential for PRF.second extraction (registration or authentication)
-    credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+export type WasmUnlockVrfKeypairRequest = Omit<StripFree<wasmModule.UnlockVrfKeypairRequest>, 'prfKey'> & {
+  // Prefer forwarding the full serialized WebAuthn credential so PRF outputs do not need
+  // to be extracted into separate main-thread strings.
+  credential: WebAuthnAuthenticationCredential;
+};
+export type WasmDeriveVrfKeypairFromPrfRequest = Omit<
+  StripFree<wasmModule.DeriveVrfKeypairFromPrfRequest>,
+  'credential' | 'prfOutput'
+> & {
+  // Forward the WebAuthn credential so PRF outputs do not need to be extracted in main-thread JS.
+  credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+};
+export type WasmMintSessionKeysAndSendToSignerRequest =
+  Omit<
+    StripFree<wasmModule.MintSessionKeysAndSendToSignerRequest>,
+    'contractId' | 'nearRpcUrl' | 'ttlMs' | 'remainingUses'
+  > & {
+    contractId?: string;
+    nearRpcUrl?: string;
+    // Optional signing-session config. When omitted, VRF worker uses defaults.
+    ttlMs?: number;
+    remainingUses?: number;
+    // Forward the WebAuthn credential so PRF outputs do not need to be extracted in main-thread JS.
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
   };
+export type WasmDispenseSessionKeyRequest = StripFree<wasmModule.DispenseSessionKeyRequest>;
+export type WasmCheckSessionStatusRequest = StripFree<wasmModule.CheckSessionStatusRequest>;
+export type WasmClearSessionRequest = StripFree<wasmModule.ClearSessionRequest>;
+export type WasmConfirmAndPrepareSigningSessionRequest = {
+  request: SecureConfirmRequest;
+};
 export type WasmDecryptSessionRequest = StripFree<wasmModule.DecryptSessionRequest>;
 export type WasmRegistrationCredentialConfirmationRequest = StripFree<wasmModule.RegistrationCredentialConfirmationRequest> & {
   confirmationConfig?: ConfirmationConfig;
@@ -35,7 +60,11 @@ export type WasmVrfWorkerRequestType = WasmGenerateVrfKeypairBootstrapRequest
   | WasmGenerateVrfChallengeRequest
   | WasmUnlockVrfKeypairRequest
   | WasmDeriveVrfKeypairFromPrfRequest
-  | WasmDeriveWrapKeySeedAndSessionRequest
+  | WasmMintSessionKeysAndSendToSignerRequest
+  | WasmDispenseSessionKeyRequest
+  | WasmCheckSessionStatusRequest
+  | WasmClearSessionRequest
+  | WasmConfirmAndPrepareSigningSessionRequest
   | WasmDecryptSessionRequest
   | WasmRegistrationCredentialConfirmationRequest
   | WasmDevice2RegistrationSessionRequest
@@ -174,9 +203,13 @@ export interface VRFWorkerMessage<T extends WasmVrfWorkerRequestType> {
   | 'GENERATE_VRF_KEYPAIR_BOOTSTRAP'
   | 'UNLOCK_VRF_KEYPAIR'
   | 'CHECK_VRF_STATUS'
-  | 'LOGOUT'
+  | 'CLEAR_VRF'
   | 'DERIVE_VRF_KEYPAIR_FROM_PRF'
-  | 'DERIVE_WRAP_KEY_SEED_AND_SESSION'
+  | 'MINT_SESSION_KEYS_AND_SEND_TO_SIGNER'
+  | 'DISPENSE_SESSION_KEY'
+  | 'CHECK_SESSION_STATUS'
+  | 'CLEAR_SESSION'
+  | 'CONFIRM_AND_PREPARE_SIGNING_SESSION'
   | 'DECRYPT_SESSION'
   | 'REGISTRATION_CREDENTIAL_CONFIRMATION'
   | 'DEVICE2_REGISTRATION_SESSION'

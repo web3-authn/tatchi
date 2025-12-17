@@ -35,7 +35,10 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
   success: boolean;
   nearAccountId: AccountId;
   publicKey: string;
-  iv?: string;
+  /**
+   * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+   */
+  chacha20NonceB64u?: string;
   wrapKeySalt?: string;
   error?: string;
 }> {
@@ -45,18 +48,18 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     if (!sessionId) throw new Error('Missing sessionId for registration WrapKeySeed delivery');
 
     const response = await ctx.sendMessage<WorkerRequestType.DeriveNearKeypairAndEncrypt>({
+      sessionId,
       message: {
         type: WorkerRequestType.DeriveNearKeypairAndEncrypt,
-        payload: withSessionId({
+        payload: withSessionId(sessionId, {
           nearAccountId: nearAccountId,
           credential,
           authenticatorOptions: options?.authenticatorOptions ? {
             userVerification: toEnumUserVerificationPolicy(options.authenticatorOptions.userVerification),
             originPolicy: options.authenticatorOptions.originPolicy,
           } : undefined,
-        }, sessionId)
+        })
       },
-      sessionId,
     });
 
     if (!isDeriveNearKeypairAndEncryptSuccess(response)) {
@@ -65,16 +68,20 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
 
     const wasmResult = response.payload;
     const version = (wasmResult as any).version ?? 2;
-    const wrapKeySaltPersisted = (wasmResult as any).wrapKeySalt;
+    const wrapKeySaltPersisted = wasmResult.wrapKeySalt;
     // Prefer explicitly provided deviceNumber, else derive from IndexedDB state
     const deviceNumber = (typeof options?.deviceNumber === 'number')
       ? options!.deviceNumber!
       : await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
+    const chacha20NonceB64u = wasmResult.chacha20NonceB64u;
+    if (!chacha20NonceB64u) {
+      throw new Error('Missing chacha20NonceB64u in deriveNearKeypairAndEncrypt result');
+    }
     const keyData: EncryptedKeyData = {
       nearAccountId: nearAccountId,
       deviceNumber,
       encryptedData: wasmResult.encryptedData,
-      iv: wasmResult.iv,
+      chacha20NonceB64u,
       wrapKeySalt: wrapKeySaltPersisted,
       version,
       timestamp: Date.now()
@@ -85,7 +92,7 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
       success: true,
       nearAccountId: toAccountId(wasmResult.nearAccountId),
       publicKey: wasmResult.publicKey,
-      iv: wasmResult.iv,
+      chacha20NonceB64u,
       wrapKeySalt: wrapKeySaltPersisted,
     };
   } catch (error: unknown) {

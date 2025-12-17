@@ -23,7 +23,7 @@ export function PasskeyLoginMenu() {
       targetAccountId,
       accountExists
     },
-    loginPasskey,
+    loginAndCreateSession,
     registerPasskey,
     refreshLoginState,
     tatchi,
@@ -109,7 +109,7 @@ export function PasskeyLoginMenu() {
 
   const onLogin = async () => {
     // Return the promise so caller can await and catch
-    return loginPasskey(targetAccountId, {
+    return loginAndCreateSession(targetAccountId, {
       onEvent: (event) => {
         switch (event.phase) {
           case LoginPhase.STEP_1_PREPARATION:

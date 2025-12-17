@@ -29,8 +29,8 @@ pub struct RecoverKeypairResult {
     pub public_key: String,
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedData")]
     pub encrypted_data: String,
-    #[wasm_bindgen(getter_with_clone)]
-    pub iv: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "chacha20NonceB64u")]
+    pub chacha20_nonce_b64u: String,
     #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
     pub wrap_key_salt: String,
     #[wasm_bindgen(getter_with_clone, js_name = "accountIdHint")]
@@ -43,14 +43,14 @@ impl RecoverKeypairResult {
     pub fn new(
         public_key: String,
         encrypted_data: String,
-        iv: String,
+        chacha20_nonce_b64u: String,
         wrap_key_salt: String,
         account_id_hint: Option<String>,
     ) -> RecoverKeypairResult {
         RecoverKeypairResult {
             public_key,
             encrypted_data,
-            iv,
+            chacha20_nonce_b64u,
             wrap_key_salt,
             account_id_hint,
         }
@@ -73,7 +73,6 @@ pub async fn handle_recover_keypair_from_passkey(
     request: RecoverKeypairRequest,
     wrap_key: WrapKey,
 ) -> Result<RecoverKeypairResult, String> {
-
     let ed25519_prf_output = request
         .credential
         .client_extension_results
@@ -82,7 +81,10 @@ pub async fn handle_recover_keypair_from_passkey(
         .second
         .ok_or_else(|| "Missing PRF output (second) in credential".to_string())?;
 
-    debug!("RUST: Parsed authentication credential with ID: {}", request.credential.id);
+    debug!(
+        "RUST: Parsed authentication credential with ID: {}",
+        request.credential.id
+    );
     // Use account hint if provided, otherwise generate placeholder
     let account_id = request
         .account_id_hint
@@ -109,7 +111,7 @@ pub async fn handle_recover_keypair_from_passkey(
     Ok(RecoverKeypairResult::new(
         public_key,
         encryption_result.encrypted_near_key_data_b64u,
-        encryption_result.chacha20_nonce_b64u, // IV
+        encryption_result.chacha20_nonce_b64u,
         wrap_key.salt_b64u().to_string(),
         Some(account_id.to_string()),
     ))

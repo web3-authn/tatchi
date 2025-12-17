@@ -1,5 +1,10 @@
 import { WebAuthnManager } from '../WebAuthnManager';
-import { loginPasskey, getLoginState, getRecentLogins, logoutAndClearVrfSession } from './login';
+import {
+  loginAndCreateSession,
+  getLoginSession,
+  getRecentLogins,
+  logoutAndClearSession,
+} from './login';
 import {
   executeAction,
   signTransactionsWithActions,
@@ -16,29 +21,34 @@ import {
   type AccessKeyList,
 } from '../NearClient';
 import type {
-  TatchiPasskeyConfigs,
-  RegistrationResult,
-  LoginResult,
-  LoginState,
   ActionResult,
+  DelegateRelayResult,
   GetRecentLoginsResult,
-  SignTransactionResult,
-  SignDelegateActionResult,
+  LoginAndCreateSessionResult,
+  LoginResult,
+  LoginSession,
+  LoginState,
+  RegistrationResult,
   SignAndSendDelegateActionResult,
-  SignAndSendDelegateActionHooksOptions,
-  DelegateRelayHooksOptions,
-  DelegateRelayResponse,
-  RegistrationHooksOptions,
-  LoginHooksOptions,
+  SignDelegateActionResult,
+  SignTransactionResult,
+  TatchiConfigs,
+  TatchiConfigsInput,
+} from '../types/tatchi';
+import type {
+  AccountRecoveryHooksOptions,
   ActionHooksOptions,
-  SignTransactionHooksOptions,
+  DelegateActionHooksOptions,
+  DelegateRelayHooksOptions,
+  LoginHooksOptions,
+  RegistrationHooksOptions,
   SendTransactionHooksOptions,
+  SignAndSendDelegateActionHooksOptions,
   SignAndSendTransactionHooksOptions,
   SignNEP413HooksOptions,
-  DelegateActionHooksOptions,
-  AccountRecoveryHooksOptions,
-} from '../types/passkeyManager';
-import { ActionPhase, ActionStatus } from '../types/passkeyManager';
+  SignTransactionHooksOptions,
+} from '../types/sdkSentEvents';
+import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
 import { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
@@ -78,6 +88,7 @@ import {
   bytesToHex,
 } from '../EmailRecovery';
 import type { DelegateActionInput } from '../types/delegate';
+import { buildConfigsFromEnv } from '../defaultConfigs';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -86,7 +97,7 @@ import type { DelegateActionInput } from '../types/delegate';
 export interface PasskeyManagerContext {
   webAuthnManager: WebAuthnManager;
   nearClient: NearClient;
-  configs: TatchiPasskeyConfigs;
+  configs: TatchiConfigs;
 }
 
 let warnedAboutSameOriginWallet = false;
@@ -98,7 +109,7 @@ let warnedAboutSameOriginWallet = false;
 export class TatchiPasskey {
   private readonly webAuthnManager: WebAuthnManager;
   private readonly nearClient: NearClient;
-  readonly configs: TatchiPasskeyConfigs;
+  readonly configs: TatchiConfigs;
   private iframeRouter: WalletIframeRouter | null = null;
   // Internal active Device2 flow when running locally (not exposed)
   private activeDeviceLinkFlow: LinkDeviceFlow | null = null;
@@ -106,12 +117,12 @@ export class TatchiPasskey {
   private activeEmailRecoveryFlow: import('./emailRecovery').EmailRecoveryFlow | null = null;
 
   constructor(
-    configs: TatchiPasskeyConfigs,
+    configs: TatchiConfigsInput,
     nearClient?: NearClient
   ) {
-    this.configs = configs;
+    this.configs = buildConfigsFromEnv(configs);
     // Use provided client or create default one
-    this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
+    this.nearClient = nearClient || new MinimalNearClient(this.configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(this.configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
   }
@@ -133,12 +144,19 @@ export class TatchiPasskey {
     // Warm local critical resources (NonceManager, IndexedDB, workers) regardless of iframe usage
     await this.webAuthnManager.warmCriticalResources(nearAccountId);
 
+    // Guardrail: when running inside the wallet service iframe host, never attempt to
+    // initialize a nested wallet iframe client, even if configs accidentally include iframeWallet.
+    // The host runs the real TatchiPasskey instance and must remain self-contained.
+    if (__isWalletIframeHostMode()) {
+      return;
+    }
+
     const walletIframeConfig = this.configs.iframeWallet;
     const walletOrigin = walletIframeConfig?.walletOrigin;
     // If no wallet origin configured, we're done after local warm-up
     if (!walletOrigin) {
       // Reflect local login state so callers depending on init() get fresh status
-      await this.getLoginState(nearAccountId);
+      await this.getLoginSession(nearAccountId);
       return;
     }
 
@@ -181,7 +199,7 @@ export class TatchiPasskey {
     await this.iframeRouter.init();
     // Opportunistically warm remote NonceManager and surface initial login state
     try { await this.iframeRouter.prefetchBlockheight(); } catch {}
-    await this.getLoginState(nearAccountId);
+    await this.getLoginSession(nearAccountId);
   }
 
   /** Get the wallet iframe client if initialized. */
@@ -331,24 +349,27 @@ export class TatchiPasskey {
   }
 
   /**
-   * Login with an existing passkey
-   * Uses AccountId for on-chain operations and VRF operations
+   * Login and ensure a warm signing session exists.
+   * - Unlocks VRF keypair (Shamir auto-unlock when possible; else WebAuthn prompt)
+   * - Mints a warm signing session (policy from configs, override via options.signingSession)
+   * - Optional: mints a server session (JWT/cookie) via options.session
    */
-  async loginPasskey(
+  async loginAndCreateSession(
     nearAccountId: string,
     options?: LoginHooksOptions
-  ): Promise<LoginResult> {
+  ): Promise<LoginAndCreateSessionResult> {
     if (this.iframeRouter) {
       // Keep local preferences in sync
       try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
       try {
         // Forward serializable options to wallet host, including session config
-        const res = await this.iframeRouter.loginPasskey({
+        const res = await this.iframeRouter.loginAndCreateSession({
           nearAccountId,
           options: {
             onEvent: options?.onEvent,
             // Pass through session so the wallet host calls relay to mint JWT/cookie sessions
             session: options?.session,
+            signingSession: options?.signingSession,
           }
         });
         // Best-effort warm-up after successful login (non-blocking)
@@ -364,17 +385,17 @@ export class TatchiPasskey {
     }
     // Initialize current user before login
     await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient);
-    const res = await loginPasskey(this.getContext(), toAccountId(nearAccountId), options);
+    const res = await loginAndCreateSession(this.getContext(), toAccountId(nearAccountId), options);
     // Best-effort warm-up after successful login (non-blocking)
     try { void this.warmCriticalResources(nearAccountId); } catch {}
     return res;
   }
 
   /**
-   * Logout: Clear VRF session (clear VRF keypair in worker)
+   * Logout: clears VRF keypair and all in-worker session state.
    */
-  async logoutAndClearVrfSession(): Promise<void> {
-    await logoutAndClearVrfSession(this.getContext());
+  async logoutAndClearSession(): Promise<void> {
+    await logoutAndClearSession(this.getContext());
     // Also clear wallet-origin VRF session if service iframe is active
     if (this.iframeRouter) {
       try { await this.iframeRouter.clearVrfSession?.(); } catch {}
@@ -382,17 +403,15 @@ export class TatchiPasskey {
   }
 
   /**
-   * Get comprehensive login state information
-   * Uses AccountId for core account login state
+   * Read login state + warm signing session status (no prompts).
    */
-  async getLoginState(nearAccountId?: string): Promise<LoginState> {
+  async getLoginSession(nearAccountId?: string): Promise<LoginSession> {
     if (this.iframeRouter) {
-      const state = await this.iframeRouter.getLoginState(nearAccountId);
-      // Best-effort prefetch of latest block context at wallet origin
+      const session = await this.iframeRouter.getLoginSession(nearAccountId);
       try { await this.iframeRouter.prefetchBlockheight(); } catch {}
-      return state;
+      return session;
     }
-    return getLoginState(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
+    return await getLoginSession(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
   }
 
   /**
@@ -898,7 +917,7 @@ export class TatchiPasskey {
     hash: string;
     signal?: AbortSignal;
     options?: DelegateRelayHooksOptions;
-  }): Promise<DelegateRelayResponse> {
+  }): Promise<DelegateRelayResult> {
     const base = args.relayerUrl.replace(/\/+$/, '');
     const route = (this.configs.relayer?.delegateActionRoute || '/signed-delegate').replace(/^\/?/, '/');
     const endpoint = `${base}${route}`;
@@ -956,7 +975,7 @@ export class TatchiPasskey {
         }
       : undefined;
 
-    let relayResult: DelegateRelayResponse;
+    let relayResult: DelegateRelayResult;
     try {
       relayResult = await this.sendDelegateActionViaRelayer({
         relayerUrl,
@@ -1409,6 +1428,12 @@ export class TatchiPasskey {
    * Runs inside iframe when available for better isolation.
    */
   async startDevice2LinkingFlow(args: StartDevice2LinkingFlowArgs): Promise<StartDevice2LinkingFlowResults> {
+    // When iframeWallet is configured, device linking must run inside the wallet origin
+    // so the wallet-host IndexedDB has the new device/user state (lastUser + keys).
+    // Falling back to local here can split state across origins and break signing later.
+    if (this.configs.iframeWallet?.walletOrigin && !this.iframeRouter && !__isWalletIframeHostMode()) {
+      await this.initWalletIframe();
+    }
     if (this.iframeRouter) {
       return await this.iframeRouter.startDevice2LinkingFlow({
         ui: args?.ui,
@@ -1450,6 +1475,11 @@ export class TatchiPasskey {
     qrData: DeviceLinkingQRData,
     options: ScanAndLinkDeviceOptionsDevice1
   ): Promise<LinkDeviceResult> {
+    // Ensure wallet iframe is initialized when walletOrigin is configured so device linking
+    // runs within the same origin as subsequent signing flows.
+    if (this.configs.iframeWallet?.walletOrigin && !this.iframeRouter && !__isWalletIframeHostMode()) {
+      await this.initWalletIframe();
+    }
     if (this.iframeRouter) {
       const res = await this.iframeRouter.linkDeviceWithScannedQRData({
         qrData,
@@ -1499,19 +1529,25 @@ export class TatchiPasskey {
 
 // Re-export types for convenience
 export type {
-  TatchiPasskeyConfigs,
-  RegistrationHooksOptions,
+  TatchiConfigs,
+  TatchiConfigsInput,
   RegistrationResult,
-  RegistrationSSEEvent,
-  LoginHooksOptions,
+  LoginAndCreateSessionResult,
   LoginResult,
-  LoginSSEvent,
-  SignNEP413HooksOptions,
-  ActionHooksOptions,
+  LoginSession,
+  SigningSessionStatus,
   ActionResult,
-  EventCallback,
+} from '../types/tatchi';
+export type {
+  ActionHooksOptions,
   AfterCall,
-} from '../types/passkeyManager';
+  EventCallback,
+  LoginHooksOptions,
+  LoginSSEvent,
+  RegistrationHooksOptions,
+  RegistrationSSEEvent,
+  SignNEP413HooksOptions,
+} from '../types/sdkSentEvents';
 // Context alias (optional convenience)
 export type TatchiPasskeyContext = PasskeyManagerContext;
 

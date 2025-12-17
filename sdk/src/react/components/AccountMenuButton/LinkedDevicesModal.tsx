@@ -46,8 +46,8 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
       (async () => {
         try {
           if (!tatchi) return;
-          const st = await tatchi.getLoginState(nearAccountId);
-          const dn = (st as any)?.userData?.deviceNumber;
+          const { login } = await tatchi.getLoginSession(nearAccountId);
+          const dn = (login as any)?.userData?.deviceNumber;
           if (typeof dn === 'number' && Number.isFinite(dn)) {
             setCurrentDeviceNumber(dn);
           } else {

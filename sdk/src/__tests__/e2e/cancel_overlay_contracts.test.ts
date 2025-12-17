@@ -84,7 +84,7 @@ test.describe('Wallet iframe overlay contracts on cancel', () => {
         const flows: Array<{ name: string; run: () => Promise<unknown> }> = [
           {
             name: 'login',
-            run: () => router.loginPasskey({
+            run: () => router.loginAndCreateSession({
               nearAccountId,
               options: {
                 onEvent: (evt: any) => {

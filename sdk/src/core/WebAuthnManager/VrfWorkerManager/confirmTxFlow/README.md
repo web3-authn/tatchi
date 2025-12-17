@@ -2,7 +2,11 @@
 
 ## Overview
 
-Secure confirmation is coordinated in the main thread and split into small, testable units. The worker requests a confirmation; the main thread classifies the request and delegates to a per‑flow handler that prepares NEAR/VRF data, renders UI, collects WebAuthn credentials, and responds back.
+Secure confirmation is coordinated in the main thread and split into small, testable units.
+
+- The **VRF WASM worker** is the canonical initiator: it requests confirmation via `awaitSecureConfirmationV2(...)`.
+- The **main thread** classifies the request and delegates to a per‑flow handler that prepares NEAR/VRF data, renders UI, optionally collects WebAuthn credentials, and responds back.
+- For signing flows, the main thread also triggers VRF-owned key delivery (`DISPENSE_SESSION_KEY` for warm sessions, or `MINT_SESSION_KEYS_AND_SEND_TO_SIGNER` for cold/WebAuthn) so `WrapKeySeed` never enters the main thread.
 
 High‑level phases: Classify → Prepare → Confirm UI → JIT Refresh → Collect Credentials → Respond → Cleanup.
 
@@ -10,40 +14,63 @@ High‑level phases: Classify → Prepare → Confirm UI → JIT Refresh → Col
 
 - Orchestrator: `handleSecureConfirmRequest.ts` (entry; validates, computes config, classifies, dispatches)
 - Flows: `flows/localOnly.ts`, `flows/registration.ts`, `flows/transactions.ts`
-- Shared helpers: `flows/common.ts` (NEAR context/nonce, VRF challenge + refresh, UI renderer, sanitize, type helpers)
+- Shared barrel: `flows/index.ts` (re-exports `adapters/*` to keep imports stable)
+- Adapters: `adapters/*` (NEAR context/nonce, VRF challenge + refresh, UI renderer, sanitize, type helpers)
 - Types: `types.ts` (discriminated unions bound to `request.type`)
-- Worker request: `awaitSecureConfirmation.ts` (posts request to main thread)
+- Worker bridge: `awaitSecureConfirmation.ts` (worker-side helper that posts the request to the main thread and awaits a decision)
 - Config rules: `determineConfirmationConfig.ts` (merges user prefs + request overrides + iframe safety)
 
 ## Message Handshake
 
-- Worker → Main: `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD` with a V2 `SecureConfirmRequest`
-- Main → Worker: `USER_PASSKEY_CONFIRM_RESPONSE` containing confirmation status, optional credential, `prfOutput`, `vrfChallenge`, and `transactionContext`
+- Worker → Main: `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD` with a V2 `SecureConfirmRequest` (schemaVersion: 2)
+- Main → Worker: `USER_PASSKEY_CONFIRM_RESPONSE` containing confirmation status, optional credential, and optional `{ vrfChallenge, transactionContext }`
+
+### Defensive constraints (signing flows)
+
+For `SecureConfirmationType.SIGN_TRANSACTION` / `SIGN_NEP413_MESSAGE`:
+- The request payload must not contain secrets like `prfOutput`, `wrapKeySeed`, `wrapKeySalt`, or `vrf_sk` (validated in `handleSecureConfirmRequest.ts`).
+- The main-thread response intentionally omits `prfOutput`, `wrapKeySeed`, and `wrapKeySalt` for signing. `WrapKeySeed` is delivered only via the dedicated VRF→Signer `MessagePort`.
+
+### Canonical Initiator (Signing)
+
+For signing flows, the canonical initiator is the **VRF WASM worker**:
+
+1. VRF Rust calls `awaitSecureConfirmationV2(request)` (JS function exposed globally in the VRF worker runtime).
+2. `awaitSecureConfirmationV2` posts `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD` to the main thread.
+3. `VrfWorkerManager` intercepts that handshake message and runs `handlePromptUserConfirmInJsMainThread(...)` (confirmTxFlow) on the main thread.
+4. The main thread posts `USER_PASSKEY_CONFIRM_RESPONSE` back to the VRF worker.
+5. The VRF worker resolves the Rust future and continues the original VRF request.
+
+This keeps “how we confirm” as a single path (less complexity) while still allowing warm sessions to skip WebAuthn.
 
 ## Flows
 
 - LocalOnly
   - Types: `DECRYPT_PRIVATE_KEY_WITH_PRF`, `SHOW_SECURE_PRIVATE_KEY_UI`
   - No NEAR calls; uses a local random VRF challenge for UI plumbing
-  - Decrypt: silently collect PRF via get(); UI is skipped; if user cancels, posts `WALLET_UI_CLOSED`
+  - Decrypt: silently collect an authentication credential via get(); UI is skipped; VRF worker extracts PRF internally; if user cancels, posts `WALLET_UI_CLOSED`
   - ShowSecurePrivateKeyUi: mounts export viewer (modal/drawer); returns confirmed=true and keeps viewer open
 
 - Registration / LinkDevice
   - Fetches NEAR block context; bootstraps temporary VRF keypair; renders UI per config
   - Performs JIT VRF refresh (best‑effort) and updates UI
   - Collects create() credentials; retries on `InvalidStateError` by bumping deviceNumber
-  - Serializes credential (without PRF outputs for relay/contract requests) and returns dual PRF outputs
+  - Serializes credential (PRF outputs are embedded in the serialized credential so the VRF worker can extract them)
 
 - Signing / NEP‑413
-  - Fetches NEAR context via NonceManager (reserving per‑request nonces); generates VRF challenge
-  - Renders UI per config; performs JIT VRF refresh (best‑effort)
-  - Collects get() credentials; returns serialized credential + PRF output
+  - Fetches NEAR context via NonceManager (reserving per‑request nonces)
+  - Renders UI per config
+  - Supports a single flow with two signing modes, controlled by `payload.signingAuthMode`:
+    - `webauthn` (default): generate a VRF challenge, optionally JIT-refresh it, collect get() credentials, then ask the VRF worker to mint and deliver `WrapKeySeed` to the signer worker via `MessagePort`.
+    - `warmSession`: skip WebAuthn entirely and ask the VRF worker to `dispenseSessionKey({ sessionId, uses })` after UI confirmation.
+  - Signing responses intentionally omit PRF outputs; `WrapKeySeed` never crosses the main thread.
   - Releases reserved nonces on cancel/negative confirmation
 
 ## UI Behavior
 
 - `determineConfirmationConfig` combines user prefs and request overrides, with wallet‑iframe safety defaults
 - `renderConfirmUI` supports `uiMode: 'skip' | 'modal' | 'drawer'` and `behavior: 'autoProceed' | 'requireClick'`
+- For warm sessions (`signingAuthMode: 'warmSession'`), `vrfChallenge` may be omitted; the confirmer UI still renders, but no WebAuthn prompt is performed.
 - Wallet iframe overlay considerations remain: requireClick flows must be visible for clicks to register
 
 ## ConfirmationConfig Pipeline
@@ -79,10 +106,10 @@ This section documents how a ConfirmationConfig is chosen for each confirmation,
 Applied in `determineConfirmationConfig` after merging override + prefs:
 
 - Decrypt Private Key flow: forces `uiMode: 'skip'` (UI suppressed; worker may follow with a separate UI). See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:47`.
-- Mobile/iOS heuristic: if `isIOS()` or `isMobileDevice()` is true, promote any configuration to a visible, clickable confirmation to reliably satisfy WebAuthn user activation:
+- Activation heuristic: if `needsExplicitActivation()` is true, promote any configuration to a visible, clickable confirmation to reliably satisfy WebAuthn user activation:
   - Clamp to `behavior: 'requireClick'` and upgrade `uiMode: 'skip'` to a visible mode. See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:64`.
 - Wallet‑iframe host, Registration/Link flows:
-  - All platforms: always use `{ uiMode: 'modal', behavior: 'requireClick' }` so the click lands inside the iframe. See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:89`.
+  - All platforms: always use `{ uiMode: 'modal', behavior: 'requireClick' }` so the click lands inside the iframe. This currently overrides both user prefs and request overrides for these flow types. See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:89`.
 
 ### Effective Behavior by Flow (Current Policy)
 
@@ -119,11 +146,12 @@ Applied in `determineConfirmationConfig` after merging override + prefs:
 3. Per‑flow handler prepares NEAR context and VRF challenge
 4. UI is rendered per config (skip/modal/drawer); user confirms or cancels
 5. JIT VRF refresh (best‑effort) updates UI
-6. Credentials are collected (create/get) and serialized; PRF extracted when required
-7. Response is sent back; nonces released on cancel; UI closed as appropriate
+6. If required, credentials are collected (create/get) and serialized; PRF is extracted only for LocalOnly decrypt and for key-minting inputs to the VRF worker
+7. For signing flows, the main thread triggers VRF-owned key delivery (warm dispense or cold mint-and-send) over the attached `MessagePort`
+8. Response is sent back; nonces released on cancel; UI closed as appropriate
 
 ## Notes
 
 - Export viewer (ShowSecurePrivateKeyUi) posts `WALLET_UI_OPENED/CLOSED` to coordinate overlays
 - Errors are returned in a structured format; best‑effort cleanup always runs
-- Orchestrator imports helpers from `flows/common` and never performs side effects directly
+- Orchestrator imports helpers from `flows/index` + `adapters/requestAdapter` and never performs side effects directly

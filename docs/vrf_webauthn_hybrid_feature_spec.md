@@ -114,11 +114,11 @@ WebAuthn PRF registration yields:
 Derivations:
 
 ```
-vrf_sk     = HKDF(PRF.second_reg, "tatchchi:v1:vrf-sk")
+vrf_sk     = HKDF(PRF.second_reg, "tatchi:v1:vrf-sk")
 vrf_pk     = VRF_derive_public(vrf_sk)
-near_sk    = HKDF(PRF.second_reg, "tatchchi:v1:near-sk")
+near_sk    = HKDF(PRF.second_reg, "tatchi:v1:near-sk")
 
-K_pass_reg = HKDF(PRF.first_reg, "tatchchi:v1:vrf-wrap-pass")
+K_pass_reg = HKDF(PRF.first_reg, "tatchi:v1:vrf-wrap-pass")
 wrapKeySalt  = random(32 bytes)
 ```
 
@@ -165,7 +165,7 @@ Used only when relay is unavailable **and** user explicitly opts in.
 3. VRF worker deterministically re-derives the VRF secret key:
 
 ```
-vrf_sk = HKDF(PRF.second_reg, "tatchchi:v1:vrf-sk")
+vrf_sk = HKDF(PRF.second_reg, "tatchi:v1:vrf-sk")
 ```
 
 4. Session unlock proceeds normally (same KEK/WrapKeySeed pipeline as primary mode).
@@ -188,6 +188,8 @@ WrapKeySeed       = HKDF(K_pass_auth || vrf_sk, "near-wrap-seed")
 KEK         = HKDF(WrapKeySeed, wrapKeySalt)
 near_sk     = Dec(KEK, C_near)
 ```
+
+One-liner: `WrapKeySeed = HKDF(HKDF(PRF.first_auth, "vrf-wrap-pass") || vrf_sk, "near-wrap-seed")`
 
 This ensures:
 - Fresh PRF.first required
@@ -280,7 +282,6 @@ This ensures:
 ### ✔ Wallet lives in a cross-origin iframe; the dApp origin never sees vault contents, workers, or WrapKeySeed/near_sk
 ### ✔ PRF.second use is restricted to registration, backup VRF recovery, device linking, and explicit recovery flows — not routine logins/transactions
 
----
 
 # 10. Implementation Plan
 

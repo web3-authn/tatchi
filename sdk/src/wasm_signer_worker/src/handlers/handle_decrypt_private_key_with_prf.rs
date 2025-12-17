@@ -21,8 +21,9 @@ pub struct DecryptPrivateKeyRequest {
     pub near_account_id: String,
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyData")]
     pub encrypted_private_key_data: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyIv")]
-    pub encrypted_private_key_iv: String,
+    /// ChaCha20-Poly1305 nonce (base64url) for `encryptedPrivateKeyData`.
+    #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyChacha20NonceB64u")]
+    pub encrypted_private_key_chacha20_nonce_b64u: String,
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     pub session_id: String,
 }
@@ -33,13 +34,13 @@ impl DecryptPrivateKeyRequest {
     pub fn new(
         near_account_id: String,
         encrypted_private_key_data: String,
-        encrypted_private_key_iv: String,
+        encrypted_private_key_chacha20_nonce_b64u: String,
         session_id: String,
     ) -> DecryptPrivateKeyRequest {
         DecryptPrivateKeyRequest {
             near_account_id,
             encrypted_private_key_data,
-            encrypted_private_key_iv,
+            encrypted_private_key_chacha20_nonce_b64u,
             session_id,
         }
     }
@@ -85,7 +86,7 @@ pub async fn handle_decrypt_private_key_with_prf(
 
     let decrypted_private_key_str = crate::crypto::decrypt_data_chacha20(
         &request.encrypted_private_key_data,
-        &request.encrypted_private_key_iv,
+        &request.encrypted_private_key_chacha20_nonce_b64u,
         &kek,
     )
     .map_err(|e| format!("Decryption failed: {}", e))?;

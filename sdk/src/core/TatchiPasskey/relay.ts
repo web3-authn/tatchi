@@ -1,4 +1,5 @@
-import { ActionPhase, ActionStatus, type ActionSSEEvent, type DelegateRelayHooksOptions, type DelegateRelayResponse } from '../types/passkeyManager';
+import { ActionPhase, ActionStatus, type ActionSSEEvent, type DelegateRelayHooksOptions } from '../types/sdkSentEvents';
+import type { DelegateRelayResult } from '../types/tatchi';
 import type { SignedDelegate } from '../types/delegate';
 
 export interface RelayDelegateRequest {
@@ -11,7 +12,7 @@ export async function sendDelegateActionViaRelayer(args: {
   payload: RelayDelegateRequest;
   signal?: AbortSignal;
   options?: DelegateRelayHooksOptions;
-}): Promise<DelegateRelayResponse> {
+}): Promise<DelegateRelayResult> {
 
   const { url, payload, signal, options } = args;
 
@@ -50,7 +51,7 @@ export async function sendDelegateActionViaRelayer(args: {
   }
 
   if (!res.ok) {
-    const response: DelegateRelayResponse = {
+    const response: DelegateRelayResult = {
       ok: false,
       error: `Relayer HTTP ${res.status}`,
     };
@@ -64,7 +65,7 @@ export async function sendDelegateActionViaRelayer(args: {
   try {
     json = await res.json();
   } catch (err: unknown) {
-    const response: DelegateRelayResponse = {
+    const response: DelegateRelayResult = {
       ok: false,
       error: 'Relayer returned non-JSON response',
     };
@@ -75,7 +76,7 @@ export async function sendDelegateActionViaRelayer(args: {
     return response;
   }
 
-  const response: DelegateRelayResponse = {
+  const response: DelegateRelayResult = {
     ok: Boolean(json?.ok ?? true),
     relayerTxHash: json?.relayerTxHash ?? json?.transactionId ?? json?.txHash,
     status: json?.status,

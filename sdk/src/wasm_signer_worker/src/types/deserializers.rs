@@ -122,4 +122,3 @@ pub mod serde_array_64 {
         deserializer.deserialize_tuple(64, ArrVisitor)
     }
 }
-

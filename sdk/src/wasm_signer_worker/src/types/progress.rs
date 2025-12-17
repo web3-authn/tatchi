@@ -156,12 +156,7 @@ pub fn send_progress_message<T: Serialize + ?Sized>(
         JsValue::UNDEFINED
     };
 
-    crate::send_progress_message(
-        msg_type as u32,
-        step as u32,
-        log,
-        data_js,
-    );
+    crate::send_progress_message(msg_type as u32, step as u32, log, data_js);
 }
 
 /// Type-safe helper for sending completion messages from WASM

@@ -6,6 +6,8 @@
  * and are used for worker lifecycle management and session setup.
  */
 
+import { WorkerControlMessage } from '../../workerControlMessages';
+
 // === SESSION MESSAGE TYPES ===
 
 /**
@@ -13,7 +15,7 @@
  * a WrapKeySeed MessagePort for a signing session.
  */
 export interface AttachWrapKeySeedPortOkMessage {
-  type: 'ATTACH_WRAP_KEY_SEED_PORT_OK';
+  type: typeof WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK;
   sessionId: string;
 }
 
@@ -22,7 +24,7 @@ export interface AttachWrapKeySeedPortOkMessage {
  * MessagePort fails.
  */
 export interface AttachWrapKeySeedPortErrorMessage {
-  type: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR';
+  type: typeof WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR;
   sessionId: string;
   error: string;
 }
@@ -31,18 +33,8 @@ export interface AttachWrapKeySeedPortErrorMessage {
  * Control message sent by the signer worker when it's ready to receive messages.
  */
 export interface WorkerReadyMessage {
-  type: 'WORKER_READY';
+  type: typeof WorkerControlMessage.WORKER_READY;
   ready: boolean;
-}
-
-/**
- * Control message sent by the signer worker when a WrapKeySeed has been
- * successfully received and stored in WRAP_KEY_SEED_SESSIONS.
- * This guarantees the session is ready for signing operations.
- */
-export interface WrapKeySeedReadyMessage {
-  type: 'WRAP_KEY_SEED_READY';
-  sessionId: string;
 }
 
 /**
@@ -51,8 +43,7 @@ export interface WrapKeySeedReadyMessage {
 export type SignerWorkerControlMessage =
   | AttachWrapKeySeedPortOkMessage
   | AttachWrapKeySeedPortErrorMessage
-  | WorkerReadyMessage
-  | WrapKeySeedReadyMessage;
+  | WorkerReadyMessage;
 
 /**
  * Type guard to check if a message is a control message.
@@ -62,10 +53,9 @@ export function isSignerWorkerControlMessage(msg: unknown): msg is SignerWorkerC
     return false;
   }
   const type = (msg as any).type;
-  return type === 'ATTACH_WRAP_KEY_SEED_PORT_OK'
-    || type === 'ATTACH_WRAP_KEY_SEED_PORT_ERROR'
-    || type === 'WORKER_READY'
-    || type === 'WRAP_KEY_SEED_READY';
+  return type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK
+    || type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR
+    || type === WorkerControlMessage.WORKER_READY;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -181,29 +171,8 @@ export function waitForWrapKeyPortAttach(
   timeoutMs: number = 2000
 ): Promise<void> {
   return waitForSessionMessage(worker, {
-    successType: 'ATTACH_WRAP_KEY_SEED_PORT_OK',
-    errorType: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR',
-    sessionId,
-    timeoutMs,
-  });
-}
-
-/**
- * Wait for the worker to signal that a WrapKeySeed has been received and stored.
- * This ensures the session is fully ready for signing operations.
- *
- * @param worker - The worker that should send the ready signal
- * @param sessionId - The session ID to match
- * @param timeoutMs - How long to wait before rejecting (default: 2000ms)
- * @returns Promise that resolves when seed is ready, rejects on timeout
- */
-export function waitForWrapKeySeedReady(
-  worker: Worker,
-  sessionId: string,
-  timeoutMs: number = 2000
-): Promise<void> {
-  return waitForSessionMessage(worker, {
-    successType: 'WRAP_KEY_SEED_READY',
+    successType: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK,
+    errorType: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
     sessionId,
     timeoutMs,
   });

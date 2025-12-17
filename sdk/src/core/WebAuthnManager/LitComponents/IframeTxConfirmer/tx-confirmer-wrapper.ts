@@ -4,7 +4,7 @@ import { LitElementWithProps } from '../LitElementWithProps';
 import type { ConfirmUIElement, ThemeName } from '../confirm-ui-types';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
-import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../common/tx-digest';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../txDigest';
 import { isActionArgsWasm, toActionArgsWasm, type ActionArgs, type ActionArgsWasm } from '@/core/types/actions';
 import { isObject, isString } from '../../../WalletIframe/validation';
 import { W3A_TX_CONFIRMER_ID } from '../tags';
@@ -18,7 +18,7 @@ export type Variant = 'modal' | 'drawer';
 export type TxConfirmerVariantElement = (ConfirmUIElement & HTMLElement) & {
   nearAccountId?: string;
   txSigningRequests?: TransactionInputWasm[];
-  vrfChallenge?: VRFChallenge;
+  vrfChallenge?: Partial<VRFChallenge>;
   theme?: ThemeName;
   loading?: boolean;
   errorMessage?: string;
@@ -58,7 +58,6 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     cancelText: { type: String, attribute: 'cancel-text' },
     deferClose: { type: Boolean, attribute: 'defer-close' },
     nearExplorerUrl: { type: String, attribute: 'near-explorer-url' },
-    delegateMeta: { type: Object },
   } as const;
 
   static keepDefinitions = [ModalTxConfirmElement, DrawerTxConfirmerElement];
@@ -66,7 +65,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
   declare variant: Variant;
   declare nearAccountId: string;
   declare txSigningRequests: TransactionInputWasm[];
-  declare vrfChallenge?: VRFChallenge;
+  declare vrfChallenge?: Partial<VRFChallenge>;
   declare theme: ThemeName;
   declare loading: boolean;
   declare errorMessage?: string;
@@ -76,7 +75,6 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
   declare cancelText: string;
   declare deferClose: boolean;
   declare nearExplorerUrl?: string;
-  declare delegateMeta?: Record<string, unknown>;
 
   private readonly childRef: Ref<TxConfirmerVariantElement> = createRef();
   private redispatchingEvent = false;
@@ -128,7 +126,6 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
           .confirmText=${this.confirmText}
           .cancelText=${this.cancelText}
           .deferClose=${this.deferClose}
-          .delegateMeta=${this.delegateMeta}
         ></w3a-drawer-tx-confirmer>
       `;
     }
@@ -146,7 +143,6 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
         .confirmText=${this.confirmText}
         .cancelText=${this.cancelText}
         .deferClose=${this.deferClose}
-        .delegateMeta=${this.delegateMeta}
       ></w3a-modal-tx-confirmer>
     `;
   }
@@ -165,7 +161,6 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     child.cancelText = this.cancelText;
     child.deferClose = this.deferClose;
     (child as any).nearExplorerUrl = this.nearExplorerUrl;
-    (child as any).delegateMeta = this.delegateMeta;
     child.requestUpdate?.();
     this.attachChildListeners();
   }

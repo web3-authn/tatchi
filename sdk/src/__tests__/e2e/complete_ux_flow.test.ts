@@ -11,7 +11,7 @@
 import { test, expect } from '../setup/fixtures';
 import { bypassContractVerification } from '../setup/bypasses';
 import { mockRelayServer, mockAccessKeyLookup, mockSendTransaction } from '../setup/route-mocks';
-import { registerPasskey, loginPasskey, executeTransfer, recoverAccount } from '../setup/flows';
+import { registerPasskey, loginAndCreateSession, executeTransfer, recoverAccount } from '../setup/flows';
 import { handleInfrastructureErrors, type TestUtils } from '../setup';
 import { printLog } from '../setup/logging';
 import { BUILD_PATHS } from '@build-paths';
@@ -132,7 +132,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
           });
         }
       })).then(async () => {
-        const loginState = await utils.passkeyManager.getLoginState();
+        const loginState = (await utils.passkeyManager.getLoginSession()).login;
         return { workerResults, loginState };
       });
     }, { buildPaths: BUILD_PATHS });
@@ -142,7 +142,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
       indent: 1,
     });
 
-    const login = await loginPasskey(passkey, { accountId });
+    const login = await loginAndCreateSession(passkey, { accountId });
 
     if (!login.success) {
       if (handleInfrastructureErrors(login)) {
@@ -208,7 +208,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
     const finalState = await passkey.withTestUtils(async ({ accountId: id }) => {
       const utils = (window as any).testUtils as TestUtils;
       const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
-      const state = await utils.passkeyManager.getLoginState(toAccountId(id));
+      const state = (await utils.passkeyManager.getLoginSession(toAccountId(id))).login;
       const recent = await utils.passkeyManager.getRecentLogins();
       return { state, recent };
     }, { accountId });

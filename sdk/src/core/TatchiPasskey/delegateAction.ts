@@ -3,10 +3,10 @@ import type { DelegateActionInput } from '../types/delegate';
 import type {
   DelegateActionSSEEvent,
   DelegateActionHooksOptions,
-  SignDelegateActionResult,
-} from '../types/passkeyManager';
+} from '../types/sdkSentEvents';
+import type { SignDelegateActionResult } from '../types/tatchi';
 import type { AccountId } from '../types/accountIds';
-import { ActionPhase, ActionStatus } from '../types/passkeyManager';
+import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
 import { toAccountId } from '../types/accountIds';
 import { toError } from '../../utils/errors';
 

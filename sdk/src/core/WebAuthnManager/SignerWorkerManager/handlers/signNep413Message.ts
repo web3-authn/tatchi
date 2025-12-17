@@ -3,8 +3,7 @@ import { WorkerRequestType, isSignNep413MessageSuccess } from '../../../types/si
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
 import { isObject } from '../../../WalletIframe/validation';
-import { withSessionId } from './session';
-
+import { generateSessionId } from '../sessionHandshake.js';
 
 /**
  * Sign a NEP-413 message using the user's passkey-derived private key
@@ -21,6 +20,8 @@ export async function signNep413Message({ ctx, payload }: {
     state: string | null;
     accountId: string;
     sessionId?: string;
+    contractId?: string;
+    nearRpcUrl?: string;
   };
 }): Promise<{
   success: boolean;
@@ -38,37 +39,37 @@ export async function signNep413Message({ ctx, payload }: {
     }
 
     // Expect caller (SignerWorkerManager) to reserve a session and wire ports; just use provided sessionId
-    const sessionId = payload.sessionId || ((typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-      ? crypto.randomUUID()
-      : `nep413-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const sessionId = payload.sessionId ?? generateSessionId();
 
     if (!ctx.vrfWorkerManager) {
       throw new Error('VrfWorkerManager not available for NEP-413 signing');
     }
-    // VRF-driven confirm path (collects credential and derives WrapKeySeed via confirmTxFlow).
-    const confirmation = await ctx.vrfWorkerManager.confirmAndPrepareSigningSession({
+
+    await ctx.vrfWorkerManager.confirmAndPrepareSigningSession({
       ctx,
       sessionId,
       kind: 'nep413',
       nearAccountId: payload.accountId,
       message: payload.message,
       recipient: payload.recipient,
+      contractId: payload.contractId,
+      nearRpcUrl: payload.nearRpcUrl,
     });
 
     const response = await ctx.sendMessage<WorkerRequestType.SignNep413Message>({
+      sessionId,
       message: {
         type: WorkerRequestType.SignNep413Message,
-        payload: withSessionId({
+        payload: {
           message: payload.message,
           recipient: payload.recipient,
           nonce: payload.nonce,
           state: payload.state || undefined,
           accountId: payload.accountId,
           encryptedPrivateKeyData: encryptedKeyData.encryptedData,
-          encryptedPrivateKeyIv: encryptedKeyData.iv,
-        }, sessionId)
+          encryptedPrivateKeyChacha20NonceB64u: encryptedKeyData.chacha20NonceB64u,
+        }
       },
-      sessionId,
     });
 
     if (!isSignNep413MessageSuccess(response)) {

@@ -55,7 +55,10 @@ export async function registerDevice2WithDerivedKey({
   signedTransaction: any;
   wrapKeySalt: string;
   encryptedData?: string;
-  iv?: string;
+  /**
+   * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+   */
+  chacha20NonceB64u?: string;
   error?: string;
 }> {
   try {
@@ -101,10 +104,10 @@ export async function registerDevice2WithDerivedKey({
 
     // Build request payload for combined Device2 registration
     const response = await ctx.sendMessage<WorkerRequestType.RegisterDevice2WithDerivedKey>({
+      sessionId,
       message: {
         type: WorkerRequestType.RegisterDevice2WithDerivedKey,
-        payload: withSessionId({
-          sessionId,
+        payload: withSessionId(sessionId, {
           credential,
           nearAccountId,
           transactionContext: {
@@ -114,9 +117,8 @@ export async function registerDevice2WithDerivedKey({
           },
           contractId,
           contractArgsJson: JSON.stringify(finalContractArgs),
-        }, sessionId),
+        }),
       },
-      sessionId,
     });
 
     if (!isRegisterDevice2WithDerivedKeySuccess(response)) {
@@ -128,11 +130,15 @@ export async function registerDevice2WithDerivedKey({
     console.debug('[SignerWorkerManager] Device2 registration complete, storing encrypted key');
 
     // Store encrypted NEAR key in IndexedDB
+    const chacha20NonceB64u = wasmResult.chacha20NonceB64u;
+    if (!chacha20NonceB64u) {
+      throw new Error('Missing chacha20NonceB64u in Device2 registration result');
+    }
     const keyData: EncryptedKeyData = {
       nearAccountId,
       deviceNumber: deviceNumber ?? 2, // Default to device 2
       encryptedData: wasmResult.encryptedData,
-      iv: wasmResult.iv,
+      chacha20NonceB64u,
       wrapKeySalt: wasmResult.wrapKeySalt,
       version: 2,
       timestamp: Date.now(),
@@ -147,7 +153,7 @@ export async function registerDevice2WithDerivedKey({
       signedTransaction: wasmResult.signedTransaction,
       wrapKeySalt: wasmResult.wrapKeySalt,
       encryptedData: wasmResult.encryptedData,
-      iv: wasmResult.iv,
+      chacha20NonceB64u,
     };
   } catch (error: unknown) {
     console.error('[SignerWorkerManager] registerDevice2WithDerivedKey error:', error);

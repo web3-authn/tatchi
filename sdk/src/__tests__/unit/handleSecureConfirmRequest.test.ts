@@ -116,7 +116,7 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
     const evt = result.responses?.[0];
     expect(evt?.type).toBe('USER_PASSKEY_CONFIRM_RESPONSE');
     expect(evt?.data?.confirmed).toBe(false);
-    expect(String(evt?.data?.error || '')).toContain('Invalid secure confirm request');
+    expect(String(evt?.data?.error || '')).toContain('missing payload');
   });
 
   test('Signing request with PRF or wrap key fields is rejected defensively', async ({ page }) => {

@@ -39,7 +39,8 @@ fn test_add_key_function_call_permission() {
                     "method_names": ["method1", "method2"]
                 }
             }
-        }"#.to_string(),
+        }"#
+        .to_string(),
     };
 
     assert!(function_call_params.validate().is_ok());
@@ -157,10 +158,15 @@ fn test_get_action_handler_new_types() {
     };
     assert!(delete_account_params.to_action().is_ok());
 
-    let deploy_params = ActionParams::DeployContract { code: vec![0, 97, 115, 109] }; // minimal wasm magic start
+    let deploy_params = ActionParams::DeployContract {
+        code: vec![0, 97, 115, 109],
+    }; // minimal wasm magic start
     assert!(deploy_params.to_action().is_ok());
 
-    let stake_params = ActionParams::Stake { stake: "1000000000000000000000000".to_string(), public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp".to_string() };
+    let stake_params = ActionParams::Stake {
+        stake: "1000000000000000000000000".to_string(),
+        public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp".to_string(),
+    };
     assert!(stake_params.to_action().is_ok());
 
     let deploy_global_params = ActionParams::DeployGlobalContract {
@@ -178,7 +184,9 @@ fn test_get_action_handler_new_types() {
 
 #[test]
 fn test_deploy_contract_action_handler() {
-    let params = ActionParams::DeployContract { code: vec![0, 97, 115, 109, 1, 0, 0, 0] }; // "\0asm\1\0\0\0"
+    let params = ActionParams::DeployContract {
+        code: vec![0, 97, 115, 109, 1, 0, 0, 0],
+    }; // "\0asm\1\0\0\0"
     assert!(params.validate().is_ok());
     let action = params.to_action().unwrap();
     match action {
@@ -236,14 +244,14 @@ fn test_use_global_contract_action_handler_account_id() {
     assert!(params.validate().is_ok());
     let action = params.to_action().unwrap();
     match action {
-        NearAction::UseGlobalContract { contract_identifier } => {
-            match contract_identifier {
-                GlobalContractIdentifier::AccountId(acc) => {
-                    assert_eq!(acc.0, "global-contract.near");
-                }
-                _ => panic!("Expected AccountId identifier"),
+        NearAction::UseGlobalContract {
+            contract_identifier,
+        } => match contract_identifier {
+            GlobalContractIdentifier::AccountId(acc) => {
+                assert_eq!(acc.0, "global-contract.near");
             }
-        }
+            _ => panic!("Expected AccountId identifier"),
+        },
         _ => panic!("Expected UseGlobalContract action"),
     }
 }
@@ -263,14 +271,14 @@ fn test_use_global_contract_action_handler_code_hash() {
     assert!(params.validate().is_ok());
     let action = params.to_action().unwrap();
     match action {
-        NearAction::UseGlobalContract { contract_identifier } => {
-            match contract_identifier {
-                GlobalContractIdentifier::CodeHash(hash) => {
-                    assert_eq!(hash.to_vec(), bytes.to_vec());
-                }
-                _ => panic!("Expected CodeHash identifier"),
+        NearAction::UseGlobalContract {
+            contract_identifier,
+        } => match contract_identifier {
+            GlobalContractIdentifier::CodeHash(hash) => {
+                assert_eq!(hash.to_vec(), bytes.to_vec());
             }
-        }
+            _ => panic!("Expected CodeHash identifier"),
+        },
         _ => panic!("Expected UseGlobalContract action"),
     }
 }

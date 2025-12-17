@@ -13,14 +13,25 @@ export enum SecureConfirmMessageType {
   USER_PASSKEY_CONFIRM_RESPONSE = 'USER_PASSKEY_CONFIRM_RESPONSE',
 }
 
-export interface SecureConfirmDecision {
+/**
+ * Type-level guardrail: these secrets must never appear in main-thread
+ * request/response envelopes. WrapKeySeed is delivered only over the dedicated
+ * VRF→Signer MessagePort, and PRF outputs should only exist inside credentials.
+ */
+export type ForbiddenMainThreadSecrets = {
+  prfOutput?: never;
+  prf_output?: never;
+  wrapKeySeed?: never;
+  wrapKeySalt?: never;
+  vrf_sk?: never;
+  prfKey?: never;
+};
+
+export interface SecureConfirmDecision extends ForbiddenMainThreadSecrets {
   requestId: string;
   intentDigest?: string;
   confirmed: boolean;
   credential?: SerializableCredential; // Serialized WebAuthn credential
-  prfOutput?: string; // Base64url-encoded PRF output (local-only flows)
-  wrapKeySeed?: string; // Base64url-encoded WrapKeySeed (preferred; may be omitted for signing flows)
-  wrapKeySalt?: string; // Base64url-encoded salt for WrapKeySeed → KEK derivation
   vrfChallenge?: VRFChallenge; // VRF challenge generated during confirmation
   transactionContext?: TransactionContext; // NEAR data fetched during confirmation
   // This is a private field used to close the confirmation modal
@@ -55,9 +66,6 @@ export interface WorkerConfirmationResponse {
   intent_digest?: string;
   confirmed: boolean;
   credential?: SerializableCredential;
-  prf_output?: string;
-  wrapKeySeed?: string;
-  wrapKeySalt?: string;
   vrf_challenge?: VRFChallenge;     // VRF challenge generated during confirmation
   transaction_context?: TransactionContext; // NEAR data fetched during confirmation
   error?: string;
@@ -74,8 +82,38 @@ export enum SecureConfirmationType {
   SHOW_SECURE_PRIVATE_KEY_UI = 'showSecurePrivateKeyUi',
 }
 
+export type SigningAuthMode = 'webauthn' | 'warmSession';
+
+// V2 summaries (render-oriented / UI hints)
+export interface TxSummary { totalAmount?: string; method?: string; receiverId?: string }
+export interface RegistrationSummary { nearAccountId: string; deviceNumber?: number; contractId?: string }
+export type ExportOperation = 'Export Private Key' | 'Decrypt Private Key';
+export interface ExportSummary { operation: ExportOperation; accountId: string; publicKey: string; warning: string }
+export interface Nep413Summary { operation: 'Sign NEP-413 Message'; message: string; recipient: string; accountId: string }
+
 // V2 request envelope
-export interface SecureConfirmRequest<TPayload = unknown, TSummary = unknown> {
+export type SecureConfirmPayloadByType = {
+  [SecureConfirmationType.SIGN_TRANSACTION]: SignTransactionPayload;
+  [SecureConfirmationType.REGISTER_ACCOUNT]: RegisterAccountPayload;
+  [SecureConfirmationType.LINK_DEVICE]: RegisterAccountPayload;
+  [SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF]: DecryptPrivateKeyWithPrfPayload;
+  [SecureConfirmationType.SIGN_NEP413_MESSAGE]: SignNep413Payload;
+  [SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI]: ShowSecurePrivateKeyUiPayload;
+};
+
+export type SecureConfirmSummaryByType = {
+  [SecureConfirmationType.SIGN_TRANSACTION]: TransactionSummary;
+  [SecureConfirmationType.REGISTER_ACCOUNT]: RegistrationSummary;
+  [SecureConfirmationType.LINK_DEVICE]: RegistrationSummary;
+  [SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF]: ExportSummary;
+  [SecureConfirmationType.SIGN_NEP413_MESSAGE]: TransactionSummary;
+  [SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI]: ExportSummary;
+};
+
+export type SecureConfirmPayload = SecureConfirmPayloadByType[keyof SecureConfirmPayloadByType];
+export type SecureConfirmSummary = SecureConfirmSummaryByType[keyof SecureConfirmSummaryByType];
+
+export interface SecureConfirmRequest<TPayload = SecureConfirmPayload, TSummary = SecureConfirmSummary> {
   schemaVersion: 2;
   requestId: string;
   type: SecureConfirmationType;
@@ -93,6 +131,12 @@ export interface SignTransactionPayload {
   txSigningRequests: TransactionInputWasm[];
   intentDigest: string;
   rpcCall: RpcCallPayload;
+  /**
+   * Controls whether confirmTxFlow should collect a WebAuthn credential.
+   * - `webauthn`: prompt TouchID/FaceID and derive WrapKeySeed from PRF.first_auth.
+   * - `warmSession`: skip WebAuthn and dispense the existing VRF session key to the signer worker.
+   */
+  signingAuthMode?: SigningAuthMode;
 }
 
 export interface RegisterAccountPayload {
@@ -118,13 +162,22 @@ export interface SignNep413Payload {
   nearAccountId: string;
   message: string;
   recipient: string;
+  /**
+   * Optional contract verification context for VRF gating.
+   * When provided, VRF Rust can call `verify_authentication_response` on-chain
+   * before deriving and dispensing session keys.
+   */
+  contractId?: string;
+  /**
+   * Optional NEAR RPC URL for contract verification (single URL or failover list).
+   */
+  nearRpcUrl?: string;
+  /**
+   * Controls whether confirmTxFlow should collect a WebAuthn credential for this signing intent.
+   * See `SignTransactionPayload.signingAuthMode`.
+   */
+  signingAuthMode?: SigningAuthMode;
 }
-
-// V2 summaries (render-oriented)
-export interface TxSummary { totalAmount?: string; method?: string; receiverId?: string }
-export interface RegistrationSummary { nearAccountId: string; deviceNumber?: number; contractId?: string }
-export interface ExportSummary { operation: 'Export Private Key'; accountId: string; publicKey: string; warning: string }
-export interface Nep413Summary { operation: 'Sign NEP-413 Message'; message: string; recipient: string; accountId: string }
 
 // Type guards
 export function isSecureConfirmRequestV2(x: unknown): x is SecureConfirmRequest {
@@ -138,17 +191,20 @@ export function isSecureConfirmRequestV2(x: unknown): x is SecureConfirmRequest 
 export type SerializableCredential = WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential;
 
 // Discriminated unions to bind `type` to payload shape
+export type SecureConfirmRequestByType<TType extends SecureConfirmationType> =
+  SecureConfirmRequest<SecureConfirmPayloadByType[TType], SecureConfirmSummaryByType[TType]> & { type: TType };
+
 export type LocalOnlySecureConfirmRequest =
-  | (SecureConfirmRequest<DecryptPrivateKeyWithPrfPayload> & { type: SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF })
-  | (SecureConfirmRequest<ShowSecurePrivateKeyUiPayload> & { type: SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI });
+  | SecureConfirmRequestByType<SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF>
+  | SecureConfirmRequestByType<SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI>;
 
 export type RegistrationSecureConfirmRequest =
-  | (SecureConfirmRequest<RegisterAccountPayload> & { type: SecureConfirmationType.REGISTER_ACCOUNT })
-  | (SecureConfirmRequest<RegisterAccountPayload> & { type: SecureConfirmationType.LINK_DEVICE });
+  | SecureConfirmRequestByType<SecureConfirmationType.REGISTER_ACCOUNT>
+  | SecureConfirmRequestByType<SecureConfirmationType.LINK_DEVICE>;
 
 export type SigningSecureConfirmRequest =
-  | (SecureConfirmRequest<SignTransactionPayload> & { type: SecureConfirmationType.SIGN_TRANSACTION })
-  | (SecureConfirmRequest<SignNep413Payload> & { type: SecureConfirmationType.SIGN_NEP413_MESSAGE });
+  | SecureConfirmRequestByType<SecureConfirmationType.SIGN_TRANSACTION>
+  | SecureConfirmRequestByType<SecureConfirmationType.SIGN_NEP413_MESSAGE>;
 
 export type KnownSecureConfirmRequest =
   | LocalOnlySecureConfirmRequest

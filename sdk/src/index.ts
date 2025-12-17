@@ -7,7 +7,7 @@ export {
   MinimalNearClient,
   encodeSignedTransactionBase64
 } from './core/NearClient';
-export { verifyAuthenticationResponse } from './core/TatchiPasskey/login';
+export { verifyAuthenticationResponse } from './core/rpcCalls';
 
 export * from './config';
 export { base64UrlEncode, base64UrlDecode } from './utils/encoders';
@@ -19,15 +19,22 @@ export { buildConfigsFromEnv } from './core/defaultConfigs';
 ///////////////////////////////////////////////////////////////
 
 export type {
-  TatchiPasskeyConfigs,
+  TatchiConfigs,
+  TatchiConfigsInput,
   // Registration
   RegistrationResult,
-  RegistrationSSEEvent,
   // Login
   LoginResult,
-  LoginSSEvent,
+  LoginAndCreateSessionResult,
+  LoginSession,
+  SigningSessionStatus,
   // Actions
   ActionResult,
+} from './core/types/tatchi';
+
+export type {
+  RegistrationSSEEvent,
+  LoginSSEvent,
   // Account Recovery
   AccountRecoveryPhase,
   AccountRecoveryStatus,
@@ -41,7 +48,7 @@ export type {
   SignNEP413HooksOptions,
   AfterCall,
   EventCallback,
-} from './core/types/passkeyManager';
+} from './core/types/sdkSentEvents';
 
 export { DEFAULT_WAIT_STATUS } from './core/types/rpc';
 
@@ -49,7 +56,7 @@ export { DEFAULT_WAIT_STATUS } from './core/types/rpc';
 export {
   DeviceLinkingPhase,
   DeviceLinkingStatus
-} from './core/types/passkeyManager';
+} from './core/types/sdkSentEvents';
 export type {
   DeviceLinkingQRData,
   DeviceLinkingSession,

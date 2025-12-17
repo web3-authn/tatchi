@@ -3,7 +3,8 @@ import { html, type PropertyValues } from 'lit';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 // SDK imports
 import type { TransactionInput } from '../../../types/actions';
-import type { SignAndSendTransactionHooksOptions, ActionResult } from '../../../types/passkeyManager';
+import type { SignAndSendTransactionHooksOptions } from '../../../types/sdkSentEvents';
+import type { ActionResult } from '../../../types/tatchi';
 import { onEmbeddedBaseChange } from '../../../sdkPaths';
 // Local imports
 import { LitElementWithProps, CSSProperties } from '../LitElementWithProps';

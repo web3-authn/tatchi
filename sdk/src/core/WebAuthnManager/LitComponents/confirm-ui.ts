@@ -8,7 +8,7 @@ import { W3A_TX_CONFIRMER_ID, CONFIRM_UI_ELEMENT_SELECTORS, W3A_CONFIRM_PORTAL_I
 import type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode, ThemeName } from './confirm-ui-types';
 export type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode } from './confirm-ui-types';
 import { validateTheme } from './confirm-ui-types';
-import { computeUiIntentDigestFromTxs, orderActionForDigest } from './common/tx-digest';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../txDigest';
 // Ensure the wrapper element is registered when this module loads.
 import './IframeTxConfirmer/tx-confirmer-wrapper';
 
@@ -31,18 +31,12 @@ interface HostTxConfirmerElement extends HTMLElement {
   nearAccountId: string;
   txSigningRequests: TransactionInputWasm[];
   intentDigest?: string;
-  vrfChallenge?: VRFChallenge;
+  vrfChallenge?: Partial<VRFChallenge>;
   theme?: ThemeName;
   loading?: boolean;      // host elements use `loading` (iframe element uses `showLoading`)
   deferClose?: boolean;   // two-phase close coordination
   errorMessage?: string;
   title: string;
-  delegateMeta?: {
-    senderId?: string;
-    receiverId?: string;
-    nonce?: string;
-    maxBlockHeight?: string;
-  };
   requestUpdate?: () => void; // Lit element update hook (optional)
   nearExplorerUrl?: string;
 }
@@ -64,7 +58,7 @@ export async function mountConfirmUI({
   ctx: VrfWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
-  vrfChallenge?: VRFChallenge,
+  vrfChallenge?: Partial<VRFChallenge>,
   loading?: boolean,
   theme?: ThemeName,
   uiMode: ConfirmationUIMode,
@@ -97,7 +91,7 @@ export async function awaitConfirmUIDecision({
   ctx: VrfWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests: TransactionInputWasm[],
-  vrfChallenge: VRFChallenge,
+  vrfChallenge?: Partial<VRFChallenge>,
   theme: ThemeName,
   uiMode: ConfirmationUIMode,
   nearAccountIdOverride: string,
@@ -226,9 +220,6 @@ function applyHostElementProps(el: HostTxConfirmerElement, props?: ConfirmUIUpda
     el.errorMessage = msg;
     setErrorAttribute(el, msg);
   }
-  if ((props as any).delegateMeta != null) {
-    el.delegateMeta = (props as any).delegateMeta;
-  }
   if ((props as any).nearExplorerUrl != null) {
     el.nearExplorerUrl = (props as any).nearExplorerUrl;
   }
@@ -294,7 +285,7 @@ function mountHostElement({
   ctx: VrfWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
-  vrfChallenge?: VRFChallenge,
+  vrfChallenge?: Partial<VRFChallenge>,
   loading?: boolean,
   theme?: ThemeName,
   variant?: 'modal' | 'drawer',
@@ -324,7 +315,6 @@ function mountHostElement({
   el.deferClose = true;
   if (summary?.delegate) {
     el.title = 'Sign Delegate Action';
-    el.delegateMeta = summary.delegate;
   }
   const portal = ensureConfirmPortal();
   // Ensure hidden state (idempotent) and mount

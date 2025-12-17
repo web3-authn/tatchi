@@ -3,6 +3,8 @@ import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import { validateVRFChallenge, type VRFChallenge } from '../../../types/vrf-worker';
 import type { TransactionContext } from '../../../types/rpc';
 import { isObject, assertString } from '../../../WalletIframe/validation';
+import { DelegateActionInput } from '../../../types/delegate';
+import { base58Encode } from '../../../../utils/base58';
 
 // Strongly typed payload expected from the WASM → JS boundary
 export interface RegistrationCredentialConfirmationPayload {
@@ -10,7 +12,6 @@ export interface RegistrationCredentialConfirmationPayload {
   requestId: string;
   intentDigest: string;
   credential: WebAuthnRegistrationCredential; // serialized PublicKeyCredential (no methods)
-  prfOutput?: string; // base64url string (ChaCha20 PRF)
   vrfChallenge: VRFChallenge;
   transactionContext?: TransactionContext;
   error?: string;
@@ -140,7 +141,6 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
     requestId,
     intentDigest,
     credential,
-    prfOutput,
     vrfChallenge,
     transactionContext,
     error,
@@ -149,7 +149,6 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
     requestId?: unknown;
     intentDigest?: unknown;
     credential?: unknown;
-    prfOutput?: unknown;
     vrfChallenge?: unknown;
     transactionContext?: unknown;
     error?: unknown;
@@ -167,9 +166,6 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
   if (!normalizedCredential) {
     throw new Error('Missing registration credential');
   }
-
-  const normalizedPrfOutput =
-    prfOutput == null ? undefined : assertString(prfOutput, 'prfOutput');
 
   const normalizedVrfChallenge =
     vrfChallenge != null ? validateVrfChallengeMaybe(vrfChallenge) : undefined;
@@ -189,9 +185,19 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
     requestId: normalizedRequestId,
     intentDigest: normalizedIntentDigest,
     credential: normalizedCredential,
-    prfOutput: normalizedPrfOutput,
     vrfChallenge: normalizedVrfChallenge,
     transactionContext: normalizedTransactionContext,
     error: normalizedError,
   };
 }
+
+export const ensureEd25519Prefix = (value: string) => {
+  return value.startsWith('ed25519:') ? value : `ed25519:${value}`
+}
+
+export const toPublicKeyString = (pk: DelegateActionInput['publicKey']): string => {
+  if (typeof pk === 'string') {
+    return pk;
+  }
+  return ensureEd25519Prefix(base58Encode(pk.keyData));
+};

@@ -10,30 +10,33 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
     await setupBasicPasskeyTest(page);
   });
 
-  test('rejects on invalid JSON and missing fields', async ({ page }) => {
+  test('rejects on invalid input and missing fields', async ({ page }) => {
     const result = await page.evaluate(async ({ workerPath }) => {
       // Load the VRF worker bundle; it exposes awaitSecureConfirmationV2 on globalThis
       await import(workerPath);
-      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (json: string, opts?: any) => Promise<any>;
+      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (req: any, opts?: any) => Promise<any>;
       const errors: string[] = [];
       try { await awaitV2('not-json'); } catch (e: any) { errors.push(String(e?.message || e)); }
-      try { await awaitV2(JSON.stringify({ schemaVersion: 1 })); } catch (e: any) { errors.push(String(e?.message || e)); }
-      try { await awaitV2(JSON.stringify({ schemaVersion: 2, type: 'signTransaction', payload: {} })); } catch (e: any) { errors.push(String(e?.message || e)); }
-      try { await awaitV2(JSON.stringify({ schemaVersion: 2, requestId: 'id-1', payload: {} })); } catch (e: any) { errors.push(String(e?.message || e)); }
+      try { await awaitV2({ schemaVersion: 1 }); } catch (e: any) { errors.push(String(e?.message || e)); }
+      try { await awaitV2({ schemaVersion: 2, type: 'signTransaction', summary: {}, payload: {} }); } catch (e: any) { errors.push(String(e?.message || e)); }
+      try { await awaitV2({ schemaVersion: 2, requestId: 'id-1', summary: {}, payload: {} }); } catch (e: any) { errors.push(String(e?.message || e)); }
       return { errors };
     }, { workerPath: WORKER_PATH });
     expect(result.errors.length).toBe(4);
-    expect(result.errors.join(' ')).toContain('invalid V2 request JSON');
+    expect(result.errors.join(' ')).toContain('JSON strings are not supported');
+    expect(result.errors.join(' ')).toContain('schemaVersion must be 2');
+    expect(result.errors.join(' ')).toContain('missing requestId');
+    expect(result.errors.join(' ')).toContain('missing type');
   });
 
   test('rejects immediately when aborted', async ({ page }) => {
     const result = await page.evaluate(async ({ workerPath }) => {
       await import(workerPath);
-      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (json: string, opts?: any) => Promise<any>;
+      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (req: any, opts?: any) => Promise<any>;
       const controller = new AbortController();
       controller.abort();
       try {
-        await awaitV2(JSON.stringify({ schemaVersion: 2, requestId: 'id-2', type: 'signTransaction', payload: {} }), { signal: controller.signal });
+        await awaitV2({ schemaVersion: 2, requestId: 'id-2', type: 'signTransaction', summary: {}, payload: {} }, { signal: controller.signal });
         return { ok: true };
       } catch (e: any) {
         return { ok: false, message: String(e?.message || e) };
@@ -46,17 +49,18 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
   test('times out when no matching response is received', async ({ page }) => {
     const result = await page.evaluate(async ({ workerPath }) => {
       await import(workerPath);
-      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (json: string, opts?: any) => Promise<any>;
+      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (req: any, opts?: any) => Promise<any>;
       const originalPost = (self as any).postMessage;
       // Stub to avoid Window.postMessage signature issues when used by worker-style code
       (self as any).postMessage = (_msg: unknown) => {};
       try {
-        await awaitV2(JSON.stringify({
+        await awaitV2({
           schemaVersion: 2,
           requestId: 'id-3',
           type: 'signTransaction',
+          summary: {},
           payload: {}
-        }), { timeoutMs: 50 });
+        }, { timeoutMs: 50 });
         return { ok: true };
       } catch (e: any) {
         return { ok: false, message: String(e?.message || e) };
@@ -71,10 +75,10 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
   test('ignores mismatched response requestId', async ({ page }) => {
     const result = await page.evaluate(async ({ workerPath }) => {
       await import(workerPath);
-      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (json: string, opts?: any) => Promise<any>;
+      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (req: any, opts?: any) => Promise<any>;
       const originalPost = (self as any).postMessage;
       (self as any).postMessage = (_msg: unknown) => {};
-      const payload = { schemaVersion: 2, requestId: 'id-4', type: 'signTransaction', payload: {} };
+      const payload = { schemaVersion: 2, requestId: 'id-4', type: 'signTransaction', summary: {}, payload: {} };
       setTimeout(() => {
         // Dispatch a message event with a mismatched requestId; listener should ignore it
         self.dispatchEvent(new MessageEvent('message', {
@@ -85,7 +89,7 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
         }));
       }, 10);
       try {
-        await awaitV2(JSON.stringify(payload), { timeoutMs: 60 });
+        await awaitV2(payload, { timeoutMs: 60 });
         return { ok: true };
       } catch (e: any) {
         return { ok: false, message: String(e?.message || e) };
@@ -97,15 +101,25 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
     expect(result.message).toContain('confirmation timed out');
   });
 
-  test('happy path: LocalOnly decrypt shorthand returns confirmation response', async ({ page }) => {
+  test('happy path: LocalOnly decrypt request returns confirmation response', async ({ page }) => {
     const result = await page.evaluate(async ({ workerPath }) => {
       await import(workerPath);
-      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (json: string, opts?: any) => Promise<any>;
+      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (req: any, opts?: any) => Promise<any>;
 
       const request = {
+        schemaVersion: 2,
+        requestId: 'sess-1',
         type: 'decryptPrivateKeyWithPrf',
-        sessionId: 'sess-1',
-        nearAccountId: 'alice.testnet',
+        summary: {
+          operation: 'Decrypt Private Key',
+          accountId: 'alice.testnet',
+          publicKey: '',
+          warning: 'Decrypting your private key grants full control of your account.',
+        },
+        payload: {
+          nearAccountId: 'alice.testnet',
+          publicKey: '',
+        },
       };
 
       const originalAdd = self.addEventListener.bind(self);
@@ -132,7 +146,7 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
         return originalAdd(type, listener, options);
       }) as any;
 
-      const resp = await awaitV2(JSON.stringify(request), { timeoutMs: 250 });
+      const resp = await awaitV2(request, { timeoutMs: 250 });
       return {
         requestId: resp?.request_id,
         confirmed: resp?.confirmed,
@@ -143,4 +157,3 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
     expect(result.confirmed).toBe(true);
   });
 });
-

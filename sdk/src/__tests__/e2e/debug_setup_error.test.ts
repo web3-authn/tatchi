@@ -56,13 +56,13 @@ test.describe('Debug Setup Errors', () => {
           console.log('TatchiPasskey created successfully!');
           console.log('TatchiPasskey type:', typeof passkeyManager);
           console.log('TatchiPasskey methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(passkeyManager)));
-          console.log('Has getLoginState:', typeof passkeyManager.getLoginState === 'function');
+          console.log('Has getLoginSession:', typeof passkeyManager.getLoginSession === 'function');
 
           return {
             success: true,
             error: null,
             passkeyManagerCreated: true,
-            hasGetLoginState: typeof passkeyManager.getLoginState === 'function'
+            hasGetLoginSession: typeof passkeyManager.getLoginSession === 'function'
           };
 
         } catch (passkeyManagerError: any) {
@@ -104,7 +104,7 @@ test.describe('Debug Setup Errors', () => {
     } else {
       console.log('TatchiPasskey setup successful!');
       console.log('TatchiPasskey created:', result.passkeyManagerCreated);
-      console.log('Has getLoginState:', result.hasGetLoginState);
+      console.log('Has getLoginSession:', (result as any).hasGetLoginSession);
     }
 
     expect(result).toBeDefined();

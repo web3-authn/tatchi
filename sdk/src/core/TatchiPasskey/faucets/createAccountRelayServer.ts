@@ -1,5 +1,5 @@
 import { VRFChallenge } from '../../types/vrf-worker';
-import { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '../../types/passkeyManager';
+import { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '../../types/sdkSentEvents';
 import { PasskeyManagerContext } from '..';
 import { base64UrlDecode, base64UrlEncode } from '../../../utils/encoders';
 import type { SignedTransaction } from '../../NearClient';

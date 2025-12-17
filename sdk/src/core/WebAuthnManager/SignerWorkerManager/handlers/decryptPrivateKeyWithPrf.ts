@@ -32,15 +32,15 @@ export async function decryptPrivateKeyWithPrf({
     }
 
     const response = await ctx.sendMessage({
+      sessionId,
       message: {
         type: WorkerRequestType.DecryptPrivateKeyWithPrf,
-        payload: withSessionId({
+        payload: withSessionId(sessionId, {
           nearAccountId: nearAccountId,
           encryptedPrivateKeyData: encryptedKeyData.encryptedData,
-          encryptedPrivateKeyIv: encryptedKeyData.iv,
-        }, sessionId)
+          encryptedPrivateKeyChacha20NonceB64u: encryptedKeyData.chacha20NonceB64u,
+        })
       },
-      sessionId,
     });
 
     if (!isDecryptPrivateKeyWithPrfSuccess(response)) {

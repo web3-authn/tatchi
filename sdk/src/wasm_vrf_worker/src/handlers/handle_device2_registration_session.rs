@@ -1,19 +1,21 @@
 use hkdf::Hkdf;
 use log::debug;
+use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 use sha2::Sha256;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
-use js_sys::Reflect;
-use serde::{Deserialize, Serialize};
-use serde_wasm_bindgen;
 
 use crate::errors::HkdfError;
 use crate::manager::VRFKeyManager;
 use crate::types::{VrfWorkerResponse, WorkerConfirmationResponse};
 use crate::utils::{base64_url_decode, generate_wrap_key_salt_b64u};
-use crate::vrf_await_secure_confirmation;
+use crate::await_secure_confirmation::{
+    RpcCall, Summary, Payload, SecureConfirmRequest,
+    vrf_await_secure_confirmation,
+};
 
 /// Request payload for combined Device2 registration session.
 /// This combines registration credential collection + WrapKeySeed derivation in a single flow.
@@ -71,11 +73,23 @@ pub struct Device2RegistrationSessionResult {
     pub request_id: String,
     #[serde(rename = "intentDigest")]
     pub intent_digest: String,
-    #[serde(rename = "credential", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    #[serde(
+        rename = "credential",
+        with = "serde_wasm_bindgen::preserve",
+        default = "js_undefined"
+    )]
     pub credential: JsValue,
-    #[serde(rename = "vrfChallenge", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    #[serde(
+        rename = "vrfChallenge",
+        with = "serde_wasm_bindgen::preserve",
+        default = "js_undefined"
+    )]
     pub vrf_challenge: JsValue,
-    #[serde(rename = "transactionContext", with = "serde_wasm_bindgen::preserve", default = "js_undefined")]
+    #[serde(
+        rename = "transactionContext",
+        with = "serde_wasm_bindgen::preserve",
+        default = "js_undefined"
+    )]
     pub transaction_context: JsValue,
     #[serde(rename = "sessionId")]
     pub session_id: String,
@@ -93,68 +107,6 @@ pub struct Device2RegistrationSessionResult {
 }
 fn js_undefined() -> JsValue {
     JsValue::UNDEFINED
-}
-/// Extract PRF.first output from registration credential's client data extension results.
-/// The credential returned from `navigator.credentials.create()` with dual PRF salts
-/// embeds PRF outputs in `response.clientDataJSON` or `clientExtensionResults`.
-
-fn extract_prf_first_from_credential(
-    credential: &JsValue,
-) -> Result<Vec<u8>, String> {
-    fn get_nested_str(obj: &JsValue, path: &[&str]) -> Option<String> {
-        let mut current = obj.clone();
-        for key in path {
-            let val = Reflect::get(&current, &JsValue::from_str(key)).ok()?;
-            if val.is_null() || val.is_undefined() {
-                return None;
-            }
-            current = val;
-        }
-        current.as_string()
-    }
-
-    if let Some(first_b64u) = get_nested_str(credential, &["clientExtensionResults", "prf", "results", "first"]) {
-        return base64_url_decode(&first_b64u)
-            .map_err(|e| format!("Failed to decode PRF.first: {}", e));
-    }
-
-    if let Some(first_b64u) = get_nested_str(credential, &["response", "clientExtensionResults", "prf", "results", "first"]) {
-        return base64_url_decode(&first_b64u)
-            .map_err(|e| format!("Failed to decode PRF.first: {}", e));
-    }
-
-    Err("PRF.first not found in registration credential extension results".to_string())
-}
-
-/// Extract PRF.second output from registration credential's client data extension results.
-/// The credential returned from `navigator.credentials.create()` with dual PRF salts
-/// embeds PRF outputs in `response.clientDataJSON` or `clientExtensionResults`.
-fn extract_prf_second_from_credential(
-    credential: &JsValue,
-) -> Result<Vec<u8>, String> {
-    fn get_nested_str(obj: &JsValue, path: &[&str]) -> Option<String> {
-        let mut current = obj.clone();
-        for key in path {
-            let val = Reflect::get(&current, &JsValue::from_str(key)).ok()?;
-            if val.is_null() || val.is_undefined() {
-                return None;
-            }
-            current = val;
-        }
-        current.as_string()
-    }
-
-    if let Some(second_b64u) = get_nested_str(credential, &["clientExtensionResults", "prf", "results", "second"]) {
-        return base64_url_decode(&second_b64u)
-            .map_err(|e| format!("Failed to decode PRF.second: {}", e));
-    }
-
-    if let Some(second_b64u) = get_nested_str(credential, &["response", "clientExtensionResults", "prf", "results", "second"]) {
-        return base64_url_decode(&second_b64u)
-            .map_err(|e| format!("Failed to decode PRF.second: {}", e));
-    }
-
-    Err("PRF.second not found in registration credential extension results".to_string())
 }
 
 /// Combined Device2 registration session handler.
@@ -186,92 +138,43 @@ pub async fn handle_device2_registration_session(
         .unwrap_or_else(|| format!("device2-reg-{}-{}", near_account_id, device_number));
     let intent_digest = format!("device2-register:{}:{}", near_account_id, device_number);
 
-    #[derive(Serialize)]
-    #[allow(non_snake_case)]
-    struct Summary<'a> {
-        nearAccountId: &'a str,
-        deviceNumber: u32,
-        contractId: &'a str,
-    }
-
-    #[derive(Serialize)]
-    #[allow(non_snake_case)]
-    struct RpcCall<'a> {
-        contractId: &'a str,
-        nearRpcUrl: &'a str,
-        nearAccountId: &'a str,
-    }
-
-    #[derive(Serialize)]
-    #[allow(non_snake_case)]
-    struct Payload<'a> {
-        nearAccountId: &'a str,
-        deviceNumber: u32,
-        rpcCall: RpcCall<'a>,
-    }
-
-    #[derive(Serialize)]
-    #[allow(non_snake_case)]
-    struct SecureConfirmRequest<'a> {
-        schemaVersion: u32,
-        requestId: &'a str,
-        #[serde(rename = "type")]
-        request_type: &'static str,
-        summary: Summary<'a>,
-        payload: Payload<'a>,
-        intentDigest: &'a str,
-        #[serde(skip_serializing_if = "is_undefined", with = "serde_wasm_bindgen::preserve")]
-        confirmationConfig: JsValue,
-    }
-
-    fn is_undefined(v: &JsValue) -> bool {
-        v.is_undefined() || v.is_null()
-    }
-
-    let summary = Summary {
-        nearAccountId: &near_account_id,
-        deviceNumber: device_number,
-        contractId: &request.contract_id,
-    };
-    let payload = Payload {
-        nearAccountId: &near_account_id,
-        deviceNumber: device_number,
-        rpcCall: RpcCall {
-            contractId: &request.contract_id,
-            nearRpcUrl: &request.near_rpc_url,
-            nearAccountId: &near_account_id,
-        },
-    };
-
     let confirm_request = SecureConfirmRequest {
         schemaVersion: 2,
         requestId: &request_id,
         request_type: "registerAccount",
-        summary,
-        payload,
-        intentDigest: &intent_digest,
+        summary: Summary {
+            nearAccountId: &near_account_id,
+            deviceNumber: device_number,
+            contractId: Some(&request.contract_id),
+        },
+        payload: Payload {
+            nearAccountId: &near_account_id,
+            deviceNumber: device_number,
+            rpcCall: RpcCall {
+                contractId: &request.contract_id,
+                nearRpcUrl: &request.near_rpc_url,
+                nearAccountId: &near_account_id,
+            }
+        },
+        intentDigest: Some(&intent_digest),
         confirmationConfig: request.confirmation_config.clone(),
     };
 
-    let confirm_request_js = serde_wasm_bindgen::to_value(&confirm_request)
-        .map_err(|e| VrfWorkerResponse::fail(message_id.clone(), format!("Failed to serialize request: {}", e)));
+    let confirm_request_js = serde_wasm_bindgen::to_value(&confirm_request).map_err(|e| {
+        VrfWorkerResponse::fail(
+            message_id.clone(),
+            format!("Failed to serialize request: {}", e),
+        )
+    });
     let confirm_request_js = match confirm_request_js {
         Ok(v) => v,
         Err(err) => return err,
     };
 
-    let request_json = match js_sys::JSON::stringify(&confirm_request_js) {
-        Ok(s) => match s.as_string() {
-            Some(str) => str,
-            None => return VrfWorkerResponse::fail(message_id.clone(), "Failed to stringify request".to_string()),
-        },
-        Err(e) => return VrfWorkerResponse::fail(message_id, format!("Failed to stringify request: {:?}", e)),
-    };
-
     // === STEP 2: Run registration confirmation flow ===
 
     let decision: WorkerConfirmationResponse =
-        match vrf_await_secure_confirmation(request_json).await {
+        match vrf_await_secure_confirmation(confirm_request_js).await {
             Ok(res) => res,
             Err(e) => {
                 debug!("[VRF] Device2 registration confirmation failed: {}", e);
@@ -307,45 +210,72 @@ pub async fn handle_device2_registration_session(
 
     // === STEP 3: Extract PRF.first and PRF.second ===
 
-    let prf_first_bytes = match extract_prf_first_from_credential(&credential) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            debug!("[VRF] Failed to extract PRF.first from Device2 credential: {}", e);
-            return VrfWorkerResponse::fail(
-                message_id,
-                format!("Device2 registration: {}", e),
-            );
+    let prf_first_bytes = match crate::webauthn::extract_prf_first_from_credential(&credential) {
+        Some(first_b64u) => match base64_url_decode(&first_b64u) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                let msg = format!("Failed to decode PRF.first: {}", e);
+                debug!("Failed to extract PRF.first from Device2 credential: {}", msg);
+                return VrfWorkerResponse::fail(
+                    message_id,
+                    format!("Device2 registration: {}", msg),
+                );
+            }
+        },
+        None => {
+            let msg = "PRF.first not found in registration credential".to_string();
+            debug!("[VRF] Failed to extract PRF.first from Device2 credential: {}", msg);
+            return VrfWorkerResponse::fail(message_id, format!("Device2 registration: {}", msg));
         }
     };
 
-    let prf_second_bytes = match extract_prf_second_from_credential(&credential) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", e);
-            return VrfWorkerResponse::fail(
-                message_id,
-                format!("Device2 registration: {}", e),
-            );
+    let prf_second_bytes = match crate::webauthn::extract_prf_second_from_credential(&credential) {
+        Some(second_b64u) => {
+            if second_b64u.is_empty() {
+                let msg = "PRF.second not found in registration credential".to_string();
+                debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", msg);
+                return VrfWorkerResponse::fail(message_id, format!("Device2 registration: {}", msg));
+            }
+            match base64_url_decode(&second_b64u) {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    let msg = format!("Failed to decode PRF.second: {}", e);
+                    debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", msg);
+                    return VrfWorkerResponse::fail(
+                        message_id,
+                        format!("Device2 registration: {}", msg),
+                    );
+                }
+            }
+        }
+        None => {
+            let msg = "PRF.second not found in registration credential".to_string();
+            debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", msg);
+            return VrfWorkerResponse::fail(message_id, format!("Device2 registration: {}", msg));
         }
     };
-
-    debug!("[VRF] Extracted PRF.first ({} bytes) and PRF.second ({} bytes) from Device2 credential, deriving WrapKeySeed",
-           prf_first_bytes.len(), prf_second_bytes.len());
 
     // === STEP 4: Derive deterministic VRF keypair from PRF.second ===
     // This is the deterministic VRF public key that should be registered with the contract
-    let deterministic_vrf_keypair = match manager.borrow().generate_vrf_keypair_from_seed(&prf_second_bytes, &near_account_id) {
+    let deterministic_vrf_keypair = match manager
+        .borrow()
+        .generate_vrf_keypair_from_seed(&prf_second_bytes, &near_account_id)
+    {
         Ok(kp) => kp,
         Err(e) => {
             return VrfWorkerResponse::fail(
                 message_id,
-                format!("Failed to derive deterministic VRF keypair from PRF.second: {}", e),
+                format!(
+                    "Failed to derive deterministic VRF keypair from PRF.second: {}",
+                    e
+                ),
             );
         }
     };
 
     // Serialize the deterministic VRF public key for the contract registration
-    let deterministic_vrf_public_key_bytes = match bincode::serialize(&deterministic_vrf_keypair.pk) {
+    let deterministic_vrf_public_key_bytes = match bincode::serialize(&deterministic_vrf_keypair.pk)
+    {
         Ok(bytes) => bytes,
         Err(e) => {
             return VrfWorkerResponse::fail(
@@ -354,14 +284,20 @@ pub async fn handle_device2_registration_session(
             );
         }
     };
-    let deterministic_vrf_public_key_b64u = crate::utils::base64_url_encode(&deterministic_vrf_public_key_bytes);
+    let deterministic_vrf_public_key_b64u =
+        crate::utils::base64_url_encode(&deterministic_vrf_public_key_bytes);
 
-    debug!("[VRF] Derived deterministic VRF public key for Device2 registration: {}...",
-           &deterministic_vrf_public_key_b64u[..20.min(deterministic_vrf_public_key_b64u.len())]);
+    debug!(
+        "[VRF] Derived deterministic VRF public key for Device2 registration: {}...",
+        &deterministic_vrf_public_key_b64u[..20.min(deterministic_vrf_public_key_b64u.len())]
+    );
 
     // === STEP 5: Encrypt deterministic VRF keypair for storage BEFORE storing in memory ===
     // Encrypt with PRF.second for local IndexedDB storage
-    let (_vrf_pk_b64u, encrypted_vrf_keypair) = match manager.borrow().encrypt_vrf_keypair_data(&deterministic_vrf_keypair, &prf_second_bytes) {
+    let (_vrf_pk_b64u, encrypted_vrf_keypair) = match manager
+        .borrow()
+        .encrypt_vrf_keypair_data(&deterministic_vrf_keypair, &prf_second_bytes)
+    {
         Ok(result) => result,
         Err(e) => {
             return VrfWorkerResponse::fail(
@@ -378,16 +314,16 @@ pub async fn handle_device2_registration_session(
         let mut manager_mut = manager.borrow_mut();
         manager_mut.store_vrf_keypair_in_memory(deterministic_vrf_keypair, near_account_id.clone());
     }
-    debug!("[VRF] Stored deterministic VRF keypair in memory for session {}", session_id);
+    debug!(
+        "[VRF] Stored deterministic VRF keypair in memory for session {}",
+        session_id
+    );
 
     // Derive K_pass_auth = HKDF(PRF.first, "vrf-wrap-pass")
     let hk = Hkdf::<Sha256>::new(None, &prf_first_bytes);
     let mut k_pass_auth = vec![0u8; 32];
     if let Err(_e) = hk.expand(crate::config::VRF_WRAP_PASS_INFO, &mut k_pass_auth) {
-        return VrfWorkerResponse::fail(
-            message_id,
-            HkdfError::KeyDerivationFailed.to_string(),
-        );
+        return VrfWorkerResponse::fail(message_id, HkdfError::KeyDerivationFailed.to_string());
     }
 
     // Get VRF secret key bytes from current in-memory keypair
@@ -396,7 +332,10 @@ pub async fn handle_device2_registration_session(
         Err(e) => {
             return VrfWorkerResponse::fail(
                 message_id,
-                format!("Failed to get VRF secret key for Device2 WrapKeySeed derivation: {}", e),
+                format!(
+                    "Failed to get VRF secret key for Device2 WrapKeySeed derivation: {}",
+                    e
+                ),
             )
         }
     };
@@ -409,10 +348,7 @@ pub async fn handle_device2_registration_session(
     let hk2 = Hkdf::<Sha256>::new(None, &seed);
     let mut wrap_key_seed = vec![0u8; 32];
     if let Err(_e) = hk2.expand(crate::config::NEAR_WRAP_SEED_INFO, &mut wrap_key_seed) {
-        return VrfWorkerResponse::fail(
-            message_id,
-            HkdfError::KeyDerivationFailed.to_string(),
-        );
+        return VrfWorkerResponse::fail(message_id, HkdfError::KeyDerivationFailed.to_string());
     }
 
     // Determine wrapKeySalt: use provided or generate fresh
@@ -438,7 +374,10 @@ pub async fn handle_device2_registration_session(
     {
         let wrap_key_seed_b64u = crate::utils::base64_url_encode(&wrap_key_seed);
         let prf_second_b64u = crate::utils::base64_url_encode(&prf_second_bytes);
-        debug!("[VRF] Sending WrapKeySeed + PRF.second to signer for Device2 session {}", session_id);
+        debug!(
+            "[VRF] Sending WrapKeySeed + PRF.second to signer for Device2 session {}",
+            session_id
+        );
         crate::wrap_key_seed_port::send_wrap_key_seed_to_signer(
             &session_id,
             &wrap_key_seed_b64u,
@@ -450,7 +389,10 @@ pub async fn handle_device2_registration_session(
     // === STEP 5: Return credential + session metadata to JS ===
     // Note: credential still contains PRF.second for signer worker to use for NEAR key derivation
 
-    debug!("[VRF] Device2 registration session complete for session {}", session_id);
+    debug!(
+        "[VRF] Device2 registration session complete for session {}",
+        session_id
+    );
 
     let result = Device2RegistrationSessionResult {
         confirmed: true,
@@ -462,7 +404,8 @@ pub async fn handle_device2_registration_session(
         session_id: session_id.clone(),
         wrap_key_salt: wrap_key_salt_b64u,
         deterministic_vrf_public_key: Some(deterministic_vrf_public_key_b64u),
-        encrypted_vrf_keypair: serde_wasm_bindgen::to_value(&encrypted_vrf_keypair).unwrap_or(JsValue::UNDEFINED),
+        encrypted_vrf_keypair: serde_wasm_bindgen::to_value(&encrypted_vrf_keypair)
+            .unwrap_or(JsValue::UNDEFINED),
         error: None,
     };
 

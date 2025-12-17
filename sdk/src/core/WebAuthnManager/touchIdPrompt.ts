@@ -115,13 +115,13 @@ export class TouchIdPrompt {
 
   /**
    *  Same as getAuthenticationCredentialsSerialized but returns both PRF outputs
-   *  Used for account recovery where both PRF outputs are needed
+   *  (PRF.first + PRF.second).
    * @param nearAccountId - NEAR account ID to authenticate
    * @param challenge - VRF challenge bytes
    * @param allowCredentials - Array of allowed credentials for authentication
    * @returns
    */
-  async getAuthenticationCredentialsForRecovery({
+  async getAuthenticationCredentialsSerializedDualPrf({
     nearAccountId,
     challenge,
     allowCredentials,

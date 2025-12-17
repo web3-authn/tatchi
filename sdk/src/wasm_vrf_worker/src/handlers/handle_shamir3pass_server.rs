@@ -2,10 +2,10 @@ use crate::manager::VRFKeyManager;
 use crate::shamir3pass::{decode_biguint_b64u, encode_biguint_b64u};
 use crate::types::VrfWorkerResponse;
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
-use serde_wasm_bindgen;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -65,8 +65,8 @@ pub fn handle_shamir3pass_generate_server_keypair(
         e_s_b64u: &encode_biguint_b64u(&keys.e),
         d_s_b64u: &encode_biguint_b64u(&keys.d),
     };
-    let payload = serde_wasm_bindgen::to_value(&exponents)
-        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    let payload =
+        serde_wasm_bindgen::to_value(&exponents).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
     VrfWorkerResponse::success(message_id, Some(payload))
 }
 
@@ -97,8 +97,7 @@ pub fn handle_shamir3pass_apply_server_lock_kek(
     let resp = Resp {
         kek_cs_b64u: &encode_biguint_b64u(&kek_cs),
     };
-    let payload = serde_wasm_bindgen::to_value(&resp)
-        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    let payload = serde_wasm_bindgen::to_value(&resp).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
     VrfWorkerResponse::success(message_id, Some(payload))
 }
 
@@ -129,7 +128,6 @@ pub fn handle_shamir3pass_remove_server_lock_kek(
     let resp = Resp {
         kek_c_b64u: &encode_biguint_b64u(&kek_c),
     };
-    let payload = serde_wasm_bindgen::to_value(&resp)
-        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    let payload = serde_wasm_bindgen::to_value(&resp).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
     VrfWorkerResponse::success(message_id, Some(payload))
 }

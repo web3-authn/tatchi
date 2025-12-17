@@ -1,25 +1,29 @@
+use js_sys::Array;
 use log::debug;
 use std::cell::RefCell;
 use std::rc::Rc;
-use js_sys::Array;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsValue;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 #[cfg(target_arch = "wasm32")]
 use web_sys::MessagePort;
 
-mod logger;
-mod fetch;
+mod await_secure_confirmation;
 mod config;
 mod errors;
+mod fetch;
 mod handlers;
 mod http;
+mod logger;
 mod manager;
 mod rpc_calls;
 mod shamir3pass;
 mod types;
 mod utils;
+mod webauthn;
+#[cfg(target_arch = "wasm32")]
+pub mod wrap_key_seed_port;
 
 #[cfg(test)]
 mod tests;
@@ -32,23 +36,30 @@ pub use shamir3pass::*;
 pub use utils::*;
 
 // Re-export VRF RPC types if needed from JS/tests
-pub use rpc_calls::{VrfData, ContractVerificationResult, WebAuthnAuthenticationCredential, WebAuthnAuthenticationResponse};
+pub use rpc_calls::{
+    ContractVerificationResult, VrfData, WebAuthnAuthenticationCredential,
+    WebAuthnAuthenticationResponse,
+};
 
 // Import specific types to avoid ambiguity
-pub use types::{VrfWorkerMessage, VrfWorkerResponse, WorkerRequestType};
 use types::worker_messages::{parse_typed_payload, parse_worker_request_envelope};
+pub use types::{VrfWorkerMessage, VrfWorkerResponse, WorkerRequestType};
 
 // Import request types from their respective handler files
+pub use handlers::handle_check_session_status::CheckSessionStatusRequest;
+pub use handlers::handle_clear_session::ClearSessionRequest;
+pub use handlers::handle_confirm_and_prepare_signing_session::ConfirmAndPrepareSigningSessionRequest;
+pub use handlers::handle_decrypt_session::DecryptSessionRequest;
 pub use handlers::handle_derive_vrf_keypair_from_prf::DeriveVrfKeypairFromPrfRequest;
+pub use handlers::handle_device2_registration_session::Device2RegistrationSessionRequest;
+pub use handlers::handle_dispense_session_key::DispenseSessionKeyRequest;
 pub use handlers::handle_generate_vrf_challenge::GenerateVrfChallengeRequest;
 pub use handlers::handle_generate_vrf_keypair_bootstrap::GenerateVrfKeypairBootstrapRequest;
+pub use handlers::handle_mint_session_keys_and_send_to_signer::MintSessionKeysAndSendToSignerRequest;
+pub use handlers::handle_registration_credential_confirmation::RegistrationCredentialConfirmationRequest;
 pub use handlers::handle_shamir3pass_client::{
     Shamir3PassClientDecryptVrfKeypairRequest, Shamir3PassClientEncryptCurrentVrfKeypairRequest,
 };
-pub use handlers::handle_derive_wrap_key_seed_and_session::DeriveWrapKeySeedAndSessionRequest;
-pub use handlers::handle_decrypt_session::DecryptSessionRequest;
-pub use handlers::handle_registration_credential_confirmation::RegistrationCredentialConfirmationRequest;
-pub use handlers::handle_device2_registration_session::Device2RegistrationSessionRequest;
 pub use handlers::handle_shamir3pass_config::{
     Shamir3PassConfigPRequest, Shamir3PassConfigServerUrlsRequest,
 };
@@ -57,19 +68,6 @@ pub use handlers::handle_shamir3pass_server::{
     Shamir3PassRemoveServerLockRequest,
 };
 pub use handlers::handle_unlock_vrf_keypair::UnlockVrfKeypairRequest;
-
-// SecureConfirm response type reused from types module
-use types::WorkerConfirmationResponse;
-use wasm_bindgen_futures::JsFuture;
-use js_sys::Promise;
-
-// JS bridge exposed from web3authn-vrf.worker.ts:
-//   (globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_name = awaitSecureConfirmationV2)]
-    fn await_secure_confirmation_v2(request_json: String) -> Promise;
-}
 
 // Set up panic hook for better error messages
 #[wasm_bindgen(start)]
@@ -81,18 +79,6 @@ pub fn main() {
         "Logging system initialized with level: {:?}",
         config::CURRENT_LOG_LEVEL
     );
-}
-
-/// Helper: call awaitSecureConfirmationV2 from Rust and deserialize the response.
-pub async fn vrf_await_secure_confirmation(
-    request_json: String,
-) -> Result<WorkerConfirmationResponse, String> {
-    let promise = await_secure_confirmation_v2(request_json);
-    let js_val = JsFuture::from(promise)
-        .await
-        .map_err(|e| format!("awaitSecureConfirmationV2 rejected: {:?}", e))?;
-    serde_wasm_bindgen::from_value(js_val)
-        .map_err(|e| format!("Failed to deserialize confirmation response: {}", e))
 }
 
 // === GLOBAL STATE ===
@@ -141,9 +127,7 @@ pub fn attach_wrap_key_seed_port(session_id: String, port_val: JsValue) {
     #[cfg(target_arch = "wasm32")]
     {
         if let Some(port) = port_val.dyn_into::<MessagePort>().ok() {
-            WRAP_KEY_SEED_PORTS.with(|map| {
-                map.borrow_mut().insert(session_id, port);
-            });
+            wrap_key_seed_port::put_port(&session_id, port);
         }
     }
 
@@ -151,43 +135,6 @@ pub fn attach_wrap_key_seed_port(session_id: String, port_val: JsValue) {
     {
         let _ = session_id;
         let _ = port_val;
-    }
-}
-
-// Helper module for WrapKeySeed and PRF.second delivery from handlers
-#[cfg(target_arch = "wasm32")]
-pub mod wrap_key_seed_port {
-    use super::*;
-
-    pub fn send_wrap_key_seed_to_signer(
-        session_id: &str,
-        wrap_key_seed_b64u: &str,
-        wrap_key_salt_b64u: &str,
-        prf_second_b64u: Option<&str>,
-    ) {
-        WRAP_KEY_SEED_PORTS.with(|map| {
-            if let Some(port) = map.borrow().get(session_id) {
-                let obj = js_sys::Object::new();
-                let _ = js_sys::Reflect::set(
-                    &obj,
-                    &JsValue::from_str("wrap_key_seed"),
-                    &JsValue::from_str(wrap_key_seed_b64u),
-                );
-                let _ = js_sys::Reflect::set(
-                    &obj,
-                    &JsValue::from_str("wrapKeySalt"),
-                    &JsValue::from_str(wrap_key_salt_b64u),
-                );
-                if let Some(prf_second) = prf_second_b64u {
-                    let _ = js_sys::Reflect::set(
-                        &obj,
-                        &JsValue::from_str("prfSecond"),
-                        &JsValue::from_str(prf_second),
-                    );
-                }
-                let _ = port.post_message(&obj);
-            }
-        });
     }
 }
 
@@ -230,11 +177,7 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         WorkerRequestType::GenerateVrfKeypairBootstrap => {
             let request: GenerateVrfKeypairBootstrapRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_generate_vrf_keypair_bootstrap(
-                manager_rc.clone(),
-                id.clone(),
-                request,
-            )
+            handlers::handle_generate_vrf_keypair_bootstrap(manager_rc.clone(), id.clone(), request)
         }
         WorkerRequestType::UnlockVrfKeypair => {
             let request: UnlockVrfKeypairRequest =
@@ -244,7 +187,12 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         WorkerRequestType::CheckVrfStatus => {
             handlers::handle_check_vrf_status(manager_rc.clone(), id.clone())
         }
-        WorkerRequestType::Logout => {
+        WorkerRequestType::ClearVrf => {
+            #[cfg(target_arch = "wasm32")]
+            {
+                // Cleanup all attached ports on logout.
+                wrap_key_seed_port::close_all_ports();
+            }
             handlers::handle_logout(manager_rc.clone(), id.clone())
         }
         WorkerRequestType::GenerateVrfChallenge => {
@@ -255,12 +203,8 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         WorkerRequestType::DeriveVrfKeypairFromPrf => {
             let request: DeriveVrfKeypairFromPrfRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_derive_vrf_keypair_from_prf(
-                manager_rc.clone(),
-                id.clone(),
-                request,
-            )
-            .await
+            handlers::handle_derive_vrf_keypair_from_prf(manager_rc.clone(), id.clone(), request)
+                .await
         }
         // Shamir 3‑pass registration
         // Initial VRF encryption is performed in the DERIVE_VRF_KEYPAIR_FROM_PRF handler during registration
@@ -322,16 +266,12 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         WorkerRequestType::Shamir3PassConfigServerUrls => {
             let request: Shamir3PassConfigServerUrlsRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_shamir3pass_config_server_urls(
-                manager_rc.clone(),
-                id.clone(),
-                request,
-            )
+            handlers::handle_shamir3pass_config_server_urls(manager_rc.clone(), id.clone(), request)
         }
-        WorkerRequestType::DeriveWrapKeySeedAndSession => {
-            let request: DeriveWrapKeySeedAndSessionRequest =
+        WorkerRequestType::MintSessionKeysAndSendToSigner => {
+            let request: MintSessionKeysAndSendToSignerRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_derive_wrap_key_seed_and_session(
+            handlers::handle_mint_session_keys_and_send_to_signer(
                 manager_rc.clone(),
                 id.clone(),
                 request,
@@ -341,12 +281,7 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         WorkerRequestType::DecryptSession => {
             let request: DecryptSessionRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_decrypt_session(
-                manager_rc.clone(),
-                id.clone(),
-                request,
-            )
-            .await
+            handlers::handle_decrypt_session(manager_rc.clone(), id.clone(), request).await
         }
         WorkerRequestType::RegistrationCredentialConfirmation => {
             let request: RegistrationCredentialConfirmationRequest =
@@ -361,7 +296,27 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         WorkerRequestType::Device2RegistrationSession => {
             let request: Device2RegistrationSessionRequest =
                 parse_typed_payload(payload.clone(), request_type)?;
-            handlers::handle_device2_registration_session(
+            handlers::handle_device2_registration_session(manager_rc.clone(), id.clone(), request)
+                .await
+        }
+        WorkerRequestType::DispenseSessionKey => {
+            let request: DispenseSessionKeyRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_dispense_session_key(manager_rc.clone(), id.clone(), request).await
+        }
+        WorkerRequestType::CheckSessionStatus => {
+            let request: CheckSessionStatusRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_check_session_status(manager_rc.clone(), id.clone(), request)
+        }
+        WorkerRequestType::ClearSession => {
+            let request: ClearSessionRequest = parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_clear_session(manager_rc.clone(), id.clone(), request)
+        }
+        WorkerRequestType::ConfirmAndPrepareSigningSession => {
+            let request: ConfirmAndPrepareSigningSessionRequest =
+                parse_typed_payload(payload.clone(), request_type)?;
+            handlers::handle_confirm_and_prepare_signing_session(
                 manager_rc.clone(),
                 id.clone(),
                 request,

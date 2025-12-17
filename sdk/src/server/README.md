@@ -142,7 +142,7 @@ const session = new SessionService({
 For cookies, configure CORS with explicit origins and `credentials: true`.
 
 Default behavior
-- No session is minted by default. The client must opt‑in by calling `loginPasskey(..., { session: { kind: 'jwt' | 'cookie', relayUrl?, route? }})`.
+- No session is minted by default. The client must opt‑in by calling `loginAndCreateSession(..., { session: { kind: 'jwt' | 'cookie', relayUrl?, route? }})`.
 - On the server, sessions are only active if you provide a SessionService (or compatible adapter) to the router options.
 
 Configurable session endpoints

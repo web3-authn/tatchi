@@ -30,46 +30,41 @@ export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonPr
     clearHighlight,
   } = useProfileMenuControl();
 
+  // Only handle Device1 events here
   const handleDeviceLinkingEvents = (event: DeviceLinkingSSEEvent) => {
     switch (event.phase) {
       case DeviceLinkingPhase.STEP_2_SCANNING:
         toast.loading('Scanning QR code...', { id: 'device-linking' });
         break;
       case DeviceLinkingPhase.STEP_3_AUTHORIZATION:
-        if (event.status === DeviceLinkingStatus.PROGRESS) {
-          toast.loading('Authorizing...', { id: 'device-linking' });
-        } else if (event.status === DeviceLinkingStatus.SUCCESS) {
-          toast.success(event.message || 'Authorization completed successfully!', { id: 'device-linking' });
-        }
+        toast.loading("Authorizing new account keys...", { id: 'device-linking' });
         break;
       case DeviceLinkingPhase.STEP_6_REGISTRATION:
-        if (event.status === DeviceLinkingStatus.PROGRESS) {
-          toast.loading('Registering device...', { id: 'device-linking' });
-        } else if (event.status === DeviceLinkingStatus.SUCCESS) {
-          toast.success(event.message || 'Device linked successfully!', { id: 'device-linking' });
+        if (event.status === DeviceLinkingStatus.SUCCESS) {
+          toast.success('New device keys added!', { id: 'device-linking' });
         }
         break;
       case DeviceLinkingPhase.REGISTRATION_ERROR:
         if (event.status === DeviceLinkingStatus.ERROR) {
           toast.dismiss('device-linking');
-          toast.error(event.message || 'Registration failed', { id: 'device-linking' });
+          toast.error(event.message || 'Registration failed');
         }
         break;
       case DeviceLinkingPhase.LOGIN_ERROR:
         if (event.status === DeviceLinkingStatus.ERROR) {
           toast.dismiss('device-linking');
-          toast.error(event.message || 'Login failed', { id: 'device-linking' });
+          toast.error(event.message || 'Login failed');
         }
         break;
       case DeviceLinkingPhase.DEVICE_LINKING_ERROR:
         if (event.status === DeviceLinkingStatus.ERROR) {
           toast.dismiss('device-linking');
-          toast.error(event.message || 'Device linking failed', { id: 'device-linking' });
+          toast.error(event.message || 'Device linking failed');
         }
         break;
       case DeviceLinkingPhase.STEP_7_LINKING_COMPLETE:
         if (event.status === DeviceLinkingStatus.SUCCESS) {
-          toast.success(event.message || 'Device linking completed successfully!', { id: 'device-linking' });
+          toast.success(event.message || 'Device linking complete!', { id: 'device-linking' });
         }
         break;
       default:

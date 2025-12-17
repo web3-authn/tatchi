@@ -71,7 +71,6 @@ export async function requestRegistrationCredentialConfirmation({
     requestId,
     intentDigest: decision.intentDigest || '',
     credential: decision.credential,
-    prfOutput: undefined,
     vrfChallenge: decision.vrfChallenge,
     transactionContext: decision.transactionContext,
     error: decision.error,

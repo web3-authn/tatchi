@@ -9,16 +9,19 @@
 
 import type { FinalExecutionOutcome } from '@near-js/types';
 import type { NearClient, SignedTransaction } from './NearClient';
-import type { AccountId } from './types/accountIds';
 import type { ContractStoredAuthenticator } from './TatchiPasskey/recoverAccount';
 import type { PasskeyManagerContext } from './TatchiPasskey';
-import type { DeviceLinkingSSEEvent } from './types/passkeyManager';
+import type { AccountId } from './types/accountIds';
+import type { DeviceLinkingSSEEvent } from './types/sdkSentEvents';
+import type {
+  StoredAuthenticator,
+  WebAuthnRegistrationCredential,
+  WebAuthnAuthenticationCredential
+} from './types/webauthn';
 
-import { StoredAuthenticator, WebAuthnRegistrationCredential } from './types/webauthn';
-import { ActionPhase } from './types/passkeyManager';
+import { ActionPhase, DeviceLinkingPhase, DeviceLinkingStatus } from './types/sdkSentEvents';
 import { ActionType } from './types/actions';
 import { VRFChallenge } from './types/vrf-worker';
-import { DeviceLinkingPhase, DeviceLinkingStatus } from './types/passkeyManager';
 import { DEFAULT_WAIT_STATUS, TransactionContext } from './types/rpc';
 import type { AuthenticatorOptions } from './types/authenticatorOptions';
 import { base64UrlDecode } from '../utils/encoders';
@@ -58,7 +61,10 @@ export async function getDeviceLinkingAccountContractCall(
   devicePublicKey: string
 ): Promise<DeviceLinkingResult | null> {
   try {
-    const result = await nearClient.callFunction<{ device_public_key: string }, [string, number]>(
+    const result = await nearClient.callFunction<
+      { device_public_key: string },
+      [string, number | string]
+    >(
       contractId,
       'get_device_linking_account',
       { device_public_key: devicePublicKey }
@@ -66,7 +72,15 @@ export async function getDeviceLinkingAccountContractCall(
 
     // Handle different result formats
     if (result && Array.isArray(result) && result.length >= 2) {
-      const [linkedAccountId, deviceNumber] = result;
+      const [linkedAccountId, deviceNumberRaw] = result;
+      const deviceNumber = Number(deviceNumberRaw);
+      if (!Number.isSafeInteger(deviceNumber) || deviceNumber < 0) {
+        console.warn(
+          'Invalid deviceNumber returned from get_device_linking_account:',
+          deviceNumberRaw
+        );
+        return null;
+      }
       return {
         linkedAccountId,
         deviceNumber
@@ -425,6 +439,91 @@ export async function checkCanRegisterUserContractCall({
       verified: false,
       logs: [],
       error: errorMessage(err) || 'Failed to call check_can_register_user',
+    };
+  }
+}
+
+
+/**
+ * Verify authentication response through relay server
+ * Routes the request to relay server which calls the web3authn contract for verification
+ * and issues a JWT or session credential
+ */
+export async function verifyAuthenticationResponse(
+  relayServerUrl: string,
+  routePath: string,
+  sessionKind: 'jwt' | 'cookie',
+  vrfChallenge: VRFChallenge,
+  webauthnAuthentication: WebAuthnAuthenticationCredential
+): Promise<{
+  success: boolean;
+  verified?: boolean;
+  jwt?: string;
+  sessionCredential?: any;
+  error?: string;
+  contractResponse?: any;
+}> {
+  try {
+    // Map VRFChallenge into server ContractVrfData shape (number arrays)
+    const toBytes = (b64u: string | undefined): number[] => {
+      if (!b64u) return [];
+      return Array.from(base64UrlDecode(b64u));
+    };
+    const vrf_data = {
+      vrf_input_data: toBytes(vrfChallenge.vrfInput),
+      vrf_output: toBytes(vrfChallenge.vrfOutput),
+      vrf_proof: toBytes(vrfChallenge.vrfProof),
+      public_key: toBytes(vrfChallenge.vrfPublicKey),
+      user_id: vrfChallenge.userId,
+      rp_id: vrfChallenge.rpId,
+      block_height: Number(vrfChallenge.blockHeight || 0),
+      block_hash: toBytes(vrfChallenge.blockHash),
+    };
+
+    // Normalize authenticatorAttachment and userHandle to null for server schema
+    const webauthn_authentication = {
+      ...webauthnAuthentication,
+      authenticatorAttachment: webauthnAuthentication.authenticatorAttachment ?? null,
+      response: {
+        ...webauthnAuthentication.response,
+        userHandle: webauthnAuthentication.response.userHandle ?? null,
+      }
+    };
+
+    const url = `${relayServerUrl.replace(/\/$/, '')}${routePath.startsWith('/') ? routePath : `/${routePath}`}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: sessionKind === 'cookie' ? 'include' : 'omit',
+      body: JSON.stringify({
+        sessionKind: sessionKind,
+        vrf_data,
+        webauthn_authentication,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        success: false,
+        error: `HTTP ${response.status}: ${errorText}`,
+      };
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      verified: result.verified,
+      jwt: result.jwt,
+      sessionCredential: result.sessionCredential,
+      contractResponse: result.contractResponse,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to verify authentication response',
     };
   }
 }

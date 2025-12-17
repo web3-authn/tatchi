@@ -421,7 +421,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
                 userHandle: null,
               },
               getClientExtensionResults: () => ({
-                prf: { results: { first: new Uint8Array(32) } },
+                prf: { results: { first: new Uint8Array(32), second: new Uint8Array(32) } },
               }),
             } as any;
           }
@@ -491,7 +491,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
           async checkVrfStatus() {
             return { active: true, nearAccountId: 'error.testnet' };
           },
-          async deriveWrapKeySeedAndSendToSigner() {
+          async mintSessionKeysAndSendToSigner() {
             return;
           },
         },

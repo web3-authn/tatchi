@@ -105,8 +105,6 @@ pub struct TransactionContext {
     pub tx_block_hash: String,
 }
 
-// NOTE: VerificationPayload was deprecated; use RpcCallPayload instead (struct removed).
-
 // === DECRYPTION TYPES ===
 
 // ******************************************************************************
@@ -180,9 +178,9 @@ pub struct DecryptionPayload {
     /// Encrypted NEAR private key
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyData")]
     pub encrypted_private_key_data: String,
-    /// Nonce/IV for ChaCha20Poly1305 ciphertext
-    #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyIv")]
-    pub encrypted_private_key_iv: String,
+    /// ChaCha20-Poly1305 nonce (base64url) for `encryptedPrivateKeyData`.
+    #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyChacha20NonceB64u")]
+    pub encrypted_private_key_chacha20_nonce_b64u: String,
 }
 
 #[wasm_bindgen]
@@ -190,11 +188,11 @@ impl DecryptionPayload {
     #[wasm_bindgen(constructor)]
     pub fn new(
         encrypted_private_key_data: String,
-        encrypted_private_key_iv: String,
+        encrypted_private_key_chacha20_nonce_b64u: String,
     ) -> DecryptionPayload {
         DecryptionPayload {
             encrypted_private_key_data,
-            encrypted_private_key_iv,
+            encrypted_private_key_chacha20_nonce_b64u,
         }
     }
 }

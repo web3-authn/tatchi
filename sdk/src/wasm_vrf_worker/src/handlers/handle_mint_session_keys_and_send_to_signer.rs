@@ -4,12 +4,14 @@ use sha2::Sha256;
 use wasm_bindgen::prelude::*;
 
 use crate::errors::HkdfError;
-use crate::manager::VRFKeyManager;
+use crate::manager::{VRFKeyManager, VrfSessionData};
 use crate::rpc_calls::{
     verify_authentication_response_rpc_call, VrfData, WebAuthnAuthenticationCredential,
 };
 use crate::types::VrfWorkerResponse;
-use crate::utils::{base64_url_decode, generate_wrap_key_salt_b64u};
+use crate::utils::generate_wrap_key_salt_b64u;
+#[cfg(target_arch = "wasm32")]
+use crate::utils::base64_url_decode;
 use serde::{Serialize, Deserialize};
 use serde_wasm_bindgen;
 use std::cell::RefCell;
@@ -17,46 +19,40 @@ use std::rc::Rc;
 use wasm_bindgen::JsValue;
 use js_sys::Reflect;
 
-/// Extract PRF.second output from credential's client data extension results.
-/// Looks through known WebAuthn shapes and returns Some(decoded_bytes) when present.
 #[cfg(target_arch = "wasm32")]
-fn extract_prf_second_from_credential(
-    credential: &wasm_bindgen::JsValue,
+fn extract_prf_second_bytes_from_credential(
+    credential: &JsValue,
 ) -> Result<Option<Vec<u8>>, String> {
 
-    fn decode_prf_second(second_b64u: Option<&str>) -> Result<Option<Vec<u8>>, String> {
-        let Some(second_b64u) = second_b64u else {
-            return Ok(None);
-        };
-        if second_b64u.is_empty() {
-            return Ok(None);
-        }
-        base64_url_decode(second_b64u)
-            .map_err(|e| format!("Failed to decode PRF.second: {}", e))
-            .map(|decoded| if decoded.is_empty() { None } else { Some(decoded) })
-    }
-
-    let get_str = |path: &[&str]| -> Option<String> {
-        let mut cur = credential.clone();
-        for key in path {
-            let next = Reflect::get(&cur, &JsValue::from_str(key)).ok()?;
-            if next.is_null() || next.is_undefined() {
-                return None;
-            }
-            cur = next;
-        }
-        cur.as_string()
+    let Some(second_b64u) = crate::webauthn::extract_prf_second_from_credential(credential) else {
+        return Ok(None);
     };
-
-    if let Some(second_b64u) = get_str(&["clientExtensionResults", "prf", "results", "second"]) {
-        return decode_prf_second(Some(&second_b64u));
+    if second_b64u.trim().is_empty() {
+        return Ok(None);
     }
+    base64_url_decode(second_b64u.trim())
+        .map_err(|e| format!("Failed to decode PRF.second: {}", e))
+        .map(|decoded| if decoded.is_empty() { None } else { Some(decoded) })
+}
 
-    if let Some(second_b64u) = get_str(&["response", "clientExtensionResults", "prf", "results", "second"]) {
-        return decode_prf_second(Some(&second_b64u));
+fn extract_prf_first_bytes_from_credential(credential: &JsValue) -> Result<Vec<u8>, String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        if credential.is_null() || credential.is_undefined() {
+            return Err("Missing credential (required to extract PRF.first)".to_string());
+        }
+        let first_b64u = crate::webauthn::extract_prf_first_from_credential(credential)
+            .ok_or_else(|| "Missing PRF.first in credential".to_string())?;
+        if first_b64u.is_empty() {
+            return Err("Missing PRF.first in credential".to_string());
+        }
+        base64_url_decode(&first_b64u).map_err(|e| format!("Failed to decode PRF.first: {}", e))
     }
-
-    Ok(None)
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = credential;
+        Err("PRF extraction is only supported in wasm32 builds".to_string())
+    }
 }
 
 fn as_authentication_credential(
@@ -161,18 +157,19 @@ pub(crate) async fn verify_authentication_if_needed(
         }
     }
 
+    // This VRF challenge is one-time-use. Clear it after a successful verification so
+    // stale challenges can't linger and break later session refreshes.
+    manager.borrow_mut().clear_challenge(session_id);
+
     Ok(())
 }
 
 #[wasm_bindgen]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DeriveWrapKeySeedAndSessionRequest {
+pub struct MintSessionKeysAndSendToSignerRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     #[serde(rename = "sessionId")]
     pub session_id: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "prfFirstAuthB64u")]
-    #[serde(rename = "prfFirstAuthB64u")]
-    pub prf_first_auth_b64u: String,
     #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
     #[serde(rename = "wrapKeySalt")]
     pub wrap_key_salt_b64u: String,
@@ -184,6 +181,17 @@ pub struct DeriveWrapKeySeedAndSessionRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "nearRpcUrl")]
     #[serde(rename = "nearRpcUrl")]
     pub near_rpc_url: Option<String>,
+    /// Optional signing-session TTL in milliseconds.
+    /// When omitted, VRF_SESSION_DEFAULT_TTL_MS is used.
+    #[wasm_bindgen(getter_with_clone, js_name = "ttlMs")]
+    #[serde(rename = "ttlMs")]
+    pub ttl_ms: Option<u32>,
+    /// Optional initial remaining uses budget for the session.
+    /// A "use" is decremented on `DISPENSE_SESSION_KEY`.
+    /// When omitted, VRF_SESSION_DEFAULT_MAX_USES is used.
+    #[wasm_bindgen(getter_with_clone, js_name = "remainingUses")]
+    #[serde(rename = "remainingUses")]
+    pub remaining_uses: Option<u32>,
     /// Optional WebAuthn credential (registration or authentication) for PRF.second extraction.
     /// PRF extension results are intentionally omitted when forwarding to RPC, so
     /// any PRF outputs present in the JS object are not sent over the network.
@@ -200,15 +208,21 @@ fn js_undefined() -> JsValue {
     JsValue::UNDEFINED
 }
 
-pub async fn handle_derive_wrap_key_seed_and_session(
+pub async fn handle_mint_session_keys_and_send_to_signer(
     manager: Rc<RefCell<VRFKeyManager>>,
     message_id: Option<String>,
-    request: DeriveWrapKeySeedAndSessionRequest,
+    request: MintSessionKeysAndSendToSignerRequest,
 ) -> VrfWorkerResponse {
     debug!(
-        "[VRF] derive_wrap_key_seed_and_session for session {}",
+        "[VRF] mint_session_keys_and_send_to_signer for session {}",
         request.session_id
     );
+
+    let fail = |msg: String| -> VrfWorkerResponse {
+        #[cfg(target_arch = "wasm32")]
+        crate::wrap_key_seed_port::send_wrap_key_seed_error_to_signer(&request.session_id, &msg);
+        VrfWorkerResponse::fail(message_id.clone(), msg)
+    };
 
     // If contract verification context is provided, perform verify_authentication_response
     // before deriving WrapKeySeed. This ensures that only contract-verified sessions
@@ -220,9 +234,15 @@ pub async fn handle_derive_wrap_key_seed_and_session(
         &request.near_rpc_url,
         &request.session_id,
         &request.credential,
-    )
-    .await
-    {
+    ) .await {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let err = resp
+                .error
+                .clone()
+                .unwrap_or_else(|| "VRF mint session keys failed".to_string());
+            crate::wrap_key_seed_port::send_wrap_key_seed_error_to_signer(&request.session_id, &err);
+        }
         return resp;
     }
 
@@ -232,32 +252,29 @@ pub async fn handle_derive_wrap_key_seed_and_session(
     let wrap_key_salt_b64u = if request.wrap_key_salt_b64u.trim().is_empty() {
         match generate_wrap_key_salt_b64u() {
             Ok(s) => s,
-            Err(e) => return VrfWorkerResponse::fail(message_id, e),
+            Err(e) => return fail(e),
         }
     } else {
         request.wrap_key_salt_b64u.clone()
     };
 
     // Decode PRF.first_auth
-    let prf_first_bytes = match base64_url_decode(&request.prf_first_auth_b64u) {
+    let prf_first_bytes = match extract_prf_first_bytes_from_credential(&request.credential) {
         Ok(bytes) => bytes,
-        Err(e) => return VrfWorkerResponse::fail(message_id, e.to_string()),
+        Err(e) => return fail(e),
     };
 
     // Derive K_pass_auth = HKDF(PRF.first_auth, "vrf-wrap-pass")
     let hk = Hkdf::<Sha256>::new(None, &prf_first_bytes);
     let mut k_pass_auth = vec![0u8; 32];
     if let Err(_e) = hk.expand(crate::config::VRF_WRAP_PASS_INFO, &mut k_pass_auth) {
-        return VrfWorkerResponse::fail(
-            message_id,
-            HkdfError::KeyDerivationFailed.to_string(),
-        );
+        return fail(HkdfError::KeyDerivationFailed.to_string());
     }
 
     // Get VRF secret key bytes from the current in-memory keypair
     let vrf_secret = match manager.borrow().get_vrf_secret_key_bytes() {
         Ok(sk) => sk,
-        Err(e) => return VrfWorkerResponse::fail(message_id, e.to_string()),
+        Err(e) => return fail(e.to_string()),
     };
 
     // Derive WrapKeySeed = HKDF(K_pass_auth || vrf_sk, "near-wrap-seed")
@@ -268,9 +285,32 @@ pub async fn handle_derive_wrap_key_seed_and_session(
     let hk2 = Hkdf::<Sha256>::new(None, &seed);
     let mut wrap_key_seed = vec![0u8; 32];
     if let Err(_e) = hk2.expand(crate::config::NEAR_WRAP_SEED_INFO, &mut wrap_key_seed) {
-        return VrfWorkerResponse::fail(
-            message_id,
-            HkdfError::KeyDerivationFailed.to_string(),
+        return fail(HkdfError::KeyDerivationFailed.to_string());
+    }
+
+    // Cache VRF-owned session material for reuse (TTL/uses enforced on dispense).
+    // This does not expose WrapKeySeed to the main thread; it remains in VRF worker memory.
+    {
+        let now_ms = js_sys::Date::now();
+        let ttl_ms: u64 = request
+            .ttl_ms
+            .map(|v| v as u64)
+            .unwrap_or(crate::config::VRF_SESSION_DEFAULT_TTL_MS);
+        let expires_at_ms = Some(now_ms + (ttl_ms as f64));
+        let remaining_uses = Some(
+            request
+                .remaining_uses
+                .unwrap_or(crate::config::VRF_SESSION_DEFAULT_MAX_USES),
+        );
+        manager.borrow_mut().upsert_session(
+            &request.session_id,
+            VrfSessionData {
+                wrap_key_seed: wrap_key_seed.clone(),
+                wrap_key_salt_b64u: wrap_key_salt_b64u.clone(),
+                created_at_ms: now_ms,
+                expires_at_ms,
+                remaining_uses,
+            },
         );
     }
 
@@ -278,7 +318,7 @@ pub async fn handle_derive_wrap_key_seed_and_session(
     // If credential is provided, extract PRF.second for NEAR key derivation in signer worker
     #[cfg(target_arch = "wasm32")]
     let prf_second_b64u = if !request.credential.is_null() && !request.credential.is_undefined() {
-        match extract_prf_second_from_credential(&request.credential) {
+        match extract_prf_second_bytes_from_credential(&request.credential) {
             Ok(Some(prf_second_bytes)) => {
                 debug!(
                     "[VRF] Extracted PRF.second ({} bytes) from credential",
@@ -290,7 +330,7 @@ pub async fn handle_derive_wrap_key_seed_and_session(
                 debug!("[VRF] PRF.second not present in credential");
                 None
             }
-            Err(e) => return VrfWorkerResponse::fail(message_id.clone(), e),
+            Err(e) => return fail(e),
         }
     } else {
         None
@@ -324,6 +364,10 @@ pub async fn handle_derive_wrap_key_seed_and_session(
 
     VrfWorkerResponse::success(message_id, Some(payload))
 }
+
+////////////////////////////
+/// TESTS
+////////////////////////////
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
@@ -362,7 +406,7 @@ mod tests {
             },
         })
         .unwrap();
-        let extracted = extract_prf_second_from_credential(&credential)
+        let extracted = extract_prf_second_bytes_from_credential(&credential)
             .expect("should decode")
             .expect("should find prf.second");
         assert_eq!(extracted, prf_second_bytes);
@@ -406,7 +450,7 @@ mod tests {
             },
         })
         .unwrap();
-        let extracted = extract_prf_second_from_credential(&credential)
+        let extracted = extract_prf_second_bytes_from_credential(&credential)
             .expect("should decode")
             .expect("should find prf.second");
         assert_eq!(extracted, prf_second_bytes);
@@ -425,7 +469,8 @@ mod tests {
             client_ext: ClientExt {},
         })
         .unwrap();
-        let extracted = extract_prf_second_from_credential(&credential).expect("should succeed");
+        let extracted =
+            extract_prf_second_bytes_from_credential(&credential).expect("should succeed");
         assert!(extracted.is_none());
     }
 
@@ -458,7 +503,7 @@ mod tests {
             },
         })
         .unwrap();
-        let err = extract_prf_second_from_credential(&credential)
+        let err = extract_prf_second_bytes_from_credential(&credential)
             .expect_err("should fail to decode invalid base64");
         assert!(err.contains("Failed to decode PRF.second"));
     }

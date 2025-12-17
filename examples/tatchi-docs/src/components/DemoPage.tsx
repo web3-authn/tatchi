@@ -23,6 +23,7 @@ export const DemoPage: React.FC = () => {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isSlideActive, setIsSlideActive] = useState(false);
   const [hasArmedHeavy, setHasArmedHeavy] = useState(false);
+  const [clockMs, setClockMs] = useState(() => Date.now());
 
   // Detect when this slide becomes the active (enter) page in the carousel
   useEffect(() => {
@@ -82,6 +83,13 @@ export const DemoPage: React.FC = () => {
     timer = window.setTimeout(() => setHasArmedHeavy(true), delayMs) as unknown as number;
     return () => { if (timer) clearTimeout(timer as unknown as number); };
   }, [isSlideActive, hasArmedHeavy]);
+
+  // Lightweight clock for TTL countdown display
+  useEffect(() => {
+    const id = window.setInterval(() => setClockMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const {
     loginState: { isLoggedIn, nearAccountId },
     tatchi,
@@ -99,6 +107,77 @@ export const DemoPage: React.FC = () => {
   const [txLoading, setTxLoading] = useState(false);
   const [delegateLoading, setDelegateLoading] = useState(false);
   const [loadingUi, setLoadingUi] = useState<ConfirmationUIMode|null>(null);
+  const [unlockLoading, setUnlockLoading] = useState(false);
+  const [sessionStatusLoading, setSessionStatusLoading] = useState(false);
+  const [sessionRemainingUsesInput, setSessionRemainingUsesInput] = useState(3);
+  const [sessionTtlSecondsInput, setSessionTtlSecondsInput] = useState(300);
+  const [sessionStatus, setSessionStatus] = useState<{
+    sessionId: string;
+    status: 'active' | 'exhausted' | 'expired' | 'not_found';
+    remainingUses?: number;
+    expiresAtMs?: number;
+    createdAtMs?: number;
+  } | null>(null);
+
+  const refreshSessionStatus = useCallback(async () => {
+    if (!nearAccountId) return;
+    setSessionStatusLoading(true);
+    try {
+      const sess = await tatchi.getLoginSession(nearAccountId);
+      setSessionStatus(sess?.signingSession || null);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to fetch session status: ${message}`, { id: 'session-status' });
+    } finally {
+      setSessionStatusLoading(false);
+    }
+  }, [nearAccountId, tatchi]);
+
+  // Fetch session status on mount/account change (best-effort; errors are toast-only)
+  useEffect(() => {
+    if (!isLoggedIn || !nearAccountId) return;
+    void refreshSessionStatus();
+  }, [isLoggedIn, nearAccountId, refreshSessionStatus]);
+
+  const handleUnlockSession = useCallback(async () => {
+    if (!nearAccountId) return;
+
+    const remainingUses = Number.isFinite(sessionRemainingUsesInput)
+      ? Math.max(0, Math.floor(sessionRemainingUsesInput))
+      : undefined;
+    const ttlSeconds = Number.isFinite(sessionTtlSecondsInput)
+      ? Math.max(0, Math.floor(sessionTtlSecondsInput))
+      : undefined;
+    const ttlMs = typeof ttlSeconds === 'number' ? ttlSeconds * 1000 : undefined;
+
+    setUnlockLoading(true);
+    toast.loading('Logging in & creating session…', { id: 'unlock-session' });
+    try {
+      await tatchi.loginAndCreateSession(nearAccountId, {
+        signingSession: { ttlMs, remainingUses },
+      });
+      await refreshSessionStatus();
+      toast.success('Session ready', { id: 'unlock-session' });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to create session: ${message}`, { id: 'unlock-session' });
+    } finally {
+      setUnlockLoading(false);
+    }
+  }, [nearAccountId, sessionRemainingUsesInput, sessionTtlSecondsInput, tatchi, refreshSessionStatus]);
+
+  const handleClearSession = useCallback(async () => {
+    if (!nearAccountId) return;
+    toast.loading('Logging out…', { id: 'clear-session' });
+    try {
+      await tatchi.logoutAndClearSession();
+      toast.success('Logged out', { id: 'clear-session' });
+      setSessionStatus(null);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to logout: ${message}`, { id: 'clear-session' });
+    }
+  }, [nearAccountId, tatchi]);
 
   const canExecuteGreeting = useCallback(
     (val: string, loggedIn: boolean, accountId?: string | null) =>
@@ -189,7 +268,7 @@ export const DemoPage: React.FC = () => {
   const handleSignDelegateGreeting = useCallback(async () => {
     if (!canExecuteGreeting(greetingInput, isLoggedIn, nearAccountId)) return;
 
-    const loginState = await tatchi.getLoginState();
+    const { login: loginState } = await tatchi.getLoginSession();
 
     setDelegateLoading(true);
     try {
@@ -396,6 +475,9 @@ export const DemoPage: React.FC = () => {
   }
 
   const accountName = nearAccountId?.split('.')?.[0];
+  const expiresInSec = sessionStatus?.expiresAtMs != null
+    ? Math.max(0, Math.ceil((sessionStatus.expiresAtMs - clockMs) / 1000))
+    : null;
 
   return (
     <div ref={rootRef}>
@@ -403,7 +485,123 @@ export const DemoPage: React.FC = () => {
         <div className="demo-page-header">
           <h2 className="demo-title">Welcome, {accountName}</h2>
         </div>
+      </div>
 
+      <div className="action-section">
+        <h2 className="demo-subtitle">VRF Signing Session</h2>
+        <div className="action-text">
+          Create a warm signing session with configurable <code>remaining_uses</code> and TTL.
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180, flex: 1 }}>
+            <label style={{ fontSize: '0.9rem', color: 'var(--fe-text-secondary)' }}>
+              Remaining uses
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={sessionRemainingUsesInput}
+              onChange={(e) => setSessionRemainingUsesInput(parseInt(e.target.value || '0', 10))}
+              style={{
+                height: 44,
+                padding: '0 12px',
+                backgroundColor: 'var(--w3a-colors-surface2)',
+                border: '1px solid var(--fe-border)',
+                borderRadius: 'var(--fe-radius-lg)',
+                color: 'var(--fe-input-text)',
+                fontSize: '0.9rem',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180, flex: 1 }}>
+            <label style={{ fontSize: '0.9rem', color: 'var(--fe-text-secondary)' }}>
+              TTL (seconds)
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={sessionTtlSecondsInput}
+              onChange={(e) => setSessionTtlSecondsInput(parseInt(e.target.value || '0', 10))}
+              style={{
+                height: 44,
+                padding: '0 12px',
+                backgroundColor: 'var(--w3a-colors-surface2)',
+                border: '1px solid var(--fe-border)',
+                borderRadius: 'var(--fe-radius-lg)',
+                color: 'var(--fe-input-text)',
+                fontSize: '0.9rem',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <LoadingButton
+              onClick={handleUnlockSession}
+              loading={unlockLoading}
+              loadingText="Creating..."
+              variant="primary"
+              size="medium"
+              style={{ width: 180 }}
+            >
+              Create Session
+            </LoadingButton>
+            <LoadingButton
+              onClick={refreshSessionStatus}
+              loading={sessionStatusLoading}
+              loadingText="Refreshing..."
+              variant="secondary"
+              size="medium"
+              style={{ width: 180 }}
+            >
+              Refresh Status
+            </LoadingButton>
+            <LoadingButton
+              onClick={handleClearSession}
+              loading={false}
+              loadingText="Logging out..."
+              variant="secondary"
+              size="medium"
+              style={{ width: 160 }}
+            >
+              Logout
+            </LoadingButton>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: 12,
+            background: 'var(--fe-bg-secondary)',
+            border: '1px solid var(--fe-border)',
+            borderRadius: 'var(--fe-radius-lg)',
+            padding: 'var(--fe-gap-3)',
+            fontSize: '0.9rem',
+            color: 'var(--fe-text)',
+          }}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <strong>Status:</strong>&nbsp;{sessionStatus?.status ?? '…'}
+            </div>
+            <div>
+              <strong>Remaining uses:</strong>&nbsp;
+              {typeof sessionStatus?.remainingUses === 'number' ? sessionStatus.remainingUses : '—'}
+            </div>
+            <div>
+              <strong>TTL:</strong>&nbsp;
+              {expiresInSec == null
+                ? '—'
+                : (sessionStatus?.status === 'active' ? `${expiresInSec}s remaining` : `${expiresInSec}s`)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="action-section">
         <h2 className="demo-subtitle">Sign Transactions with TouchId</h2>
         <div className="action-text">
           Sign transactions securely in an cross-origin iframe.

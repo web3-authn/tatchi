@@ -12,9 +12,9 @@
   - Registers the SW for this scope, warms assets (non‑blocking), configures worker URLs to the offline‑scoped copies, and starts the export UI.
 - Service worker: `offline-export-sw.ts`
   - Cache‑only policy, scoped strictly to `/offline-export/`.
-  - Versioned cache: `OFFLINE_EXPORT::<version>` (current default: v3).
+  - Versioned cache: `OFFLINE_EXPORT::<version>` (current default: v6).
   - Stable precache + manifest merge (`/offline-export/precache.manifest.json`).
-  - Fallbacks for hashed chunks (prefix match) and worker assets.
+  - Fallbacks for offline-scoped chunks via `/sdk/<basename>` and worker assets.
   - Explicit 504 on cache miss to surface dev/staging gaps quickly.
 
 ## Wallet Iframe Flow
@@ -84,5 +84,3 @@
   - Check `/offline-export/precache.manifest.json` for missing entries; the dev route computes this list on the fly.
   - Bump SW `VERSION` in `offline-export-sw.ts` (or inject at build) to evict stale caches.
   - Unregister the SW and re‑visit `/offline-export/` while online once to prime.
-- Favicon 404s
-  - Out of scope for the SW; ignore or add `/favicon.ico` to precache if desired.

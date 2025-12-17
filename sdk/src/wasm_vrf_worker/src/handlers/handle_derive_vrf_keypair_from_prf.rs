@@ -1,29 +1,28 @@
-use wasm_bindgen::prelude::*;
 use log::{debug, error, warn};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsValue;
 
 use crate::config::CHACHA20_KEY_SIZE;
 use crate::handlers::handle_shamir3pass_client::{
-    perform_shamir3pass_client_encrypt_current_vrf_keypair,
-    Shamir3PassEncryptVrfKeypairResult,
+    perform_shamir3pass_client_encrypt_current_vrf_keypair, Shamir3PassEncryptVrfKeypairResult,
 };
 use crate::manager::VRFKeyManager;
-use crate::types::{
-    EncryptedVRFKeypair,
-    VRFChallengeData,
-    VRFInputData,
-    VrfWorkerResponse,
-};
+use crate::types::{EncryptedVRFKeypair, VRFChallengeData, VRFInputData, VrfWorkerResponse};
 use crate::utils::base64_url_decode;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DeriveVrfKeypairFromPrfRequest {
-    #[wasm_bindgen(getter_with_clone, js_name = "prfOutput")]
-    #[serde(rename = "prfOutput")]
-    pub prf_output: String,
+    #[wasm_bindgen(skip)]
+    #[serde(
+        rename = "credential",
+        default = "js_undefined",
+        with = "serde_wasm_bindgen::preserve"
+    )]
+    pub credential: JsValue,
     #[wasm_bindgen(getter_with_clone, js_name = "nearAccountId")]
     #[serde(rename = "nearAccountId")]
     pub near_account_id: String,
@@ -33,6 +32,10 @@ pub struct DeriveVrfKeypairFromPrfRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "vrfInputData")]
     #[serde(default, rename = "vrfInputData")]
     pub vrf_input_data: Option<VRFInputData>,
+}
+
+fn js_undefined() -> JsValue {
+    JsValue::UNDEFINED
 }
 
 fn default_true() -> bool {
@@ -59,16 +62,41 @@ pub struct DeterministicVrfKeypairResponse {
 
 /// Handle DERIVE_VRF_KEYPAIR_FROM_PRF message
 ///
-/// Derives a VRF keypair deterministically from PRF output, optionally storing it in memory
+/// Derives a VRF keypair deterministically from PRF.second embedded in a WebAuthn credential,
+/// optionally storing it in memory
 /// and performing Shamir 3-pass encryption for server storage.
 pub async fn handle_derive_vrf_keypair_from_prf(
     manager: Rc<RefCell<VRFKeyManager>>,
     message_id: Option<String>,
     payload: DeriveVrfKeypairFromPrfRequest,
 ) -> VrfWorkerResponse {
-    let prf_output = match base64_url_decode(&payload.prf_output) {
-        Ok(bytes) if !bytes.is_empty() => bytes,
-        _ => return VrfWorkerResponse::fail(message_id, "Missing or invalid PRF output"),
+    if payload.credential.is_null() || payload.credential.is_undefined() {
+        return VrfWorkerResponse::fail(message_id, "Missing credential");
+    }
+
+    let prf_second_b64u: Option<String> = {
+        #[cfg(target_arch = "wasm32")]
+        {
+            crate::webauthn::extract_prf_second_from_credential(&payload.credential)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            None
+        }
+    };
+
+    let prf_output = match prf_second_b64u.as_deref() {
+        Some(b64u) => match base64_url_decode(b64u) {
+            Ok(bytes) if !bytes.is_empty() => bytes,
+            Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential"),
+            Err(_) => {
+                return VrfWorkerResponse::fail(
+                    message_id,
+                    "Missing or invalid PRF.second in credential",
+                )
+            }
+        },
+        None => return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential"),
     };
     if prf_output.len() != CHACHA20_KEY_SIZE {
         return VrfWorkerResponse::fail(message_id, "Invalid PRF output length: expected 32 bytes");

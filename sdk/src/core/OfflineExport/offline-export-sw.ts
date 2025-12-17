@@ -31,7 +31,7 @@
  */
 
 // Versioned cache. Bump to evict old assets after releases.
-const VERSION = 'OFFLINE_EXPORT_v4'
+const VERSION = 'OFFLINE_EXPORT_v6'
 const CACHE_NAME = `OFFLINE_EXPORT::${VERSION}`
 
 // Resolve scope path from registration scope when available, fallback to
@@ -55,7 +55,7 @@ const STABLE_PRECACHE: string[] = [
   `${SCOPE_PATH}precache.manifest.json`,
   // Offline app entry must be available on offline refresh
   `${SCOPE_PATH}offline-export-app.js`,
-  // Offline-scoped worker copies so the SW controls their subresource fetches
+  // Offline-scoped worker copies so the SW controls their subresource fetches (WASM)
   `${SCOPE_PATH}workers/web3authn-signer.worker.js`,
   `${SCOPE_PATH}workers/web3authn-vrf.worker.js`,
   `${SCOPE_PATH}workers/wasm_signer_worker_bg.wasm`,
@@ -82,9 +82,14 @@ const STABLE_PRECACHE: string[] = [
 ]
 
 async function precacheAll(cache: Cache): Promise<void> {
+  // Force revalidation/bypass of the HTTP cache so SW bumps actually pull fresh worker/WASM bytes.
+  const cacheAdd = async (url: string): Promise<void> => {
+    try { await cache.add(new Request(url, { cache: 'reload' })); return; } catch {}
+    try { await cache.add(url); } catch {}
+  };
   // Put stable files first (best-effort per‑item to avoid all‑or‑nothing failures)
   for (const url of STABLE_PRECACHE) {
-    try { await cache.add(url) } catch {}
+    await cacheAdd(url)
   }
 
   // Merge manifest entries when present (manifest itself must be precached)
@@ -98,7 +103,7 @@ async function precacheAll(cache: Cache): Promise<void> {
           .map((x) => x as string)
         if (urls.length) {
           // Best-effort: cache additional assets; ignore individual failures
-          await Promise.allSettled(urls.map((u) => cache.add(u)))
+          await Promise.allSettled(urls.map((u) => cacheAdd(u)))
         }
       }
     }
@@ -165,27 +170,12 @@ self.addEventListener('fetch', (event: any) => {
             // First try exact basename under /sdk
             const alt = await caches.match(`/sdk/${base}`, { ignoreSearch: true })
             if (alt) return alt
-            // Fallback: try any cached versioned chunk with the same logical prefix
-            // e.g., common-<hash>.js, tags-<hash>.js, lit-events-<hash>.js
-            const m = /^([A-Za-z0-9_\-]+)-/.exec(base)
-            const prefix = m && m[1]
-            if (prefix) {
-              const cache = await caches.open(CACHE_NAME)
-              const keys = await cache.keys()
-              for (const req of keys) {
-                const p = new URL(req.url).pathname
-                if (p.startsWith(`/sdk/${prefix}-`) && p.endsWith('.js')) {
-                  const found = await cache.match(req, { ignoreSearch: true })
-                  if (found) return found
-                }
-              }
-            }
           }
         }
       }
       // For SDK assets, prefer network-once to warm the cache during first online load.
-      // When offline and the hashed chunk is missing, attempt a prefix-based fallback
-      // (e.g., serve any cached /sdk/<prefix>-*.js) similar to the offline-scoped case.
+      // When offline and the hashed chunk is missing, fail explicitly rather than
+      // serving a different cached chunk (mixing builds can cause ESM export errors).
       if (isSdkAsset) {
         try {
           const res = await fetch(req)
@@ -195,24 +185,6 @@ self.addEventListener('fetch', (event: any) => {
             return res
           }
         } catch {
-          // Offline: try prefix-based fallback for versioned chunks
-          const pth = url.pathname
-          const isJs = /\.js(?:$|\?)/.test(pth)
-          if (isJs) {
-            const m = /^\/sdk\/([A-Za-z0-9_\-]+)-/.exec(pth)
-            const prefix = m && m[1]
-            if (prefix) {
-              const cache = await caches.open(CACHE_NAME)
-              const keys = await cache.keys()
-              for (const r of keys) {
-                const kp = new URL(r.url).pathname
-                if (kp.startsWith(`/sdk/${prefix}-`) && kp.endsWith('.js')) {
-                  const found = await cache.match(r, { ignoreSearch: true })
-                  if (found) return found
-                }
-              }
-            }
-          }
         }
       }
       // Missing asset: explicit failure (no network/fallback)
@@ -228,8 +200,29 @@ self.addEventListener('message', (event: any) => {
   const type = (data as any).type || ''
   switch (type) {
     case 'OFFLINE_EXPORT_PING':
-      event.source?.postMessage?.({ type: 'OFFLINE_EXPORT_PONG', version: VERSION, scope: SCOPE_PATH })
+      event.source?.postMessage?.({ type: 'OFFLINE_EXPORT_PONG', version: VERSION, scope: SCOPE_PATH, cacheName: CACHE_NAME })
       break
+    // Best-effort: re-run precache when requested by an out-of-scope page (e.g., wallet iframe host boot).
+    // This makes offline export self-healing across deployments and stale HTTP caches.
+    case 'OFFLINE_EXPORT_PRIME': {
+      event.waitUntil(
+        (async () => {
+          try {
+            const cache = await caches.open(CACHE_NAME)
+            await precacheAll(cache)
+            event.source?.postMessage?.({ type: 'OFFLINE_EXPORT_PRIMED', ok: true, version: VERSION })
+          } catch (e: any) {
+            event.source?.postMessage?.({
+              type: 'OFFLINE_EXPORT_PRIMED',
+              ok: false,
+              version: VERSION,
+              error: String(e?.message || e || 'failed'),
+            })
+          }
+        })()
+      )
+      break
+    }
     // Deprecated: version query no longer needed; version format is stable.
     default:
       break

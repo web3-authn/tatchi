@@ -46,6 +46,18 @@ pub enum VrfWorkerError {
 
     /// Block Height parsing error
     BlockHeightParsingError(String),
+
+    /// VRF session not found for a given session id
+    SessionNotFound(String),
+
+    /// VRF session has expired (TTL exceeded)
+    SessionExpired,
+
+    /// VRF session usage budget exhausted
+    SessionExhausted,
+
+    /// No MessagePort is attached for this session id
+    SessionPortNotAttached(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,6 +150,18 @@ impl fmt::Display for VrfWorkerError {
             }
             VrfWorkerError::BlockHeightParsingError(msg) => {
                 write!(f, "Block height parsing error: {}", msg)
+            }
+            VrfWorkerError::SessionNotFound(session_id) => {
+                write!(f, "SESSION_NOT_FOUND: {}", session_id)
+            }
+            VrfWorkerError::SessionExpired => {
+                write!(f, "SESSION_EXPIRED")
+            }
+            VrfWorkerError::SessionExhausted => {
+                write!(f, "SESSION_EXHAUSTED")
+            }
+            VrfWorkerError::SessionPortNotAttached(session_id) => {
+                write!(f, "SESSION_PORT_NOT_ATTACHED: {}", session_id)
             }
         }
     }

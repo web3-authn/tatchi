@@ -5,7 +5,7 @@ import type {
   ActionHooksOptions,
   SignNEP413HooksOptions,
   TatchiPasskey,
-  TatchiPasskeyConfigs,
+  TatchiConfigsInput,
   RecoveryResult,
   LinkDeviceResult,
   SignNEP413MessageParams,
@@ -21,29 +21,35 @@ import type {
   DeviceLinkingQRData
 } from '../core/types/linkDevice';
 import type {
+  AccountRecoveryHooksOptions,
+  ActionSSEEvent,
+  DelegateActionHooksOptions,
+  DelegateActionSSEEvent,
   DeviceLinkingSSEEvent,
-  DeviceLinkingPhase,
-  DeviceLinkingStatus,
-  RegistrationPhase,
-  RegistrationStatus,
-  LoginPhase,
-  LoginStatus,
+  EventCallback,
+  SignAndSendTransactionHooksOptions,
+} from '../core/types/sdkSentEvents';
+import {
   ActionPhase,
   ActionStatus,
   DelegateActionPhase,
-  ActionResult,
-  AccountRecoveryHooksOptions,
-  SignAndSendTransactionHooksOptions,
-} from '../core/types/passkeyManager';
-import type {
-  EventCallback,
-  ActionSSEEvent,
-  DelegateActionSSEEvent,
-  DelegateActionHooksOptions,
-} from '../core/types/passkeyManager';
+  DeviceLinkingPhase,
+  DeviceLinkingStatus,
+  LoginPhase,
+  LoginStatus,
+  RegistrationPhase,
+  RegistrationStatus,
+} from '../core/types/sdkSentEvents';
 import type { DelegateActionInput } from '../core/types/delegate';
 import type { WasmSignedDelegate } from '../core/types/signer-worker';
-import type { RegistrationResult, LoginResult } from '../core/types/passkeyManager';
+import type {
+  ActionResult,
+  LoginSession,
+  LoginAndCreateSessionResult,
+  LoginResult,
+  RegistrationResult,
+  SigningSessionStatus,
+} from '../core/types/tatchi';
 import type { AccessKeyList } from '../core/NearClient';
 
 // Type-safe event handler for device linking events
@@ -108,7 +114,7 @@ export interface TatchiContextType {
 
   // Registration and login functions
   registerPasskey: (nearAccountId: string, options?: RegistrationHooksOptions) => Promise<RegistrationResult>;
-  loginPasskey: (nearAccountId: string, options?: LoginHooksOptions) => Promise<LoginResult>;
+  loginAndCreateSession: (nearAccountId: string, options?: LoginHooksOptions) => Promise<LoginAndCreateSessionResult>;
   logout: () => void;
 
   // Execute actions
@@ -157,14 +163,7 @@ export interface TatchiContextType {
   // Wallet iframe connectivity (true when service client handshake completes)
   walletIframeConnected: boolean;
 
-  getLoginState: (nearAccountId?: string) => Promise<{
-    isLoggedIn: boolean;
-    nearAccountId: string | null;
-    publicKey: string | null;
-    vrfActive: boolean;
-    userData: ClientUserData | null;
-    vrfSessionDuration?: number;
-  }>;
+  getLoginSession: (nearAccountId?: string) => Promise<LoginSession>;
   refreshLoginState: (nearAccountId?: string) => Promise<void>;
 
   // Account input management
@@ -185,7 +184,7 @@ export interface TatchiContextType {
 
 /** Config options for TatchiContextProvider
  * @param children - ReactNode to render inside the provider
- * @param config - TatchiPasskeyConfigs
+ * @param config - TatchiConfigsInput
  * @example
  * config: {
  *   nearRpcUrl: 'https://rpc.testnet.near.org',
@@ -199,8 +198,8 @@ export interface TatchiContextType {
  */
 export interface TatchiContextProviderProps {
   children: ReactNode;
-  // Allow passing only overrides; provider will resolve full config from env + defaults
-  config: Partial<TatchiPasskeyConfigs>;
+  // Config overrides; provider resolves defaults and validates required fields.
+  config: TatchiConfigsInput;
   /**
    * When true, the provider will opportunistically pre-warm iframe + workers
    * on idle after mount to reduce first-action latency.
@@ -223,10 +222,13 @@ export type {
   DelegateActionSSEEvent,
   DeviceLinkingSSEEvent,
   AccountRecoverySSEEvent,
+} from '../core/types/sdkSentEvents';
+
+export type {
   // Results
   RegistrationResult,
   LoginResult,
-} from '../core/types/passkeyManager';
+} from '../core/types/tatchi';
 
 export type {
   StartDeviceLinkingOptionsDevice2,

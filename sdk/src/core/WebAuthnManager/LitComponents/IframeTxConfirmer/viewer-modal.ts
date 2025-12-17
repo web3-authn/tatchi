@@ -65,7 +65,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   cancelText = 'Cancel';
   confirmText = 'Next';
   txSigningRequests: TransactionInputWasm[] = [];
-  vrfChallenge?: VRFChallenge;
+  vrfChallenge?: Partial<VRFChallenge>;
   loading = false;
   errorMessage: string | undefined = undefined;
   // Theme tokens now come from external CSS (tx-confirmer.css)
@@ -73,7 +73,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   theme: ThemeName = 'dark';
   nearExplorerUrl?: string;
   intentDigest?: string;
-  delegateMeta?: Record<string, unknown>;
   declare nearAccountId: string;
   // When true, this element will NOT remove itself on confirm/cancel.
   // The host is responsible for sending a CLOSE_MODAL instruction.
@@ -278,7 +277,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
                           <path d="m3.3 7 8.7 5 8.7-5"/>
                           <path d="M12 22V12"/>
                         </svg>
-                        ${this.vrfChallenge?.rpId
+                        ${this.vrfChallenge?.blockHeight
                           ? html`block ${this.vrfChallenge.blockHeight}`
                           : ''}
                       </span>
@@ -296,7 +295,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
               .vrfChallenge=${this.vrfChallenge}
               .theme=${this.theme}
               .nearExplorerUrl=${this.nearExplorerUrl}
-              .delegateMeta=${this.delegateMeta}
               .showShadow=${false}
               .loading=${this.loading}
               .errorMessage=${this.errorMessage || ''}
