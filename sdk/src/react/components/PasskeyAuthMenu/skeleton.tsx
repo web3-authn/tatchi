@@ -55,18 +55,32 @@ export const PasskeyAuthMenuSkeletonInner: React.FC<PasskeyAuthMenuSkeletonProps
         <div className="w3a-section-divider">
           <div className="w3a-section-divider-text">Already have an account?</div>
         </div>
-        <button className="w3a-link-device-btn" disabled>
-          <div
-            className="w3a-skeleton-block"
-            style={{
-              width: '18px',
-              height: '18px',
-              marginRight: '8px',
-              borderRadius: '4px',
-            }}
-          />
-          Scan and Link Device
-        </button>
+        <div className="w3a-secondary-actions">
+          <button className="w3a-link-device-btn" disabled>
+            <div
+              className="w3a-skeleton-block"
+              style={{
+                width: '18px',
+                height: '18px',
+                marginRight: '8px',
+                borderRadius: '4px',
+              }}
+            />
+            Scan and Link Device
+          </button>
+          <button className="w3a-link-device-btn" disabled>
+            <div
+              className="w3a-skeleton-block"
+              style={{
+                width: '18px',
+                height: '18px',
+                marginRight: '8px',
+                borderRadius: '9999px',
+              }}
+            />
+            Recover Account with Email
+          </button>
+        </div>
       </div>
     </div>
   );

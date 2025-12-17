@@ -17,6 +17,7 @@ export interface PasskeyAuthMenuController {
   title: { title: string; subtitle: string };
   waiting: boolean;
   showScanDevice: boolean;
+  showEmailRecovery: boolean;
   currentValue: string;
   postfixText?: string;
   isUsingExistingAccount?: boolean;
@@ -28,6 +29,8 @@ export interface PasskeyAuthMenuController {
   onProceed: () => void;
   onResetToStart: () => void;
   openScanDevice: () => void;
+  openEmailRecovery: () => void;
+  closeEmailRecovery: () => void;
   closeLinkDeviceView: (reason: 'user' | 'flow') => void;
   linkDevice: PasskeyAuthMenuLinkDeviceController;
 }
@@ -100,6 +103,7 @@ export function usePasskeyAuthMenuController(
 
   const [waiting, setWaiting] = React.useState(false);
   const [showScanDevice, setShowScanDevice] = React.useState(false);
+  const [showEmailRecovery, setShowEmailRecovery] = React.useState(false);
 
   // If the user is attempting to register but we discover the account already exists,
   // automatically switch them to the Login tab.
@@ -175,6 +179,7 @@ export function usePasskeyAuthMenuController(
     } else {
       setShowScanDevice(false);
     }
+    setShowEmailRecovery(false);
     lastUserSelectedModeRef.current = null;
     resetToDefault();
     setCurrentValue('');
@@ -224,7 +229,18 @@ export function usePasskeyAuthMenuController(
   ]);
 
   const openScanDevice = React.useCallback(() => {
+    setShowEmailRecovery(false);
     setShowScanDevice(true);
+  }, []);
+
+  const openEmailRecovery = React.useCallback(() => {
+    stopLinkDeviceFlow();
+    setShowScanDevice(false);
+    setShowEmailRecovery(true);
+  }, [stopLinkDeviceFlow]);
+
+  const closeEmailRecovery = React.useCallback(() => {
+    setShowEmailRecovery(false);
   }, []);
 
   const linkDevice: PasskeyAuthMenuLinkDeviceController = React.useMemo(
@@ -242,6 +258,7 @@ export function usePasskeyAuthMenuController(
     title,
     waiting,
     showScanDevice,
+    showEmailRecovery,
     currentValue,
     postfixText: runtime.displayPostfix,
     isUsingExistingAccount: runtime.isUsingExistingAccount,
@@ -253,6 +270,8 @@ export function usePasskeyAuthMenuController(
     onProceed,
     onResetToStart,
     openScanDevice,
+    openEmailRecovery,
+    closeEmailRecovery,
     closeLinkDeviceView,
     linkDevice,
   };

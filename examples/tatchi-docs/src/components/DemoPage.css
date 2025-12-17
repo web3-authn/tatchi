@@ -172,6 +172,14 @@
   margin-bottom: 1rem;
 }
 
+.demo-divider {
+  height: 1px;
+  width: 100%;
+  background: var(--fe-border);
+  opacity: 0.9;
+  margin: 1.25rem 0 1rem;
+}
+
 /* Fade-in helper for embedded button */
 .button-with-tooltip-container {
   position: relative;

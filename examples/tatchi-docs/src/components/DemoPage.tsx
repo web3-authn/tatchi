@@ -166,19 +166,6 @@ export const DemoPage: React.FC = () => {
     }
   }, [nearAccountId, sessionRemainingUsesInput, sessionTtlSecondsInput, tatchi, refreshSessionStatus]);
 
-  const handleClearSession = useCallback(async () => {
-    if (!nearAccountId) return;
-    toast.loading('Logging out…', { id: 'clear-session' });
-    try {
-      await tatchi.logoutAndClearSession();
-      toast.success('Logged out', { id: 'clear-session' });
-      setSessionStatus(null);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast.error(`Failed to logout: ${message}`, { id: 'clear-session' });
-    }
-  }, [nearAccountId, tatchi]);
-
   const canExecuteGreeting = useCallback(
     (val: string, loggedIn: boolean, accountId?: string | null) =>
       Boolean(val?.trim()) && loggedIn && Boolean(accountId),
@@ -488,120 +475,6 @@ export const DemoPage: React.FC = () => {
       </div>
 
       <div className="action-section">
-        <h2 className="demo-subtitle">VRF Signing Session</h2>
-        <div className="action-text">
-          Create a warm signing session with configurable <code>remaining_uses</code> and TTL.
-        </div>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180, flex: 1 }}>
-            <label style={{ fontSize: '0.9rem', color: 'var(--fe-text-secondary)' }}>
-              Remaining uses
-            </label>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={sessionRemainingUsesInput}
-              onChange={(e) => setSessionRemainingUsesInput(parseInt(e.target.value || '0', 10))}
-              style={{
-                height: 44,
-                padding: '0 12px',
-                backgroundColor: 'var(--w3a-colors-surface2)',
-                border: '1px solid var(--fe-border)',
-                borderRadius: 'var(--fe-radius-lg)',
-                color: 'var(--fe-input-text)',
-                fontSize: '0.9rem',
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180, flex: 1 }}>
-            <label style={{ fontSize: '0.9rem', color: 'var(--fe-text-secondary)' }}>
-              TTL (seconds)
-            </label>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={sessionTtlSecondsInput}
-              onChange={(e) => setSessionTtlSecondsInput(parseInt(e.target.value || '0', 10))}
-              style={{
-                height: 44,
-                padding: '0 12px',
-                backgroundColor: 'var(--w3a-colors-surface2)',
-                border: '1px solid var(--fe-border)',
-                borderRadius: 'var(--fe-radius-lg)',
-                color: 'var(--fe-input-text)',
-                fontSize: '0.9rem',
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <LoadingButton
-              onClick={handleUnlockSession}
-              loading={unlockLoading}
-              loadingText="Creating..."
-              variant="primary"
-              size="medium"
-              style={{ width: 180 }}
-            >
-              Create Session
-            </LoadingButton>
-            <LoadingButton
-              onClick={refreshSessionStatus}
-              loading={sessionStatusLoading}
-              loadingText="Refreshing..."
-              variant="secondary"
-              size="medium"
-              style={{ width: 180 }}
-            >
-              Refresh Status
-            </LoadingButton>
-            <LoadingButton
-              onClick={handleClearSession}
-              loading={false}
-              loadingText="Logging out..."
-              variant="secondary"
-              size="medium"
-              style={{ width: 160 }}
-            >
-              Logout
-            </LoadingButton>
-          </div>
-        </div>
-
-        <div
-          style={{
-            marginTop: 12,
-            background: 'var(--fe-bg-secondary)',
-            border: '1px solid var(--fe-border)',
-            borderRadius: 'var(--fe-radius-lg)',
-            padding: 'var(--fe-gap-3)',
-            fontSize: '0.9rem',
-            color: 'var(--fe-text)',
-          }}
-        >
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <strong>Status:</strong>&nbsp;{sessionStatus?.status ?? '…'}
-            </div>
-            <div>
-              <strong>Remaining uses:</strong>&nbsp;
-              {typeof sessionStatus?.remainingUses === 'number' ? sessionStatus.remainingUses : '—'}
-            </div>
-            <div>
-              <strong>TTL:</strong>&nbsp;
-              {expiresInSec == null
-                ? '—'
-                : (sessionStatus?.status === 'active' ? `${expiresInSec}s remaining` : `${expiresInSec}s`)}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="action-section">
         <h2 className="demo-subtitle">Sign Transactions with TouchId</h2>
         <div className="action-text">
           Sign transactions securely in an cross-origin iframe.
@@ -823,6 +696,101 @@ export const DemoPage: React.FC = () => {
           >
             Drawer + Skip Confirm
           </LoadingButton>
+        </div>
+      </div>
+
+      <div className="action-section">
+        <div className="demo-divider" aria-hidden="true" />
+        <h2 className="demo-subtitle">VRF Signing Session</h2>
+        <div className="action-text">
+          Create a warm signing session with configurable <code>remaining_uses</code> and TTL.
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180, flex: 1 }}>
+            <label style={{ fontSize: '0.9rem', color: 'var(--fe-text-secondary)' }}>
+              Remaining uses
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={sessionRemainingUsesInput}
+              onChange={(e) => setSessionRemainingUsesInput(parseInt(e.target.value || '0', 10))}
+              style={{
+                height: 44,
+                padding: '0 12px',
+                backgroundColor: 'var(--w3a-colors-surface2)',
+                border: '1px solid var(--fe-border)',
+                borderRadius: 'var(--fe-radius-lg)',
+                color: 'var(--fe-input-text)',
+                fontSize: '0.9rem',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180, flex: 1 }}>
+            <label style={{ fontSize: '0.9rem', color: 'var(--fe-text-secondary)' }}>
+              TTL (seconds)
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={sessionTtlSecondsInput}
+              onChange={(e) => setSessionTtlSecondsInput(parseInt(e.target.value || '0', 10))}
+              style={{
+                height: 44,
+                padding: '0 12px',
+                backgroundColor: 'var(--w3a-colors-surface2)',
+                border: '1px solid var(--fe-border)',
+                borderRadius: 'var(--fe-radius-lg)',
+                color: 'var(--fe-input-text)',
+                fontSize: '0.9rem',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <LoadingButton
+              onClick={handleUnlockSession}
+              loading={unlockLoading}
+              loadingText="Creating..."
+              variant="primary"
+              size="medium"
+              style={{ width: 180 }}
+            >
+              Create Session
+            </LoadingButton>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: 12,
+            background: 'var(--fe-bg-secondary)',
+            border: '1px solid var(--fe-border)',
+            borderRadius: 'var(--fe-radius-lg)',
+            padding: 'var(--fe-gap-3)',
+            fontSize: '0.9rem',
+            color: 'var(--fe-text)',
+          }}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <strong>Status:</strong>&nbsp;{sessionStatus?.status ?? '…'}
+            </div>
+            <div>
+              <strong>Remaining uses:</strong>&nbsp;
+              {typeof sessionStatus?.remainingUses === 'number' ? sessionStatus.remainingUses : '—'}
+            </div>
+            <div>
+              <strong>TTL:</strong>&nbsp;
+              {expiresInSec == null
+                ? '—'
+                : (sessionStatus?.status === 'active' ? `${expiresInSec}s remaining` : `${expiresInSec}s`)}
+            </div>
+          </div>
         </div>
       </div>
     </div>

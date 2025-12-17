@@ -1,8 +1,9 @@
 import React from 'react';
-import { ArrowLeftIcon } from './ui/icons';
+import { ArrowLeftIcon, MailIcon } from './ui/icons';
 import { SegmentedControl } from './ui/SegmentedControl';
 import { PasskeyInput } from './ui/PasskeyInput';
 import { ContentSwitcher } from './ui/ContentSwitcher';
+import { EmailRecoverySlide } from './ui/EmailRecoverySlide';
 import QRCodeIcon from '../QRCodeIcon';
 import { AuthMenuMode, type PasskeyAuthMenuProps } from './types';
 import './PasskeyAuthMenu.css';
@@ -53,6 +54,7 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
       data-mode={controller.mode}
       data-waiting={controller.waiting}
       data-scan-device={controller.showScanDevice}
+      data-email-recovery={controller.showEmailRecovery}
       style={{
         ...style,
         ['--w3a-waiting-delay' as any]:
@@ -69,8 +71,14 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
         backButton={
           <button
             aria-label="Back"
-            onClick={controller.onResetToStart}
-            className={`w3a-back-button${controller.waiting || controller.showScanDevice ? ' is-visible' : ''}`}
+            onClick={() => {
+              if (controller.showEmailRecovery) {
+                controller.closeEmailRecovery();
+                return;
+              }
+              controller.onResetToStart();
+            }}
+            className={`w3a-back-button${controller.waiting || controller.showScanDevice || controller.showEmailRecovery ? ' is-visible' : ''}`}
           >
             <ArrowLeftIcon size={18} strokeWidth={2.25} style={{ display: 'block' }} />
           </button>
@@ -85,6 +93,13 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
               onError={controller.linkDevice.onError}
             />
           </React.Suspense>
+        }
+        showEmailRecovery={controller.showEmailRecovery}
+        emailRecoveryElement={
+          <EmailRecoverySlide
+            tatchiPasskey={runtime.tatchiPasskey}
+            accountId={runtime.targetAccountId}
+          />
         }
       >
         <div className="w3a-header">
@@ -138,16 +153,25 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
           <div className="w3a-section-divider">
             <span className="w3a-section-divider-text">Already have an account?</span>
           </div>
-          <button
-            onClick={controller.openScanDevice}
-            onPointerEnter={prefetchQRCode}
-            onFocus={prefetchQRCode}
-            onTouchStart={prefetchQRCode}
-            className="w3a-link-device-btn"
-          >
-            <QRCodeIcon width={18} height={18} strokeWidth={2} />
-            Scan and Link Device
-          </button>
+          <div className="w3a-secondary-actions">
+            <button
+              onClick={controller.openScanDevice}
+              onPointerEnter={prefetchQRCode}
+              onFocus={prefetchQRCode}
+              onTouchStart={prefetchQRCode}
+              className="w3a-link-device-btn"
+            >
+              <QRCodeIcon width={18} height={18} strokeWidth={2} />
+              Scan and Link Device
+            </button>
+            <button
+              onClick={controller.openEmailRecovery}
+              className="w3a-link-device-btn"
+            >
+              <MailIcon size={18} strokeWidth={2} style={{ display: 'block' }} />
+              Recover Account with Email
+            </button>
+          </div>
         </div>
       </ContentSwitcher>
     </div>

@@ -5,6 +5,7 @@ export interface PasskeyAuthMenuRuntime {
   tatchiPasskey: TatchiPasskey;
   accountExists: boolean;
   inputUsername: string;
+  targetAccountId: string;
   setInputUsername: (v: string) => void;
   displayPostfix?: string;
   isUsingExistingAccount?: boolean;
@@ -18,6 +19,7 @@ export function usePasskeyAuthMenuRuntime(): PasskeyAuthMenuRuntime {
     tatchiPasskey: ctx.tatchi,
     accountExists,
     inputUsername: ctx.accountInputState?.inputUsername ?? '',
+    targetAccountId: ctx.accountInputState?.targetAccountId ?? '',
     setInputUsername: ctx.setInputUsername,
     displayPostfix: ctx.accountInputState?.displayPostfix,
     isUsingExistingAccount: ctx.accountInputState?.isUsingExistingAccount,
