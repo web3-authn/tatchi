@@ -40,7 +40,7 @@ export async function registerPasskeyInternal(
   nearAccountId: AccountId,
   options: RegistrationHooksOptions,
   authenticatorOptions: AuthenticatorOptions,
-  confirmationConfigOverride?: ConfirmationConfig
+  confirmationConfigOverride?: Partial<ConfirmationConfig>
 ): Promise<RegistrationResult> {
 
   const { onEvent, onError, afterCall } = options;

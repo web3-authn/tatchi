@@ -22,9 +22,12 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   const { tatchi, loginState, viewAccessKeyList } = useTatchi();
   const { theme } = useTheme();
   // Authenticators list: credentialId + registered timestamp + device number
-  const [authRows, setAuthRows] = useState<Array<{ credentialId: string; registered: string; deviceNumber: number }>>([
-    { credentialId: 'placeholder', registered: '', deviceNumber: 0 }
-  ]);
+  const [authRows, setAuthRows] = useState<Array<{
+    credentialId: string;
+    registered: string;
+    deviceNumber: number;
+    nearPublicKey: string | null;
+  }>>([{ credentialId: 'placeholder', registered: '', deviceNumber: 0, nearPublicKey: null }]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accessKeyList, setAccessKeyList] = useState<AccessKeyList | null>(null);
@@ -89,12 +92,22 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
       ]);
 
       // Map each authenticator to a single row with credentialId and registered timestamp
-      const rows: Array<{ credentialId: string; registered: string; deviceNumber: number }> = [];
+      const rows: Array<{ credentialId: string; registered: string; deviceNumber: number; nearPublicKey: string | null }> = [];
       for (const [credentialId, auth] of (tuples || []) as Array<[string, ContractStoredAuthenticator]>) {
         const dn = Number(auth.device_number);
-        const tsNum = Number(auth.registered);
-        const registered = Number.isFinite(tsNum) ? new Date(tsNum).toISOString() : '';
-        rows.push({ credentialId, registered, deviceNumber: dn });
+        const rawRegistered = String((auth as any).registered ?? '');
+        const registered = (() => {
+          if (!rawRegistered) return '';
+          // Legacy contracts may return a numeric timestamp string.
+          if (/^\d+$/.test(rawRegistered)) {
+            const ts = Number(rawRegistered);
+            return Number.isFinite(ts) ? new Date(ts).toISOString() : rawRegistered;
+          }
+          return rawRegistered;
+        })();
+
+        const nearPublicKey = (auth as any).near_public_key ?? null;
+        rows.push({ credentialId, registered, deviceNumber: dn, nearPublicKey });
       }
       setAuthRows(rows.length > 0 ? rows : []);
       setAccessKeyList(keys);
@@ -109,7 +122,6 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   const handleDeleteKey = async (publicKey: string) => {
     if (!tatchi || !publicKey) return;
     if (!nearAccountId) return;
-    if (!accessKeyList) return;
 
     setDeletingKeyPublicKey(publicKey);
     setDeleteError(null);
@@ -218,6 +230,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
         {!error && authRows.filter(r => r.credentialId !== 'placeholder').length > 0 && (
           <div className="w3a-keys-list">
             {(() => {
+              console.log("authRows", authRows)
               const rows = authRows.filter(r => r.credentialId !== 'placeholder');
               const current = (currentDeviceNumber != null)
                 ? rows.find(r => r.deviceNumber === currentDeviceNumber)
@@ -230,6 +243,10 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
 
               if (current) {
                 const index = 0;
+                const currentKey = current.nearPublicKey || loginState?.nearPublicKey || null;
+                const isCurrentKey = !!currentKey && loginState?.nearPublicKey === currentKey;
+                const canDelete = !!accessKeyList && accessKeyList.keys.length > 1;
+                const isDeletingThisKey = !!currentKey && deletingKeyPublicKey === currentKey;
                 items.push(
                   <div key={`current-${current.deviceNumber}`} className="w3a-key-item">
                     <div className="w3a-key-content">
@@ -241,96 +258,25 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                           </div>
                         </div>
                         <div className="mono w3a-registered">Registered: {formatDateTime(current.registered)}</div>
-                        {loginState?.nearPublicKey && (
+                        {currentKey && (
                           <div
                             className="mono w3a-copyable-key w3a-access-key-current"
                             onClick={(e) => {
                               e.stopPropagation();
-                              copyToClipboard(loginState.nearPublicKey!, index);
+                              copyToClipboard(currentKey, index);
                             }}
                             onMouseEnter={() => setTooltipVisible(index)}
                             onMouseLeave={() => setTooltipVisible(null)}
                             title="Click to copy"
                           >
-                            Access Key: {loginState.nearPublicKey}
+                            Access Key: {currentKey}
                             {tooltipVisible === index && (
                               <div className="w3a-copy-tooltip">Click to copy</div>
                             )}
                           </div>
                         )}
                       </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              others.forEach((item, i) => {
-                items.push(
-                  <div key={`other-${item.deviceNumber}-${i}`} className="w3a-key-item">
-                    <div className="w3a-key-content">
-                      <div className="w3a-key-details">
-                        <div className="w3a-key-header">
-                          <div className="mono w3a-device-row">
-                            <span className="w3a-device-badge">Device {item.deviceNumber}</span>
-                          </div>
-                        </div>
-                        <div className="mono w3a-registered">Registered: {formatDateTime(item.registered)}</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              });
-
-              return items;
-            })()}
-          </div>
-        )}
-
-        {!isLoading && !error && accessKeyList && (
-          <div className="w3a-access-keys-section">
-            <h3 className="w3a-access-keys-modal-subtitle">Access Keys</h3>
-            {accessKeyList.keys.length === 0 && (
-              <div className="w3a-access-keys-empty">
-                <p>No access keys found on this account.</p>
-              </div>
-            )}
-            {accessKeyList.keys.length > 0 && (
-              <div className="w3a-keys-list">
-                {accessKeyList.keys.map((keyInfo, index) => {
-                  const permission = keyInfo.access_key.permission;
-                  const isFullAccess = permission === 'FullAccess' || (typeof permission === 'object' && 'FullAccess' in permission);
-                  const permissionLabel = isFullAccess ? 'Full Access' : 'Function Call';
-                  const isCurrentKey = loginState?.nearPublicKey === keyInfo.public_key;
-                  const canDelete = accessKeyList.keys.length > 1;
-                  const isDeletingThisKey = deletingKeyPublicKey === keyInfo.public_key;
-                  const keyIndex = 100 + index;
-
-                  return (
-                    <div key={keyInfo.public_key} className="w3a-key-item">
-                      <div className="w3a-key-content">
-                        <div className="w3a-key-details">
-                          <div className="w3a-key-header">
-                            <span className="w3a-device-badge">{permissionLabel}</span>
-                            {isCurrentKey && (
-                              <span className="w3a-current-device-text">(current passkey key)</span>
-                            )}
-                          </div>
-                          <div
-                            className={`mono w3a-copyable-key${isCurrentKey ? ' w3a-access-key-current' : ''}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyToClipboard(keyInfo.public_key, keyIndex);
-                            }}
-                            onMouseEnter={() => setTooltipVisible(keyIndex)}
-                            onMouseLeave={() => setTooltipVisible(null)}
-                            title="Click to copy"
-                          >
-                            {keyInfo.public_key}
-                            {tooltipVisible === keyIndex && (
-                              <div className="w3a-copy-tooltip">Click to copy</div>
-                            )}
-                          </div>
-                        </div>
+                      {currentKey && (
                         <div className="w3a-key-status">
                           <button
                             className={`w3a-btn ${isCurrentKey ? 'w3a-btn-primary' : 'w3a-btn-danger'}`}
@@ -340,7 +286,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                               e.preventDefault();
                               e.stopPropagation();
                               if (canDelete && !isDeletingThisKey) {
-                                void handleDeleteKey(keyInfo.public_key);
+                                void handleDeleteKey(currentKey);
                               }
                             }}
                           >
@@ -351,18 +297,78 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                             )}
                           </button>
                         </div>
-                      </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                );
+              }
 
-            {deleteError && (
-              <div className="w3a-access-keys-error">
-                <p>{deleteError}</p>
-              </div>
-            )}
+              others.forEach((item, i) => {
+                const canDelete = !!accessKeyList && accessKeyList.keys.length > 1;
+                const isDeletingThisKey = !!item.nearPublicKey && deletingKeyPublicKey === item.nearPublicKey;
+                items.push(
+                  <div key={`other-${item.deviceNumber}-${i}`} className="w3a-key-item">
+                    <div className="w3a-key-content">
+                      <div className="w3a-key-details">
+                        <div className="w3a-key-header">
+                          <div className="mono w3a-device-row">
+                            <span className="w3a-device-badge">Device {item.deviceNumber}</span>
+                          </div>
+                        </div>
+                        <div className="mono w3a-registered">Registered: {formatDateTime(item.registered)}</div>
+                        {item.nearPublicKey && (
+                          <div
+                            className="mono w3a-copyable-key"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyToClipboard(item.nearPublicKey!, 10 + i);
+                            }}
+                            onMouseEnter={() => setTooltipVisible(10 + i)}
+                            onMouseLeave={() => setTooltipVisible(null)}
+                            title="Click to copy"
+                          >
+                            Access Key: {item.nearPublicKey}
+                            {tooltipVisible === 10 + i && (
+                              <div className="w3a-copy-tooltip">Click to copy</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {item.nearPublicKey && (
+                        <div className="w3a-key-status">
+                          <button
+                            className="w3a-btn w3a-btn-danger"
+                            style={{ width: '64px' }}
+                            disabled={!canDelete || isDeletingThisKey}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (canDelete && !isDeletingThisKey) {
+                                void handleDeleteKey(item.nearPublicKey!);
+                              }
+                            }}
+                          >
+                            {isDeletingThisKey ? (
+                              <span className="w3a-spinner"/>
+                            ) : (
+                              'Delete'
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              });
+
+              return items;
+            })()}
+          </div>
+        )}
+
+        {deleteError && (
+          <div className="w3a-access-keys-error">
+            <p>{deleteError}</p>
           </div>
         )}
       </div>

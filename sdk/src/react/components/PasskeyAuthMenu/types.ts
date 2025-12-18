@@ -1,6 +1,7 @@
 import React from 'react';
 import type { DeviceLinkingSSEEvent } from '../../../core/types/sdkSentEvents';
 import { AuthMenuMode, AuthMenuModeMap, type AuthMenuModeLabel, type AuthMenuHeadings } from './authMenuTypes';
+import type { EmailRecoverySSEEvent } from '../../../core/types/sdkSentEvents';
 
 export { AuthMenuMode, AuthMenuModeMap };
 export type { AuthMenuModeLabel, AuthMenuHeadings };
@@ -21,6 +22,11 @@ export interface PasskeyAuthMenuProps {
     onError?: (error: Error) => void;
     /** Called when the user manually cancels the link-device flow */
     onCancelled?: () => void;
+  };
+  /** Optional callbacks for the email recovery flow */
+  emailRecoveryOptions?: {
+    onEvent?: (event: EmailRecoverySSEEvent) => void;
+    onError?: (error: Error) => void;
   };
   /** Optional custom header element rendered when not waiting */
   header?: React.ReactElement;

@@ -21,6 +21,7 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
   onRegister,
   onRecoverAccount,
   linkDeviceOptions,
+  emailRecoveryOptions,
   header,
   defaultMode,
   style,
@@ -99,6 +100,8 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
           <EmailRecoverySlide
             tatchiPasskey={runtime.tatchiPasskey}
             accountId={runtime.targetAccountId}
+            refreshLoginState={runtime.refreshLoginState}
+            emailRecoveryOptions={emailRecoveryOptions}
           />
         }
       >

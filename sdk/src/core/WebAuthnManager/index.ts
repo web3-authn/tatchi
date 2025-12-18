@@ -256,7 +256,7 @@ export class WebAuthnManager {
   async requestRegistrationCredentialConfirmation(params: {
     nearAccountId: string;
     deviceNumber: number;
-    confirmationConfigOverride?: ConfirmationConfig;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
   }): Promise<RegistrationCredentialConfirmationPayload> {
     return this.vrfWorkerManager.requestRegistrationCredentialConfirmation({
       nearAccountId: params.nearAccountId,

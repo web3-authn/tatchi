@@ -7,6 +7,7 @@ export interface PasskeyAuthMenuRuntime {
   inputUsername: string;
   targetAccountId: string;
   setInputUsername: (v: string) => void;
+  refreshLoginState: (nearAccountId?: string) => Promise<void>;
   displayPostfix?: string;
   isUsingExistingAccount?: boolean;
   stopDevice2LinkingFlow?: () => Promise<void>;
@@ -21,6 +22,7 @@ export function usePasskeyAuthMenuRuntime(): PasskeyAuthMenuRuntime {
     inputUsername: ctx.accountInputState?.inputUsername ?? '',
     targetAccountId: ctx.accountInputState?.targetAccountId ?? '',
     setInputUsername: ctx.setInputUsername,
+    refreshLoginState: ctx.refreshLoginState,
     displayPostfix: ctx.accountInputState?.displayPostfix,
     isUsingExistingAccount: ctx.accountInputState?.isUsingExistingAccount,
     stopDevice2LinkingFlow: ctx.stopDevice2LinkingFlow,

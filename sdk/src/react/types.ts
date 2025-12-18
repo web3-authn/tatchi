@@ -222,6 +222,7 @@ export type {
   DelegateActionSSEEvent,
   DeviceLinkingSSEEvent,
   AccountRecoverySSEEvent,
+  EmailRecoverySSEEvent,
 } from '../core/types/sdkSentEvents';
 
 export type {

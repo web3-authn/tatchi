@@ -24,7 +24,7 @@ import { ActionType } from './types/actions';
 import { VRFChallenge } from './types/vrf-worker';
 import { DEFAULT_WAIT_STATUS, TransactionContext } from './types/rpc';
 import type { AuthenticatorOptions } from './types/authenticatorOptions';
-import { base64UrlDecode } from '../utils/encoders';
+import { base64UrlDecode, base64UrlEncode } from '../utils/encoders';
 import { errorMessage } from '../utils/errors';
 
 // ===========================
@@ -320,18 +320,53 @@ export async function syncAuthenticatorsContractCall(
     if (authenticatorsResult && Array.isArray(authenticatorsResult)) {
       return authenticatorsResult.map(([credentialId, contractAuthenticator]) => {
         console.log(`Contract authenticator device_number for ${credentialId}:`, contractAuthenticator.device_number);
+
+        const transports = Array.isArray(contractAuthenticator.transports)
+          ? contractAuthenticator.transports
+          : [];
+
+        const registered = (() => {
+          const raw = String((contractAuthenticator as any).registered ?? '');
+          if (!raw) return new Date(0);
+          if (/^\d+$/.test(raw)) {
+            const ts = Number(raw);
+            return Number.isFinite(ts) ? new Date(ts) : new Date(0);
+          }
+          const d = new Date(raw);
+          return Number.isFinite(d.getTime()) ? d : new Date(0);
+        })();
+
+        const vrfPublicKeys = (() => {
+          const raw = (contractAuthenticator as any).vrf_public_keys;
+          if (!raw) return undefined;
+          if (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === 'string') {
+            return raw as string[];
+          }
+          if (Array.isArray(raw)) {
+            return raw
+              .map((entry: unknown) => {
+                if (!entry) return null;
+                if (entry instanceof Uint8Array) return base64UrlEncode(entry);
+                if (Array.isArray(entry)) return base64UrlEncode(new Uint8Array(entry));
+                return null;
+              })
+              .filter((x): x is string => typeof x === 'string' && x.length > 0);
+          }
+          return undefined;
+        })();
+
         return {
           credentialId,
           authenticator: {
             credentialId,
             credentialPublicKey: new Uint8Array(contractAuthenticator.credential_public_key),
-            transports: contractAuthenticator.transports,
+            transports,
             userId: accountId,
             name: `Device ${contractAuthenticator.device_number} Authenticator`,
-            registered: new Date(parseInt(contractAuthenticator.registered as string)),
+            registered,
             // Store the actual device number from contract (no fallback)
             deviceNumber: contractAuthenticator.device_number,
-            vrfPublicKeys: contractAuthenticator.vrf_public_keys
+            vrfPublicKeys
           }
         };
       });

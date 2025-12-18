@@ -2,12 +2,16 @@
 
 # Script to generate TypeScript types from Rust using wasm-bindgen and validate consistency
 
-set -e
+set -euo pipefail
 
 # Source build paths
 source ./build-paths.sh
 
 echo "Generating TypeScript types from Rust using wasm-bindgen..."
+
+# Create log file for capturing detailed output
+LOG_FILE="/tmp/type_gen.log"
+: >"$LOG_FILE"
 
 # Function to handle errors with more detail
 handle_error() {
@@ -17,7 +21,7 @@ handle_error() {
     echo "❌ Type generation failed at line $line_number with exit code $exit_code"
     echo ""
     echo "Last few lines of output:"
-    tail -10 /tmp/type_gen.log 2>/dev/null || echo "No log file available"
+    tail -10 "$LOG_FILE" 2>/dev/null || echo "No log file available"
     echo ""
     echo "Troubleshooting tips:"
     echo "  1. Check if Rust compilation succeeds: cd src/wasm_signer_worker && cargo check"
@@ -27,23 +31,30 @@ handle_error() {
     exit $exit_code
 }
 
+# Log helper: writes to both console and log file
+log() {
+    echo "$@" | tee -a "$LOG_FILE"
+}
+
+# Run helper: runs a command, streaming stdout/stderr to both console and log file
+run() {
+    log ""
+    log "+ $*"
+    "$@" 2>&1 | tee -a "$LOG_FILE"
+}
+
 # Set up error handling
 trap 'handle_error $LINENO' ERR
-
-# Create log file for capturing detailed output
-LOG_FILE="/tmp/type_gen.log"
-exec 1> >(tee -a "$LOG_FILE")
-exec 2> >(tee -a "$LOG_FILE" >&2)
 
 # 1. Build WASM signer worker and generate TypeScript definitions
 echo "Building WASM signer worker..."
 cd "$SOURCE_WASM_SIGNER"
 
 echo "Running cargo check first..."
-cargo check
+run cargo check
 
 echo "Running wasm-pack build..."
-wasm-pack build --target web --out-dir pkg --out-name wasm_signer_worker
+run wasm-pack build --target web --out-dir pkg --out-name wasm_signer_worker
 
 cd ../..
 
@@ -52,10 +63,10 @@ echo "Building WASM VRF worker..."
 cd "$SOURCE_WASM_VRF"
 
 echo "Running cargo check first..."
-cargo check
+run cargo check
 
 echo "Running wasm-pack build..."
-wasm-pack build --target web --out-dir pkg --out-name wasm_vrf_worker
+run wasm-pack build --target web --out-dir pkg --out-name wasm_vrf_worker
 
 cd ../..
 
@@ -81,7 +92,7 @@ echo "✅ TypeScript definitions generated successfully by wasm-bindgen"
 
 # 4. Run type checking to ensure consistency
 echo "Running TypeScript type checking (build sources only)..."
-if ! npx tsc --noEmit -p tsconfig.build.json; then
+if ! run npx tsc --noEmit -p tsconfig.build.json; then
     echo ""
     echo "❌ TypeScript type checking failed"
     echo "This usually means there are type inconsistencies between generated WASM types and TypeScript code."
