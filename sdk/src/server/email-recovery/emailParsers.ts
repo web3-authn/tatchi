@@ -1,11 +1,17 @@
 import type { EmailRecoveryMode } from './types';
 
+export enum EmailRecoveryModeHint {
+  ZkEmail = 'zk-email',
+  TeeEncrypted = 'tee-encrypted',
+  OnchainPublic = 'onchain-public',
+}
+
 export function normalizeRecoveryMode(raw: string | undefined | null): EmailRecoveryMode | null {
   if (!raw) return null;
   const value = raw.trim().toLowerCase();
-  if (value === 'zk-email' || value === 'zk') return 'zk-email';
-  if (value === 'tee-encrypted' || value === 'encrypted' || value === 'tee') return 'tee-encrypted';
-  if (value === 'onchain-public' || value === 'onchain') return 'onchain-public';
+  if (value === EmailRecoveryModeHint.ZkEmail) return 'zk-email';
+  if (value === EmailRecoveryModeHint.TeeEncrypted) return 'tee-encrypted';
+  if (value === EmailRecoveryModeHint.OnchainPublic) return 'onchain-public';
   return null;
 }
 
@@ -25,9 +31,9 @@ export function extractRecoveryModeFromBody(emailBlob?: string): EmailRecoveryMo
   if (normalized) return normalized;
 
   const lower = candidate.toLowerCase();
-  if (lower.includes('zk-email')) return 'zk-email';
-  if (lower.includes('tee-encrypted')) return 'tee-encrypted';
-  if (lower.includes('onchain-public')) return 'onchain-public';
+  if (lower.includes(EmailRecoveryModeHint.ZkEmail)) return 'zk-email';
+  if (lower.includes(EmailRecoveryModeHint.TeeEncrypted)) return 'tee-encrypted';
+  if (lower.includes(EmailRecoveryModeHint.OnchainPublic)) return 'onchain-public';
 
   return null;
 }

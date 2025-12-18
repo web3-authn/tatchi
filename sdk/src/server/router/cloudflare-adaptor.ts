@@ -308,6 +308,13 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
 
       if (method === 'POST' && pathname === '/recover-email') {
         let rawBody: unknown; try { rawBody = await request.json(); } catch { rawBody = null; }
+        const explicitModeRaw =
+          (typeof (rawBody as any)?.explicitMode === 'string' ? String((rawBody as any).explicitMode) : '') ||
+          (typeof (rawBody as any)?.explicit_mode === 'string' ? String((rawBody as any).explicit_mode) : '') ||
+          (typeof request.headers.get('x-email-recovery-mode') === 'string' ? String(request.headers.get('x-email-recovery-mode')) : '') ||
+          (typeof request.headers.get('x-recovery-mode') === 'string' ? String(request.headers.get('x-recovery-mode')) : '');
+        const explicitMode = explicitModeRaw ? explicitModeRaw.trim() : undefined;
+
         const normalized = normalizeForwardableEmailPayload(rawBody);
         if (!normalized.ok) {
           const res = json({ code: normalized.code, message: normalized.message }, { status: 400 });
@@ -344,7 +351,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
           return res;
         }
 
-        const result = await service.emailRecovery.requestEmailRecovery({ accountId, emailBlob });
+        const result = await service.emailRecovery.requestEmailRecovery({ accountId, emailBlob, explicitMode });
         const res = json(result, { status: result.success ? 202 : 400 });
         withCors(res.headers, opts, request);
         return res;

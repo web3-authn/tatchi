@@ -22,7 +22,12 @@ export async function requestRegistrationCredentialConfirmation(
   const hostCtx = ctx.getContext();
   const decision = await requestRegistrationCredentialConfirmationFlow({
     ctx: hostCtx,
-    ...params,
+    nearAccountId: params.nearAccountId,
+    deviceNumber: params.deviceNumber,
+    contractId: params.contractId,
+    nearRpcUrl: params.nearRpcUrl,
+    // Flow expects `confirmationConfig` on the request envelope; forward the override.
+    confirmationConfig: params.confirmationConfigOverride,
   });
 
   if (!decision.confirmed) {

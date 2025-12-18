@@ -10,7 +10,15 @@ export type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode } from './con
 import { validateTheme } from './confirm-ui-types';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../txDigest';
 // Ensure the wrapper element is registered when this module loads.
-import './IframeTxConfirmer/tx-confirmer-wrapper';
+// Note: this must be a value import (not side-effect-only) so bundlers don't
+// tree-shake it away under `sideEffects: false`.
+import { TxConfirmerWrapperElement } from './IframeTxConfirmer/tx-confirmer-wrapper';
+
+try {
+  if (typeof customElements !== 'undefined' && !customElements.get(W3A_TX_CONFIRMER_ID)) {
+    customElements.define(W3A_TX_CONFIRMER_ID, TxConfirmerWrapperElement);
+  }
+} catch {}
 
 // Resolve theme preference from explicit param, user preferences, or DOM attribute
 function resolveTheme(ctx: VrfWorkerManagerContext, requested?: ThemeName): ThemeName {

@@ -206,6 +206,13 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   // per-user email-recoverer contract deployed on `accountId`.
   router.post('/recover-email', async (req: any, res: any) => {
     try {
+      const explicitModeRaw =
+        (typeof (req?.body as any)?.explicitMode === 'string' ? String((req.body as any).explicitMode) : '') ||
+        (typeof (req?.body as any)?.explicit_mode === 'string' ? String((req.body as any).explicit_mode) : '') ||
+        (typeof (req?.headers as any)?.['x-email-recovery-mode'] === 'string' ? String((req.headers as any)['x-email-recovery-mode']) : '') ||
+        (typeof (req?.headers as any)?.['x-recovery-mode'] === 'string' ? String((req.headers as any)['x-recovery-mode']) : '');
+      const explicitMode = explicitModeRaw ? explicitModeRaw.trim() : undefined;
+
       const normalized = normalizeForwardableEmailPayload(req.body as unknown);
       if (!normalized.ok) {
         res.status(400).json({ code: normalized.code, message: normalized.message });
@@ -237,7 +244,7 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
         return;
       }
 
-      const result = await service.emailRecovery.requestEmailRecovery({ accountId, emailBlob });
+      const result = await service.emailRecovery.requestEmailRecovery({ accountId, emailBlob, explicitMode });
       const status = result.success ? 202 : 400;
       res.status(status).json(result);
     } catch (e: any) {
