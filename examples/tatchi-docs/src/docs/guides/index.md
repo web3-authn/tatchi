@@ -24,6 +24,10 @@ Enhance your integration with these features:
 
 - **[Authentication Sessions](./authentication-sessions)** - Enable VRF-backed sessions to reduce biometric prompts. One TouchID at login, then session-based auth for API calls.
 
+- **[Email Recovery (Passkey + Email)](./email-recovery-flow)** - Recover an account by sending a verified recovery email and registering a new passkey-derived device key.
+
+- **[VRF Sessions (Warm Signing)](./vrf-sessions)** - Reduce repeated signing prompts with short-lived warm signing sessions in the VRF worker.
+
 - **[Offline Key Export](./offline-key-export)** - Export private keys while completely offline using a cached PWA. Works in airplane mode with zero network requests.
 
 ## Deployment
@@ -32,8 +36,11 @@ Deploy your application and optional backend services:
 
 - **[Relay Server Deployment](./relay-server-deployment)** - Deploy the relay server for atomic account creation and Shamir 3-pass smooth login. Includes both Node.js/Express and Cloudflare Workers implementations.
 
+- **[Relayer Encrypted Email Recovery](./relayer-encrypted-email-recovery)** - Submit DKIM/TEE-based email recovery without putting plaintext email on-chain.
+
+- **[Relayer zk-Email Integration](./relayer-zk-email)** - Configure a zk-email prover and route `/recover-email` to zk-email mode.
+
 - **[Self-Hosting the Wallet SDK](./self-hosting-the-wallet-sdk)** - Host the wallet iframe on your own infrastructure. Complete guide to serving SDK assets and configuring headers.
 
 - **[Cloudflare GitHub Actions Setup](./cloudflare-github-actions)** - Automate Cloudflare Workers deployment with GitHub Actions CI/CD.
-
 

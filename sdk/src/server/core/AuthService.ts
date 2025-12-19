@@ -25,7 +25,7 @@ import type {
   SignerWasmModuleSupplier,
 } from './types';
 
-import { EMAIL_DKIM_VERIFIER_ACCOUNT_ID } from '../../core/EmailRecovery';
+import { DEFAULT_EMAIL_RECOVERY_CONTRACTS } from '../../core/defaultConfigs';
 import { EmailRecoveryService } from '../email-recovery';
 import { ShamirService } from './ShamirService';
 import { SignedDelegate } from '../../core/types/delegate';
@@ -116,7 +116,7 @@ export class AuthService {
       relayerAccountId: this.config.relayerAccountId,
       relayerPrivateKey: this.config.relayerPrivateKey,
       networkId: this.config.networkId,
-      emailDkimVerifierAccountId: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
+      emailDkimVerifierAccountId: DEFAULT_EMAIL_RECOVERY_CONTRACTS.emailDkimVerifierAccountId,
       nearClient: this.nearClient,
       logger: this.config.logger,
       ensureSignerAndRelayerAccount: () => this._ensureSignerAndRelayerAccount(),

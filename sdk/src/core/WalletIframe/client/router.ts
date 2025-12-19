@@ -119,6 +119,7 @@ import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
 import type { RecoveryResult } from '../../TatchiPasskey';
 import { openOfflineExportWindow } from '../../OfflineExport/index.js';
 import type { DerivedAddressRecord } from '../../IndexedDBManager';
+import type { EmailRecoveryContracts } from '../../types/tatchi';
 
 // Simple, framework-agnostic service iframe client.
 // Responsibilities split:
@@ -152,6 +153,7 @@ export interface WalletIframeRouterOptions {
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;
   authenticatorOptions?: AuthenticatorOptions;
+  emailRecoveryContracts?: Partial<EmailRecoveryContracts>;
   // SDK asset base path for embedded bundles when mounting same‑origin via srcdoc
   // Must serve dist/esm under this base path. Defaults to '/sdk'.
   sdkBasePath?: string;
@@ -393,6 +395,7 @@ export class WalletIframeRouter {
           vrfWorkerConfigs: this.opts.vrfWorkerConfigs,
           rpIdOverride: this.opts.rpIdOverride,
           authenticatorOptions: this.opts.authenticatorOptions,
+          emailRecoveryContracts: this.opts.emailRecoveryContracts,
           uiRegistry: this.opts.uiRegistry,
           // for embedded Lit components
           assetsBaseUrl: (() => {

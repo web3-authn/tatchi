@@ -26,11 +26,8 @@ import { DEFAULT_WAIT_STATUS, TransactionContext } from './types/rpc';
 import type { AuthenticatorOptions } from './types/authenticatorOptions';
 import { base64UrlDecode, base64UrlEncode } from '../utils/encoders';
 import { errorMessage } from '../utils/errors';
-import {
-  EMAIL_RECOVERER_CODE_ACCOUNT_ID,
-  ZK_EMAIL_VERIFIER_ACCOUNT_ID,
-  EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
-} from './EmailRecovery';
+import type { EmailRecoveryContracts } from './types/tatchi';
+import { DEFAULT_EMAIL_RECOVERY_CONTRACTS } from './defaultConfigs';
 
 // ===========================
 // CONTRACT CALL RESPONSES
@@ -420,7 +417,8 @@ export async function getRecoveryEmailHashesContractCall(
 export async function buildSetRecoveryEmailsActions(
   nearClient: NearClient,
   accountId: AccountId,
-  recoveryEmailHashes: number[][]
+  recoveryEmailHashes: number[][],
+  contracts: EmailRecoveryContracts = DEFAULT_EMAIL_RECOVERY_CONTRACTS
 ): Promise<ActionArgs[]> {
   let hasContract = false;
   try {
@@ -430,11 +428,17 @@ export async function buildSetRecoveryEmailsActions(
     hasContract = false;
   }
 
+  const {
+    emailRecovererCodeAccountId,
+    zkEmailVerifierAccountId,
+    emailDkimVerifierAccountId,
+  } = contracts;
+
   return hasContract
     ? [
         {
           type: ActionType.UseGlobalContract,
-          accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
+          accountId: emailRecovererCodeAccountId,
         },
         {
           type: ActionType.FunctionCall,
@@ -449,14 +453,14 @@ export async function buildSetRecoveryEmailsActions(
     : [
         {
           type: ActionType.UseGlobalContract,
-          accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
+          accountId: emailRecovererCodeAccountId,
         },
         {
           type: ActionType.FunctionCall,
           methodName: 'new',
           args: {
-            zk_email_verifier: ZK_EMAIL_VERIFIER_ACCOUNT_ID,
-            email_dkim_verifier: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
+            zk_email_verifier: zkEmailVerifierAccountId,
+            email_dkim_verifier: emailDkimVerifierAccountId,
             policy: null,
             recovery_emails: recoveryEmailHashes,
           },

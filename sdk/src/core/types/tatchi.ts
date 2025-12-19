@@ -104,6 +104,12 @@ export interface SignAndSendDelegateActionResult {
   relayResult: DelegateRelayResult;
 }
 
+export type EmailRecoveryContracts = {
+  emailRecovererCodeAccountId: string;
+  zkEmailVerifierAccountId: string;
+  emailDkimVerifierAccountId: string;
+};
+
 //////////////////////////////////
 /// TatchiPasskey Configuration
 //////////////////////////////////
@@ -164,6 +170,8 @@ export interface TatchiConfigsInput {
       removeServerLockRoute?: string; // Remove server lock route
     }
   }
+  // Email recovery contract identifiers
+  emailRecoveryContracts?: Partial<EmailRecoveryContracts>;
 }
 
 /**
@@ -208,6 +216,7 @@ export interface TatchiConfigs {
       removeServerLockRoute: string;
     };
   };
+  emailRecoveryContracts: EmailRecoveryContracts;
 }
 
 // === TRANSACTION TYPES ===

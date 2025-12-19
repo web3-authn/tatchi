@@ -2,10 +2,6 @@ import type { AccountId } from '../types/accountIds';
 import { toAccountId } from '../types/accountIds';
 import { IndexedDBManager, type RecoveryEmailRecord } from '../IndexedDBManager';
 
-export const EMAIL_RECOVERER_CODE_ACCOUNT_ID = 'w3a-email-recoverer-v1.testnet';
-export const ZK_EMAIL_VERIFIER_ACCOUNT_ID = 'zk-email-verifier-v1.testnet';
-export const EMAIL_DKIM_VERIFIER_ACCOUNT_ID = 'email-dkim-verifier-v1.testnet';
-
 export type RecoveryEmailEntry = {
   hashHex: string;
   email: string;

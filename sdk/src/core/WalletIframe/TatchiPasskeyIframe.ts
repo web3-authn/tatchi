@@ -134,6 +134,7 @@ export class TatchiPasskeyIframe {
       contractId: this.configs.contractId,
       // relayer: configs.relayer,
       vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
+      emailRecoveryContracts: this.configs.emailRecoveryContracts,
       rpIdOverride: this.configs.iframeWallet?.rpIdOverride,
       authenticatorOptions: this.configs.authenticatorOptions,
     });

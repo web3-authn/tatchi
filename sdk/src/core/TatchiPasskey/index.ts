@@ -200,6 +200,7 @@ export class TatchiPasskey {
         // Ensure relay server config reaches the wallet host for atomic registration
         relayer: this.configs.relayer,
         vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
+        emailRecoveryContracts: this.configs.emailRecoveryContracts,
         rpIdOverride: walletIframeConfig?.rpIdOverride,
         // Allow apps/CI to control where embedded bundles are served from
         sdkBasePath: walletIframeConfig?.sdkBasePath,
@@ -1336,7 +1337,8 @@ export class TatchiPasskey {
     const actions: ActionArgs[] = await buildSetRecoveryEmailsActions(
       this.nearClient,
       accountId,
-      recoveryEmailHashes
+      recoveryEmailHashes,
+      this.configs.emailRecoveryContracts
     );
 
     // Delegate to executeAction so iframe vs same-origin routing is respected.
