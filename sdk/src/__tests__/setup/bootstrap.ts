@@ -265,7 +265,11 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
 /**
  * Orchestrator function that executes all 5 setup steps sequentially
  */
-export async function executeSequentialSetup(page: Page, configs: PasskeyTestConfig): Promise<string> {
+export async function executeSequentialSetup(
+  page: Page,
+  configs: PasskeyTestConfig,
+  options: { skipPasskeyManagerInit?: boolean } = {}
+): Promise<string> {
   printStepLine('bootstrap', 'starting 6-step sequential bootstrap', 0);
 
   // Step 1a: Log CORS/CORP headers installation (routes already installed pre-navigation)
@@ -281,11 +285,13 @@ export async function executeSequentialSetup(page: Page, configs: PasskeyTestCon
   // Step 4: STABILIZATION WAIT
   await waitForEnvironmentStabilization(page);
 
-  // Step 5: DYNAMIC IMPORTS
-  await loadPasskeyManagerDynamically(page, configs);
+  if (!options.skipPasskeyManagerInit) {
+    // Step 5: DYNAMIC IMPORTS
+    await loadPasskeyManagerDynamically(page, configs);
 
-  // Step 6: GLOBAL FALLBACK
-  await ensureGlobalFallbacks(page);
+    // Step 6: GLOBAL FALLBACK
+    await ensureGlobalFallbacks(page);
+  }
 
   // finished
   return authenticatorId;

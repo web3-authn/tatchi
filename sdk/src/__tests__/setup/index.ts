@@ -152,7 +152,9 @@ export async function setupBasicPasskeyTest(
   await page.goto('/');
 
   // Execute the 5-step sequential setup process
-  const authenticatorId = await executeSequentialSetup(page, config);
+  const authenticatorId = await executeSequentialSetup(page, config, {
+    skipPasskeyManagerInit: options.skipPasskeyManagerInit,
+  });
 
   // Continue with the rest of the setup (WebAuthn mocks, etc.)
   await setupWebAuthnMocks(page);
