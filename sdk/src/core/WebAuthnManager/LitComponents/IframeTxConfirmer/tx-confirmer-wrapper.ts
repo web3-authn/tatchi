@@ -219,15 +219,16 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
   private async handleChildConfirm(event: Event): Promise<void> {
     if (this.redispatchingEvent) return;
     const child = this.childRef.value;
-    let confirmed = true;
-    let error: string | undefined;
+    const detail = (event as CustomEvent<{ confirmed?: boolean; error?: string }> | undefined)?.detail;
+    let confirmed = detail?.confirmed !== false;
+    let error: string | undefined = typeof detail?.error === 'string' ? detail.error : undefined;
 
     this.redispatchingEvent = true;
     try {
       event.stopImmediatePropagation();
       console.debug('[TxConfirmerWrapper] CONFIRM received', { hasIntent: !!this.intentDigest, txCount: (this.txSigningRequests?.length ?? 0) });
 
-      if (this.intentDigest && (this.txSigningRequests?.length ?? 0) > 0) {
+      if (confirmed && this.intentDigest && (this.txSigningRequests?.length ?? 0) > 0) {
         try {
           const digest = await this.computeIntentDigest();
           console.debug('[TxConfirmerWrapper] computed digest', { digest, expected: this.intentDigest });

@@ -89,7 +89,3 @@ export async function prepareRecoveryEmails(nearAccountId: AccountId, recoveryEm
 export async function getLocalRecoveryEmails(nearAccountId: AccountId): Promise<RecoveryEmailRecord[]> {
   return IndexedDBManager.getRecoveryEmails(nearAccountId);
 }
-
-export async function clearLocalRecoveryEmails(nearAccountId: AccountId): Promise<void> {
-  await IndexedDBManager.clearRecoveryEmails(nearAccountId);
-}

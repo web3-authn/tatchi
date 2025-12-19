@@ -820,29 +820,6 @@ export class WalletIframeRouter {
     return res.result;
   }
 
-  async clearRecoveryEmails(payload: {
-    nearAccountId: string;
-    options?: ActionHooksOptions;
-  }): Promise<ActionResult> {
-    const { options } = payload;
-    const safeOptions = options
-      ? {
-          waitUntil: options.waitUntil,
-          confirmationConfig: options.confirmationConfig,
-        }
-      : undefined;
-
-    const res = await this.post<ActionResult>({
-      type: 'PM_CLEAR_RECOVERY_EMAILS',
-      payload: {
-        nearAccountId: payload.nearAccountId,
-        options: safeOptions,
-      },
-      options: { onProgress: this.wrapOnEvent(options?.onEvent, isActionSSEEvent) },
-    });
-    return res.result;
-  }
-
   // Bridge typed public onEvent callbacks to the transport's onProgress callback.
   // - onEvent: consumer's strongly-typed event handler (e.g., ActionSSEEvent)
   // - isExpectedEvent: runtime type guard that validates a ProgressPayload as that event type

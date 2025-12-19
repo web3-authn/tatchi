@@ -323,18 +323,6 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
-    PM_CLEAR_RECOVERY_EMAILS: async (req: Req<'PM_CLEAR_RECOVERY_EMAILS'>) => {
-      const pm = getTatchiPasskey();
-      const { nearAccountId, options } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.clearRecoveryEmails(nearAccountId, {
-        ...(options || {}),
-        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-      } as ActionHooksOptions);
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
-    },
-
     PM_SET_CONFIRM_BEHAVIOR: async (req: Req<'PM_SET_CONFIRM_BEHAVIOR'>) => {
       const pm = getTatchiPasskey();
       const { behavior } = req.payload!;

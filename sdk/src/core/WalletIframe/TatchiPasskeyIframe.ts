@@ -571,22 +571,6 @@ export class TatchiPasskeyIframe {
     }
   }
 
-  async clearRecoveryEmails(
-    nearAccountId: string,
-    options?: ActionHooksOptions
-  ): Promise<ActionResult> {
-    try {
-      const res = await this.router.clearRecoveryEmails({ nearAccountId, options });
-      await options?.afterCall?.(true, res);
-      return res;
-    } catch (err: unknown) {
-      const e = toError(err);
-      await options?.onError?.(e);
-      await options?.afterCall?.(false);
-      throw e;
-    }
-  }
-
   async hasPasskeyCredential(nearAccountId: string): Promise<boolean> {
     return this.router.hasPasskeyCredential(nearAccountId);
   }

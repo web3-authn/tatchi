@@ -191,10 +191,6 @@ export class UnifiedIndexedDBManager {
   async getRecoveryEmails(nearAccountId: AccountId): Promise<import('./passkeyClientDB').RecoveryEmailRecord[]> {
     return this.clientDB.getRecoveryEmails(nearAccountId);
   }
-
-  async clearRecoveryEmails(nearAccountId: AccountId): Promise<void> {
-    return this.clientDB.clearRecoveryEmails(nearAccountId);
-  }
 }
 
 // Export singleton instance of unified manager

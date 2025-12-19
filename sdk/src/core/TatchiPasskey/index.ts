@@ -79,13 +79,10 @@ import type { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../utils/errors';
 import { isOffline, openOfflineExport } from '../OfflineExport';
+import { buildSetRecoveryEmailsActions, getRecoveryEmailHashesContractCall } from '../rpcCalls';
 import {
   prepareRecoveryEmails,
   getLocalRecoveryEmails,
-  clearLocalRecoveryEmails,
-  EMAIL_RECOVERER_CODE_ACCOUNT_ID,
-  ZK_EMAIL_VERIFIER_ACCOUNT_ID,
-  EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
   bytesToHex,
 } from '../EmailRecovery';
 import type { DelegateActionInput } from '../types/delegate';
@@ -1278,25 +1275,8 @@ export class TatchiPasskey {
     const accountId = toAccountId(nearAccountId);
 
     // Fetch on-chain recovery email hashes
-    let rawHashes: number[][] = [];
-    try {
-      const code = await this.nearClient.viewCode(accountId);
-      const hasContract = !!code && code.byteLength > 0;
-      if (!hasContract) return [];
-
-      const hashes = await this.nearClient.view<Record<string, never>, number[][]>({
-        account: accountId,
-        method: 'get_recovery_emails',
-        args: {} as Record<string, never>,
-      });
-
-      if (Array.isArray(hashes)) {
-        rawHashes = hashes as number[][];
-      } else {
-        return [];
-      }
-    } catch (error) {
-      console.error('[TatchiPasskey] Failed to fetch on-chain recovery emails', error);
+    const rawHashes = await getRecoveryEmailHashesContractCall(this.nearClient, accountId);
+    if (!rawHashes.length) {
       return [];
     }
 
@@ -1353,51 +1333,11 @@ export class TatchiPasskey {
     // Canonicalize, hash, and persist mapping locally (best-effort)
     const { hashes: recoveryEmailHashes } = await prepareRecoveryEmails(accountId, recoveryEmails);
 
-    // Detect whether the per-account EmailRecoverer contract is already deployed:
-    // - If code exists on this account, assume recoverer is present and just call set_recovery_emails.
-    // - If no code is present, attach the global email-recoverer and call new(...) with emails.
-    let hasContract = false;
-    try {
-      const code = await this.nearClient.viewCode(accountId);
-      hasContract = !!code && code.byteLength > 0;
-    } catch {
-      hasContract = false;
-    }
-
-    const actions: ActionArgs[] = hasContract
-      ? [
-          {
-            type: ActionType.UseGlobalContract,
-            accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
-          },
-          {
-            type: ActionType.FunctionCall,
-            methodName: 'set_recovery_emails',
-            args: {
-              recovery_emails: recoveryEmailHashes,
-            },
-            gas: '80000000000000',
-            deposit: '0',
-          },
-        ]
-      : [
-          {
-            type: ActionType.UseGlobalContract,
-            accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
-          },
-          {
-            type: ActionType.FunctionCall,
-            methodName: 'new',
-            args: {
-              zk_email_verifier: ZK_EMAIL_VERIFIER_ACCOUNT_ID,
-              email_dkim_verifier: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
-              policy: null,
-              recovery_emails: recoveryEmailHashes,
-            },
-            gas: '80000000000000',
-            deposit: '0',
-          },
-        ];
+    const actions: ActionArgs[] = await buildSetRecoveryEmailsActions(
+      this.nearClient,
+      accountId,
+      recoveryEmailHashes
+    );
 
     // Delegate to executeAction so iframe vs same-origin routing is respected.
     return this.executeAction({
@@ -1406,54 +1346,6 @@ export class TatchiPasskey {
       actionArgs: actions,
       options,
     });
-  }
-
-  /**
-   * Clear recovery emails for an account:
-   * - Calls set_recovery_emails([]) on the per-account contract.
-   * - Clears local IndexedDB mapping for this account.
-   */
-  async clearRecoveryEmails(
-    nearAccountId: string,
-    options?: ActionHooksOptions
-  ): Promise<ActionResult> {
-    if (this.shouldUseWalletIframe()) {
-      try {
-        const router = await this.requireWalletIframeRouter(nearAccountId);
-        const res = await router.clearRecoveryEmails({ nearAccountId, options });
-        await options?.afterCall?.(true, res);
-        return res;
-      } catch (error: unknown) {
-        const e = toError(error);
-        await options?.onError?.(e);
-        await options?.afterCall?.(false);
-        throw e;
-      }
-    }
-    const result = await this.executeAction({
-      nearAccountId,
-      receiverId: nearAccountId,
-      actionArgs: {
-        type: ActionType.FunctionCall,
-        methodName: 'set_recovery_emails',
-        args: {
-          recovery_emails: [] as number[][],
-        },
-        gas: '80000000000000',
-        deposit: '0',
-      },
-      options,
-    });
-
-    if (result?.success) {
-      try {
-        await clearLocalRecoveryEmails(toAccountId(nearAccountId));
-      } catch (error) {
-        console.warn('[TatchiPasskey] Failed to clear local recovery emails', error);
-      }
-    }
-
-    return result;
   }
 
   ///////////////////////////////////////

@@ -969,23 +969,6 @@ export class PasskeyClientDBManager {
   }
 
   /**
-   * Clear all recovery email records for an account.
-   */
-  async clearRecoveryEmails(nearAccountId: AccountId): Promise<void> {
-    if (!nearAccountId) return;
-    const db = await this.getDB();
-    const accountId = toAccountId(nearAccountId);
-    const tx = db.transaction(DB_CONFIG.recoveryEmailStore, 'readwrite');
-    const store = tx.objectStore(DB_CONFIG.recoveryEmailStore);
-    const index = store.index('nearAccountId');
-    const existing = await index.getAll(accountId) as RecoveryEmailRecord[];
-
-    for (const rec of existing) {
-      await store.delete([accountId, rec.hashHex]);
-    }
-  }
-
-  /**
    * Atomic operation wrapper for multiple IndexedDB operations
    * Either all operations succeed or all are rolled back
    */

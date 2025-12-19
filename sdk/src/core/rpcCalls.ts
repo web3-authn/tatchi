@@ -20,12 +20,17 @@ import type {
 } from './types/webauthn';
 
 import { ActionPhase, DeviceLinkingPhase, DeviceLinkingStatus } from './types/sdkSentEvents';
-import { ActionType } from './types/actions';
+import { ActionType, type ActionArgs } from './types/actions';
 import { VRFChallenge } from './types/vrf-worker';
 import { DEFAULT_WAIT_STATUS, TransactionContext } from './types/rpc';
 import type { AuthenticatorOptions } from './types/authenticatorOptions';
 import { base64UrlDecode, base64UrlEncode } from '../utils/encoders';
 import { errorMessage } from '../utils/errors';
+import {
+  EMAIL_RECOVERER_CODE_ACCOUNT_ID,
+  ZK_EMAIL_VERIFIER_ACCOUNT_ID,
+  EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
+} from './EmailRecovery';
 
 // ===========================
 // CONTRACT CALL RESPONSES
@@ -376,6 +381,89 @@ export async function syncAuthenticatorsContractCall(
     console.warn('Failed to fetch authenticators from contract:', error.message);
     return [];
   }
+}
+
+// ===========================
+// RECOVERY EMAIL CONTRACT CALLS
+// ===========================
+
+/**
+ * Fetch on-chain recovery email hashes from the per-account contract.
+ * Returns [] when no contract is deployed or on failure.
+ */
+export async function getRecoveryEmailHashesContractCall(
+  nearClient: NearClient,
+  accountId: AccountId
+): Promise<number[][]> {
+  try {
+    const code = await nearClient.viewCode(accountId);
+    const hasContract = !!code && code.byteLength > 0;
+    if (!hasContract) return [];
+
+    const hashes = await nearClient.view<Record<string, never>, number[][]>({
+      account: accountId,
+      method: 'get_recovery_emails',
+      args: {} as Record<string, never>,
+    });
+
+    return Array.isArray(hashes) ? (hashes as number[][]) : [];
+  } catch (error) {
+    console.error('[rpcCalls] Failed to fetch recovery email hashes', error);
+    return [];
+  }
+}
+
+/**
+ * Build action args to update on-chain recovery emails for an account.
+ * If the per-account contract is missing, deploy/attach the global recoverer via `new`.
+ */
+export async function buildSetRecoveryEmailsActions(
+  nearClient: NearClient,
+  accountId: AccountId,
+  recoveryEmailHashes: number[][]
+): Promise<ActionArgs[]> {
+  let hasContract = false;
+  try {
+    const code = await nearClient.viewCode(accountId);
+    hasContract = !!code && code.byteLength > 0;
+  } catch {
+    hasContract = false;
+  }
+
+  return hasContract
+    ? [
+        {
+          type: ActionType.UseGlobalContract,
+          accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
+        },
+        {
+          type: ActionType.FunctionCall,
+          methodName: 'set_recovery_emails',
+          args: {
+            recovery_emails: recoveryEmailHashes,
+          },
+          gas: '80000000000000',
+          deposit: '0',
+        },
+      ]
+    : [
+        {
+          type: ActionType.UseGlobalContract,
+          accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
+        },
+        {
+          type: ActionType.FunctionCall,
+          methodName: 'new',
+          args: {
+            zk_email_verifier: ZK_EMAIL_VERIFIER_ACCOUNT_ID,
+            email_dkim_verifier: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
+            policy: null,
+            recovery_emails: recoveryEmailHashes,
+          },
+          gas: '80000000000000',
+          deposit: '0',
+        },
+      ];
 }
 
 export async function fetchNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId }: {

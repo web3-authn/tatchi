@@ -33,7 +33,6 @@ export type ParentToChildType =
   | 'PM_GET_DERIVED_ADDRESS'
   | 'PM_GET_RECOVERY_EMAILS'
   | 'PM_SET_RECOVERY_EMAILS'
-  | 'PM_CLEAR_RECOVERY_EMAILS'
   | 'PM_SIGN_TXS_WITH_ACTIONS'
   | 'PM_SIGN_AND_SEND_TXS'
   | 'PM_SEND_TRANSACTION'
@@ -217,15 +216,6 @@ export interface PMSetRecoveryEmailsPayload {
   };
 }
 
-export interface PMClearRecoveryEmailsPayload {
-  nearAccountId: string;
-  options?: {
-    waitUntil?: unknown;
-    confirmationConfig?: Record<string, unknown>;
-    [key: string]: unknown;
-  };
-}
-
 export interface ProgressPayload {
   step: number;
   phase: string;
@@ -259,7 +249,6 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_GET_DERIVED_ADDRESS', PMGetDerivedAddressPayload>
   | RpcEnvelope<'PM_GET_RECOVERY_EMAILS', PMGetRecoveryEmailsPayload>
   | RpcEnvelope<'PM_SET_RECOVERY_EMAILS', PMSetRecoveryEmailsPayload>
-  | RpcEnvelope<'PM_CLEAR_RECOVERY_EMAILS', PMClearRecoveryEmailsPayload>
   | RpcEnvelope<'PM_SIGN_TXS_WITH_ACTIONS', PMSignTxsPayload>
   | RpcEnvelope<'PM_SIGN_AND_SEND_TXS', PMSignAndSendTxsPayload>
   | RpcEnvelope<'PM_SEND_TRANSACTION', PMSendTxPayload>
