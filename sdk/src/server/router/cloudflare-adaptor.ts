@@ -7,13 +7,13 @@ import {
 import { buildCorsOrigins } from '../core/SessionService';
 import type { SessionAdapter } from './express-adaptor';
 import type { CreateAccountAndRegisterRequest } from '../core/types';
-import { setShamirWasmModuleOverride } from '../core/shamirWorker';
-import type { InitInput as ShamirInitInput } from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
-import type { ForwardableEmailPayload } from '../email-recovery/zkEmail';
-import { normalizeForwardableEmailPayload, parseAccountIdFromSubject } from '../email-recovery/zkEmail';
+import { parseRecoverEmailRequest } from '../email-recovery/emailParsers';
+import type { RouterLogger } from './logger';
+import { normalizeRouterLogger } from './logger';
 
 export interface RelayRouterOptions {
   healthz?: boolean;
+  readyz?: boolean;
   // Optional list(s) of CORS origins (CSV strings or literal origins).
   // Pass raw strings; the router normalizes/merges internally.
   corsOrigins?: Array<string | undefined>;
@@ -21,6 +21,8 @@ export interface RelayRouterOptions {
   sessionRoutes?: { auth?: string; logout?: string };
   // Optional: pluggable session adapter
   session?: SessionAdapter | null;
+  // Optional logger; defaults to silent.
+  logger?: RouterLogger | null;
 }
 
 // Minimal Worker runtime types (avoid adding @cloudflare/workers-types dependency here)
@@ -30,36 +32,6 @@ export interface CfScheduledEvent { scheduledTime?: number; cron?: string }
 
 export type FetchHandler = (request: Request, env?: CfEnv, ctx?: CfExecutionContext) => Promise<Response>;
 export type ScheduledHandler = (event: CfScheduledEvent, env?: CfEnv, ctx?: CfExecutionContext) => Promise<void>;
-
-type ShamirModuleSupplier =
-  | ShamirInitInput
-  | Promise<ShamirInitInput>
-  | (() => ShamirInitInput | Promise<ShamirInitInput>);
-
-/**
- * Log Cloudflare WASM module configuration details for debugging
- */
-function logCloudflareWasmConfig(override: ShamirModuleSupplier | null): void {
-  try {
-    const kind = override === null ? 'null' : typeof override;
-    const isModule = override instanceof WebAssembly.Module;
-    const isResponse = override instanceof Response;
-    const isArrayBuffer = override instanceof ArrayBuffer;
-    const isTypedArray = ArrayBuffer.isView(override);
-    const toStringTag = Object.prototype.toString.call(override);
-
-    // eslint-disable-next-line no-console
-    console.log(`[CloudflareRouter] called:
-    • kind: ${kind}
-    • isWebAssembly.Module: ${isModule}
-    • isResponse: ${isResponse}
-    • isArrayBuffer: ${isArrayBuffer}
-    • isTypedArray: ${isTypedArray}
-    • toString: ${toStringTag}`);
-  } catch (err) {
-    console.error('[CloudflareRouter] Error logging override details:', err);
-  }
-}
 
 function json(body: unknown, init?: ResponseInit, extraHeaders?: Record<string, string>): Response {
   const headers = new Headers({ 'Content-Type': 'application/json; charset=utf-8' });
@@ -96,8 +68,9 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
   const notFound = () => new Response('Not Found', { status: 404 });
   const mePath = opts.sessionRoutes?.auth || '/session/auth';
   const logoutPath = opts.sessionRoutes?.logout || '/session/logout';
+  const logger = normalizeRouterLogger(opts.logger);
 
-  return async function handler(request: Request, env?: CfEnv): Promise<Response> {
+  return async function handler(request: Request, env?: CfEnv, ctx?: CfExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
     const method = request.method.toUpperCase();
@@ -228,10 +201,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
             try {
               const userId = String((body as any).vrf_data?.user_id || '');
               const token = await session.signJwt(userId, { rpId: (body as any).vrf_data?.rp_id, blockHeight: (body as any).vrf_data?.block_height });
-              try {
-                // Cloudflare Workers log to console too
-                console.log(`[relay] creating ${sessionKind === 'cookie' ? 'HttpOnly session' : 'JWT'} for`, userId);
-              } catch {}
+              logger.info(`[relay] creating ${sessionKind === 'cookie' ? 'HttpOnly session' : 'JWT'} for`, userId);
               if (sessionKind === 'cookie') {
                 res.headers.set('Set-Cookie', session.buildSetCookie(token));
               } else {
@@ -307,46 +277,49 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
       }
 
       if (method === 'POST' && pathname === '/recover-email') {
+        const prefer = String(request.headers.get('prefer') || '').toLowerCase();
+        const respondAsync =
+          prefer.includes('respond-async') ||
+          String(url.searchParams.get('async') || '').trim() === '1' ||
+          String(url.searchParams.get('respond_async') || '').trim() === '1';
+
         let rawBody: unknown; try { rawBody = await request.json(); } catch { rawBody = null; }
-        const explicitModeRaw =
-          (typeof (rawBody as any)?.explicitMode === 'string' ? String((rawBody as any).explicitMode) : '') ||
-          (typeof (rawBody as any)?.explicit_mode === 'string' ? String((rawBody as any).explicit_mode) : '') ||
-          (typeof request.headers.get('x-email-recovery-mode') === 'string' ? String(request.headers.get('x-email-recovery-mode')) : '') ||
-          (typeof request.headers.get('x-recovery-mode') === 'string' ? String(request.headers.get('x-recovery-mode')) : '');
-        const explicitMode = explicitModeRaw ? explicitModeRaw.trim() : undefined;
-
-        const normalized = normalizeForwardableEmailPayload(rawBody);
-        if (!normalized.ok) {
-          const res = json({ code: normalized.code, message: normalized.message }, { status: 400 });
+        const parsed = parseRecoverEmailRequest(rawBody, { headers: request.headers });
+        if (!parsed.ok) {
+          const res = json({ code: parsed.code, message: parsed.message }, { status: parsed.status });
           withCors(res.headers, opts, request);
           return res;
         }
-
-        const payload = normalized.payload as ForwardableEmailPayload;
-        const emailBlob = payload.raw || '';
-        const headers = payload.headers || {};
-
-        const subjectHeader = headers['subject'];
-        const parsedAccountId = parseAccountIdFromSubject(subjectHeader || emailBlob);
-        const headerAccountId = String(headers['x-near-account-id'] || headers['x-account-id'] || '').trim();
-        const accountId = (parsedAccountId || headerAccountId || '').trim();
-
-        if (!accountId) {
-          const res = json({ code: 'missing_account', message: 'x-near-account-id header is required' }, { status: 400 });
-          withCors(res.headers, opts, request);
-          return res;
-        }
-        if (!emailBlob) {
-          const res = json({ code: 'missing_email', message: 'raw email blob is required' }, { status: 400 });
-          withCors(res.headers, opts, request);
-          return res;
-        }
+        const { accountId, emailBlob, explicitMode } = parsed;
 
         if (!service.emailRecovery) {
           const res = json(
             { code: 'email_recovery_unavailable', message: 'EmailRecoveryService is not configured on this server' },
             { status: 503 }
           );
+          withCors(res.headers, opts, request);
+          return res;
+        }
+
+        if (respondAsync && ctx && typeof ctx.waitUntil === 'function') {
+          ctx.waitUntil(
+            service.emailRecovery
+              .requestEmailRecovery({ accountId, emailBlob, explicitMode })
+              .then((result) => {
+                logger.info('[recover-email] async complete', {
+                  success: result?.success === true,
+                  accountId,
+                  error: result?.success ? undefined : result?.error,
+                });
+              })
+              .catch((err: any) => {
+                logger.error('[recover-email] async error', {
+                  accountId,
+                  error: err?.message || String(err),
+                });
+              })
+          );
+          const res = json({ success: true, queued: true, accountId }, { status: 202 });
           withCors(res.headers, opts, request);
           return res;
         }
@@ -398,24 +371,74 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
         // Surface simple CORS info for diagnostics (normalized)
         const allowed = buildCorsOrigins(...(opts.corsOrigins || []));
         const corsAllowed = allowed === '*' ? '*' : allowed;
-        try {
-          const shamir = service.shamirService;
-          if (shamir) {
-            const { currentKeyId } = JSON.parse((await handleGetShamirKeyInfo(shamir)).body) as {
-              currentKeyId?: string;
-            };
-            const res = json({ ok: true, currentKeyId: currentKeyId || null, cors: { allowedOrigins: corsAllowed } }, { status: 200 });
-            withCors(res.headers, opts, request);
-            return res;
-          }
-          const res = json({ ok: true, currentKeyId: null, cors: { allowedOrigins: corsAllowed } }, { status: 200 });
-          withCors(res.headers, opts, request);
-          return res;
-        } catch {
-          const res = json({ ok: true, cors: { allowedOrigins: corsAllowed } }, { status: 200 });
-          withCors(res.headers, opts, request);
-          return res;
+        const shamir = service.shamirService;
+        const shamirConfigured = Boolean(shamir && shamir.hasShamir());
+        let currentKeyId: string | null = null;
+        if (shamirConfigured && shamir) {
+          try {
+            const { currentKeyId: id } = JSON.parse((await handleGetShamirKeyInfo(shamir)).body) as { currentKeyId?: string };
+            currentKeyId = id || null;
+          } catch {}
         }
+
+        const proverBaseUrl = service.emailRecovery?.getZkEmailProverBaseUrl?.() ?? null;
+        const zkEmailConfigured = Boolean(proverBaseUrl);
+
+        const res = json({
+          ok: true,
+          // Backwards-compatible field (was previously top-level).
+          currentKeyId,
+          shamir: { configured: shamirConfigured, currentKeyId },
+          zkEmail: { configured: zkEmailConfigured, proverBaseUrl },
+          cors: { allowedOrigins: corsAllowed },
+        }, { status: 200 });
+        withCors(res.headers, opts, request);
+        return res;
+      }
+
+      if (opts.readyz && method === 'GET' && pathname === '/readyz') {
+        const allowed = buildCorsOrigins(...(opts.corsOrigins || []));
+        const corsAllowed = allowed === '*' ? '*' : allowed;
+
+        const shamir = service.shamirService;
+        const shamirConfigured = Boolean(shamir && shamir.hasShamir());
+
+        let shamirReady: boolean | null = null;
+        let shamirCurrentKeyId: string | null = null;
+        let shamirError: string | undefined;
+        if (shamirConfigured && shamir) {
+          try {
+            await shamir.ensureReady();
+            shamirReady = true;
+            const { currentKeyId } = JSON.parse((await handleGetShamirKeyInfo(shamir)).body) as { currentKeyId?: string };
+            shamirCurrentKeyId = currentKeyId || null;
+          } catch (e: any) {
+            shamirReady = false;
+            shamirError = e?.message || String(e);
+          }
+        }
+
+        const zk = service.emailRecovery
+          ? await service.emailRecovery.checkZkEmailProverHealth()
+          : { configured: false, baseUrl: null, healthy: null as boolean | null };
+
+        const ok =
+          (shamirConfigured ? shamirReady === true : true) &&
+          (zk.configured ? zk.healthy === true : true);
+
+        const res = json({
+          ok,
+          shamir: {
+            configured: shamirConfigured,
+            ready: shamirConfigured ? shamirReady : null,
+            currentKeyId: shamirCurrentKeyId,
+            error: shamirError,
+          },
+          zkEmail: zk,
+          cors: { allowedOrigins: corsAllowed },
+        }, { status: ok ? 200 : 503 });
+        withCors(res.headers, opts, request);
+        return res;
       }
 
       return notFound();
@@ -438,9 +461,12 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
 export interface CloudflareCronOptions {
   enabled?: boolean;     // default false
   rotate?: boolean;      // if true, will attempt to rotate Shamir keypair (not persisted in Workers)
+  // Optional logger; defaults to silent.
+  logger?: RouterLogger | null;
 }
 
 export function createCloudflareCron(service: AuthService, opts: CloudflareCronOptions = {}): ScheduledHandler {
+  const logger = normalizeRouterLogger(opts.logger);
   const enabled = Boolean(opts.enabled);
   const doRotate = Boolean(opts.rotate);
   if (!enabled) {
@@ -453,16 +479,16 @@ export function createCloudflareCron(service: AuthService, opts: CloudflareCronO
         // This call rotates in-memory only and logs the result.
         const shamir = service.shamirService;
         if (!shamir) {
-          console.warn('[cloudflare-cron] Shamir not configured; skipping rotation');
+          logger.warn('[cloudflare-cron] Shamir not configured; skipping rotation');
         } else {
           const rotation = await shamir.rotateShamirServerKeypair();
-          console.log('[cloudflare-cron] rotated key', rotation.newKeyId, 'graceIds:', rotation.graceKeyIds);
+          logger.info('[cloudflare-cron] rotated key', rotation.newKeyId, 'graceIds:', rotation.graceKeyIds);
         }
       } else {
-        console.log('[cloudflare-cron] enabled but rotate=false (no action)');
+        logger.info('[cloudflare-cron] enabled but rotate=false (no action)');
       }
     } catch (e: unknown) {
-      console.error('[cloudflare-cron] failed', e instanceof Error ? e.message : String(e));
+      logger.error('[cloudflare-cron] failed', e instanceof Error ? e.message : String(e));
     }
   };
 }

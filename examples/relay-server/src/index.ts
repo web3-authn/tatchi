@@ -4,11 +4,15 @@ import {
   SessionService,
   handleListGraceKeys,
   handleRemoveGraceKey,
+  type AuthServiceConfig,
 } from '@tatchi-xyz/sdk/server';
 import { createRelayRouter } from '@tatchi-xyz/sdk/server/router/express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
+import crypto from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 type DemoJwtClaims = {
   sub: string;
@@ -19,79 +23,146 @@ type DemoJwtClaims = {
   rpId?: string;
   blockHeight?: number;
 };
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
+function parseBool(v: unknown): boolean {
+  const s = String(v ?? '').trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+}
+
+function requireEnv(name: string): string {
+  const v = String(process.env[name] || '').trim();
+  if (!v) throw new Error(`Missing required env var: ${name}`);
+  return v;
+}
 
 const config = {
   port: Number(process.env.PORT || 3000),
   expectedOrigin: process.env.EXPECTED_ORIGIN || 'https://example.localhost', // Frontend origin
   expectedWalletOrigin: process.env.EXPECTED_WALLET_ORIGIN || 'https://wallet.example.localhost', // Wallet origin (optional)
+  enableRotation: parseBool(process.env.ENABLE_ROTATION),
   // minutes between automatic key rotations
   rotateEveryMinutes: Number(process.env.ROTATE_EVERY) || 60,
 };
+
+const shamirConfig = (() => {
+  const p = String(process.env.SHAMIR_P_B64U || '').trim();
+  const e = String(process.env.SHAMIR_E_S_B64U || '').trim();
+  const d = String(process.env.SHAMIR_D_S_B64U || '').trim();
+  const anyProvided = Boolean(p || e || d || process.env.SHAMIR_GRACE_KEYS_FILE);
+  if (!anyProvided) return undefined;
+  if (!p || !e || !d) {
+    throw new Error('Shamir enabled but SHAMIR_P_B64U / SHAMIR_E_S_B64U / SHAMIR_D_S_B64U are not all set');
+  }
+  return {
+    shamir_p_b64u: p,
+    shamir_e_s_b64u: e,
+    shamir_d_s_b64u: d,
+    graceShamirKeysFile: process.env.SHAMIR_GRACE_KEYS_FILE,
+  };
+})();
+
+const zkEmailProverBaseUrl = String(process.env.ZK_EMAIL_PROVER_BASE_URL || '').trim();
+
 // Create AuthService instance
-const authService = new AuthService({
+const authServiceConfig: AuthServiceConfig = {
   // new accounts with be created with this account: e.g. bob.{relayer-account-id}.near
   // you can make it the same account as the webauthn contract id.
-  relayerAccountId: process.env.RELAYER_ACCOUNT_ID!,
-  relayerPrivateKey: process.env.RELAYER_PRIVATE_KEY!,
+  relayerAccountId: requireEnv('RELAYER_ACCOUNT_ID'),
+  relayerPrivateKey: requireEnv('RELAYER_PRIVATE_KEY'),
   webAuthnContractId: process.env.WEBAUTHN_CONTRACT_ID || 'w3a-v1.testnet',
   // Prefer env override; default to FastNEAR which is often more reliable for tests
   nearRpcUrl: process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
   networkId: 'testnet',
   accountInitialBalance: '40000000000000000000000', // 0.04 NEAR
   createAccountAndRegisterGas: '85000000000000', // 85 TGas (tested)
-  // Shamir 3-pass params (base64url bigints)
-  shamir: {
-    shamir_p_b64u: process.env.SHAMIR_P_B64U!,
-    shamir_e_s_b64u: process.env.SHAMIR_E_S_B64U!,
-    shamir_d_s_b64u: process.env.SHAMIR_D_S_B64U!,
-    graceShamirKeysFile: process.env.SHAMIR_GRACE_KEYS_FILE,
-  }
-});
-
-// Option JWT Session service independent from AuthService
-const session = new SessionService<DemoJwtClaims>({
-  jwt: {
-    signToken: ({ payload }: { header: Record<string, unknown>; payload: Record<string, unknown> }) => {
-      const secret = 'demo-secret';
-      return jwt.sign(payload as any, secret, {
-        algorithm: 'HS256',
-        issuer: 'relay-server-demo',
-        audience: 'tatchi-app-demo',
-        expiresIn: 24 * 60 * 60
-      });
-    },
-    verifyToken: async (token: string): Promise<{ valid: boolean; payload?: DemoJwtClaims }> => {
-      try {
-        const secret = 'demo-secret';
-        const payload = jwt.verify(token, secret, {
-          algorithms: ['HS256'],
-          issuer: 'relay-server-demo',
-          audience: 'tatchi-app-demo'
-        }) as DemoJwtClaims;
-        return { valid: true, payload };
-      } catch {
-        return { valid: false };
+  zkEmailProver: zkEmailProverBaseUrl
+    ? {
+        baseUrl: zkEmailProverBaseUrl,
+        timeoutMs: Number(process.env.ZK_EMAIL_PROVER_TIMEOUT_MS || 0) || undefined,
       }
-    }
-  },
-  cookie: { name: 'w3a_session' }
-});
+    : undefined,
+  shamir: shamirConfig,
+};
+const authService = new AuthService(authServiceConfig);
+
+const session = (() => {
+  const secret = (process.env.JWT_SECRET || '').trim();
+  if (!secret) return null;
+
+  const issuer = (process.env.JWT_ISSUER || 'relay-server').trim();
+  const audience = (process.env.JWT_AUDIENCE || 'tatchi-app').trim();
+  const expiresIn = Number(process.env.JWT_EXPIRES_SEC || 24 * 60 * 60);
+  const cookieName = (process.env.SESSION_COOKIE_NAME || 'w3a_session').trim();
+
+  return new SessionService<DemoJwtClaims>({
+    jwt: {
+      signToken: ({ payload }: { header: Record<string, unknown>; payload: Record<string, unknown> }) =>
+        jwt.sign(payload as any, secret, {
+          algorithm: 'HS256',
+          issuer,
+          audience,
+          expiresIn,
+        }),
+      verifyToken: async (token: string): Promise<{ valid: boolean; payload?: DemoJwtClaims }> => {
+        try {
+          const payload = jwt.verify(token, secret, { algorithms: ['HS256'], issuer, audience }) as DemoJwtClaims;
+          return { valid: true, payload };
+        } catch {
+          return { valid: false };
+        }
+      },
+    },
+    cookie: { name: cookieName },
+  });
+})();
 
 const app: Express = express();
-// Middleware
-app.use(express.json());
+
+app.disable('x-powered-by');
+
+app.use((req, res, next) => {
+  const incoming = String(req.headers['x-request-id'] || '').trim();
+  const requestId = incoming || crypto.randomUUID();
+  (req as any).requestId = requestId;
+  res.setHeader('x-request-id', requestId);
+  next();
+});
+
+app.use((_req, res, next) => {
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('x-frame-options', 'DENY');
+  res.setHeader('referrer-policy', 'no-referrer');
+  res.setHeader('permissions-policy', 'geolocation=(), microphone=(), camera=()');
+  next();
+});
+
+// Middleware (JSON API only)
+app.use(express.json({ limit: '5mb' }));
+
 const allowedOrigins = [config.expectedOrigin, config.expectedWalletOrigin];
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,
   methods: ['GET','POST','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization']
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Request-Id',
+    // Email recovery routing
+    'X-Email-Recovery-Mode',
+    'X-Recovery-Mode',
+    'X-NEAR-Account-Id',
+    'X-Account-Id',
+  ]
 }));
 
 // Mount standardized router built from AuthService
 app.use('/', createRelayRouter(authService, {
   healthz: true,
+  readyz: true,
   session
 }));
 
@@ -151,7 +222,7 @@ function startKeyRotationCronjob(intervalMinutes: number, service: AuthService) 
     inFlight = true;
     try {
       const shamir = service.shamirService;
-      if (!shamir) {
+      if (!shamir || !shamir.hasShamir()) {
         console.warn(`${prefix} Shamir not configured; skipping rotation`);
         return;
       }
@@ -185,7 +256,7 @@ function startKeyRotationCronjob(intervalMinutes: number, service: AuthService) 
   void run();
 }
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   console.log(`Server listening on http://localhost:${config.port}`);
   console.log(`Expected Frontend Origin: ${config.expectedOrigin}`);
 
@@ -195,6 +266,24 @@ app.listen(config.port, () => {
     console.error("AuthService initial check failed (non-blocking server start):", err);
   });
 
-  // schedule key rotation based on env (minutes)
-  startKeyRotationCronjob(config.rotateEveryMinutes, authService);
+  if (config.enableRotation) {
+    startKeyRotationCronjob(config.rotateEveryMinutes, authService);
+  } else {
+    console.log('[key-rotation-cron] disabled (set ENABLE_ROTATION=1 to enable)');
+  }
 });
+
+function shutdown(signal: string) {
+  console.log(`[shutdown] received ${signal}, closing server...`);
+  server.close(() => {
+    console.log('[shutdown] http server closed');
+    process.exit(0);
+  });
+  setTimeout(() => {
+    console.error('[shutdown] force exit after 10s');
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

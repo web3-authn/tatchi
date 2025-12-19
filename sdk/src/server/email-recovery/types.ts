@@ -1,6 +1,7 @@
 import type { MinimalNearClient, SignedTransaction } from '../../core/NearClient';
 import type { ActionArgsWasm } from '../../core/types/actions';
 import type { ZkEmailProverClientOptions } from './zkEmail';
+import type { Logger } from '../core/logger';
 
 export interface EmailRecoveryServiceDeps {
   relayerAccountId: string;
@@ -8,6 +9,11 @@ export interface EmailRecoveryServiceDeps {
   networkId: string;
   emailDkimVerifierAccountId: string;
   nearClient: MinimalNearClient;
+  /**
+   * Optional logger. When unset, EmailRecoveryService is silent (no `console.*`).
+   * Pass `logger: console` to enable default logging.
+   */
+  logger?: Logger | null;
   ensureSignerAndRelayerAccount: () => Promise<void>;
   queueTransaction<T>(fn: () => Promise<T>, label: string): Promise<T>;
   fetchTxContext(accountId: string, publicKey: string): Promise<{ nextNonce: string; blockHash: string }>;
@@ -40,4 +46,3 @@ export interface EmailRecoveryResult {
   message?: string;
   error?: string;
 }
-

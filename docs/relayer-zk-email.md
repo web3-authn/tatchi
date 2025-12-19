@@ -23,9 +23,17 @@ zk-email prover server for email-based account recovery.
 `rawEmail` must be the full RFC822 email (headers + body). The prover runs the
 `RecoverEmailCircuit` and returns a BN254 Groth16 proof plus its public signals.
 
+## Prover health check
+
+- Method: `GET`
+- Path: `/healthz`
+- Response: `{ "status": "ok" }`
+
+Before calling `/prove-email`, the SDK performs a short `/healthz` check to fail fast if the prover is offline or misconfigured.
+
 ## SDK components
 
-- `sdk/src/server/email-recovery/zkEmail.ts`
+- `sdk/src/server/email-recovery/zkEmail/`
   - `generateZkEmailProofFromPayload(payload, opts)`:
     - Calls `POST {baseUrl}/prove-email` with `{ rawEmail: payload.raw }`.
     - Returns `{ proof, publicInputs }` (public inputs mirror `publicSignals`).
@@ -46,6 +54,11 @@ zk-email prover server for email-based account recovery.
     - Calls `generateZkEmailProofFromPayload` to get `{ proof, publicInputs }`.
     - Sends `verify_zkemail_and_recover` with:
       `{ proof, public_inputs, account_id, new_public_key, from_email, timestamp }`.
+
+## Wiring into AuthService / HTTP routes
+
+- `AuthServiceConfig` supports `zkEmailProver?: { baseUrl: string; timeoutMs?: number }` and forwards it to `EmailRecoveryService`.
+- The default routers expose `POST /recover-email` and will pass `explicitMode` through if provided as JSON (`explicitMode` / `explicit_mode`) or as a header (`x-email-recovery-mode` / `x-recovery-mode`).
 
 ## Relayer usage
 

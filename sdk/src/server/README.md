@@ -39,7 +39,7 @@ const session = new SessionService({
 const app = express();
 app.use(express.json());
 app.use(cors({ origin: [process.env.EXPECTED_ORIGIN!, process.env.EXPECTED_WALLET_ORIGIN!].filter(Boolean), credentials: true }));
-app.use('/', createRelayRouter(service, { healthz: true, session }));
+app.use('/', createRelayRouter(service, { healthz: true, readyz: true, session }));
 app.listen(3000);
 ```
 
@@ -71,9 +71,9 @@ const session = new SessionService({
 });
 
 export default {
-  async fetch(request: Request, env: any) {
-    const router = createCloudflareRouter(service, { corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN].filter(Boolean), session });
-    return router(request, env);
+  async fetch(request: Request, env: any, ctx: any) {
+    const router = createCloudflareRouter(service, { healthz: true, readyz: true, corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN].filter(Boolean), session });
+    return router(request, env, ctx);
   }
 }
 ```
@@ -84,6 +84,9 @@ export default {
 - POST `/verify-authentication-response` — VRF + WebAuthn verification (VIEW call). Body:
   - `{ sessionKind: 'jwt' | 'cookie', vrf_data, webauthn_authentication }`
   - `sessionKind='jwt'` → JSON returns `{ jwt }`; `sessionKind='cookie'` → sets `Set-Cookie` (HttpOnly) and omits `jwt` in body.
+- POST `/recover-email` — email-based account recovery (TEE/DKIM by default; zk-email when `explicitMode: 'zk-email'` or the email body includes a `zk-email` marker)
+- GET `/healthz` — basic server health + feature configuration hints (optional, enabled via router config)
+- GET `/readyz` — readiness check for configured dependencies (optional, enabled via router config)
 - GET `/session/auth` — returns `{ authenticated, claims? }` based on Authorization: Bearer or cookie
 - POST `/session/logout` — clears the session cookie
 - POST `/vrf/apply-server-lock`, POST `/vrf/remove-server-lock`, GET `/shamir/key-info` — Shamir 3‑pass endpoints (optional)

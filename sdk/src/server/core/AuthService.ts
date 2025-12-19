@@ -34,6 +34,7 @@ import {
   executeSignedDelegateWithRelayer,
   type DelegateActionPolicy,
 } from '../delegateAction';
+import { normalizeLogger, type NormalizedLogger } from './logger';
 
 // =============================
 // WASM URL CONSTANTS + HELPERS
@@ -75,6 +76,7 @@ export class AuthService {
   private nearClient: MinimalNearClient;
   private relayerPublicKey: string = '';
   private signerWasmReady = false;
+  private readonly logger: NormalizedLogger;
 
   // Transaction queue to prevent nonce conflicts
   private transactionQueue: Promise<any> = Promise.resolve();
@@ -103,7 +105,10 @@ export class AuthService {
         || '120000000000000', // 120 TGas
       shamir: config.shamir,
       signerWasm: config.signerWasm,
+      logger: config.logger,
+      zkEmailProver: config.zkEmailProver,
     };
+    this.logger = normalizeLogger(this.config.logger);
     const graceFileCandidate = (this.config.shamir?.graceShamirKeysFile || '').trim();
     this.shamirService = new ShamirService(this.config.shamir, graceFileCandidate || 'grace-keys.json');
     this.nearClient = new MinimalNearClient(this.config.nearRpcUrl);
@@ -113,16 +118,18 @@ export class AuthService {
       networkId: this.config.networkId,
       emailDkimVerifierAccountId: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
       nearClient: this.nearClient,
+      logger: this.config.logger,
       ensureSignerAndRelayerAccount: () => this._ensureSignerAndRelayerAccount(),
       queueTransaction: <T>(fn: () => Promise<T>, label: string) => this.queueTransaction(fn, label),
       fetchTxContext: (accountId: string, publicKey: string) => this.fetchTxContext(accountId, publicKey),
       signWithPrivateKey: (input) => this.signWithPrivateKey(input),
       getRelayerPublicKey: () => this.relayerPublicKey,
+      zkEmailProver: this.config.zkEmailProver,
     });
 
     // Log effective configuration at construction time so operators can
     // verify wiring immediately when the service is created.
-    console.log(`
+    this.logger.info(`
     AuthService initialized with:
     • networkId: ${this.config.networkId}
     • nearRpcUrl: ${this.config.nearRpcUrl}
@@ -130,7 +137,16 @@ export class AuthService {
     • webAuthnContractId: ${this.config.webAuthnContractId}
     • accountInitialBalance: ${this.config.accountInitialBalance} (${formatYoctoToNear(this.config.accountInitialBalance)} NEAR)
     • createAccountAndRegisterGas: ${this.config.createAccountAndRegisterGas} (${formatGasToTGas(this.config.createAccountAndRegisterGas)})
-    ${this.config.shamir ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...` : '• shamir: not configured'}
+    ${
+      this.config.shamir
+        ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...`
+        : '• shamir: not configured'
+    }
+    ${
+      this.config.zkEmailProver?.baseUrl
+        ? `• zkEmailProver: ${this.config.zkEmailProver.baseUrl}`
+        : `• zkEmailProver: not configured`
+    }
     `);
   }
 

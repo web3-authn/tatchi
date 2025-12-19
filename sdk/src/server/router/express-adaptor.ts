@@ -9,13 +9,17 @@ import {
   handleAddGraceKey,
   handleRemoveGraceKey,
 } from '../core/shamirHandlers';
-import type { ForwardableEmailPayload } from '../email-recovery/zkEmail';
-import { normalizeForwardableEmailPayload, parseAccountIdFromSubject } from '../email-recovery/zkEmail';
+import { parseRecoverEmailRequest } from '../email-recovery/emailParsers';
+import type { RouterLogger } from './logger';
+import { normalizeRouterLogger } from './logger';
 
 export interface RelayRouterOptions {
   healthz?: boolean;
+  readyz?: boolean;
   sessionRoutes?: { auth?: string; logout?: string };
   session?: SessionAdapter | null;
+  // Optional logger; defaults to silent.
+  logger?: RouterLogger | null;
 }
 
 // Minimal session adapter interface expected by the routers
@@ -31,6 +35,7 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   const router = express.Router();
   const mePath = opts.sessionRoutes?.auth || '/session/auth';
   const logoutPath = opts.sessionRoutes?.logout || '/session/logout';
+  const logger = normalizeRouterLogger(opts.logger);
 
   router.post(
     '/create_account_and_register_user',
@@ -122,10 +127,8 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
         try {
           const sub = String(body.vrf_data.user_id || '');
           const token = await session.signJwt(sub, { rpId: body.vrf_data.rp_id, blockHeight: body.vrf_data.block_height });
-          try {
-            // Best-effort server log without sensitive data
-            console.log(`[relay] creating ${sessionKind === 'cookie' ? 'HttpOnly session' : 'JWT'} for`, sub);
-          } catch {}
+          // Best-effort server log without sensitive data
+          logger.info(`[relay] creating ${sessionKind === 'cookie' ? 'HttpOnly session' : 'JWT'} for`, sub);
           if (sessionKind === 'cookie') {
             res.set('Set-Cookie', session.buildSetCookie(token));
             const { jwt: _omit, ...rest } = result as any;
@@ -206,47 +209,47 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   // per-user email-recoverer contract deployed on `accountId`.
   router.post('/recover-email', async (req: any, res: any) => {
     try {
-      const explicitModeRaw =
-        (typeof (req?.body as any)?.explicitMode === 'string' ? String((req.body as any).explicitMode) : '') ||
-        (typeof (req?.body as any)?.explicit_mode === 'string' ? String((req.body as any).explicit_mode) : '') ||
-        (typeof (req?.headers as any)?.['x-email-recovery-mode'] === 'string' ? String((req.headers as any)['x-email-recovery-mode']) : '') ||
-        (typeof (req?.headers as any)?.['x-recovery-mode'] === 'string' ? String((req.headers as any)['x-recovery-mode']) : '');
-      const explicitMode = explicitModeRaw ? explicitModeRaw.trim() : undefined;
+      const prefer = String(req?.headers?.prefer || '').toLowerCase();
+      const respondAsync =
+        prefer.includes('respond-async') ||
+        String((req?.query as any)?.async || '').trim() === '1' ||
+        String((req?.query as any)?.respond_async || '').trim() === '1';
 
-      const normalized = normalizeForwardableEmailPayload(req.body as unknown);
-      if (!normalized.ok) {
-        res.status(400).json({ code: normalized.code, message: normalized.message });
+      const parsed = parseRecoverEmailRequest(req.body as unknown, { headers: req.headers as any });
+      if (!parsed.ok) {
+        res.status(parsed.status).json({ code: parsed.code, message: parsed.message });
         return;
       }
-
-      const payload = normalized.payload as ForwardableEmailPayload;
-      const emailBlob = payload.raw || '';
-      const headers = payload.headers || {};
-
-      // Primary: parse accountId from Subject (header or raw)
-      const subjectHeader = headers['subject'];
-      const parsedAccountId = parseAccountIdFromSubject(subjectHeader || emailBlob);
-      // Fallback: header-based account id if provided
-      const headerAccountId = String(headers['x-near-account-id'] || headers['x-account-id'] || '').trim();
-      const accountId = (parsedAccountId || headerAccountId || '').trim();
-
-      if (!accountId) {
-        res.status(400).json({ code: 'missing_account', message: 'x-near-account-id header is required' });
-        return;
-      }
-      if (!emailBlob) {
-        res.status(400).json({ code: 'missing_email', message: 'raw email blob is required' });
-        return;
-      }
+      const { accountId, emailBlob, explicitMode } = parsed;
 
       if (!service.emailRecovery) {
         res.status(503).json({ code: 'email_recovery_unavailable', message: 'EmailRecoveryService is not configured on this server' });
         return;
       }
 
+      if (respondAsync) {
+        void service.emailRecovery
+          .requestEmailRecovery({ accountId, emailBlob, explicitMode })
+          .then((result) => {
+            logger.info('[recover-email] async complete', {
+              success: result?.success === true,
+              accountId,
+              error: result?.success ? undefined : result?.error,
+            });
+          })
+          .catch((err: any) => {
+            logger.error('[recover-email] async error', {
+              accountId,
+              error: err?.message || String(err),
+            });
+          });
+
+        res.status(202).json({ success: true, queued: true, accountId });
+        return;
+      }
+
       const result = await service.emailRecovery.requestEmailRecovery({ accountId, emailBlob, explicitMode });
-      const status = result.success ? 202 : 400;
-      res.status(status).json(result);
+      res.status(result.success ? 202 : 400).json(result);
     } catch (e: any) {
       res.status(500).json({ code: 'internal', message: e?.message || 'Internal error' });
     }
@@ -269,15 +272,67 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
 
   if (opts.healthz) {
     router.get('/healthz', async (_req: Request, res: Response) => {
-      try {
-        const shamir = service.shamirService;
-        const { currentKeyId } = shamir
-          ? JSON.parse((await handleGetShamirKeyInfo(shamir)).body) as { currentKeyId?: string }
-          : { currentKeyId: undefined as string | undefined };
-        res.status(200).json({ ok: true, currentKeyId: currentKeyId || null });
-      } catch {
-        res.status(200).json({ ok: true });
+      const shamir = service.shamirService;
+      const shamirConfigured = Boolean(shamir && shamir.hasShamir());
+      let currentKeyId: string | null = null;
+      if (shamirConfigured && shamir) {
+        try {
+          const payload = JSON.parse((await handleGetShamirKeyInfo(shamir)).body) as { currentKeyId?: string };
+          currentKeyId = payload.currentKeyId || null;
+        } catch {}
       }
+
+      const proverBaseUrl = service.emailRecovery?.getZkEmailProverBaseUrl?.() ?? null;
+      const zkEmailConfigured = Boolean(proverBaseUrl);
+
+      res.status(200).json({
+        ok: true,
+        // Backwards-compatible field (was previously top-level).
+        currentKeyId,
+        shamir: { configured: shamirConfigured, currentKeyId },
+        zkEmail: { configured: zkEmailConfigured, proverBaseUrl },
+      });
+    });
+  }
+
+  if (opts.readyz) {
+    router.get('/readyz', async (_req: Request, res: Response) => {
+      const shamir = service.shamirService;
+      const shamirConfigured = Boolean(shamir && shamir.hasShamir());
+
+      let shamirReady: boolean | null = null;
+      let shamirCurrentKeyId: string | null = null;
+      let shamirError: string | undefined;
+      if (shamirConfigured && shamir) {
+        try {
+          await shamir.ensureReady();
+          shamirReady = true;
+          const payload = JSON.parse((await handleGetShamirKeyInfo(shamir)).body) as { currentKeyId?: string };
+          shamirCurrentKeyId = payload.currentKeyId || null;
+        } catch (e: any) {
+          shamirReady = false;
+          shamirError = e?.message || String(e);
+        }
+      }
+
+      const zk = service.emailRecovery
+        ? await service.emailRecovery.checkZkEmailProverHealth()
+        : { configured: false, baseUrl: null, healthy: null as boolean | null };
+
+      const ok =
+        (shamirConfigured ? shamirReady === true : true) &&
+        (zk.configured ? zk.healthy === true : true);
+
+      res.status(ok ? 200 : 503).json({
+        ok,
+        shamir: {
+          configured: shamirConfigured,
+          ready: shamirConfigured ? shamirReady : null,
+          currentKeyId: shamirCurrentKeyId,
+          error: shamirError,
+        },
+        zkEmail: zk,
+      });
     });
   }
 

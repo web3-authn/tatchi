@@ -13,8 +13,8 @@ NEAR relay server that creates accounts on behalf of users, where the relayer pa
 
 ### Health endpoints
 
-- `GET /livez` — process liveness (fast, no dependency checks)
-- `GET /readyz` — readiness checks for configured dependencies (zk-email prover / Shamir WASM when configured)
+- `GET /healthz` — basic server health + feature configuration hints (fast; no external dependency checks)
+- `GET /readyz` — readiness check for configured dependencies (zk-email prover / Shamir WASM when configured)
 
 ### `POST /create_account_and_register_user`
 Atomically create a NEAR account and register a WebAuthn authenticator with the Web3Authn contract.
@@ -52,8 +52,7 @@ Receives a JSON `ForwardableEmailPayload` (including `raw` containing the full R
 
 Production notes:
 - This server is the HTTP sink; you still need an email ingress (inbound email provider/webhook or your own MTA pipeline) to receive SMTP and then `POST` here.
-- If `EMAIL_INGRESS_TOKEN` is set, the server requires `Authorization: Bearer <token>` (or `x-email-ingress-token`) for `POST /recover-email`.
-- Emails can be large; tune `JSON_BODY_LIMIT` to avoid 413s from Express’ JSON parser.
+- Emails can be large; this example uses `express.json({ limit: '5mb' })`.
 
 ### Shamir 3‑pass (strict keyId mode)
 
@@ -156,10 +155,6 @@ EXPECTED_ORIGIN=http://localhost:3000
 # If you serve from multiple origins, set EXPECTED_WALLET_ORIGIN as well
 # EXPECTED_WALLET_ORIGIN=http://localhost:4173
 
-# Recommended runtime settings behind a proxy/LB
-TRUST_PROXY=1
-JSON_BODY_LIMIT=5mb
-
 # Shamir 3-pass parameters
 SHAMIR_P_B64U=<base64url_of_prime_p>
 SHAMIR_E_S_B64U=<base64url_server_exponent_e_s>
@@ -167,11 +162,8 @@ SHAMIR_D_S_B64U=<base64url_server_inverse_d_s>
 # Optional: override where grace keys are persisted (default: ./grace-keys.json)
 # SHAMIR_GRACE_KEYS_FILE=./secure/grace-keys.json
 
-# Optional: protect POST /recover-email (server-to-server only)
-# EMAIL_INGRESS_TOKEN=...
-
 # Optional: zk-email prover base URL (used when explicitMode='zk-email' or email body marker is 'zk-email')
-# ZK_EMAIL_PROVER_BASE_URL=https://zk-email-prover.localhost
+# ZK_EMAIL_PROVER_BASE_URL=http://127.0.0.1:5588
 # ZK_EMAIL_PROVER_TIMEOUT_MS=60000
 
 ### Key Rotation & Grace Keys
