@@ -1,6 +1,7 @@
 import React from 'react';
 import './PasskeyAuthMenu.css';
 import { PasskeyAuthMenuThemeScope } from './themeScope';
+import { useTheme } from '../theme';
 
 export interface PasskeyAuthMenuSkeletonProps {
   className?: string;
@@ -87,8 +88,9 @@ export const PasskeyAuthMenuSkeletonInner: React.FC<PasskeyAuthMenuSkeletonProps
 };
 
 export const PasskeyAuthMenuSkeleton: React.FC<PasskeyAuthMenuSkeletonProps> = (props) => {
+  const { theme } = useTheme();
   return (
-    <PasskeyAuthMenuThemeScope>
+    <PasskeyAuthMenuThemeScope theme={theme}>
       <PasskeyAuthMenuSkeletonInner {...props} />
     </PasskeyAuthMenuThemeScope>
   );

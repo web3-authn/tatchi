@@ -24,6 +24,62 @@ import { PasskeyNearKeysDBManager, type EncryptedKeyData } from './passkeyNearKe
 export const passkeyClientDB = new PasskeyClientDBManager();
 export const passkeyNearKeysDB = new PasskeyNearKeysDBManager();
 
+export type IndexedDBMode = 'legacy' | 'wallet' | 'disabled';
+
+const DB_CONFIG_BY_MODE: Record<IndexedDBMode, { clientDbName: string; nearKeysDbName: string; disabled: boolean }> = {
+  legacy: { clientDbName: 'PasskeyClientDB', nearKeysDbName: 'PasskeyNearKeys', disabled: false },
+  wallet: { clientDbName: 'PasskeyClientDB', nearKeysDbName: 'PasskeyNearKeys', disabled: false },
+  // When running the SDK on the app origin with a wallet iframe configured, we disable IndexedDB entirely
+  // to ensure no SDK tables are created and nothing can accidentally persist there.
+  disabled: { clientDbName: 'PasskeyClientDB', nearKeysDbName: 'PasskeyNearKeys', disabled: true },
+};
+
+let configured: { mode: IndexedDBMode; clientDbName: string; nearKeysDbName: string; disabled: boolean } | null = null;
+
+/**
+ * Configure IndexedDB database names for the current runtime.
+ *
+ * Call this once, early (before any IndexedDB access).
+ * - Wallet iframe host should use `mode: 'wallet'`.
+ * - App origin should use `mode: 'disabled'` when wallet-iframe mode is enabled.
+ * - Non-iframe apps should use `mode: 'legacy'`.
+ */
+export function configureIndexedDB(args: { mode: IndexedDBMode }): { clientDbName: string; nearKeysDbName: string } {
+  const mode = args?.mode;
+  const next = DB_CONFIG_BY_MODE[mode];
+  if (!next) {
+    throw new Error(`[IndexedDBManager] Unknown IndexedDBMode: ${String(mode)}`);
+  }
+
+  if (configured) {
+    const isSame =
+      configured.clientDbName === next.clientDbName
+      && configured.nearKeysDbName === next.nearKeysDbName
+      && configured.disabled === next.disabled;
+    if (!isSame) {
+      console.warn('[IndexedDBManager] configureIndexedDB called multiple times; ignoring subsequent configuration', {
+        configured,
+        requested: next,
+      });
+    }
+    return { clientDbName: configured.clientDbName, nearKeysDbName: configured.nearKeysDbName };
+  }
+
+  configured = { mode, ...next };
+  passkeyClientDB.setDbName(next.clientDbName);
+  passkeyNearKeysDB.setDbName(next.nearKeysDbName);
+  passkeyClientDB.setDisabled(next.disabled);
+  passkeyNearKeysDB.setDisabled(next.disabled);
+  return { clientDbName: configured.clientDbName, nearKeysDbName: configured.nearKeysDbName };
+}
+
+export function getIndexedDBNames(): { clientDbName: string; nearKeysDbName: string } {
+  return configured || {
+    clientDbName: passkeyClientDB.getDbName(),
+    nearKeysDbName: passkeyNearKeysDB.getDbName(),
+  };
+}
+
 /**
  * Unified IndexedDB interface providing access to both databases
  * This allows centralized access while maintaining separation of concerns
@@ -48,6 +104,10 @@ export class UnifiedIndexedDBManager {
     }
 
     try {
+      if (this.clientDB.isDisabled() || this.nearKeysDB.isDisabled()) {
+        this._initialized = true;
+        return;
+      }
       // Initialize both databases by calling a simple operation
       // This will trigger the getDB() method in both managers and ensure databases are created
       await Promise.all([
@@ -139,9 +199,3 @@ export class UnifiedIndexedDBManager {
 
 // Export singleton instance of unified manager
 export const IndexedDBManager = new UnifiedIndexedDBManager();
-
-// Initialize databases proactively when the module is imported
-// This ensures both databases are created and available immediately
-IndexedDBManager.initialize().catch(error => {
-  console.warn('Failed to proactively initialize IndexedDB on module load:', error);
-});
