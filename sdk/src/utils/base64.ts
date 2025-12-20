@@ -1,15 +1,17 @@
 /**
- * Encodes an ArrayBuffer to standard base64 format for NEAR RPC compatibility.
+ * Encodes binary data to standard base64 format for NEAR RPC compatibility.
  * Uses standard base64 characters (+, /, =) rather than base64url encoding.
  *
  * Important: Avoids spreading large arrays into String.fromCharCode(...) which
  * can overflow the JS call stack when encoding big WASM binaries.
  *
- * @param value - ArrayBufferLike containing the binary data to encode
+ * @param value - ArrayBufferLike or ArrayBufferView containing the binary data to encode
  * @returns Standard base64-encoded string with padding
  */
-export const base64Encode = (value: ArrayBufferLike): string => {
-  const bytes = new Uint8Array(value as ArrayBufferLike);
+export const base64Encode = (value: ArrayBufferLike | ArrayBufferView): string => {
+  const bytes = ArrayBuffer.isView(value)
+    ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+    : new Uint8Array(value);
   let binary = '';
   // Build the string incrementally to avoid exceeding the argument limit.
   for (let i = 0; i < bytes.length; i++) {
@@ -45,11 +47,11 @@ export function base64Decode(base64: string): Uint8Array {
  * Used for WebAuthn API compatibility in browser environments.
  * Equivalent to Buffer.from(value).toString('base64url') in Node.js.
  *
- * @param value - The ArrayBufferLike to encode
+ * @param value - The ArrayBufferLike or ArrayBufferView to encode
  * @returns A base64url-encoded string without padding
  */
-export const base64UrlEncode = (value: ArrayBufferLike): string => {
-  return base64Encode(value as ArrayBufferLike)
+export const base64UrlEncode = (value: ArrayBufferLike | ArrayBufferView): string => {
+  return base64Encode(value)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=/g, "");
