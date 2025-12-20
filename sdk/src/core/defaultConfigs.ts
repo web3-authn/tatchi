@@ -15,8 +15,8 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
   // Warm signing session defaults used by login/unlock flows.
   // Enforcement (TTL/uses) is owned by the VRF worker; signer workers remain one-shot.
   signingSessionDefaults: {
-    ttlMs: 5 * 60 * 1000, // 5 minutes
-    remainingUses: 3,
+    ttlMs: 0, // 0 minutes
+    remainingUses: 0, // default to requiring a touchID prompt for each transaction
   },
   relayer: {
     // accountId: 'w3a-v1.testnet',

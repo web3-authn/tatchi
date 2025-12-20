@@ -135,6 +135,10 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
       // session: {
       //   kind: 'jwt',
       // },
+      signingSession: {
+        ttlMs: 24 * 60 * 60, // 1 day
+        remainingUses: 3
+      },
       onEvent: (event) => {
         switch (event.phase) {
           case LoginPhase.STEP_1_PREPARATION:
@@ -238,7 +242,6 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
         toast.loading(event.message || 'Finalizing recovery registration…', { id: toastId });
         return;
       default:
-        toast.loading(event.message || 'Email recovery in progress…', { id: toastId });
         return;
     }
   };
