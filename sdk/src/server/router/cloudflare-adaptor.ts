@@ -35,10 +35,21 @@ export type ScheduledHandler = (event: CfScheduledEvent, env?: CfEnv, ctx?: CfEx
 
 function json(body: unknown, init?: ResponseInit, extraHeaders?: Record<string, string>): Response {
   const headers = new Headers({ 'Content-Type': 'application/json; charset=utf-8' });
+
+  // Merge init.headers into our base headers (ResponseInit headers are otherwise overwritten).
+  const initHeaders = (init as any)?.headers as HeadersInit | undefined;
+  if (initHeaders) {
+    try {
+      new Headers(initHeaders).forEach((v, k) => headers.set(k, v));
+    } catch { }
+  }
+
   if (extraHeaders) {
     for (const [k, v] of Object.entries(extraHeaders)) headers.set(k, v);
   }
-  return new Response(JSON.stringify(body), { status: 200, ...init, headers });
+
+  const { headers: _omit, ...rest } = init || {};
+  return new Response(JSON.stringify(body), { status: 200, ...rest, headers });
 }
 
 function withCors(headers: Headers, opts?: RelayRouterOptions, request?: Request): void {

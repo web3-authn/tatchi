@@ -75,3 +75,6 @@ jobs:
           NO_CADDY: '1'
           VITE_WALLET_DEV_CSP: 'strict'
         run: pnpm -C sdk test:unit
+
+      - name: Run relayer (server) tests
+        run: pnpm -C sdk test:relayer
