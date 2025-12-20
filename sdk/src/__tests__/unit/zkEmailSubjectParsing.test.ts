@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { injectImportMap } from '../setup/bootstrap';
 
 const IMPORT_PATHS = {
-  zkEmail: '/sdk/esm/server/email-recovery/zkEmail.js',
+  zkEmail: '/sdk/esm/server/email-recovery/zkEmail/index.js',
 } as const;
 
 test.describe('zk-email subject parsing with request_id', () => {
@@ -96,4 +96,3 @@ test.describe('zk-email subject parsing with request_id', () => {
     expect(res.bindings.timestamp).toBe('Tue, 01 Jan 2024 00:00:00 GMT');
   });
 });
-

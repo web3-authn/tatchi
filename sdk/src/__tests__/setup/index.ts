@@ -44,7 +44,6 @@ import { setupWebAuthnMocks } from './webauthn-mocks';
 import { setupTestUtilities } from './test-utils';
 import type { PasskeyTestConfig, PasskeyTestSetupOptions } from './types';
 import { bypassContractVerification } from './bypasses';
-import { installWalletSdkCorsShim } from './cross-origin-headers';
 
 // =============================================================================
 // MAIN SETUP FUNCTION
@@ -74,14 +73,6 @@ export async function setupBasicPasskeyTest(
   options: PasskeyTestSetupOptions = {}
 ): Promise<void> {
   const config: PasskeyTestConfig = { ...DEFAULT_TEST_CONFIG, ...options };
-
-  // Install shim BEFORE navigation so earliest requests are covered
-  // (ensures cross-origin worker and wasm loads succeed deterministically)
-  try {
-    const appOrigin = new URL(config.frontendUrl).origin;
-    const mirror = true;
-    await installWalletSdkCorsShim(page, { appOrigin, logStyle: 'silent', mirror });
-  } catch { }
 
   // Defensive shims (test-only):
   // 1) Pin embedded base to app origin so all SDK assets resolve same-origin (toggle: forceSameOriginSdkBase)
@@ -147,9 +138,6 @@ export async function setupBasicPasskeyTest(
       } catch { }
     }, { origin: appOrigin, enable: forceSameOriginWorkers });
   } catch { }
-
-  // Navigate to the frontend
-  await page.goto('/');
 
   // Execute the 5-step sequential setup process
   const authenticatorId = await executeSequentialSetup(page, config, {

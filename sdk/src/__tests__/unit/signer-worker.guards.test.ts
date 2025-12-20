@@ -1,9 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest } from '../setup';
 
 test.describe('signer worker JS guards – PRF/vrf_sk rejection', () => {
   test.beforeEach(async ({ page }) => {
-    await setupBasicPasskeyTest(page);
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
   });
 
   test('rejects payloads containing prfOutput', async ({ page }) => {
@@ -19,15 +18,23 @@ test.describe('signer worker JS guards – PRF/vrf_sk rejection', () => {
         worker.onmessage = (ev: MessageEvent) => messages.push(ev.data);
         worker.onerror = (ev: ErrorEvent) => errors.push(ev.message || ev.error);
 
+        const combined = () => [...errors, ...messages.map((m: any) => JSON.stringify(m))].join(' ');
+        const waitFor = async (predicate: () => boolean, timeoutMs: number = 5000): Promise<void> => {
+          const start = Date.now();
+          while (Date.now() - start < timeoutMs) {
+            if (predicate()) return;
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          }
+        };
+
+        await waitFor(() => messages.some((m: any) => m?.type === 'WORKER_READY'), 5000);
         worker.postMessage({
           type: 0, // WorkerRequestType.DeriveNearKeypairAndEncrypt (numeric)
           payload: {
             prfOutput: 'leaked-prf',
           },
         });
-
-        // Wait a bit for the worker to process the message
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await waitFor(() => combined().includes('Forbidden secret field'), 5000);
         worker.terminate();
 
         return { messages, errors };
@@ -53,14 +60,23 @@ test.describe('signer worker JS guards – PRF/vrf_sk rejection', () => {
         worker.onmessage = (ev: MessageEvent) => messages.push(ev.data);
         worker.onerror = (ev: ErrorEvent) => errors.push(ev.message || ev.error);
 
+        const combined = () => [...errors, ...messages.map((m: any) => JSON.stringify(m))].join(' ');
+        const waitFor = async (predicate: () => boolean, timeoutMs: number = 5000): Promise<void> => {
+          const start = Date.now();
+          while (Date.now() - start < timeoutMs) {
+            if (predicate()) return;
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          }
+        };
+
+        await waitFor(() => messages.some((m: any) => m?.type === 'WORKER_READY'), 5000);
         worker.postMessage({
           type: 4, // WorkerRequestType.SignTransactionsWithActions (numeric)
           payload: {
             vrf_sk: 'deadbeef',
           },
         });
-
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await waitFor(() => combined().includes('Forbidden secret field'), 5000);
         worker.terminate();
 
         return { messages, errors };
