@@ -11,6 +11,20 @@ Instead of keeping decrypted keys around, the wallet caches only the *minimum ca
 - **VRF worker (WASM)** keeps `{WrapKeySeed, wrapKeySalt}` + policy (`ttl_ms`, `remaining_uses`) in memory.
 - **Signer workers (WASM)** remain **one‑shot**; each request gets key material over a fresh `MessageChannel`, signs, then terminates.
 
+## Why sessions exist
+
+Running a full VRF challenge + WebAuthn assertion for every local signing request adds latency with no extra security when the PRF output never leaves the device. Sessions keep the VRF‑WebAuthn handshake as a **mint-once capability**:
+
+- Unlock once with TouchID/WebAuthn, then sign multiple actions for a short time or usage budget.
+- Reserve per-transaction VRF checks for remote attestation or high-risk actions.
+
+## Security properties
+
+- **Freshness + replay resistance**: VRF challenges are unique; proofs bind the session to a fresh challenge.
+- **Block binding**: Challenges can include recent block height/hash to prevent stale-session reuse.
+- **User presence**: WebAuthn assertion proves touch/biometric presence over the exact VRF challenge.
+- **Policy enforcement**: The worker enforces TTL and usage caps encoded in the challenge or local defaults.
+- **Auditability**: Session minting can be logged with challenge digest + block height without exposing secrets.
 
 ## Two layers of “session”
 
@@ -89,3 +103,16 @@ sequenceDiagram
 - The signer worker is one‑shot and holds no cross‑request state; session enforcement lives in the VRF worker.
 - Warm signing is only possible if the VRF worker has a valid (unexpired, unexhausted) session capability.
 :::
+
+## Operational invariants
+
+- VRF worker never handles `near_sk` or vault material; only `{WrapKeySeed, wrapKeySalt}` crosses workers.
+- PRF outputs and session secrets never touch the main thread or dApp payloads.
+- All prompts originate from the VRF worker flows; signer worker never calls SecureConfirm.
+
+## Open items
+
+- Define defaults for TTL and usage caps, and how local maxima override server-provided policies.
+- Finalize the freshness window rules for block height/hash checks.
+- Ensure session material is zeroized on blur/close/crash and when TTL/usage is exhausted.
+- Clarify when per-transaction VRF is required versus warm session reuse.
