@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createRelayRouter } from '../../server/router/express-adaptor';
-import { fetchJson, makeFakeAuthService, makeSessionAdapter, startExpressRouter } from './helpers';
+import { fetchJson, getPath, makeFakeAuthService, makeSessionAdapter, startExpressRouter } from './helpers';
 
 function validVerifyBody(overrides?: Partial<any>): any {
   return {
@@ -140,7 +140,7 @@ test.describe('relayer router (express) – P0', () => {
       const res = await fetchJson(`${srv.baseUrl}/session/auth`, { method: 'GET' });
       expect(res.status).toBe(200);
       expect(res.json?.authenticated).toBe(true);
-      expect(res.json?.claims?.sub).toBe('bob.testnet');
+      expect(getPath(res.json, 'claims', 'sub')).toBe('bob.testnet');
     } finally {
       await srv.close();
     }

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createRelayRouter } from '../../server/router/express-adaptor';
 import { createCloudflareRouter } from '../../server/router/cloudflare-adaptor';
-import { callCf, fetchJson, makeFakeAuthService, makeShamirServiceStub, startExpressRouter } from './helpers';
+import { callCf, fetchJson, getPath, makeFakeAuthService, makeShamirServiceStub, startExpressRouter } from './helpers';
 
 test.describe('relayer health/ready + well-known', () => {
   test('express: GET /healthz includes shamir + zkEmail hints when enabled', async () => {
@@ -22,10 +22,10 @@ test.describe('relayer health/ready + well-known', () => {
       const res = await fetchJson(`${srv.baseUrl}/healthz`, { method: 'GET' });
       expect(res.status).toBe(200);
       expect(res.json?.ok).toBe(true);
-      expect(res.json?.shamir?.configured).toBe(true);
-      expect(res.json?.shamir?.currentKeyId).toBe('current-key');
-      expect(res.json?.zkEmail?.configured).toBe(true);
-      expect(res.json?.zkEmail?.proverBaseUrl).toBe('https://prover.example');
+      expect(getPath(res.json, 'shamir', 'configured')).toBe(true);
+      expect(getPath(res.json, 'shamir', 'currentKeyId')).toBe('current-key');
+      expect(getPath(res.json, 'zkEmail', 'configured')).toBe(true);
+      expect(getPath(res.json, 'zkEmail', 'proverBaseUrl')).toBe('https://prover.example');
     } finally {
       await srv.close();
     }
@@ -50,7 +50,7 @@ test.describe('relayer health/ready + well-known', () => {
       const res = await fetchJson(`${srv.baseUrl}/readyz`, { method: 'GET' });
       expect(res.status).toBe(503);
       expect(res.json?.ok).toBe(false);
-      expect(res.json?.zkEmail?.healthy).toBe(false);
+      expect(getPath(res.json, 'zkEmail', 'healthy')).toBe(false);
     } finally {
       await srv.close();
     }
@@ -84,7 +84,7 @@ test.describe('relayer health/ready + well-known', () => {
 
     expect(res.status).toBe(200);
     expect(res.json?.ok).toBe(true);
-    expect(res.json?.cors?.allowedOrigins).toEqual(['https://example.localhost']);
+    expect(getPath(res.json, 'cors', 'allowedOrigins')).toEqual(['https://example.localhost']);
     expect(res.headers.get('access-control-allow-credentials')).toBe('true');
   });
 
@@ -106,8 +106,8 @@ test.describe('relayer health/ready + well-known', () => {
 
     expect(res.status).toBe(503);
     expect(res.json?.ok).toBe(false);
-    expect(res.json?.shamir?.configured).toBe(true);
-    expect(res.json?.shamir?.ready).toBe(false);
+    expect(getPath(res.json, 'shamir', 'configured')).toBe(true);
+    expect(getPath(res.json, 'shamir', 'ready')).toBe(false);
   });
 
   test('cloudflare: GET /.well-known/webauthn supports env overrides and sets Cache-Control', async () => {
@@ -134,4 +134,3 @@ test.describe('relayer health/ready + well-known', () => {
     expect(calls[0]).toEqual({ contractId: 'c.testnet', method: 'm' });
   });
 });
-
