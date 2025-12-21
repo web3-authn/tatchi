@@ -5,12 +5,12 @@ import type { EmailEncryptionContext } from './emailEncryptor';
 import type { EmailRecoveryResult, EmailRecoveryServiceDeps, EmailRecoveryRequest } from './types';
 
 export async function getOutlayerEncryptionPublicKey(
-  deps: Pick<EmailRecoveryServiceDeps, 'nearClient' | 'emailDkimVerifierAccountId'>,
+  deps: Pick<EmailRecoveryServiceDeps, 'nearClient' | 'emailDkimVerifierContract'>,
 ): Promise<Uint8Array> {
-  const { nearClient, emailDkimVerifierAccountId } = deps;
+  const { nearClient, emailDkimVerifierContract } = deps;
 
   const result = await nearClient.view<{}, unknown>({
-    account: emailDkimVerifierAccountId,
+    account: emailDkimVerifierContract,
     method: 'get_outlayer_encryption_public_key',
     args: {},
   });

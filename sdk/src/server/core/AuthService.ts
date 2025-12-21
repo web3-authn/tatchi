@@ -116,7 +116,7 @@ export class AuthService {
       relayerAccountId: this.config.relayerAccountId,
       relayerPrivateKey: this.config.relayerPrivateKey,
       networkId: this.config.networkId,
-      emailDkimVerifierAccountId: DEFAULT_EMAIL_RECOVERY_CONTRACTS.emailDkimVerifierAccountId,
+      emailDkimVerifierContract: DEFAULT_EMAIL_RECOVERY_CONTRACTS.emailDkimVerifierContract,
       nearClient: this.nearClient,
       logger: this.config.logger,
       ensureSignerAndRelayerAccount: () => this._ensureSignerAndRelayerAccount(),
