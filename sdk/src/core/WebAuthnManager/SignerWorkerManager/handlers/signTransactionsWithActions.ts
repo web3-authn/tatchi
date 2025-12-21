@@ -27,6 +27,8 @@ export async function signTransactionsWithActions({
   rpcCall,
   onEvent,
   confirmationConfigOverride,
+  title,
+  body,
   sessionId: providedSessionId,
 }: {
   ctx: SignerWorkerManagerContext,
@@ -35,6 +37,8 @@ export async function signTransactionsWithActions({
   onEvent?: (update: onProgressEvents) => void;
   // Allow callers to pass a partial override (e.g., { uiMode: 'drawer' })
   confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  title?: string;
+  body?: string;
   sessionId?: string;
 }): Promise<Array<{
   signedTransaction: SignedTransaction;
@@ -89,6 +93,8 @@ export async function signTransactionsWithActions({
       txSigningRequests: transactions,
       rpcCall: resolvedRpcCall,
       confirmationConfigOverride,
+      title,
+      body,
     });
 
     const intentDigest = confirmation.intentDigest;

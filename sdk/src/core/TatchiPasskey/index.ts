@@ -639,6 +639,7 @@ export class TatchiPasskey {
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(args.nearAccountId);
+        const confirmerText = args.options?.confirmerText;
         const res = await router.executeAction({
           nearAccountId: args.nearAccountId,
           receiverId: args.receiverId,
@@ -647,6 +648,7 @@ export class TatchiPasskey {
             onEvent: args.options?.onEvent,
             waitUntil: args.options?.waitUntil,
             confirmationConfig: args.options?.confirmationConfig,
+            confirmerText,
           }
         });
         await args.options?.afterCall?.(true, res);
@@ -726,6 +728,7 @@ export class TatchiPasskey {
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(nearAccountId);
+        const confirmerText = options?.confirmerText;
         const res = await router.signAndSendTransactions({
           nearAccountId,
           transactions: transactions.map(t => ({ receiverId: t.receiverId, actions: t.actions })),
@@ -733,6 +736,7 @@ export class TatchiPasskey {
             onEvent: options?.onEvent,
             executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil },
             confirmationConfig: options?.confirmationConfig,
+            confirmerText,
           }
         });
         // Emit completion
@@ -855,12 +859,14 @@ export class TatchiPasskey {
       try {
         const router = await this.requireWalletIframeRouter(nearAccountId);
         const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
+        const confirmerText = options?.confirmerText;
         const result = await router.signTransactionsWithActions({
           nearAccountId, transactions:
           txs,
           options: {
             onEvent: options?.onEvent,
-            confirmationConfig: options?.confirmationConfig
+            confirmationConfig: options?.confirmationConfig,
+            confirmerText,
           }
         });
         const arr: SignTransactionResult[] = Array.isArray(result) ? result : [];
@@ -965,7 +971,11 @@ export class TatchiPasskey {
         const result = await router.signDelegateAction({
           nearAccountId,
           delegate,
-          options: { onEvent: options?.onEvent }
+          options: {
+            onEvent: options?.onEvent,
+            confirmationConfig: options?.confirmationConfig,
+            confirmerText: options?.confirmerText,
+          }
         }) as SignDelegateActionResult;
         await options?.afterCall?.(true, result);
         return result;
@@ -1029,6 +1039,7 @@ export class TatchiPasskey {
           onError: options.onError,
           waitUntil: options.waitUntil,
           confirmationConfig: options.confirmationConfig,
+          confirmerText: options.confirmerText,
           // suppress afterCall so we can call afterCall() once at the end of the lifecycle.
           afterCall: () => {},
         }

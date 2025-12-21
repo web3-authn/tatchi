@@ -312,12 +312,16 @@ export class VrfWorkerManager {
     kind: 'transaction';
     txSigningRequests: TransactionInputWasm[];
     rpcCall: RpcCallPayload;
+    title?: string;
+    body?: string;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
   } | {
     ctx: VrfWorkerManagerContext;
     sessionId: string;
     kind: 'delegate';
     nearAccountId: string;
+    title?: string;
+    body?: string;
     delegate: {
       senderId: string;
       receiverId: string;

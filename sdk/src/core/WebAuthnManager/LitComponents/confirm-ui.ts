@@ -44,6 +44,7 @@ interface HostTxConfirmerElement extends HTMLElement {
   loading?: boolean;      // host elements use `loading` (iframe element uses `showLoading`)
   deferClose?: boolean;   // two-phase close coordination
   errorMessage?: string;
+  body?: string;
   title: string;
   requestUpdate?: () => void; // Lit element update hook (optional)
   nearExplorerUrl?: string;
@@ -222,7 +223,8 @@ function applyHostElementProps(el: HostTxConfirmerElement, props?: ConfirmUIUpda
   if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
   if (props.theme != null) el.theme = props.theme;
   if (props.loading != null) el.loading = !!props.loading;
-  if ((props as any).title != null) el.title = (props as any).title;
+  if (props.body != null) el.body = props.body;
+  if (props.title != null) el.title = props.title;
   if ('errorMessage' in (props as Record<string, unknown>)) {
     const msg = props.errorMessage ?? '';
     el.errorMessage = msg;
@@ -321,7 +323,11 @@ function mountHostElement({
   el.removeAttribute('data-error-message');
   // Two-phase close: let caller control removal
   el.deferClose = true;
-  if (summary?.delegate) {
+  // Optional per-request display overrides
+  if (summary?.title != null) el.title = summary.title;
+  if (summary?.body != null) el.body = summary.body;
+  // Default title for delegate signing when not overridden
+  if (summary?.delegate && summary?.title == null) {
     el.title = 'Sign Delegate Action';
   }
   const portal = ensureConfirmPortal();

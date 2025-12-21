@@ -25,6 +25,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     theme: { type: String, reflect: true },
     loading: { type: Boolean },
     errorMessage: { type: String },
+    body: { type: String },
     title: { type: String },
     confirmText: { type: String },
     cancelText: { type: String },
@@ -41,6 +42,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   declare theme: ThemeName;
   declare loading: boolean;
   declare errorMessage?: string;
+  declare body: string;
   declare title: string;
   declare confirmText: string;
   declare cancelText: string;
@@ -94,7 +96,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     this.txSigningRequests = [];
     this.theme = 'dark';
     this.loading = false;
-    this.title = 'Confirm with Passkey';
+    this.body = '';
+    this.title = '';
     this.confirmText = 'Next';
     this.cancelText = 'Cancel';
     this.deferClose = false;
@@ -231,7 +234,13 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
         <div class="drawer-tx-confirmer-root">
           <div class="section responsive-card margin-left1">
             <div class="drawer-header">
-              <h2 class="drawer-title">${this.title}</h2>
+              ${(() => {
+                const isRegistration = (this.txSigningRequests?.length || 0) === 0;
+                const fallback = isRegistration ? 'Register with Passkey' : 'Confirm with Passkey';
+                const titleText = (this.title || '').trim();
+                const heading = titleText || fallback;
+                return html`<h2 class="drawer-title">${heading}</h2>`;
+              })()}
             </div>
           </div>
 
@@ -263,6 +272,9 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
                     : ''}
                 </span>
               </div>
+              ${this.body && this.body.trim()
+                ? html`<div class="rpid-body">${this.body}</div>`
+                : ''}
             </div>
           </div>
           <div class="section responsive-card responsive-card-center">

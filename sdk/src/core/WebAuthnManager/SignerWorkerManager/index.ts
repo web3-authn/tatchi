@@ -611,6 +611,8 @@ export class SignerWorkerManager {
     rpcCall: RpcCallPayload,
     onEvent?: (update: onProgressEvents) => void,
     confirmationConfigOverride?: Partial<ConfirmationConfig>,
+    title?: string;
+    body?: string;
     sessionId: string,
   }): Promise<Array<{
     signedTransaction: SignedTransaction;
@@ -628,6 +630,8 @@ export class SignerWorkerManager {
     rpcCall: RpcCallPayload;
     onEvent?: (update: onProgressEvents) => void;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
+    title?: string;
+    body?: string;
     sessionId: string;
   }): Promise<{
     signedDelegate: WasmSignedDelegate;

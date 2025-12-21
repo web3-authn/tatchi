@@ -19,6 +19,8 @@ export async function signDelegateAction(args: {
 }): Promise<SignDelegateActionResult> {
   const { context, delegate, options } = args;
   const nearAccountId = toAccountId(String(args.nearAccountId));
+  const title = options?.confirmerText?.title;
+  const body = options?.confirmerText?.body;
 
   const resolvedDelegate: DelegateActionInput = {
     ...delegate,
@@ -51,6 +53,8 @@ export async function signDelegateAction(args: {
         nearAccountId: String(nearAccountId),
       },
       confirmationConfigOverride: options?.confirmationConfig,
+      title,
+      body,
       onEvent: options?.onEvent
         ? (ev) => options.onEvent?.(ev as DelegateActionSSEEvent)
         : undefined,

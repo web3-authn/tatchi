@@ -615,8 +615,11 @@ export interface ActionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
   waitUntil?: TxExecutionStatus;
-
   afterCall?: AfterCall<ActionResult>;
+  /**
+   * Preferred grouping for per-call confirmer copy.
+   */
+  confirmerText?: { title?: string; body?: string };
   // Per-call confirmation configuration. When provided, overrides user preferences
   // for this request only (not persisted).
   // Accept partial config so callers can pass minimal overrides like { uiMode: 'drawer' }
@@ -635,6 +638,10 @@ export interface SignAndSendTransactionHooksOptions {
   // - { mode: 'sequential', waitUntil?: TxExecutionStatus }
   // - { mode: 'parallelStaggered', staggerMs: number }
   executionWait?: ExecutionWaitOption;
+  /**
+   * Preferred grouping for per-call confirmer copy.
+   */
+  confirmerText?: { title?: string; body?: string };
 
   afterCall?: AfterCall<ActionResult[]>;
   // Per-call confirmation configuration. When provided, overrides user preferences
@@ -649,6 +656,10 @@ export interface SignTransactionHooksOptions {
 
   afterCall?: AfterCall<SignTransactionResult[]>;
   waitUntil?: TxExecutionStatus;
+  /**
+   * Preferred grouping for per-call confirmer copy.
+   */
+  confirmerText?: { title?: string; body?: string };
   // Per-call confirmation configuration (non-persistent)
   // Accept partial config so callers can pass minimal overrides like { uiMode: 'drawer' }
   confirmationConfig?: Partial<ConfirmationConfig>;
@@ -667,6 +678,10 @@ export interface DelegateActionHooksOptions {
   onError?: (error: Error) => void;
   waitUntil?: TxExecutionStatus;
   afterCall?: AfterCall<SignDelegateActionResult>;
+  /**
+   * Preferred grouping for per-call confirmer copy.
+   */
+  confirmerText?: { title?: string; body?: string };
   confirmationConfig?: Partial<ConfirmationConfig>;
 }
 

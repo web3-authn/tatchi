@@ -22,6 +22,7 @@ export type TxConfirmerVariantElement = (ConfirmUIElement & HTMLElement) & {
   theme?: ThemeName;
   loading?: boolean;
   errorMessage?: string;
+  body?: string;
   title?: string;
   confirmText?: string;
   cancelText?: string;
@@ -53,6 +54,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     loading: { type: Boolean },
     errorMessage: { type: String, attribute: 'error-message' },
     intentDigest: { type: String, attribute: 'intent-digest' },
+    body: { type: String },
     title: { type: String },
     confirmText: { type: String, attribute: 'confirm-text' },
     cancelText: { type: String, attribute: 'cancel-text' },
@@ -70,6 +72,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
   declare loading: boolean;
   declare errorMessage?: string;
   declare intentDigest?: string;
+  declare body: string;
   declare title: string;
   declare confirmText: string;
   declare cancelText: string;
@@ -90,7 +93,8 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     this.theme = 'dark';
     this.loading = false;
     this.deferClose = true;
-    this.title = 'Confirm with Passkey';
+    this.body = '';
+    this.title = '';
     this.confirmText = 'Confirm';
     this.cancelText = 'Cancel';
   }
@@ -122,6 +126,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
           .nearExplorerUrl=${this.nearExplorerUrl}
           .loading=${this.loading}
           .errorMessage=${this.errorMessage || ''}
+          .body=${this.body}
           .title=${this.title}
           .confirmText=${this.confirmText}
           .cancelText=${this.cancelText}
@@ -139,6 +144,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
         .theme=${this.theme}
         .loading=${this.loading}
         .errorMessage=${this.errorMessage || ''}
+        .body=${this.body}
         .title=${this.title}
         .confirmText=${this.confirmText}
         .cancelText=${this.cancelText}
@@ -156,6 +162,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     child.theme = this.theme;
     child.loading = this.loading;
     child.errorMessage = this.errorMessage;
+    child.body = this.body;
     child.title = this.title;
     child.confirmText = this.confirmText;
     child.cancelText = this.cancelText;

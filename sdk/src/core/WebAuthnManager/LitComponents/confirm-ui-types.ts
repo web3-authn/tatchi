@@ -29,6 +29,8 @@ export type ConfirmUIUpdate = {
   theme?: ThemeName;
   loading?: boolean;
   errorMessage?: string;
+  title?: string;
+  body?: string;
 };
 
 export interface ConfirmUIHandle {
