@@ -25,7 +25,7 @@ export async function requestRegistrationCredentialConfirmation({
   deviceNumber: number,
   contractId: string,
   nearRpcUrl: string,
-  confirmationConfig?: ConfirmationConfig,
+  confirmationConfig?: Partial<ConfirmationConfig>,
 }): Promise<RegistrationCredentialConfirmationPayload> {
 
   // Ensure required fields are present; JSON.stringify drops undefined causing Rust parse failure

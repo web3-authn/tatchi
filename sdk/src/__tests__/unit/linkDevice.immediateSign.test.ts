@@ -3,7 +3,8 @@ import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
 
 const IMPORT_PATHS = {
   linkDevice: '/sdk/esm/core/TatchiPasskey/linkDevice.js',
-  indexedDb: '/sdk/esm/core/IndexedDBManager/index.js',
+  clientDb: '/sdk/esm/core/IndexedDBManager/passkeyClientDB.js',
+  nearKeysDb: '/sdk/esm/core/IndexedDBManager/passkeyNearKeysDB.js',
   getDeviceNumber: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/getDeviceNumber.js',
   signTxs: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/handlers/signTransactionsWithActions.js',
   signerTypes: '/sdk/esm/core/types/signer-worker.js',
@@ -18,13 +19,9 @@ test.describe('Link device → immediate sign (regression)', () => {
   test('linkDevice storage leaves account immediately signable', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       try {
-        const pm: any = (window as any).passkeyManager;
-        if (!pm?.webAuthnManager) {
-          throw new Error('passkeyManager.webAuthnManager missing in test harness');
-        }
-
         const { LinkDeviceFlow } = await import(paths.linkDevice);
-        const { IndexedDBManager } = await import(paths.indexedDb);
+        const { PasskeyClientDBManager } = await import(paths.clientDb);
+        const { PasskeyNearKeysDBManager } = await import(paths.nearKeysDb);
         const { getLastLoggedInDeviceNumber } = await import(paths.getDeviceNumber);
         const { signTransactionsWithActions } = await import(paths.signTxs);
         const { WorkerResponseType } = await import(paths.signerTypes);
@@ -33,12 +30,36 @@ test.describe('Link device → immediate sign (regression)', () => {
         const nearAccountId = 'linkdev1.w3a-v1.testnet';
         const deviceNumber = 2;
 
-        // Patch COSE extraction to avoid needing a real attestation object for this regression.
-        const webAuthnManager: any = pm.webAuthnManager;
-        const originalExtract = webAuthnManager.extractCosePublicKey?.bind(webAuthnManager);
-        if (typeof webAuthnManager.extractCosePublicKey === 'function') {
-          webAuthnManager.extractCosePublicKey = async () => new Uint8Array([1, 2, 3]);
-        }
+        // Use a per-test DB instance (the global IndexedDBManager is disabled on the app origin in wallet-iframe mode).
+        const suffix =
+          (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const clientDB = new PasskeyClientDBManager();
+        clientDB.setDbName(`PasskeyClientDB-linkDeviceImmediateSign-${suffix}`);
+        const nearKeysDB = new PasskeyNearKeysDBManager();
+        nearKeysDB.setDbName(`PasskeyNearKeys-linkDeviceImmediateSign-${suffix}`);
+
+        // Provide a minimal WebAuthnManager facade for the private storage helper.
+        // This keeps the regression deterministic and avoids relying on app-origin persistence.
+        const webAuthnManager: any = {
+          storeUserData: async (userData: any) => {
+            await clientDB.storeWebAuthnUserData(userData);
+          },
+          storeAuthenticator: async (authenticatorData: any) => {
+            await clientDB.storeAuthenticator({
+              ...authenticatorData,
+              deviceNumber: authenticatorData.deviceNumber ?? 1,
+            });
+          },
+          extractCosePublicKey: async () => new Uint8Array([1, 2, 3]),
+        };
+
+        const ctx: any = {
+          webAuthnManager,
+          nearClient: null,
+          configs: {},
+        };
 
         const dummyCredential = {
           id: 'cred-id',
@@ -53,7 +74,7 @@ test.describe('Link device → immediate sign (regression)', () => {
           clientExtensionResults: { prf: { results: { first: undefined, second: undefined } } },
         };
 
-        const flow = new LinkDeviceFlow(pm.getContext(), {});
+        const flow = new LinkDeviceFlow(ctx, {});
         // LinkDeviceFlow.storeDeviceAuthenticator is private in TS but callable at runtime.
         (flow as any).session = {
           accountId: nearAccountId,
@@ -79,7 +100,7 @@ test.describe('Link device → immediate sign (regression)', () => {
 
         // LinkDeviceFlow derives/stores the encrypted NEAR key earlier in the real flow.
         // For this regression, store a minimal entry so signing can proceed immediately.
-        await IndexedDBManager.nearKeysDB.storeEncryptedKey({
+        await nearKeysDB.storeEncryptedKey({
           nearAccountId: nearAccountId,
           deviceNumber,
           encryptedData: 'ciphertext-b64u',
@@ -89,16 +110,16 @@ test.describe('Link device → immediate sign (regression)', () => {
           timestamp: Date.now(),
         });
 
-        const last = await IndexedDBManager.clientDB.getLastUser();
-        const deviceFromHelper = await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB);
-        const key = await IndexedDBManager.nearKeysDB.getEncryptedKey(nearAccountId, deviceFromHelper);
-        const authenticators = await IndexedDBManager.clientDB.getAuthenticatorsByUser(nearAccountId);
+        const last = await clientDB.getLastUser();
+        const deviceFromHelper = await getLastLoggedInDeviceNumber(nearAccountId, clientDB);
+        const key = await nearKeysDB.getEncryptedKey(nearAccountId, deviceFromHelper);
+        const authenticators = await clientDB.getAuthenticatorsByUser(nearAccountId);
 
         // Exercise the signing handler path up to and including the IndexedDB lookups.
         // We stub the VRF confirmation and worker response so the test stays deterministic
         // and focuses on "link device → immediate sign" state wiring.
         const signingCtx: any = {
-          indexedDB: IndexedDBManager,
+          indexedDB: { clientDB, nearKeysDB },
           vrfWorkerManager: {
             confirmAndPrepareSigningSession: async () => ({
               intentDigest: 'intent',
@@ -136,9 +157,6 @@ test.describe('Link device → immediate sign (regression)', () => {
           sessionId: 'linkdevice-regression',
         });
 
-        // Restore patched method to avoid leaking state within the page.
-        if (originalExtract) webAuthnManager.extractCosePublicKey = originalExtract;
-
         return {
           success: true,
           lastUser: last ? { nearAccountId: last.nearAccountId, deviceNumber: last.deviceNumber } : null,
@@ -154,7 +172,7 @@ test.describe('Link device → immediate sign (regression)', () => {
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) return;
-      expect(result.success).toBe(true);
+      expect(result.success, result.error || 'unknown error').toBe(true);
       return;
     }
 
@@ -169,13 +187,9 @@ test.describe('Link device → immediate sign (regression)', () => {
   test('linkDevice storage coerces string deviceNumber', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       try {
-        const pm: any = (window as any).passkeyManager;
-        if (!pm?.webAuthnManager) {
-          throw new Error('passkeyManager.webAuthnManager missing in test harness');
-        }
-
         const { LinkDeviceFlow } = await import(paths.linkDevice);
-        const { IndexedDBManager } = await import(paths.indexedDb);
+        const { PasskeyClientDBManager } = await import(paths.clientDb);
+        const { PasskeyNearKeysDBManager } = await import(paths.nearKeysDb);
         const { getLastLoggedInDeviceNumber } = await import(paths.getDeviceNumber);
         const { signTransactionsWithActions } = await import(paths.signTxs);
         const { WorkerResponseType } = await import(paths.signerTypes);
@@ -184,12 +198,35 @@ test.describe('Link device → immediate sign (regression)', () => {
         const nearAccountId = 'linkdev2.w3a-v1.testnet';
         const deviceNumber: any = '2';
 
-        // Patch COSE extraction to avoid needing a real attestation object for this regression.
-        const webAuthnManager: any = pm.webAuthnManager;
-        const originalExtract = webAuthnManager.extractCosePublicKey?.bind(webAuthnManager);
-        if (typeof webAuthnManager.extractCosePublicKey === 'function') {
-          webAuthnManager.extractCosePublicKey = async () => new Uint8Array([1, 2, 3]);
-        }
+        // Use a per-test DB instance (the global IndexedDBManager is disabled on the app origin in wallet-iframe mode).
+        const suffix =
+          (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const clientDB = new PasskeyClientDBManager();
+        clientDB.setDbName(`PasskeyClientDB-linkDeviceImmediateSign-${suffix}`);
+        const nearKeysDB = new PasskeyNearKeysDBManager();
+        nearKeysDB.setDbName(`PasskeyNearKeys-linkDeviceImmediateSign-${suffix}`);
+
+        // Provide a minimal WebAuthnManager facade for the private storage helper.
+        const webAuthnManager: any = {
+          storeUserData: async (userData: any) => {
+            await clientDB.storeWebAuthnUserData(userData);
+          },
+          storeAuthenticator: async (authenticatorData: any) => {
+            await clientDB.storeAuthenticator({
+              ...authenticatorData,
+              deviceNumber: authenticatorData.deviceNumber ?? 1,
+            });
+          },
+          extractCosePublicKey: async () => new Uint8Array([1, 2, 3]),
+        };
+
+        const ctx: any = {
+          webAuthnManager,
+          nearClient: null,
+          configs: {},
+        };
 
         const dummyCredential = {
           id: 'cred-id',
@@ -204,7 +241,7 @@ test.describe('Link device → immediate sign (regression)', () => {
           clientExtensionResults: { prf: { results: { first: undefined, second: undefined } } },
         };
 
-        const flow = new LinkDeviceFlow(pm.getContext(), {});
+        const flow = new LinkDeviceFlow(ctx, {});
         // LinkDeviceFlow.storeDeviceAuthenticator is private in TS but callable at runtime.
         (flow as any).session = {
           accountId: nearAccountId,
@@ -230,7 +267,7 @@ test.describe('Link device → immediate sign (regression)', () => {
 
         // LinkDeviceFlow derives/stores the encrypted NEAR key earlier in the real flow.
         // For this regression, store a minimal entry so signing can proceed immediately.
-        await IndexedDBManager.nearKeysDB.storeEncryptedKey({
+        await nearKeysDB.storeEncryptedKey({
           nearAccountId: nearAccountId,
           deviceNumber: 2,
           encryptedData: 'ciphertext-b64u',
@@ -240,16 +277,16 @@ test.describe('Link device → immediate sign (regression)', () => {
           timestamp: Date.now(),
         });
 
-        const last = await IndexedDBManager.clientDB.getLastUser();
-        const deviceFromHelper = await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB);
-        const key = await IndexedDBManager.nearKeysDB.getEncryptedKey(nearAccountId, deviceFromHelper);
-        const authenticators = await IndexedDBManager.clientDB.getAuthenticatorsByUser(nearAccountId);
+        const last = await clientDB.getLastUser();
+        const deviceFromHelper = await getLastLoggedInDeviceNumber(nearAccountId, clientDB);
+        const key = await nearKeysDB.getEncryptedKey(nearAccountId, deviceFromHelper);
+        const authenticators = await clientDB.getAuthenticatorsByUser(nearAccountId);
 
         // Exercise the signing handler path up to and including the IndexedDB lookups.
         // We stub the VRF confirmation and worker response so the test stays deterministic
         // and focuses on "link device → immediate sign" state wiring.
         const signingCtx: any = {
-          indexedDB: IndexedDBManager,
+          indexedDB: { clientDB, nearKeysDB },
           vrfWorkerManager: {
             confirmAndPrepareSigningSession: async () => ({
               intentDigest: 'intent',
@@ -287,9 +324,6 @@ test.describe('Link device → immediate sign (regression)', () => {
           sessionId: 'linkdevice-regression-string-device',
         });
 
-        // Restore patched method to avoid leaking state within the page.
-        if (originalExtract) webAuthnManager.extractCosePublicKey = originalExtract;
-
         return {
           success: true,
           lastUser: last ? { nearAccountId: last.nearAccountId, deviceNumber: last.deviceNumber } : null,
@@ -305,7 +339,7 @@ test.describe('Link device → immediate sign (regression)', () => {
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) return;
-      expect(result.success).toBe(true);
+      expect(result.success, result.error || 'unknown error').toBe(true);
       return;
     }
 

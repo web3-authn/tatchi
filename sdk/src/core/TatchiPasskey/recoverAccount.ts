@@ -15,6 +15,7 @@ import { createRandomVRFChallenge } from '../types/vrf-worker';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { VRFInputData } from '../types/vrf-worker';
+import type { OriginPolicyInput, UserVerificationPolicy } from '../types/authenticatorOptions';
 import {
   getCredentialIdsContractCall,
   syncAuthenticatorsContractCall
@@ -623,12 +624,16 @@ async function performAccountRecovery({
 
 /** Stored authenticator onchain uses snake case */
 export interface ContractStoredAuthenticator {
-  credential_id: string;
-  credential_public_key: Uint8Array;
-  transports: AuthenticatorTransport[];
-  registered: string; // Contract returns timestamp as string
-  vrf_public_keys?: string[];
-  device_number: number; // Always present from contract
+  // V4 contract fields (snake_case JSON)
+  credential_public_key: number[] | Uint8Array;
+  transports?: AuthenticatorTransport[] | null;
+  registered: string; // ISO timestamp (legacy contracts may return numeric timestamp string)
+  expected_rp_id?: string;
+  origin_policy?: OriginPolicyInput;
+  user_verification?: UserVerificationPolicy;
+  vrf_public_keys?: Array<number[] | Uint8Array> | string[];
+  device_number: number; // 1-indexed for UX
+  near_public_key?: string;
 }
 
 async function restoreUserData({
@@ -649,9 +654,7 @@ async function restoreUserData({
   serverEncryptedVrfKeypair?: ServerEncryptedVrfKeypair,
   encryptedNearKeypair: {
     encryptedPrivateKey: string;
-    /**
-     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
-     */
+    /** Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key */
     chacha20NonceB64u: string;
     wrapKeySalt?: string;
   },

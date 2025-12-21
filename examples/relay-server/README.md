@@ -11,6 +11,11 @@ NEAR relay server that creates accounts on behalf of users, where the relayer pa
 
 ## API
 
+### Health endpoints
+
+- `GET /healthz` — basic server health + feature configuration hints (fast; no external dependency checks)
+- `GET /readyz` — readiness check for configured dependencies (zk-email prover / Shamir WASM when configured)
+
 ### `POST /create_account_and_register_user`
 Atomically create a NEAR account and register a WebAuthn authenticator with the Web3Authn contract.
 
@@ -40,6 +45,14 @@ Notes
 - For cookie sessions, CORS must allow credentials and specify explicit origins.
   The example config enables CORS with `origin: [EXPECTED_ORIGIN, EXPECTED_WALLET_ORIGIN]` and `credentials: true`.
   Your frontend must use `credentials: 'include'` with fetch.
+
+### `POST /recover-email` (email recovery)
+
+Receives a JSON `ForwardableEmailPayload` (including `raw` containing the full RFC822 message) and forwards it into `EmailRecoveryService.requestEmailRecovery`.
+
+Production notes:
+- This server is the HTTP sink; you still need an email ingress (inbound email provider/webhook or your own MTA pipeline) to receive SMTP and then `POST` here.
+- Emails can be large; this example uses `express.json({ limit: '5mb' })`.
 
 ### Shamir 3‑pass (strict keyId mode)
 
@@ -114,7 +127,7 @@ The sample Express server in this repo still exposes `/shamir/rotate-keys` and `
 
 ### Scheduled rotation
 
-The example server boots an internal cron that calls `rotateShamirServerKeypair` on an interval configured via the `ROTATE_EVERY` env var (in minutes). By default it runs every 60 minutes. The task:
+The example server can boot an internal cron that calls `rotateShamirServerKeypair` on an interval configured via `ROTATE_EVERY` (minutes) when `ENABLE_ROTATION=1`. The task:
 
 - rotates to a fresh keypair and logs the new `keyId`
 - trims the grace list so that at most 5 entries remain (oldest first)
@@ -126,6 +139,7 @@ Configure interval:
 ```bash
 # minutes
 ROTATE_EVERY=60
+ENABLE_ROTATION=1
 ```
 
 ## Configuration
@@ -147,6 +161,10 @@ SHAMIR_E_S_B64U=<base64url_server_exponent_e_s>
 SHAMIR_D_S_B64U=<base64url_server_inverse_d_s>
 # Optional: override where grace keys are persisted (default: ./grace-keys.json)
 # SHAMIR_GRACE_KEYS_FILE=./secure/grace-keys.json
+
+# Optional: zk-email prover base URL (used when explicitMode='zk-email' or email body marker is 'zk-email')
+# ZK_EMAIL_PROVER_BASE_URL=http://127.0.0.1:5588
+# ZK_EMAIL_PROVER_TIMEOUT_MS=60000
 
 ### Key Rotation & Grace Keys
 

@@ -809,6 +809,12 @@
   padding: 0 1rem;
   border: 1px solid var(--w3a-colors-borderPrimary);
   background: var(--w3a-colors-surface);
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.w3a-email-recovery-input-pill:focus-within {
+  border-color: var(--w3a-colors-primary, #3b82f6);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--w3a-colors-primary, #3b82f6), transparent 72%);
 }
 
 .w3a-email-recovery-actions {
@@ -860,4 +866,75 @@
 .w3a-email-recovery-elapsed {
   margin-left: 6px;
   opacity: 0.75;
+}
+
+.w3a-email-recovery-saved-emails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.w3a-email-recovery-email-chip {
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  background: var(--w3a-colors-surface);
+  color: var(--w3a-colors-textPrimary);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w3a-email-recovery-email-chip:hover:not(:disabled) {
+  background: var(--w3a-colors-surface2);
+}
+
+.w3a-email-recovery-email-chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.w3a-email-recovery-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 0.875rem;
+  border-radius: 1rem;
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  background: var(--w3a-colors-surface);
+  font-size: 0.875rem;
+  color: var(--w3a-colors-textPrimary);
+}
+
+.w3a-email-recovery-toast a {
+  color: var(--w3a-colors-primary, #3b82f6);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.w3a-email-recovery-toast a:hover {
+  text-decoration: underline;
+}
+
+.w3a-email-recovery-toast-close {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--w3a-colors-textSecondary);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.w3a-email-recovery-toast-close:hover {
+  background: var(--w3a-colors-surface2);
 }

@@ -56,3 +56,31 @@ The SDK’s two‑prompt registration is exactly aligning with this behavior:
 
 This preserves security (one credential controls both contract and key derivation) while working around PRF‑on‑create limitations for roaming authenticators.
 
+## YubiKey Backup (Single Device)
+
+Use a YubiKey as a physical backup for an existing account without a second device or QR flow.
+
+### High-Level Flow
+
+1) **Register the YubiKey**
+   - Call `navigator.credentials.create()` with the wallet RP ID and user derived from `accountId`.
+   - Immediately follow with `navigator.credentials.get()` constrained to the new credential ID to obtain PRF outputs.
+
+2) **Derive deterministic keys**
+   - Use PRF outputs to derive the deterministic VRF keypair and NEAR ed25519 keypair scoped to the same `accountId`.
+   - Encrypt and store these in IndexedDB (same as standard registration).
+
+3) **Register the authenticator on-chain**
+   - Call the contract’s link-device style method (e.g., `link_device_register_user`) with:
+     - `vrf_data` from the YubiKey’s deterministic VRF public key and a fresh VRF challenge.
+     - `webauthn_registration` from the YubiKey registration credential.
+
+4) **Add the NEAR public key**
+   - Use the logged-in platform passkey to send an `add_key` transaction for the YubiKey’s deterministic NEAR public key.
+
+### Result
+
+The same account now supports both:
+
+- The original platform passkey, and
+- The YubiKey (as an additional authenticator + NEAR key)

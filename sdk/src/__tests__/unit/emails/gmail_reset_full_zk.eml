@@ -1,0 +1,89 @@
+Received: from mail-vk1-xa2c.google.com (2607:f8b0:4864:20::a2c)
+        by cloudflare-email.net (cloudflare) id MGZzAr7Swo8f
+        for <recover@web3authn.org>; Thu, 18 Dec 2025 06:06:12 +0000
+ARC-Seal: i=1; a=rsa-sha256; s=cf2024-1; d=cloudflare-email.net; cv=none;
+	b=X+wkcBM+qDHOZZ5POCa74lNk/LaayObRpyJaZyOoVXFSf2GKIwzNs0fQJb5cQwh72MdUbEMkc
+	RygmXWVdEGEzj8TcgAVtHa5ByBya9xDMPO5WEtJf9lDv1XaA0vCv1BxW0slgFHgL9UkGd0nRxTx
+	6NbdVfjrd1p5Fhwam6YyzaNXf8yfimt11SS3DMKdLGdllPORxeq3fhgOAC6sGKBrK/JcMmlpJAr
+	vL4JYNGnORSP+kx3vz9NIijZkMUakxv9vMc6n/Eqx6JA4Qincr+thkX2vvVRmcYDG+KCaAApm9Z
+	+uasyJLHFxftDjqrqn/ZXsJEAZhxNhQymZBKHx/pxMfg==;
+ARC-Message-Signature: i=1; a=rsa-sha256; s=cf2024-1; d=cloudflare-email.net; c=relaxed/relaxed;
+	h=To:Subject:Date:From:reply-to:cc:resent-date:resent-from:resent-to
+	:resent-cc:in-reply-to:references:list-id:list-help:list-subscribe
+	:list-post:list-owner:list-archive; t=1766037973; x=1766642773; bh=9CaVUaZq
+	b30OAbf2btSHKbMWahEnk/9rmzilxCcaN3I=; b=Edzidmd1vBKX5kKpYOwNBQlnA2VviDVep85
+	PHTNAsYlCS9ng+e+tTyo3JAgMj5XvpqZ7q0RGh4eRXHkT0UrH11Yl3bJqT+dWuwKx2mrcODELTc
+	FmGS+fBhdp8qQYb0ZZ15UjS7Z6WXh5i2w48xDFJ997qrNQ1br8vRFNpdumIcGpoAxJ60/uAFKOr
+	LlF5vKrle/0Fz94NetoBub2NN78TSzl9fMvbQqjtjJ8zP+SoaRxJQsKtDkTTDy9MiYbiG1yjwYI
+	SPsYRgyftHcca3aplDEHyN+k1Jkb2bIewUBSfly+mk/bWoMw+2gqGg6ECkhPkac9M0gPzmy+m+S
+	tCPprew==;
+ARC-Authentication-Results: i=1; mx.cloudflare.net;
+	dkim=pass header.d=gmail.com header.s=20230601 header.b=JNevgKiy;
+	dmarc=pass header.from=gmail.com policy.dmarc=none;
+	spf=none (mx.cloudflare.net: no SPF records found for postmaster@mail-vk1-xa2c.google.com) smtp.helo=mail-vk1-xa2c.google.com;
+	spf=pass (mx.cloudflare.net: domain of n6378056@gmail.com designates 2607:f8b0:4864:20::a2c as permitted sender) smtp.mailfrom=n6378056@gmail.com;
+	arc=none smtp.remote-ip=2607:f8b0:4864:20::a2c
+Received-SPF: pass (mx.cloudflare.net: domain of n6378056@gmail.com designates 2607:f8b0:4864:20::a2c as permitted sender)
+	receiver=mx.cloudflare.net; client-ip=2607:f8b0:4864:20::a2c; envelope-from="n6378056@gmail.com"; helo=mail-vk1-xa2c.google.com;
+Authentication-Results: mx.cloudflare.net;
+	dkim=pass header.d=gmail.com header.s=20230601 header.b=JNevgKiy;
+	dmarc=pass header.from=gmail.com policy.dmarc=none;
+	spf=none (mx.cloudflare.net: no SPF records found for postmaster@mail-vk1-xa2c.google.com) smtp.helo=mail-vk1-xa2c.google.com;
+	spf=pass (mx.cloudflare.net: domain of n6378056@gmail.com designates 2607:f8b0:4864:20::a2c as permitted sender) smtp.mailfrom=n6378056@gmail.com;
+	arc=none smtp.remote-ip=2607:f8b0:4864:20::a2c
+Received: by mail-vk1-xa2c.google.com with SMTP id 71dfb90a1353d-55b155c9ab2so50914e0c.1
+        for <recover@web3authn.org>; Wed, 17 Dec 2025 22:06:12 -0800 (PST)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=gmail.com; s=20230601; t=1766037972; x=1766642772; darn=web3authn.org;
+        h=to:subject:message-id:date:from:mime-version:from:to:cc:subject
+         :date:message-id:reply-to;
+        bh=9CaVUaZqb30OAbf2btSHKbMWahEnk/9rmzilxCcaN3I=;
+        b=JNevgKiyxjnn+MYkmbvM14neWRS8uO7mq9iLQT4sL4RMziu6RKf5oVUz/Z7/aWLsVG
+         rjcFMH8rqtEMuV+3TJTOgEJh2scZxTtr6z2hpx4HSPC6M/l1TbsiVU2DJaQCe3+Q4exH
+         4eYeXL7L4JzGkCihLUc5p+4s6pmlE50EcbJGtKUbcHUYbivNpB0CdnzfbeSHJmNwFXvl
+         PCaDLSw+ex4oKVWAq8n0k8YPLJjihMf+E4d4EHOq00LCOS0/hKqkj8Rqfcs+KZtUdIUs
+         SKp0SQOqROHqqm2v4YtzuOLIt1h7DciurWOYzmhAXhhxXyfao3TBcg7+qWG203a7yhrY
+         A7MQ==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20230601; t=1766037972; x=1766642772;
+        h=to:subject:message-id:date:from:mime-version:x-gm-gg
+         :x-gm-message-state:from:to:cc:subject:date:message-id:reply-to;
+        bh=9CaVUaZqb30OAbf2btSHKbMWahEnk/9rmzilxCcaN3I=;
+        b=VQ/o4lrP6ZuusGZDwpJVedMsRlrjiTQ9wrdZrovu050IChvAM3Kpn9zYe90rQgheVP
+         N0zIc4W/NzNR8Ryn38XdfXc0IRLnvO+dKNVOUCJFlGpHO3PQlB62PB3wdPbsRXAdh5VD
+         XOLi4wmkiTTYbNQku7dqvOE2WvguyW0IyK/BMWB8vS9HztipHpL4mDzxi+WS5Tc7N7jw
+         G1o4s67pFRWJmPTcjWHu8OJNwwKU5aziBoZ6NlJW6g9fRqPUUIiLsg4OQQ/xfWQxTNlX
+         d4/KSu5YurHhvqh9JDmRbtniceOU8Rzc/bNRaHXCX4aquwkfpohX0rzXi6uHaN+c4S76
+         CRAw==
+X-Gm-Message-State: AOJu0Ywqse0Z/snyoMmmiS8etUm0IW3sx7Ywhd7YqciSPKbLbhSMy9M3
+	pl0lZRIwkTGe3PA3g5NdDAeo2N+5g1A9dFoZTxR7CUnORUXUvKLVOwPXlA6MdO3vxwNTtDFkdfu
+	LFfWI3RQajd880KkFGcEgXeWpO++6yC+CqzOU
+X-Gm-Gg: AY/fxX58ZpBRMSwojWRxFO8CROIVs9ghn7HIkV7MXI3OYNnIugT8OFYe1t0Ukgd9StG
+	OglxqqVd//iC4vCnrAn7DLqtcQVa/Im+0vVOYDt/3yxTqzymeT3s2adAnjU05DWA5exeBtMsYFE
+	nlfmZe98iuSwLoyWf5tkOeVPFjGkvz9l6NKLvSC7QJ8/9nWkKccoSmp//ZC7sDmFSSylW57lFwI
+	u8VVVSm3Y0Wt4Zmk9j2cwBV0kRUfcFNDKvVLEtQu9N8klK8y1i7TjXkIVMxZ687SkT2gFpduGVr
+	ioArlrz2dsi8LEfMSdvxqo698UbMscaOqJLbS1glqLfLqWsujB7RqUY4LmhE0pNpHF3Obg==
+X-Google-Smtp-Source: AGHT+IE9euUT5v7viofDqR1sBWAztYTf0079dnVjBUSopCreyPjmEeWl/U6yT8YWnQY3j0g4LN+JYx5Z50vXzGs8nOg=
+X-Received: by 2002:a05:6122:1682:b0:55f:c6c9:e4ba with SMTP id
+ 71dfb90a1353d-55fed627854mr5988930e0c.13.1766037972099; Wed, 17 Dec 2025
+ 22:06:12 -0800 (PST)
+MIME-Version: 1.0
+From: Pta <n6378056@gmail.com>
+Date: Thu, 18 Dec 2025 15:06:01 +0900
+X-Gm-Features: AQt7F2qR-HE1VjEKCoXsTDnmcEmzpeODedDMbmydQmw6Qy93Et4LXypLb2VE4S4
+Message-ID: <CAHUSCDSX=MV8NcRyHxXHKUtMaYV2imJ1_E3vD9BemJQWcr+c1A@mail.gmail.com>
+Subject: recover-DDDD01 nerp4.w3a-v1.testnet ed25519:8XfyY55dPY7qzQTEPT9EREsLLr7Q3zpmvbEUyydFNeux
+To: recover@web3authn.org
+Content-Type: multipart/alternative; boundary="000000000000fca80b064633c120"
+
+--000000000000fca80b064633c120
+Content-Type: text/plain; charset="UTF-8"
+
+zk-email
+
+--000000000000fca80b064633c120
+Content-Type: text/html; charset="UTF-8"
+
+<div dir="ltr">zk-email</div>
+
+--000000000000fca80b064633c120--

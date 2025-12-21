@@ -60,7 +60,7 @@ test.describe('Email encryption compatibility with Outlayer worker seed', () => 
 
         const { envelope } = await encryptEmailForOutlayer({
           emailRaw,
-          context,
+          aeadContext: context,
           recipientPk: workerPk,
         });
 
@@ -89,7 +89,7 @@ test.describe('Email encryption compatibility with Outlayer worker seed', () => 
   });
 
   test('decrypts on-chain Outlayer envelope with seed-derived static key', async ({ page }) => {
-    const res = await page.evaluate(async ({ paths }) => {
+    const res = await page.evaluate(async ({ paths, envelope, context }) => {
       try {
         const {
           decryptEmailForOutlayerTestOnly,
@@ -100,8 +100,8 @@ test.describe('Email encryption compatibility with Outlayer worker seed', () => 
         const { secretKey: workerSk } = deriveOutlayerStaticKeyFromSeedHex(SEED_HEX);
 
         const decrypted = await decryptEmailForOutlayerTestOnly({
-          envelope: ENVELOPE_FROM_CHAIN,
-          context: CONTEXT_FROM_CHAIN,
+          envelope,
+          context,
           recipientSk: workerSk,
         });
 
@@ -112,7 +112,7 @@ test.describe('Email encryption compatibility with Outlayer worker seed', () => 
           error: error?.message || String(error),
         };
       }
-    }, { paths: IMPORT_PATHS });
+    }, { paths: IMPORT_PATHS, envelope: ENVELOPE_FROM_CHAIN, context: CONTEXT_FROM_CHAIN });
 
     if (!res.success) {
       test.skip(true, `on-chain envelope decrypt failed: ${res.error || 'unknown error'}`);
@@ -144,7 +144,7 @@ test.describe('Email encryption compatibility with Outlayer worker seed', () => 
 
         const { envelope } = await encryptEmailForOutlayer({
           emailRaw: emailBlob,
-          context,
+          aeadContext: context,
           recipientPk: workerPk,
         });
 
@@ -171,4 +171,3 @@ test.describe('Email encryption compatibility with Outlayer worker seed', () => 
     expect(res.decrypted).toBe(res.original);
   });
 });
-

@@ -7,15 +7,35 @@ export class UserPreferencesManager {
   private themeChangeListeners: Set<(theme: 'dark' | 'light') => void> = new Set();
   private currentUserAccountId: AccountId | undefined;
   private confirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
+  // Optional app-provided default theme (e.g., configs.walletTheme). This is NOT a per-user preference.
+  private walletThemeOverride: 'dark' | 'light' | null = null;
   // Prevent multiple one-time environment syncs per session
   private envThemeSyncedForSession = false;
 
   constructor() {
-    // Load user settings asynchronously - don't block constructor
-    this.initializeUserSettings();
-
     // Subscribe to IndexedDB change events for automatic sync
     this.subscribeToIndexedDBChanges();
+  }
+
+  /**
+   * Apply an app-provided default theme (e.g., `configs.walletTheme`) without
+   * persisting it as a per-user preference in IndexedDB.
+   *
+   * This also disables the one-time environment theme sync so host appearance
+   * (e.g., VitePress `html.dark`) cannot override an explicit config.
+   */
+  configureWalletTheme(theme?: 'dark' | 'light'): void {
+    if (theme !== 'dark' && theme !== 'light') return;
+    this.walletThemeOverride = theme;
+    // If integrator explicitly configured a theme, do not auto-sync from environment.
+    this.envThemeSyncedForSession = true;
+    if (this.confirmationConfig.theme !== theme) {
+      this.confirmationConfig = {
+        ...this.confirmationConfig,
+        theme,
+      };
+      this.notifyThemeChange(theme);
+    }
   }
 
   /**
@@ -49,7 +69,13 @@ export class UserPreferencesManager {
     });
   }
 
-  private async initializeUserSettings(): Promise<void> {
+  /**
+   * Best-effort async initialization from IndexedDB.
+   *
+   * Callers decide when to invoke this so environments that must avoid
+   * app-origin IndexedDB (wallet-iframe mode) can skip it entirely.
+   */
+  async initFromIndexedDB(): Promise<void> {
     try {
       await this.loadUserSettings();
     } catch (error) {
@@ -139,7 +165,7 @@ export class UserPreferencesManager {
     this.loadSettingsForUser(nearAccountId);
 
     // One-time: align user theme to current host appearance (e.g., VitePress html.dark)
-    if (!this.envThemeSyncedForSession) {
+    if (!this.envThemeSyncedForSession && !this.walletThemeOverride) {
       let envTheme: 'dark' | 'light' | null = null;
       const isDark = (globalThis as any)?.document?.documentElement?.classList?.contains?.('dark');
       if (typeof isDark === 'boolean') envTheme = isDark ? 'dark' : 'light';
@@ -157,6 +183,16 @@ export class UserPreferencesManager {
       }
       this.envThemeSyncedForSession = true;
     }
+  }
+
+  /**
+   * Set the current user in-memory only.
+   *
+   * Intended for iframe-wallet mode where the wallet origin owns persistence and the
+   * app origin must not write `PasskeyClientDB.appState:lastUserAccountId`.
+   */
+  setCurrentUserLocalOnly(nearAccountId: AccountId): void {
+    this.currentUserAccountId = nearAccountId;
   }
 
   /**
@@ -192,6 +228,17 @@ export class UserPreferencesManager {
   }
 
   /**
+   * Update confirm behavior without persisting to IndexedDB.
+   * Used by the app origin when wallet-iframe mode is active.
+   */
+  setConfirmBehaviorLocalOnly(behavior: 'requireClick' | 'autoProceed'): void {
+    this.confirmationConfig = {
+      ...this.confirmationConfig,
+      behavior,
+    };
+  }
+
+  /**
    * Set confirmation configuration
    */
   setConfirmationConfig(config: ConfirmationConfig): void {
@@ -200,6 +247,21 @@ export class UserPreferencesManager {
       ...config
     };
     this.saveUserSettings();
+  }
+
+  /**
+   * Update confirmation config without persisting to IndexedDB.
+   * Used by the app origin when wallet-iframe mode is active.
+   */
+  setConfirmationConfigLocalOnly(config: ConfirmationConfig): void {
+    const prevTheme = this.confirmationConfig.theme;
+    this.confirmationConfig = {
+      ...this.confirmationConfig,
+      ...config,
+    };
+    if (this.confirmationConfig.theme !== prevTheme) {
+      this.notifyThemeChange(this.confirmationConfig.theme);
+    }
   }
 
   /**
@@ -272,18 +334,30 @@ export class UserPreferencesManager {
   async setUserTheme(theme: 'dark' | 'light'): Promise<void> {
     const id = this.currentUserAccountId;
     if (!id) return; // No-op when no user is set (logged-out state)
+    // Always update local UI state immediately; persistence is best-effort.
+    this.confirmationConfig = {
+      ...this.confirmationConfig,
+      theme
+    };
+    // Notify all listeners of theme change
+    this.notifyThemeChange(theme);
     try {
       await IndexedDBManager.clientDB.setTheme(id, theme);
-      // Also update the current context
-      this.confirmationConfig = {
-        ...this.confirmationConfig,
-        theme
-      };
-      // Notify all listeners of theme change
-      this.notifyThemeChange(theme);
     } catch (error) {
       console.warn('[UserPreferencesManager]: Failed to save user theme:', error);
     }
+  }
+
+  /**
+   * Update the current theme in-memory only and notify listeners.
+   * Used by the app origin when wallet-iframe mode is active.
+   */
+  setUserThemeLocalOnly(theme: 'dark' | 'light'): void {
+    this.confirmationConfig = {
+      ...this.confirmationConfig,
+      theme,
+    };
+    this.notifyThemeChange(theme);
   }
 }
 

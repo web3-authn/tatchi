@@ -35,15 +35,45 @@ interface PasskeyNearKeysDBConfig {
 export class PasskeyNearKeysDBManager {
   private config: PasskeyNearKeysDBConfig;
   private db: IDBPDatabase | null = null;
+  private disabled = false;
 
   constructor(config: PasskeyNearKeysDBConfig = DB_CONFIG) {
     this.config = config;
+  }
+
+  getDbName(): string {
+    return this.config.dbName;
+  }
+
+  setDbName(dbName: string): void {
+    const next = String(dbName || '').trim();
+    if (!next || next === this.config.dbName) return;
+    try { (this.db as any)?.close?.(); } catch {}
+    this.db = null;
+    this.config = { ...this.config, dbName: next };
+  }
+
+  isDisabled(): boolean {
+    return this.disabled;
+  }
+
+  setDisabled(disabled: boolean): void {
+    const next = !!disabled;
+    if (next === this.disabled) return;
+    this.disabled = next;
+    if (next) {
+      try { (this.db as any)?.close?.(); } catch {}
+      this.db = null;
+    }
   }
 
   /**
    * Get database connection, initializing if necessary
    */
   private async getDB(): Promise<IDBPDatabase> {
+    if (this.disabled) {
+      throw new Error('[PasskeyNearKeysDBManager] IndexedDB is disabled in this environment.');
+    }
     if (this.db) {
       return this.db;
     }

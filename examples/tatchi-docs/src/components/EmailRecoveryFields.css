@@ -1,0 +1,104 @@
+.email-recovery-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.email-recovery-fields__row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+.email-recovery-fields .email-recovery-fields__input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  padding: 0.4rem 0.75rem;
+  border-radius: 2rem;
+  border: 1px solid var(--fe-border);
+  background: var(--fe-input-bg);
+  color: var(--fe-input-text);
+  outline: none;
+  font-size: var(--fe-text-sm);
+  font-family: var(--fe-font-sans);
+  transition: all var(--fe-fast) var(--fe-ease);
+  box-sizing: border-box;
+}
+
+.email-recovery-fields .email-recovery-fields__input:focus {
+  outline: none;
+  border-color: var(--fe-border-strong);
+  box-shadow: 0 0 0 3px var(--w3a-shadows-sm);
+}
+
+.email-recovery-fields .email-recovery-fields__input::placeholder {
+  color: var(--fe-input-placeholder);
+  opacity: 0.8;
+}
+
+.email-recovery-fields .email-recovery-fields__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.email-recovery-fields .email-recovery-fields__icon-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  border: 1px solid var(--fe-border);
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--fe-fast) var(--fe-ease);
+}
+
+.email-recovery-fields .email-recovery-fields__icon-btn:hover:not(:disabled) {
+  border-color: var(--fe-border-strong);
+  box-shadow: 0 2px 8px var(--fe-shadow);
+}
+
+.email-recovery-fields .email-recovery-fields__icon-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.email-recovery-fields__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.email-recovery-fields__add-btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--fe-border);
+  background: transparent;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: var(--fe-text-sm);
+  font-family: var(--fe-font-sans);
+  transition: all var(--fe-fast) var(--fe-ease);
+}
+
+.email-recovery-fields__add-btn:hover:not(:disabled) {
+  border-color: var(--fe-border-strong);
+  box-shadow: 0 2px 8px var(--fe-shadow);
+}
+
+.email-recovery-fields__add-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

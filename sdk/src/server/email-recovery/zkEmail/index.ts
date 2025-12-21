@@ -1,3 +1,8 @@
+import { ZkEmailProverClient, type ZkEmailProverClientOptions, type ZkEmailProverError } from './proverClient';
+
+export { ZkEmailProverClient } from './proverClient';
+export type { ZkEmailProverClientOptions, ZkEmailProverError, ZkEmailProverResponse } from './proverClient';
+
 export interface ForwardableEmailPayload {
   from: string;
   to: string;
@@ -10,21 +15,6 @@ export type NormalizedEmailResult =
   | { ok: true; payload: ForwardableEmailPayload }
   | { ok: false; code: string; message: string };
 
-export interface ZkEmailProverClientOptions {
-  baseUrl: string;
-  timeoutMs?: number;
-}
-
-export interface ZkEmailProverResponse {
-  proof: unknown;
-  publicSignals: string[];
-}
-
-export interface ZkEmailProverError extends Error {
-  code: string;
-  status?: number;
-}
-
 export interface GenerateZkEmailProofResult {
   proof: unknown;
   publicInputs: string[];
@@ -35,6 +25,7 @@ export interface ParsedZkEmailBindings {
   newPublicKey: string;
   fromEmail: string;
   timestamp: string;
+  requestId: string;
 }
 
 /**
@@ -234,74 +225,13 @@ export function extractZkEmailBindingsFromPayload(
     newPublicKey: subjectBindings.newPublicKey,
     fromEmail,
     timestamp,
-    // requestId is currently only used for logging/debugging.
-    // It can be plumbed through to the contract in a follow-up change.
+    requestId: subjectBindings.requestId,
   };
-}
-
-async function postJsonWithTimeout<TResponse>(
-  url: string,
-  body: unknown,
-  timeoutMs: number
-): Promise<TResponse> {
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-  const id = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller?.signal,
-    } as RequestInit);
-
-    const text = await res.text();
-    let json: any;
-    try {
-      json = text ? JSON.parse(text) : {};
-    } catch {
-      json = {};
-    }
-
-    if (!res.ok) {
-      const err: ZkEmailProverError = Object.assign(
-        new Error(
-          json?.error ||
-            `zk-email prover request failed with status ${res.status}`
-        ),
-        {
-          code: 'prover_http_error',
-          status: res.status,
-        }
-      );
-      throw err;
-    }
-
-    return json as TResponse;
-  } catch (e: any) {
-    if (e?.name === 'AbortError') {
-      const err: ZkEmailProverError = Object.assign(
-        new Error('zk-email prover request timed out'),
-        { code: 'prover_timeout' }
-      );
-      throw err;
-    }
-    if (e?.code) {
-      throw e;
-    }
-    const err: ZkEmailProverError = Object.assign(
-      new Error(e?.message || 'zk-email prover request failed'),
-      { code: 'prover_network_error' }
-    );
-    throw err;
-  } finally {
-    if (id !== undefined) clearTimeout(id);
-  }
 }
 
 export async function generateZkEmailProofFromPayload(
   payload: ForwardableEmailPayload,
-  opts: ZkEmailProverClientOptions
+  prover: ZkEmailProverClientOptions | ZkEmailProverClient
 ): Promise<GenerateZkEmailProofResult> {
   if (!payload.raw || typeof payload.raw !== 'string') {
     const err: ZkEmailProverError = Object.assign(
@@ -311,14 +241,12 @@ export async function generateZkEmailProofFromPayload(
     throw err;
   }
 
-  const timeoutMs = opts.timeoutMs ?? 60_000;
-  const url = opts.baseUrl.replace(/\/+$/, '') + '/prove-email';
+  const client =
+    (prover && typeof (prover as any).proveEmail === 'function')
+      ? (prover as ZkEmailProverClient)
+      : new ZkEmailProverClient(prover as ZkEmailProverClientOptions);
 
-  const res = await postJsonWithTimeout<ZkEmailProverResponse>(
-    url,
-    { rawEmail: payload.raw },
-    timeoutMs
-  );
+  const res = await client.proveEmail(payload.raw);
 
   return {
     proof: res.proof,

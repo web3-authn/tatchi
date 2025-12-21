@@ -2,6 +2,7 @@
 // Typed RPC messages for the wallet service iframe channel (TatchiPasskey-first)
 import { AuthenticatorOptions } from '@/server';
 import type { WalletUIRegistry } from '../host/iframe-lit-element-registry';
+import type { EmailRecoveryContracts } from '../../types/tatchi';
 import { SignedTransaction } from '../../NearClient';
 import {
   ActionArgs,
@@ -27,6 +28,12 @@ export type ParentToChildType =
   | 'PM_LOGIN'
   | 'PM_LOGOUT'
   | 'PM_GET_LOGIN_SESSION'
+  // Local persistence helpers (wallet-origin IndexedDB)
+  | 'PM_SET_DERIVED_ADDRESS'
+  | 'PM_GET_DERIVED_ADDRESS_RECORD'
+  | 'PM_GET_DERIVED_ADDRESS'
+  | 'PM_GET_RECOVERY_EMAILS'
+  | 'PM_SET_RECOVERY_EMAILS'
   | 'PM_SIGN_TXS_WITH_ACTIONS'
   | 'PM_SIGN_AND_SEND_TXS'
   | 'PM_SEND_TRANSACTION'
@@ -90,6 +97,7 @@ export interface PMSetConfigPayload {
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;
   authenticatorOptions?: AuthenticatorOptions;
+  emailRecoveryContracts?: Partial<EmailRecoveryContracts>;
   // Absolute base URL for SDK Lit component assets (e.g., https://app.example.com/sdk/)
   assetsBaseUrl?: string;
   // Optional: register wallet-host UI components (Lit tags + bindings)
@@ -181,6 +189,35 @@ export interface PMFinalizeEmailRecoveryPayload {
   nearPublicKey?: string;
 }
 
+export interface PMSetDerivedAddressPayload {
+  nearAccountId: string;
+  args: { contractId: string; path: string; address: string };
+}
+
+export interface PMGetDerivedAddressRecordPayload {
+  nearAccountId: string;
+  args: { contractId: string; path: string };
+}
+
+export interface PMGetDerivedAddressPayload {
+  nearAccountId: string;
+  args: { contractId: string; path: string };
+}
+
+export interface PMGetRecoveryEmailsPayload {
+  nearAccountId: string;
+}
+
+export interface PMSetRecoveryEmailsPayload {
+  nearAccountId: string;
+  recoveryEmails: string[];
+  options?: {
+    waitUntil?: unknown;
+    confirmationConfig?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+}
+
 export interface ProgressPayload {
   step: number;
   phase: string;
@@ -209,6 +246,11 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_LOGIN', PMLoginPayload>
   | RpcEnvelope<'PM_LOGOUT'>
   | RpcEnvelope<'PM_GET_LOGIN_SESSION', PMGetLoginSessionPayload>
+  | RpcEnvelope<'PM_SET_DERIVED_ADDRESS', PMSetDerivedAddressPayload>
+  | RpcEnvelope<'PM_GET_DERIVED_ADDRESS_RECORD', PMGetDerivedAddressRecordPayload>
+  | RpcEnvelope<'PM_GET_DERIVED_ADDRESS', PMGetDerivedAddressPayload>
+  | RpcEnvelope<'PM_GET_RECOVERY_EMAILS', PMGetRecoveryEmailsPayload>
+  | RpcEnvelope<'PM_SET_RECOVERY_EMAILS', PMSetRecoveryEmailsPayload>
   | RpcEnvelope<'PM_SIGN_TXS_WITH_ACTIONS', PMSignTxsPayload>
   | RpcEnvelope<'PM_SIGN_AND_SEND_TXS', PMSignAndSendTxsPayload>
   | RpcEnvelope<'PM_SEND_TRANSACTION', PMSendTxPayload>

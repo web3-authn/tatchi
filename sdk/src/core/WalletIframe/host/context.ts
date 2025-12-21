@@ -82,6 +82,7 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
     relayer: payload?.relayer || prev.relayer,
     authenticatorOptions: payload?.authenticatorOptions || prev.authenticatorOptions,
     vrfWorkerConfigs: payload?.vrfWorkerConfigs || prev.vrfWorkerConfigs,
+    emailRecoveryContracts: payload?.emailRecoveryContracts || prev.emailRecoveryContracts,
     walletTheme: payload?.theme || prev.walletTheme,
     iframeWallet: {
       ...(prev.iframeWallet || {}),

@@ -32,6 +32,7 @@ import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager
 import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../sdkPaths';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { getLastLoggedInDeviceNumber } from './SignerWorkerManager/getDeviceNumber';
+import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 
 type SigningSessionOptions = {
   /** PRF-bearing credential; VRF worker extracts PRF outputs internally */
@@ -69,6 +70,10 @@ export class WebAuthnManager {
       true,
     );
     this.userPreferencesManager = UserPreferencesInstance;
+    // Apply integrator-provided default UI theme (in-memory only; user preferences may override later).
+    try {
+      this.userPreferencesManager.configureWalletTheme?.(tatchiPasskeyConfigs.walletTheme);
+    } catch {}
     this.nonceManager = NonceManagerInstance;
     const { vrfWorkerConfigs } = tatchiPasskeyConfigs;
     // Group VRF worker configuration and pass context
@@ -115,6 +120,14 @@ export class WebAuthnManager {
           this.vrfWorkerManager.setWorkerBaseOrigin?.(origin as any);
         }
       });
+    }
+
+    // Best-effort: load persisted preferences unless we are in app-origin iframe mode,
+    // where the wallet origin owns persistence and the app should avoid IndexedDB.
+    const shouldAvoidAppOriginIndexedDB =
+      !!tatchiPasskeyConfigs.iframeWallet?.walletOrigin && !__isWalletIframeHostMode();
+    if (!shouldAvoidAppOriginIndexedDB) {
+      void this.userPreferencesManager.initFromIndexedDB().catch(() => undefined);
     }
   }
 
@@ -256,7 +269,7 @@ export class WebAuthnManager {
   async requestRegistrationCredentialConfirmation(params: {
     nearAccountId: string;
     deviceNumber: number;
-    confirmationConfigOverride?: ConfirmationConfig;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
   }): Promise<RegistrationCredentialConfirmationPayload> {
     return this.vrfWorkerManager.requestRegistrationCredentialConfirmation({
       nearAccountId: params.nearAccountId,

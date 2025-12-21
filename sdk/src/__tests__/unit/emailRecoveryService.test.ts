@@ -288,7 +288,7 @@ test.describe('EmailRecoveryService.requestEmailRecovery (zk-email)', () => {
             },
             getRelayerPublicKey: () => 'relayer-public-key',
             zkEmailProver: {
-              baseUrl: 'http://zk-email-prover.local',
+              baseUrl: 'https://zk-email-prover.localhost',
               timeoutMs: 5000,
             },
           };
@@ -308,6 +308,15 @@ test.describe('EmailRecoveryService.requestEmailRecovery (zk-email)', () => {
         // Monkey patch global fetch used by zkEmail prover client
         (globalThis as any).fetch = async (_url: string, _init?: any) => {
           calls.push({ type: 'proverFetch', url: _url, init: _init });
+          if (String(_url).endsWith('/healthz')) {
+            return {
+              ok: true,
+              status: 200,
+              async text() {
+                return JSON.stringify({ status: 'ok' });
+              },
+            } as any;
+          }
           return {
             ok: true,
             status: 200,
@@ -360,9 +369,18 @@ test.describe('EmailRecoveryService.requestEmailRecovery (zk-email)', () => {
     expect(result.success).toBe(true);
     expect(result.transactionHash).toBe('zkemail-tx-hash');
 
-    const proverCall = calls.find((c: any) => c.type === 'proverFetch');
+    const proverHealthCall = calls.find((c: any) => c.type === 'proverFetch' && String(c.url).endsWith('/healthz'));
+    const proverCall = calls.find((c: any) => c.type === 'proverFetch' && String(c.url).endsWith('/prove-email'));
+    expect(proverHealthCall).toBeTruthy();
     expect(proverCall).toBeTruthy();
-    expect(proverCall.url).toBe('http://zk-email-prover.local/prove-email');
+    expect(proverCall.url).toBe('https://zk-email-prover.localhost/prove-email');
+    expect(proverCall.init?.method).toBe('POST');
+    const proverContentType =
+      proverCall.init?.headers?.['Content-Type'] ||
+      proverCall.init?.headers?.['content-type'];
+    expect(proverContentType).toBe('application/json');
+    const proverBody = proverCall.init?.body ? JSON.parse(proverCall.init.body) : null;
+    expect(proverBody?.rawEmail).toBeTruthy();
 
     expect(signedArgs).toBeTruthy();
     expect(signedArgs.signerAccountId).toBe('w3a-relayer.testnet');

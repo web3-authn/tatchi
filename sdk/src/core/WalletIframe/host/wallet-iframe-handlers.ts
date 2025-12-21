@@ -275,6 +275,54 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
+    PM_SET_DERIVED_ADDRESS: async (req: Req<'PM_SET_DERIVED_ADDRESS'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId, args } = req.payload!;
+      if (respondIfCancelled(req.requestId)) return;
+      await pm.setDerivedAddress(nearAccountId, args);
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+    },
+
+    PM_GET_DERIVED_ADDRESS_RECORD: async (req: Req<'PM_GET_DERIVED_ADDRESS_RECORD'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId, args } = req.payload!;
+      if (respondIfCancelled(req.requestId)) return;
+      const result = await pm.getDerivedAddressRecord(nearAccountId, args);
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_GET_DERIVED_ADDRESS: async (req: Req<'PM_GET_DERIVED_ADDRESS'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId, args } = req.payload!;
+      if (respondIfCancelled(req.requestId)) return;
+      const result = await pm.getDerivedAddress(nearAccountId, args);
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_GET_RECOVERY_EMAILS: async (req: Req<'PM_GET_RECOVERY_EMAILS'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId } = req.payload!;
+      if (respondIfCancelled(req.requestId)) return;
+      const result = await pm.getRecoveryEmails(nearAccountId);
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_SET_RECOVERY_EMAILS: async (req: Req<'PM_SET_RECOVERY_EMAILS'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId, recoveryEmails, options } = req.payload!;
+      if (respondIfCancelled(req.requestId)) return;
+      const result = await pm.setRecoveryEmails(nearAccountId, recoveryEmails, {
+        ...(options || {}),
+        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+      } as ActionHooksOptions);
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
     PM_SET_CONFIRM_BEHAVIOR: async (req: Req<'PM_SET_CONFIRM_BEHAVIOR'>) => {
       const pm = getTatchiPasskey();
       const { behavior } = req.payload!;

@@ -118,6 +118,8 @@ import type { AccessKeyList } from '../../NearClient';
 import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
 import type { RecoveryResult } from '../../TatchiPasskey';
 import { openOfflineExportWindow } from '../../OfflineExport/index.js';
+import type { DerivedAddressRecord } from '../../IndexedDBManager';
+import type { EmailRecoveryContracts } from '../../types/tatchi';
 
 // Simple, framework-agnostic service iframe client.
 // Responsibilities split:
@@ -151,6 +153,7 @@ export interface WalletIframeRouterOptions {
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;
   authenticatorOptions?: AuthenticatorOptions;
+  emailRecoveryContracts?: Partial<EmailRecoveryContracts>;
   // SDK asset base path for embedded bundles when mounting same‑origin via srcdoc
   // Must serve dist/esm under this base path. Defaults to '/sdk'.
   sdkBasePath?: string;
@@ -392,6 +395,7 @@ export class WalletIframeRouter {
           vrfWorkerConfigs: this.opts.vrfWorkerConfigs,
           rpIdOverride: this.opts.rpIdOverride,
           authenticatorOptions: this.opts.authenticatorOptions,
+          emailRecoveryContracts: this.opts.emailRecoveryContracts,
           uiRegistry: this.opts.uiRegistry,
           // for embedded Lit components
           assetsBaseUrl: (() => {
@@ -747,6 +751,75 @@ export class WalletIframeRouter {
 
   async getRecentLogins(): Promise<GetRecentLoginsResult> {
     const res = await this.post<GetRecentLoginsResult>({ type: 'PM_GET_RECENT_LOGINS' } );
+    return res.result;
+  }
+
+  // === Local persistence helpers (wallet-origin IndexedDB) ===
+
+  async setDerivedAddress(payload: {
+    nearAccountId: string;
+    args: { contractId: string; path: string; address: string };
+  }): Promise<void> {
+    await this.post<void>({
+      type: 'PM_SET_DERIVED_ADDRESS',
+      payload,
+    });
+  }
+
+  async getDerivedAddressRecord(payload: {
+    nearAccountId: string;
+    args: { contractId: string; path: string };
+  }): Promise<DerivedAddressRecord | null> {
+    const res = await this.post<DerivedAddressRecord | null>({
+      type: 'PM_GET_DERIVED_ADDRESS_RECORD',
+      payload,
+    });
+    return (res.result as DerivedAddressRecord | null) || null;
+  }
+
+  async getDerivedAddress(payload: {
+    nearAccountId: string;
+    args: { contractId: string; path: string };
+  }): Promise<string | null> {
+    const res = await this.post<string | null>({
+      type: 'PM_GET_DERIVED_ADDRESS',
+      payload,
+    });
+    return (res.result as string | null) || null;
+  }
+
+  async getRecoveryEmails(
+    nearAccountId: string,
+  ): Promise<Array<{ hashHex: string; email: string }>> {
+    const res = await this.post<Array<{ hashHex: string; email: string }>>({
+      type: 'PM_GET_RECOVERY_EMAILS',
+      payload: { nearAccountId },
+    });
+    return (res.result as Array<{ hashHex: string; email: string }>) || [];
+  }
+
+  async setRecoveryEmails(payload: {
+    nearAccountId: string;
+    recoveryEmails: string[];
+    options?: ActionHooksOptions;
+  }): Promise<ActionResult> {
+    const { options } = payload;
+    const safeOptions = options
+      ? {
+          waitUntil: options.waitUntil,
+          confirmationConfig: options.confirmationConfig,
+        }
+      : undefined;
+
+    const res = await this.post<ActionResult>({
+      type: 'PM_SET_RECOVERY_EMAILS',
+      payload: {
+        nearAccountId: payload.nearAccountId,
+        recoveryEmails: payload.recoveryEmails,
+        options: safeOptions,
+      },
+      options: { onProgress: this.wrapOnEvent(options?.onEvent, isActionSSEEvent) },
+    });
     return res.result;
   }
 

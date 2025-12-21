@@ -6,6 +6,8 @@ import {
 } from '../../core/types/authenticatorOptions';
 import * as wasmModule from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import type { InitInput } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+import type { ZkEmailProverClientOptions } from '../email-recovery/zkEmail';
+import type { Logger } from './logger';
 
 /**
  * WASM Bindgen generates a `free` method and a `[Symbol.dispose]` method on all structs.
@@ -102,6 +104,16 @@ export interface AuthServiceConfig {
   // grouped Shamir settings under `shamir`
   shamir?: ShamirConfig;
   signerWasm?: SignerWasmConfig;
+  /**
+   * Optional logger. When unset, the server SDK is silent (no `console.*`).
+   * Pass `logger: console` to enable default logging.
+   */
+  logger?: Logger | null;
+  /**
+   * Optional zk-email prover configuration used by `EmailRecoveryService` when
+   * handling zk-email mode (`explicitMode: 'zk-email'` or email body hint).
+   */
+  zkEmailProver?: ZkEmailProverClientOptions;
 }
 
 // Account creation and registration types (imported from relay-server types)

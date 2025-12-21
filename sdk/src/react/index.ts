@@ -64,6 +64,7 @@ export type {
   ActionSSEEvent,
   DeviceLinkingSSEEvent,
   AccountRecoverySSEEvent,
+  EmailRecoverySSEEvent,
   // Re-exported from TatchiPasskey types
   RegistrationHooksOptions,
   LoginHooksOptions,
@@ -149,7 +150,9 @@ export {
   LoginStatus,
   ActionPhase,
   ActionStatus,
-  DelegateActionPhase
+  DelegateActionPhase,
+  EmailRecoveryPhase,
+  EmailRecoveryStatus
 } from '../core/types/sdkSentEvents';
 
 // === PROFILE BUTTON TYPES ===

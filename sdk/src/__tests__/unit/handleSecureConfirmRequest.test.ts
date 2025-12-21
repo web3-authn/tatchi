@@ -7,7 +7,9 @@ const IMPORT_PATHS = {
 
 test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests', () => {
   test.beforeEach(async ({ page }) => {
-    await setupBasicPasskeyTest(page);
+    // These unit tests only import the orchestrator module; avoid initializing a full TatchiPasskey instance
+    // (which can be slow/flaky in dev due to iframe + externalized dependency resolution).
+    await setupBasicPasskeyTest(page, { skipPasskeyManagerInit: true });
     await page.waitForTimeout(300);
   });
 

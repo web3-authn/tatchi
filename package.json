@@ -25,6 +25,8 @@
     "test:lit-components": "pnpm -C sdk test:lit-components",
     "test:wasm-signer-worker": "cd sdk/src/wasm_signer_worker && cargo test",
     "test:wasm-vrf-worker": "cd sdk/src/wasm_vrf_worker && cargo test",
+    "test:relay-email-recovery-zk": "pnpm -C sdk test:relay-email-recovery-zk",
+    "test:relayer": "pnpm -C sdk test:relayer",
     "show-report": "pnpm -C sdk exec playwright show-report"
   },
   "devDependencies": {

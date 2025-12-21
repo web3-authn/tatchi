@@ -36,4 +36,9 @@ export type PasskeyTestSetupOptions = PasskeyTestConfigOverrides & {
    * Defaults to the same value as forceSameOriginWorkers when undefined.
    */
   forceSameOriginSdkBase?: boolean
+  /**
+   * When true, skip dynamic loading of TatchiPasskey + global fallback injection.
+   * Useful for lightweight lit-component tests that only need the import map.
+   */
+  skipPasskeyManagerInit?: boolean
 };

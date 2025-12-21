@@ -1,8 +1,9 @@
-import type { TatchiConfigs, TatchiConfigsInput } from './types/tatchi';
+import type { EmailRecoveryContracts, TatchiConfigs, TatchiConfigsInput } from './types/tatchi';
 
 // Default SDK configs suitable for local dev.
 // Cross-origin wallet isolation is recommended; set iframeWallet in your app config when you have a dedicated origin.
 // Consumers can shallow-merge overrides by field.
+
 export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
   // You can provide a single URL or a comma-separated list for failover.
   // First URL is treated as primary, subsequent URLs are fallbacks.
@@ -14,8 +15,8 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
   // Warm signing session defaults used by login/unlock flows.
   // Enforcement (TTL/uses) is owned by the VRF worker; signer workers remain one-shot.
   signingSessionDefaults: {
-    ttlMs: 5 * 60 * 1000, // 5 minutes
-    remainingUses: 3,
+    ttlMs: 0, // 0 minutes
+    remainingUses: 0, // default to requiring a touchID prompt for each transaction
   },
   relayer: {
     // accountId: 'w3a-v1.testnet',
@@ -51,6 +52,11 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
       removeServerLockRoute: '/vrf/remove-server-lock',
     }
   },
+  emailRecoveryContracts: {
+    emailRecovererCodeAccountId: 'w3a-email-recoverer-v1.testnet',
+    zkEmailVerifierAccountId: 'zk-email-verifier-v1.testnet',
+    emailDkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
+  },
   // Configure iframeWallet in application code to point at your dedicated wallet origin when available.
   iframeWallet: {
     walletOrigin: 'https://wallet.example.localhost',
@@ -58,6 +64,12 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
     sdkBasePath: '/sdk',
     rpIdOverride: 'example.localhost',
   }
+};
+
+export const DEFAULT_EMAIL_RECOVERY_CONTRACTS: EmailRecoveryContracts = {
+  emailRecovererCodeAccountId: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailDkimVerifierAccountId,
+  zkEmailVerifierAccountId: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.zkEmailVerifierAccountId,
+  emailDkimVerifierAccountId: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailDkimVerifierAccountId,
 };
 
 // Merge defaults with overrides
@@ -115,6 +127,14 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
         removeServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute
           ?? defaults.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
       },
+    },
+    emailRecoveryContracts: {
+      emailRecovererCodeAccountId: overrides.emailRecoveryContracts?.emailRecovererCodeAccountId
+        ?? defaults.emailRecoveryContracts?.emailRecovererCodeAccountId,
+      zkEmailVerifierAccountId: overrides.emailRecoveryContracts?.zkEmailVerifierAccountId
+        ?? defaults.emailRecoveryContracts?.zkEmailVerifierAccountId,
+      emailDkimVerifierAccountId: overrides.emailRecoveryContracts?.emailDkimVerifierAccountId
+        ?? defaults.emailRecoveryContracts?.emailDkimVerifierAccountId,
     },
     iframeWallet: {
       walletOrigin: overrides.iframeWallet?.walletOrigin

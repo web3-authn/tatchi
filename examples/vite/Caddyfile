@@ -23,6 +23,18 @@ relay-server.localhost {
 	reverse_proxy localhost:3000
 }
 
+# ZK prover server listening on port 5588 (may or may not be up)
+# needed for zk-email recovery tests
+zk-email-prover.localhost {
+	tls internal
+	encode gzip
+	log {
+		output stdout
+		format console
+	}
+	reverse_proxy localhost:5588
+}
+
 # --- mDNS (.local) access from iPhone/macOS ---
 # Use your Mac's Bonjour name so other devices on the LAN can reach it.
 # We keep distinct origins by port to preserve cross-origin isolation in dev.

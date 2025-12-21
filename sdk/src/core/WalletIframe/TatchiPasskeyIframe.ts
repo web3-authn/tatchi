@@ -9,7 +9,7 @@
  * - Acts as a transparent proxy to the real TatchiPasskey running in the iframe
  * - Maintains API compatibility with the regular TatchiPasskey
  * - Handles hook callbacks (afterCall, onError, onEvent) locally
- * - Provides fallback to local TatchiPasskey for operations not yet iframe-enabled
+ * - Avoids app-origin IndexedDB persistence (no silent fallbacks)
  * - Manages theme preferences and user settings synchronization
  * - Bridges progress events from iframe back to developer callbacks
  *
@@ -17,7 +17,7 @@
  * - Uses WalletIframeRouter for all iframe communication
  * - Maintains local state for immediate synchronous access (theme, config)
  * - Provides NearClient facade that routes calls to iframe when ready
- * - Handles both iframe and fallback local execution paths
+ * - Does not fall back to app-origin persistence when the iframe is unavailable
  */
 
 import { WalletIframeRouter } from './client/router';
@@ -60,6 +60,7 @@ import { toError } from '../../utils/errors';
 import type { WalletUIRegistry } from './host/iframe-lit-element-registry';
 import type { DelegateActionInput } from '../types/delegate';
 import { buildConfigsFromEnv } from '../defaultConfigs';
+import { configureIndexedDB, type DerivedAddressRecord } from '../IndexedDBManager';
 
 
 export class TatchiPasskeyIframe {
@@ -97,6 +98,9 @@ export class TatchiPasskeyIframe {
 
   constructor(configs: TatchiConfigsInput) {
     this.configs = buildConfigsFromEnv(configs);
+    // In iframe-wallet mode, disable app-origin IndexedDB entirely so no SDK tables are created there.
+    // Wallet iframe host uses canonical DB names within the wallet origin.
+    try { configureIndexedDB({ mode: 'disabled' }); } catch {}
 
     const walletOrigin = this.configs.iframeWallet?.walletOrigin;
     if (!walletOrigin) {
@@ -130,6 +134,7 @@ export class TatchiPasskeyIframe {
       contractId: this.configs.contractId,
       // relayer: configs.relayer,
       vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
+      emailRecoveryContracts: this.configs.emailRecoveryContracts,
       rpIdOverride: this.configs.iframeWallet?.rpIdOverride,
       authenticatorOptions: this.configs.authenticatorOptions,
     });
@@ -145,6 +150,16 @@ export class TatchiPasskeyIframe {
       } as ConfirmationConfig;
       this.notifyTheme(this.lastConfirmationConfig.theme);
     } catch {}
+  }
+
+  private async requireRouterReady(): Promise<WalletIframeRouter> {
+    if (!this.router.isReady()) {
+      await this.initWalletIframe();
+    }
+    if (!this.router.isReady()) {
+      throw new Error('[TatchiPasskeyIframe] Wallet iframe is configured but unavailable.');
+    }
+    return this.router;
   }
 
   isReady(): boolean { return this.router.isReady(); }
@@ -290,29 +305,25 @@ export class TatchiPasskeyIframe {
     delegate: DelegateActionInput;
     options?: DelegateActionHooksOptions;
   }): Promise<SignDelegateActionResult> {
-    // Prefer iframe route when ready; otherwise fall back to local manager
-    if (this.router.isReady()) {
-      const options = args.options;
-      try {
-        const res = await this.router.signDelegateAction({
-          nearAccountId: args.nearAccountId,
-          delegate: args.delegate,
-          options: { onEvent: options?.onEvent },
-        }) as SignDelegateActionResult;
-        await options?.afterCall?.(true, res);
-        return res;
-      } catch (err: unknown) {
-        const e = toError(err);
-        await args.options?.onError?.(e);
-        await args.options?.afterCall?.(false);
-        throw e;
-      }
+    const options = args.options;
+    try {
+      await this.requireRouterReady();
+      const res = await this.router.signDelegateAction({
+        nearAccountId: args.nearAccountId,
+        delegate: args.delegate,
+        options: { onEvent: options?.onEvent },
+      }) as SignDelegateActionResult;
+      await options?.afterCall?.(true, res);
+      return res;
+    } catch (err: unknown) {
+      const e = toError(err);
+      await args.options?.onError?.(e);
+      await args.options?.afterCall?.(false);
+      throw e;
     }
-    // Fallback to local manager path
-    return this.ensureFallbackLocal().signDelegateAction(args);
   }
 
-  // Flows not yet proxied: fall back to local manager with identical APIs
+  // Local fallback manager is retained only for API parity helpers (NearClient/context).
   private ensureFallbackLocal(): TatchiPasskey {
     if (!this.fallbackLocal) {
       const near = new MinimalNearClient(this.configs.nearRpcUrl);
@@ -345,48 +356,41 @@ export class TatchiPasskeyIframe {
     options: RegistrationHooksOptions = {},
     confirmationConfigOverride?: ConfirmationConfig
   ): Promise<RegistrationResult> {
-    if (this.router.isReady()) {
-      try {
-        const res = await this.router.registerPasskey({
-          nearAccountId,
-          confirmationConfig: confirmationConfigOverride,
-          options: { onEvent: options?.onEvent }
-        });
-        await options?.afterCall?.(true, res);
-        return res;
-      } catch (err: unknown) {
-        const e = toError(err);
-        await options?.onError?.(e);
-        await options?.afterCall?.(false);
-        throw e;
-      }
+    try {
+      await this.requireRouterReady();
+      const res = await this.router.registerPasskey({
+        nearAccountId,
+        confirmationConfig: confirmationConfigOverride,
+        options: { onEvent: options?.onEvent }
+      });
+      await options?.afterCall?.(true, res);
+      return res;
+    } catch (err: unknown) {
+      const e = toError(err);
+      await options?.onError?.(e);
+      await options?.afterCall?.(false);
+      throw e;
     }
-    return this.ensureFallbackLocal().registerPasskeyInternal(nearAccountId, options, confirmationConfigOverride);
   }
 
   async recoverAccountFlow(args: {
     accountId?: string;
     options?: AccountRecoveryHooksOptions
   }): Promise<RecoveryResult> {
-    if (this.router.isReady()) {
-      try {
-        const res = await this.router.recoverAccountFlow({
-          accountId: args.accountId,
-          onEvent: args.options?.onEvent
-        });
-        await args.options?.afterCall?.(true, res);
-        return res;
-      } catch (err: unknown) {
-        const e = toError(err);
-        await args.options?.onError?.(e);
-        await args.options?.afterCall?.(false);
-        throw e;
-      }
+    try {
+      await this.requireRouterReady();
+      const res = await this.router.recoverAccountFlow({
+        accountId: args.accountId,
+        onEvent: args.options?.onEvent
+      });
+      await args.options?.afterCall?.(true, res);
+      return res;
+    } catch (err: unknown) {
+      const e = toError(err);
+      await args.options?.onError?.(e);
+      await args.options?.afterCall?.(false);
+      throw e;
     }
-    return await this.ensureFallbackLocal().recoverAccountFlow({
-      accountId: args.accountId,
-      options: args.options
-    });
   }
 
   async startEmailRecovery(args: {
@@ -394,23 +398,21 @@ export class TatchiPasskeyIframe {
     recoveryEmail: string;
     options?: EmailRecoveryFlowOptions;
   }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
-    if (this.router.isReady()) {
-      try {
-        const res = await this.router.startEmailRecovery({
-          accountId: args.accountId,
-          recoveryEmail: args.recoveryEmail,
-          onEvent: args.options?.onEvent as any,
-        });
-        await args.options?.afterCall?.(true, undefined as any);
-        return res;
-      } catch (err: unknown) {
-        const e = toError(err);
-        await args.options?.onError?.(e);
-        await args.options?.afterCall?.(false);
-        throw e;
-      }
+    try {
+      await this.requireRouterReady();
+      const res = await this.router.startEmailRecovery({
+        accountId: args.accountId,
+        recoveryEmail: args.recoveryEmail,
+        onEvent: args.options?.onEvent as any,
+      });
+      await args.options?.afterCall?.(true, undefined as any);
+      return res;
+    } catch (err: unknown) {
+      const e = toError(err);
+      await args.options?.onError?.(e);
+      await args.options?.afterCall?.(false);
+      throw e;
     }
-    return await this.ensureFallbackLocal().startEmailRecovery(args);
   }
 
   async finalizeEmailRecovery(args: {
@@ -418,23 +420,21 @@ export class TatchiPasskeyIframe {
     nearPublicKey?: string;
     options?: EmailRecoveryFlowOptions;
   }): Promise<void> {
-    if (this.router.isReady()) {
-      try {
-        await this.router.finalizeEmailRecovery({
-          accountId: args.accountId,
-          nearPublicKey: args.nearPublicKey,
-          onEvent: args.options?.onEvent as any,
-        });
-        await args.options?.afterCall?.(true, undefined as any);
-        return;
-      } catch (err: unknown) {
-        const e = toError(err);
-        await args.options?.onError?.(e);
-        await args.options?.afterCall?.(false);
-        throw e;
-      }
+    try {
+      await this.requireRouterReady();
+      await this.router.finalizeEmailRecovery({
+        accountId: args.accountId,
+        nearPublicKey: args.nearPublicKey,
+        onEvent: args.options?.onEvent as any,
+      });
+      await args.options?.afterCall?.(true, undefined as any);
+      return;
+    } catch (err: unknown) {
+      const e = toError(err);
+      await args.options?.onError?.(e);
+      await args.options?.afterCall?.(false);
+      throw e;
     }
-    await this.ensureFallbackLocal().finalizeEmailRecovery(args);
   }
 
   // Device2: Start QR generation + polling inside wallet iframe, return QR to parent
@@ -444,25 +444,14 @@ export class TatchiPasskeyIframe {
     onError,
     onEvent,
   }: StartDevice2LinkingFlowArgs): Promise<StartDevice2LinkingFlowResults> {
-    // If iframe router present, prefer secure host flow; otherwise fallback to local QR generation
     try {
-      if (this.router.isReady()) {
-        const res = await this.router.startDevice2LinkingFlow({
-          ui: ui,
-          onEvent: onEvent
-        });
-        await afterCall?.(true, res);
-        return res
-      }
-      const {
-        qrData,
-        qrCodeDataURL
-      } = await this.ensureFallbackLocal().startDevice2LinkingFlow({
-        onEvent: onEvent,
+      await this.requireRouterReady();
+      const res = await this.router.startDevice2LinkingFlow({
+        ui: ui,
+        onEvent: onEvent
       });
-      const res = { qrData, qrCodeDataURL };
       await afterCall?.(true, res);
-      return res;
+      return res
     } catch (err: unknown) {
       const e = toError(err);
       await onError?.(e);
@@ -472,8 +461,10 @@ export class TatchiPasskeyIframe {
   }
 
   async stopDevice2LinkingFlow(): Promise<void> {
-    if (!this.router.isReady()) { await this.ensureFallbackLocal().stopDevice2LinkingFlow(); return; }
-    await this.router.stopDevice2LinkingFlow();
+    try {
+      await this.requireRouterReady();
+      await this.router.stopDevice2LinkingFlow();
+    } catch {}
   }
 
   // Device1: Link device in the host (AddKey + mapping) using scanned QR payload
@@ -482,21 +473,14 @@ export class TatchiPasskeyIframe {
     options: ScanAndLinkDeviceOptionsDevice1
   ): Promise<LinkDeviceResult> {
     try {
-      if (this.router.isReady()) {
-        const res = await this.router.linkDeviceWithScannedQRData({
-          qrData,
-          fundingAmount: options.fundingAmount,
-          options: {
-            onEvent: options?.onEvent
-          }
-        });
-        await options?.afterCall?.(true, res);
-        return res;
-      }
-      const res = await this.ensureFallbackLocal().linkDeviceWithScannedQRData(
+      await this.requireRouterReady();
+      const res = await this.router.linkDeviceWithScannedQRData({
         qrData,
-        options
-      );
+        fundingAmount: options.fundingAmount,
+        options: {
+          onEvent: options?.onEvent
+        }
+      });
       await options?.afterCall?.(true, res);
       return res;
     } catch (err: unknown) {
@@ -533,29 +517,61 @@ export class TatchiPasskeyIframe {
     await this.router.prefetchBlockheight();
   }
   async getRecentLogins(): Promise<GetRecentLoginsResult> {
-    // Avoid readiness race by ensuring the router initializes.
-    try { await this.router.init(); } catch {}
-    let remote: GetRecentLoginsResult | null = null;
+    // In wallet-iframe mode, do not fall back to app-origin persistence.
     try {
-      remote = await this.router.getRecentLogins();
-    } catch (err: unknown) {
-      // Wallet host may be on older bundle (IDB VersionError). Fallback to local.
-      try {
-        return await this.ensureFallbackLocal().getRecentLogins();
-      } catch {}
-      throw toError(err);
+      await this.requireRouterReady();
+      return await this.router.getRecentLogins();
+    } catch {
+      return { accountIds: [], lastUsedAccount: null };
     }
-    // If wallet-origin has no last user yet (common in first-run dev),
-    // fall back to local IndexedDB for lastUsedAccount so the UI can prefill.
-    if (!remote?.lastUsedAccount) {
-      const local = this.ensureFallbackLocal();
-      const loc = await local.getRecentLogins();
-      if (loc?.lastUsedAccount) {
-        remote = { accountIds: remote?.accountIds || [], lastUsedAccount: loc.lastUsedAccount };
-      }
-    }
-    return remote as GetRecentLoginsResult;
   }
+
+  // === Derived addresses ===
+
+  async setDerivedAddress(
+    nearAccountId: string,
+    args: { contractId: string; path: string; address: string }
+  ): Promise<void> {
+    await this.router.setDerivedAddress({ nearAccountId, args });
+  }
+
+  async getDerivedAddressRecord(
+    nearAccountId: string,
+    args: { contractId: string; path: string }
+  ): Promise<DerivedAddressRecord | null> {
+    return await this.router.getDerivedAddressRecord({ nearAccountId, args });
+  }
+
+  async getDerivedAddress(
+    nearAccountId: string,
+    args: { contractId: string; path: string }
+  ): Promise<string | null> {
+    return await this.router.getDerivedAddress({ nearAccountId, args });
+  }
+
+  // === Recovery emails (on-chain list + wallet-origin mapping) ===
+
+  async getRecoveryEmails(nearAccountId: string): Promise<Array<{ hashHex: string; email: string }>> {
+    return await this.router.getRecoveryEmails(nearAccountId);
+  }
+
+  async setRecoveryEmails(
+    nearAccountId: string,
+    recoveryEmails: string[],
+    options?: ActionHooksOptions
+  ): Promise<ActionResult> {
+    try {
+      const res = await this.router.setRecoveryEmails({ nearAccountId, recoveryEmails, options });
+      await options?.afterCall?.(true, res);
+      return res;
+    } catch (err: unknown) {
+      const e = toError(err);
+      await options?.onError?.(e);
+      await options?.afterCall?.(false);
+      throw e;
+    }
+  }
+
   async hasPasskeyCredential(nearAccountId: string): Promise<boolean> {
     return this.router.hasPasskeyCredential(nearAccountId);
   }

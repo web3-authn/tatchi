@@ -53,6 +53,7 @@ import { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import type { DerivedAddressRecord, RecoveryEmailRecord } from '../IndexedDBManager';
+import { configureIndexedDB } from '../IndexedDBManager';
 import { chainsigAddressManager } from '../ChainsigAddressManager';
 import { ActionType, type ActionArgs, type TransactionInput } from '../types/actions';
 import type {
@@ -78,13 +79,10 @@ import type { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../utils/errors';
 import { isOffline, openOfflineExport } from '../OfflineExport';
+import { buildSetRecoveryEmailsActions, getRecoveryEmailHashesContractCall } from '../rpcCalls';
 import {
   prepareRecoveryEmails,
   getLocalRecoveryEmails,
-  clearLocalRecoveryEmails,
-  EMAIL_RECOVERER_CODE_ACCOUNT_ID,
-  ZK_EMAIL_VERIFIER_ACCOUNT_ID,
-  EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
   bytesToHex,
 } from '../EmailRecovery';
 import type { DelegateActionInput } from '../types/delegate';
@@ -121,6 +119,15 @@ export class TatchiPasskey {
     nearClient?: NearClient
   ) {
     this.configs = buildConfigsFromEnv(configs);
+    // Configure IndexedDB naming before any local persistence is touched.
+    // - Wallet iframe host keeps canonical DB names.
+    // - App origin disables IndexedDB entirely when iframe mode is enabled.
+    try {
+      const mode = __isWalletIframeHostMode()
+        ? 'wallet'
+        : (this.configs.iframeWallet?.walletOrigin ? 'disabled' : 'legacy');
+      configureIndexedDB({ mode });
+    } catch {}
     // Use provided client or create default one
     this.nearClient = nearClient || new MinimalNearClient(this.configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(this.configs, this.nearClient);
@@ -141,8 +148,11 @@ export class TatchiPasskey {
    * Idempotent and safe to call multiple times.
    */
   async initWalletIframe(nearAccountId?: string): Promise<void> {
-    // Warm local critical resources (NonceManager, IndexedDB, workers) regardless of iframe usage
-    await this.webAuthnManager.warmCriticalResources(nearAccountId);
+    const walletOriginConfigured = !!this.configs.iframeWallet?.walletOrigin;
+    // Warm local critical resources (NonceManager, workers) regardless of iframe usage.
+    // In iframe mode, avoid persisting user state (lastUserAccountId, preferences) on the app origin.
+    const shouldAvoidLocalUserState = walletOriginConfigured && !__isWalletIframeHostMode();
+    await this.webAuthnManager.warmCriticalResources(shouldAvoidLocalUserState ? undefined : nearAccountId);
 
     // Guardrail: when running inside the wallet service iframe host, never attempt to
     // initialize a nested wallet iframe client, even if configs accidentally include iframeWallet.
@@ -190,6 +200,7 @@ export class TatchiPasskey {
         // Ensure relay server config reaches the wallet host for atomic registration
         relayer: this.configs.relayer,
         vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
+        emailRecoveryContracts: this.configs.emailRecoveryContracts,
         rpIdOverride: walletIframeConfig?.rpIdOverride,
         // Allow apps/CI to control where embedded bundles are served from
         sdkBasePath: walletIframeConfig?.sdkBasePath,
@@ -204,6 +215,27 @@ export class TatchiPasskey {
 
   /** Get the wallet iframe client if initialized. */
   getWalletIframeClient(): WalletIframeRouter | null {
+    return this.iframeRouter;
+  }
+
+  /**
+   * True when the SDK is running on the app origin with a wallet iframe configured.
+   * In this mode, sensitive persistence must live in the wallet-iframe origin.
+   */
+  private shouldUseWalletIframe(): boolean {
+    return !!this.configs.iframeWallet?.walletOrigin && !__isWalletIframeHostMode();
+  }
+
+  private async requireWalletIframeRouter(nearAccountId?: string): Promise<WalletIframeRouter> {
+    if (!this.shouldUseWalletIframe()) {
+      throw new Error('[TatchiPasskey] Wallet iframe is not configured.');
+    }
+    if (!this.iframeRouter) {
+      await this.initWalletIframe(nearAccountId);
+    }
+    if (!this.iframeRouter) {
+      throw new Error('[TatchiPasskey] Wallet iframe is configured but unavailable.');
+    }
     return this.iframeRouter;
   }
 
@@ -244,8 +276,10 @@ export class TatchiPasskey {
       // initWalletIframe also calls WebAuthnManager.warmCriticalResources internally
       tasks.push(this.initWalletIframe(nearAccountId));
     } else if (workers) {
-      // Warm local-only resources without touching the iframe
-      tasks.push(this.webAuthnManager.warmCriticalResources(nearAccountId));
+      // Warm local-only resources without touching the iframe.
+      // In iframe mode, avoid persisting user state (lastUserAccountId, preferences) on the app origin.
+      const shouldAvoidLocalUserState = !!this.configs.iframeWallet?.walletOrigin && !__isWalletIframeHostMode();
+      tasks.push(this.webAuthnManager.warmCriticalResources(shouldAvoidLocalUserState ? undefined : nearAccountId));
     }
 
     if (tasks.length === 0) return;
@@ -280,14 +314,20 @@ export class TatchiPasskey {
     nearAccountId: string,
     options: RegistrationHooksOptions = {}
   ): Promise<RegistrationResult> {
-    // Route via wallet iframe when available so WebAuthn ceremony runs inside host
-    if (this.iframeRouter) {
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
       try {
-        const res = await this.iframeRouter.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
-        // Mirror wallet-host initialization locally so preferences (theme, confirm config)
-        // have a current user context immediately after successful registration.
+        const router = await this.requireWalletIframeRouter(nearAccountId);
+        const res = await router.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
+        // Mirror wallet-host preferences locally (in-memory only) so app UI reads are coherent
+        // without writing IndexedDB on the app origin when iframe mode is enabled.
         if (res?.success) {
-          try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+          try {
+            const up = this.webAuthnManager.getUserPreferences();
+            up.setCurrentUserLocalOnly(toAccountId(nearAccountId));
+            const cfg = await router.getConfirmationConfig().catch(() => null);
+            if (cfg) up.setConfirmationConfigLocalOnly(cfg);
+          } catch {}
         }
         // Opportunistically warm resources (non-blocking)
         void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
@@ -317,16 +357,22 @@ export class TatchiPasskey {
     options: RegistrationHooksOptions = {},
     confirmationConfigOverride?: ConfirmationConfig
   ): Promise<RegistrationResult> {
-    if (this.iframeRouter) {
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
       try {
-        const res = await this.iframeRouter.registerPasskey({
+        const router = await this.requireWalletIframeRouter(nearAccountId);
+        const res = await router.registerPasskey({
           nearAccountId,
           confirmationConfig: confirmationConfigOverride,
           options: { onEvent: options?.onEvent }
         });
-        // Ensure local manager knows the current user
         if (res?.success) {
-          try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+          try {
+            const up = this.webAuthnManager.getUserPreferences();
+            up.setCurrentUserLocalOnly(toAccountId(nearAccountId));
+            const cfg = await router.getConfirmationConfig().catch(() => null);
+            if (cfg) up.setConfirmationConfigLocalOnly(cfg);
+          } catch {}
         }
         void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);
@@ -358,12 +404,12 @@ export class TatchiPasskey {
     nearAccountId: string,
     options?: LoginHooksOptions
   ): Promise<LoginAndCreateSessionResult> {
-    if (this.iframeRouter) {
-      // Keep local preferences in sync
-      try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
       try {
+        const router = await this.requireWalletIframeRouter(nearAccountId);
         // Forward serializable options to wallet host, including session config
-        const res = await this.iframeRouter.loginAndCreateSession({
+        const res = await router.loginAndCreateSession({
           nearAccountId,
           options: {
             onEvent: options?.onEvent,
@@ -372,6 +418,14 @@ export class TatchiPasskey {
             signingSession: options?.signingSession,
           }
         });
+        // Best-effort: align local (in-memory) preferences cache to wallet host without
+        // persisting user state on the app origin.
+        try {
+          const up = this.webAuthnManager.getUserPreferences();
+          up.setCurrentUserLocalOnly(toAccountId(nearAccountId));
+          const cfg = await router.getConfirmationConfig().catch(() => null);
+          if (cfg) up.setConfirmationConfigLocalOnly(cfg);
+        } catch {}
         // Best-effort warm-up after successful login (non-blocking)
         void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);
@@ -406,9 +460,10 @@ export class TatchiPasskey {
    * Read login state + warm signing session status (no prompts).
    */
   async getLoginSession(nearAccountId?: string): Promise<LoginSession> {
-    if (this.iframeRouter) {
-      const session = await this.iframeRouter.getLoginSession(nearAccountId);
-      try { await this.iframeRouter.prefetchBlockheight(); } catch {}
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter(nearAccountId);
+      const session = await router.getLoginSession(nearAccountId);
+      try { await router.prefetchBlockheight(); } catch {}
       return session;
     }
     return await getLoginSession(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
@@ -418,8 +473,9 @@ export class TatchiPasskey {
    * Get check if accountId has a passkey from IndexedDB
    */
   async hasPasskeyCredential(nearAccountId: AccountId): Promise<boolean> {
-    if (this.iframeRouter) {
-      return await this.iframeRouter.hasPasskeyCredential(nearAccountId);
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter();
+      return await router.hasPasskeyCredential(nearAccountId);
     }
     const baseAccountId = toAccountId(nearAccountId);
     return await this.webAuthnManager.hasPasskeyCredential(baseAccountId);
@@ -433,12 +489,16 @@ export class TatchiPasskey {
    * Set confirmation behavior setting for the current user
    */
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
-    if (this.iframeRouter) {
+    if (this.shouldUseWalletIframe()) {
+      // Mirror locally without persisting on the app origin.
+      this.webAuthnManager.getUserPreferences().setConfirmBehaviorLocalOnly(behavior);
       // Fire and forget; persistence handled in wallet host. Avoid unhandled rejections.
-      const router = this.iframeRouter;
-      void router.setConfirmBehavior(behavior).catch(() => undefined);
-      // Mirror locally so UI reads from preferences stay in sync immediately
-      this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior);
+      void (async () => {
+        try {
+          const router = await this.requireWalletIframeRouter();
+          await router.setConfirmBehavior(behavior);
+        } catch {}
+      })();
       return;
     }
     this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior);
@@ -448,22 +508,32 @@ export class TatchiPasskey {
    * Set the unified confirmation configuration
    */
   setConfirmationConfig(config: ConfirmationConfig): void {
-    if (this.iframeRouter) {
+    if (this.shouldUseWalletIframe()) {
+      // Mirror locally without persisting on the app origin.
+      this.webAuthnManager.getUserPreferences().setConfirmationConfigLocalOnly(config);
       // Fire and forget; avoid unhandled rejections in consumers
-      const router = this.iframeRouter;
-      void router.setConfirmationConfig(config).catch(() => undefined);
-      // Mirror locally for immediate UI coherence
-      this.webAuthnManager.getUserPreferences().setConfirmationConfig(config);
+      void (async () => {
+        try {
+          const router = await this.requireWalletIframeRouter();
+          await router.setConfirmationConfig(config);
+        } catch {}
+      })();
       return;
     }
     this.webAuthnManager.getUserPreferences().setConfirmationConfig(config);
   }
 
   setUserTheme(theme: 'dark' | 'light'): void {
-    if (this.iframeRouter) {
-      // Ensure local UI updates immediately while propagating to wallet host
-      void this.webAuthnManager.getUserPreferences().setUserTheme(theme);
-      void this.iframeRouter.setTheme(theme);
+    if (this.shouldUseWalletIframe()) {
+      // Ensure local UI updates immediately while propagating to wallet host, without
+      // persisting user state on the app origin.
+      this.webAuthnManager.getUserPreferences().setUserThemeLocalOnly(theme);
+      void (async () => {
+        try {
+          const router = await this.requireWalletIframeRouter();
+          await router.setTheme(theme);
+        } catch {}
+      })();
       return;
     }
     this.webAuthnManager.getUserPreferences().setUserTheme(theme);
@@ -492,15 +562,16 @@ export class TatchiPasskey {
   }
 
   async getRecentLogins(): Promise<GetRecentLoginsResult> {
-    // Ensure wallet iframe client is initialized when iframe mode is configured,
-    // so we read recent accounts from the wallet origin's IndexedDB rather than
-    // the app origin. This avoids empty lists before initWalletIframe() completes.
-    if (this.configs.iframeWallet?.walletOrigin && !this.iframeRouter) {
-      try { await this.initWalletIframe(); } catch {}
+    // In iframe mode, do not fall back to app-origin IndexedDB.
+    if (this.shouldUseWalletIframe()) {
+      try {
+        const router = await this.requireWalletIframeRouter();
+        return await router.getRecentLogins();
+      } catch {
+        return { accountIds: [], lastUsedAccount: null };
+      }
     }
-    if (this.iframeRouter) {
-      return await this.iframeRouter.getRecentLogins();
-    }
+
     return getRecentLogins(this.getContext());
   }
 
@@ -564,10 +635,11 @@ export class TatchiPasskey {
     actionArgs: ActionArgs | ActionArgs[],
     options?: ActionHooksOptions
   }): Promise<ActionResult> {
-    // cross-origin iframe mode
-    if (this.iframeRouter) {
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
       try {
-        const res = await this.iframeRouter.executeAction({
+        const router = await this.requireWalletIframeRouter(args.nearAccountId);
+        const res = await router.executeAction({
           nearAccountId: args.nearAccountId,
           receiverId: args.receiverId,
           actionArgs: args.actionArgs,
@@ -650,9 +722,11 @@ export class TatchiPasskey {
     options?: SignAndSendTransactionHooksOptions,
   }): Promise<ActionResult[]> {
 
-    if (this.iframeRouter) {
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
       try {
-        const res = await this.iframeRouter.signAndSendTransactions({
+        const router = await this.requireWalletIframeRouter(nearAccountId);
+        const res = await router.signAndSendTransactions({
           nearAccountId,
           transactions: transactions.map(t => ({ receiverId: t.receiverId, actions: t.actions })),
           options: {
@@ -777,10 +851,11 @@ export class TatchiPasskey {
     options?: SignTransactionHooksOptions
   }): Promise<SignTransactionResult[]> {
     // route signing via wallet origin
-    if (this.iframeRouter) {
+    if (this.shouldUseWalletIframe()) {
       try {
+        const router = await this.requireWalletIframeRouter(nearAccountId);
         const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
-        const result = await this.iframeRouter.signTransactionsWithActions({
+        const result = await router.signTransactionsWithActions({
           nearAccountId, transactions:
           txs,
           options: {
@@ -839,9 +914,11 @@ export class TatchiPasskey {
     signedTransaction: SignedTransaction,
     options?: SendTransactionHooksOptions
   }): Promise<ActionResult> {
-    if (this.iframeRouter) {
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
       try {
-        const res = await this.iframeRouter.sendTransaction({
+        const router = await this.requireWalletIframeRouter();
+        const res = await router.sendTransaction({
           signedTransaction,
           options: {
             onEvent: options?.onEvent,
@@ -881,10 +958,11 @@ export class TatchiPasskey {
     delegate: DelegateActionInput;
     options?: DelegateActionHooksOptions;
   }): Promise<SignDelegateActionResult> {
-    // Prefer wallet iframe when available and method implemented
-    if (this.iframeRouter) {
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
       try {
-        const result = await this.iframeRouter.signDelegateAction({
+        const router = await this.requireWalletIframeRouter(nearAccountId);
+        const result = await router.signDelegateAction({
           nearAccountId,
           delegate,
           options: { onEvent: options?.onEvent }
@@ -1042,30 +1120,40 @@ export class TatchiPasskey {
     params: SignNEP413MessageParams,
     options?: SignNEP413HooksOptions
   }): Promise<SignNEP413MessageResult> {
-    // Route via wallet service for isolation
-    if (this.iframeRouter) {
-      const payload = {
-        nearAccountId: args.nearAccountId,
-        message: args.params.message,
-        recipient: args.params.recipient,
-        state: args.params.state,
-      };
-
-      const result = await this.iframeRouter.signNep413Message({
-        ...payload,
-        options: { onEvent: args.options?.onEvent }
-      });
-      await args.options?.afterCall?.(true, result);
-      // Expect wallet to return the same shape as WebAuthnManager.signNEP413Message
-      return result as SignNEP413MessageResult;
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
+      try {
+        const router = await this.requireWalletIframeRouter(args.nearAccountId);
+        const result = await router.signNep413Message({
+          nearAccountId: args.nearAccountId,
+          message: args.params.message,
+          recipient: args.params.recipient,
+          state: args.params.state,
+          options: { onEvent: args.options?.onEvent }
+        });
+        await args.options?.afterCall?.(true, result);
+        // Expect wallet to return the same shape as WebAuthnManager.signNEP413Message
+        return result as SignNEP413MessageResult;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await args.options?.onError?.(e);
+        await args.options?.afterCall?.(false);
+        throw e;
+      }
     }
 
-    return signNEP413Message({
+    const res = await signNEP413Message({
       context: this.getContext(),
       nearAccountId: toAccountId(args.nearAccountId),
       params: args.params,
       options: args.options
     });
+    if (res?.success) {
+      await args.options?.afterCall?.(true, res);
+    } else {
+      await args.options?.afterCall?.(false);
+    }
+    return res;
   }
 
   ///////////////////////////////////////
@@ -1118,6 +1206,15 @@ export class TatchiPasskey {
     nearAccountId: string,
     args: { contractId: string; path: string; address: string }
   ): Promise<void> {
+    if (this.shouldUseWalletIframe()) {
+      let router: WalletIframeRouter;
+      try {
+        router = await this.requireWalletIframeRouter();
+      } catch {
+        throw new Error('[TatchiPasskey] Wallet iframe is configured but unavailable; refusing to write derived addresses to app origin.');
+      }
+      return await router.setDerivedAddress({ nearAccountId, args });
+    }
     await chainsigAddressManager.setDerivedAddress(toAccountId(nearAccountId), args);
   }
 
@@ -1126,6 +1223,15 @@ export class TatchiPasskey {
     nearAccountId: string,
     args: { contractId: string; path: string }
   ): Promise<DerivedAddressRecord | null> {
+    if (this.shouldUseWalletIframe()) {
+      let router: WalletIframeRouter;
+      try {
+        router = await this.requireWalletIframeRouter();
+      } catch {
+        throw new Error('[TatchiPasskey] Wallet iframe is configured but unavailable; refusing to read derived addresses from app origin.');
+      }
+      return await router.getDerivedAddressRecord({ nearAccountId, args });
+    }
     return await chainsigAddressManager.getDerivedAddressRecord(toAccountId(nearAccountId), args);
   }
 
@@ -1134,6 +1240,15 @@ export class TatchiPasskey {
     nearAccountId: string,
     args: { contractId: string; path: string }
   ): Promise<string | null> {
+    if (this.shouldUseWalletIframe()) {
+      let router: WalletIframeRouter;
+      try {
+        router = await this.requireWalletIframeRouter();
+      } catch {
+        throw new Error('[TatchiPasskey] Wallet iframe is configured but unavailable; refusing to read derived addresses from app origin.');
+      }
+      return await router.getDerivedAddress({ nearAccountId, args });
+    }
     return await chainsigAddressManager.getDerivedAddress(toAccountId(nearAccountId), args);
   }
 
@@ -1149,28 +1264,20 @@ export class TatchiPasskey {
    *   (canonical email when known on this device, otherwise the hash hex).
    */
   async getRecoveryEmails(nearAccountId: string): Promise<Array<{ hashHex: string; email: string }>> {
+    if (this.shouldUseWalletIframe()) {
+      let router: WalletIframeRouter;
+      try {
+        router = await this.requireWalletIframeRouter(nearAccountId);
+      } catch {
+        throw new Error('[TatchiPasskey] Wallet iframe is configured but unavailable; refusing to read recovery email mappings from app origin.');
+      }
+      return await router.getRecoveryEmails(nearAccountId);
+    }
     const accountId = toAccountId(nearAccountId);
 
     // Fetch on-chain recovery email hashes
-    let rawHashes: number[][] = [];
-    try {
-      const code = await this.nearClient.viewCode(accountId);
-      const hasContract = !!code && code.byteLength > 0;
-      if (!hasContract) return [];
-
-      const hashes = await this.nearClient.view<Record<string, never>, number[][]>({
-        account: accountId,
-        method: 'get_recovery_emails',
-        args: {} as Record<string, never>,
-      });
-
-      if (Array.isArray(hashes)) {
-        rawHashes = hashes as number[][];
-      } else {
-        return [];
-      }
-    } catch (error) {
-      console.error('[TatchiPasskey] Failed to fetch on-chain recovery emails', error);
+    const rawHashes = await getRecoveryEmailHashesContractCall(this.nearClient, accountId);
+    if (!rawHashes.length) {
       return [];
     }
 
@@ -1209,56 +1316,30 @@ export class TatchiPasskey {
     recoveryEmails: string[],
     options?: ActionHooksOptions
   ): Promise<ActionResult> {
+    if (this.shouldUseWalletIframe()) {
+      try {
+        const router = await this.requireWalletIframeRouter(nearAccountId);
+        const res = await router.setRecoveryEmails({ nearAccountId, recoveryEmails, options });
+        await options?.afterCall?.(true, res);
+        return res;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
+      }
+    }
     const accountId = toAccountId(nearAccountId);
 
     // Canonicalize, hash, and persist mapping locally (best-effort)
     const { hashes: recoveryEmailHashes } = await prepareRecoveryEmails(accountId, recoveryEmails);
 
-    // Detect whether the per-account EmailRecoverer contract is already deployed:
-    // - If code exists on this account, assume recoverer is present and just call set_recovery_emails.
-    // - If no code is present, attach the global email-recoverer and call new(...) with emails.
-    let hasContract = false;
-    try {
-      const code = await this.nearClient.viewCode(accountId);
-      hasContract = !!code && code.byteLength > 0;
-    } catch {
-      hasContract = false;
-    }
-
-    const actions: ActionArgs[] = hasContract
-      ? [
-          {
-            type: ActionType.UseGlobalContract,
-            accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
-          },
-          {
-            type: ActionType.FunctionCall,
-            methodName: 'set_recovery_emails',
-            args: {
-              recovery_emails: recoveryEmailHashes,
-            },
-            gas: '80000000000000',
-            deposit: '0',
-          },
-        ]
-      : [
-          {
-            type: ActionType.UseGlobalContract,
-            accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
-          },
-          {
-            type: ActionType.FunctionCall,
-            methodName: 'new',
-            args: {
-              zk_email_verifier: ZK_EMAIL_VERIFIER_ACCOUNT_ID,
-              email_dkim_verifier: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
-              policy: null,
-              recovery_emails: recoveryEmailHashes,
-            },
-            gas: '80000000000000',
-            deposit: '0',
-          },
-        ];
+    const actions: ActionArgs[] = await buildSetRecoveryEmailsActions(
+      this.nearClient,
+      accountId,
+      recoveryEmailHashes,
+      this.configs.emailRecoveryContracts
+    );
 
     // Delegate to executeAction so iframe vs same-origin routing is respected.
     return this.executeAction({
@@ -1267,41 +1348,6 @@ export class TatchiPasskey {
       actionArgs: actions,
       options,
     });
-  }
-
-  /**
-   * Clear recovery emails for an account:
-   * - Calls set_recovery_emails([]) on the per-account contract.
-   * - Clears local IndexedDB mapping for this account.
-   */
-  async clearRecoveryEmails(
-    nearAccountId: string,
-    options?: ActionHooksOptions
-  ): Promise<ActionResult> {
-    const result = await this.executeAction({
-      nearAccountId,
-      receiverId: nearAccountId,
-      actionArgs: {
-        type: ActionType.FunctionCall,
-        methodName: 'set_recovery_emails',
-        args: {
-          recovery_emails: [] as number[][],
-        },
-        gas: '80000000000000',
-        deposit: '0',
-      },
-      options,
-    });
-
-    if (result?.success) {
-      try {
-        await clearLocalRecoveryEmails(toAccountId(nearAccountId));
-      } catch (error) {
-        console.warn('[TatchiPasskey] Failed to clear local recovery emails', error);
-      }
-    }
-
-    return result;
   }
 
   ///////////////////////////////////////
@@ -1318,20 +1364,21 @@ export class TatchiPasskey {
 
     const accountIdInput = args?.accountId || '';
     const options = args?.options;
-    // Ensure wallet iframe is initialized when walletOrigin is configured
-    if (this.configs.iframeWallet?.walletOrigin && !this.iframeRouter) {
-      try { await this.initWalletIframe(); } catch {}
-    }
-    // Prefer wallet-origin implementation when available
-    if (this.iframeRouter?.isReady?.()) {
-      return await this.iframeRouter.recoverAccountFlow({
-        accountId: accountIdInput,
-        onEvent: options?.onEvent
-      });
-    }
-    // If walletOrigin is configured but iframe is not ready, warn: recovery should run under wallet.*
-    if (this.configs.iframeWallet?.walletOrigin && !(this.iframeRouter?.isReady?.())) {
-      console.warn('[TatchiPasskey] recoverAccountFlow running outside wallet origin; expected to run within wallet iframe context.');
+    if (this.shouldUseWalletIframe()) {
+      try {
+        const router = await this.requireWalletIframeRouter();
+        const res = await router.recoverAccountFlow({
+          accountId: accountIdInput,
+          onEvent: options?.onEvent
+        });
+        await options?.afterCall?.(true, res);
+        return res;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
+      }
     }
 
     // Local orchestration using AccountRecoveryFlow for a single-call UX
@@ -1386,14 +1433,22 @@ export class TatchiPasskey {
     options?: import('./emailRecovery').EmailRecoveryFlowOptions;
   }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
     const { accountId, recoveryEmail, options } = args;
-    if (this.iframeRouter) {
-      const res = await this.iframeRouter.startEmailRecovery({
-        accountId,
-        recoveryEmail,
-        onEvent: options?.onEvent as any,
-      });
-      // Let the host flow own afterCall/onError; avoid double-calling
-      return res;
+    if (this.shouldUseWalletIframe()) {
+      try {
+        const router = await this.requireWalletIframeRouter();
+        const res = await router.startEmailRecovery({
+          accountId,
+          recoveryEmail,
+          onEvent: options?.onEvent as any,
+        });
+        await options?.afterCall?.(true, undefined as any);
+        return res;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
+      }
     }
     const flow = this.getEmailRecoveryFlow(options);
     return await flow.start({ accountId, recoveryEmail });
@@ -1405,14 +1460,22 @@ export class TatchiPasskey {
     options?: import('./emailRecovery').EmailRecoveryFlowOptions;
   }): Promise<void> {
     const { accountId, nearPublicKey, options } = args;
-    if (this.iframeRouter) {
-      await this.iframeRouter.finalizeEmailRecovery({
-        accountId,
-        nearPublicKey,
-        onEvent: options?.onEvent as any,
-      });
-      // Let the host flow own afterCall/onError; avoid double-calling
-      return;
+    if (this.shouldUseWalletIframe()) {
+      try {
+        const router = await this.requireWalletIframeRouter();
+        await router.finalizeEmailRecovery({
+          accountId,
+          nearPublicKey,
+          onEvent: options?.onEvent as any,
+        });
+        await options?.afterCall?.(true, undefined as any);
+        return;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
+      }
     }
     const flow = this.getEmailRecoveryFlow(options);
     await flow.finalize({ accountId, nearPublicKey });
@@ -1428,14 +1491,10 @@ export class TatchiPasskey {
    * Runs inside iframe when available for better isolation.
    */
   async startDevice2LinkingFlow(args: StartDevice2LinkingFlowArgs): Promise<StartDevice2LinkingFlowResults> {
-    // When iframeWallet is configured, device linking must run inside the wallet origin
-    // so the wallet-host IndexedDB has the new device/user state (lastUser + keys).
-    // Falling back to local here can split state across origins and break signing later.
-    if (this.configs.iframeWallet?.walletOrigin && !this.iframeRouter && !__isWalletIframeHostMode()) {
-      await this.initWalletIframe();
-    }
-    if (this.iframeRouter) {
-      return await this.iframeRouter.startDevice2LinkingFlow({
+    // In wallet-iframe mode, device linking must run inside the wallet origin.
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter();
+      return await router.startDevice2LinkingFlow({
         ui: args?.ui,
         onEvent: args?.onEvent
       });
@@ -1454,6 +1513,13 @@ export class TatchiPasskey {
    * Device2: Stops device linking flow inside the iframe host.
    */
   async stopDevice2LinkingFlow(): Promise<void> {
+    if (this.shouldUseWalletIframe()) {
+      try {
+        const router = await this.requireWalletIframeRouter();
+        await router.stopDevice2LinkingFlow();
+      } catch {}
+      return;
+    }
     if (this.iframeRouter) {
       await this.iframeRouter.stopDevice2LinkingFlow();
       return;
@@ -1475,13 +1541,10 @@ export class TatchiPasskey {
     qrData: DeviceLinkingQRData,
     options: ScanAndLinkDeviceOptionsDevice1
   ): Promise<LinkDeviceResult> {
-    // Ensure wallet iframe is initialized when walletOrigin is configured so device linking
-    // runs within the same origin as subsequent signing flows.
-    if (this.configs.iframeWallet?.walletOrigin && !this.iframeRouter && !__isWalletIframeHostMode()) {
-      await this.initWalletIframe();
-    }
-    if (this.iframeRouter) {
-      const res = await this.iframeRouter.linkDeviceWithScannedQRData({
+    // In wallet-iframe mode, device linking must run inside the wallet origin.
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter();
+      const res = await router.linkDeviceWithScannedQRData({
         qrData,
         fundingAmount: options.fundingAmount,
         options: { onEvent: options.onEvent }

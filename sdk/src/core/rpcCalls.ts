@@ -20,12 +20,14 @@ import type {
 } from './types/webauthn';
 
 import { ActionPhase, DeviceLinkingPhase, DeviceLinkingStatus } from './types/sdkSentEvents';
-import { ActionType } from './types/actions';
+import { ActionType, type ActionArgs } from './types/actions';
 import { VRFChallenge } from './types/vrf-worker';
 import { DEFAULT_WAIT_STATUS, TransactionContext } from './types/rpc';
 import type { AuthenticatorOptions } from './types/authenticatorOptions';
-import { base64UrlDecode } from '../utils/encoders';
+import { base64UrlDecode, base64UrlEncode } from '../utils/encoders';
 import { errorMessage } from '../utils/errors';
+import type { EmailRecoveryContracts } from './types/tatchi';
+import { DEFAULT_EMAIL_RECOVERY_CONTRACTS } from './defaultConfigs';
 
 // ===========================
 // CONTRACT CALL RESPONSES
@@ -320,18 +322,53 @@ export async function syncAuthenticatorsContractCall(
     if (authenticatorsResult && Array.isArray(authenticatorsResult)) {
       return authenticatorsResult.map(([credentialId, contractAuthenticator]) => {
         console.log(`Contract authenticator device_number for ${credentialId}:`, contractAuthenticator.device_number);
+
+        const transports = Array.isArray(contractAuthenticator.transports)
+          ? contractAuthenticator.transports
+          : [];
+
+        const registered = (() => {
+          const raw = String((contractAuthenticator as any).registered ?? '');
+          if (!raw) return new Date(0);
+          if (/^\d+$/.test(raw)) {
+            const ts = Number(raw);
+            return Number.isFinite(ts) ? new Date(ts) : new Date(0);
+          }
+          const d = new Date(raw);
+          return Number.isFinite(d.getTime()) ? d : new Date(0);
+        })();
+
+        const vrfPublicKeys = (() => {
+          const raw = (contractAuthenticator as any).vrf_public_keys;
+          if (!raw) return undefined;
+          if (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === 'string') {
+            return raw as string[];
+          }
+          if (Array.isArray(raw)) {
+            return raw
+              .map((entry: unknown) => {
+                if (!entry) return null;
+                if (entry instanceof Uint8Array) return base64UrlEncode(entry);
+                if (Array.isArray(entry)) return base64UrlEncode(new Uint8Array(entry));
+                return null;
+              })
+              .filter((x): x is string => typeof x === 'string' && x.length > 0);
+          }
+          return undefined;
+        })();
+
         return {
           credentialId,
           authenticator: {
             credentialId,
             credentialPublicKey: new Uint8Array(contractAuthenticator.credential_public_key),
-            transports: contractAuthenticator.transports,
+            transports,
             userId: accountId,
             name: `Device ${contractAuthenticator.device_number} Authenticator`,
-            registered: new Date(parseInt(contractAuthenticator.registered as string)),
+            registered,
             // Store the actual device number from contract (no fallback)
             deviceNumber: contractAuthenticator.device_number,
-            vrfPublicKeys: contractAuthenticator.vrf_public_keys
+            vrfPublicKeys
           }
         };
       });
@@ -341,6 +378,96 @@ export async function syncAuthenticatorsContractCall(
     console.warn('Failed to fetch authenticators from contract:', error.message);
     return [];
   }
+}
+
+// ===========================
+// RECOVERY EMAIL CONTRACT CALLS
+// ===========================
+
+/**
+ * Fetch on-chain recovery email hashes from the per-account contract.
+ * Returns [] when no contract is deployed or on failure.
+ */
+export async function getRecoveryEmailHashesContractCall(
+  nearClient: NearClient,
+  accountId: AccountId
+): Promise<number[][]> {
+  try {
+    const code = await nearClient.viewCode(accountId);
+    const hasContract = !!code && code.byteLength > 0;
+    if (!hasContract) return [];
+
+    const hashes = await nearClient.view<Record<string, never>, number[][]>({
+      account: accountId,
+      method: 'get_recovery_emails',
+      args: {} as Record<string, never>,
+    });
+
+    return Array.isArray(hashes) ? (hashes as number[][]) : [];
+  } catch (error) {
+    console.error('[rpcCalls] Failed to fetch recovery email hashes', error);
+    return [];
+  }
+}
+
+/**
+ * Build action args to update on-chain recovery emails for an account.
+ * If the per-account contract is missing, deploy/attach the global recoverer via `new`.
+ */
+export async function buildSetRecoveryEmailsActions(
+  nearClient: NearClient,
+  accountId: AccountId,
+  recoveryEmailHashes: number[][],
+  contracts: EmailRecoveryContracts = DEFAULT_EMAIL_RECOVERY_CONTRACTS
+): Promise<ActionArgs[]> {
+  let hasContract = false;
+  try {
+    const code = await nearClient.viewCode(accountId);
+    hasContract = !!code && code.byteLength > 0;
+  } catch {
+    hasContract = false;
+  }
+
+  const {
+    emailRecovererCodeAccountId,
+    zkEmailVerifierAccountId,
+    emailDkimVerifierAccountId,
+  } = contracts;
+
+  return hasContract
+    ? [
+        {
+          type: ActionType.UseGlobalContract,
+          accountId: emailRecovererCodeAccountId,
+        },
+        {
+          type: ActionType.FunctionCall,
+          methodName: 'set_recovery_emails',
+          args: {
+            recovery_emails: recoveryEmailHashes,
+          },
+          gas: '80000000000000',
+          deposit: '0',
+        },
+      ]
+    : [
+        {
+          type: ActionType.UseGlobalContract,
+          accountId: emailRecovererCodeAccountId,
+        },
+        {
+          type: ActionType.FunctionCall,
+          methodName: 'new',
+          args: {
+            zk_email_verifier: zkEmailVerifierAccountId,
+            email_dkim_verifier: emailDkimVerifierAccountId,
+            policy: null,
+            recovery_emails: recoveryEmailHashes,
+          },
+          gas: '80000000000000',
+          deposit: '0',
+        },
+      ];
 }
 
 export async function fetchNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId }: {

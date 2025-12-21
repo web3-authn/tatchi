@@ -1,10 +1,13 @@
 import type { ActionArgsWasm } from '../../core/types/actions';
 import { ActionType, validateActionArgsWasm } from '../../core/types/actions';
 import { parseContractExecutionError } from '../core/errors';
-import { buildForwardablePayloadFromRawEmail, extractZkEmailBindingsFromPayload, generateZkEmailProofFromPayload, normalizeForwardableEmailPayload } from './zkEmail';
+import { generateZkEmailProofFromPayload, type ZkEmailProverClientOptions } from './zkEmail';
 import { extractRecoveryModeFromBody, normalizeRecoveryMode } from './emailParsers';
 import { encryptEmailForOutlayer } from './emailEncryptor';
 import { buildEncryptedEmailRecoveryActions, buildOnchainEmailRecoveryActions, buildZkEmailRecoveryActions, sendEmailRecoveryTransaction, getOutlayerEncryptionPublicKey } from './rpcCalls';
+import { ZkEmailProverClient } from './zkEmail/proverClient';
+import { mapZkEmailRecoveryError, prepareZkEmailRecovery } from './zkEmail/recovery';
+import { normalizeLogger, type NormalizedLogger } from '../core/logger';
 import type {
   EmailRecoveryDispatchRequest,
   EmailRecoveryMode,
@@ -15,6 +18,7 @@ import type {
 
 export * from './emailEncryptor';
 export * from './zkEmail';
+export * from './zkEmail/recovery';
 export * from './testHelpers';
 export * from './types';
 
@@ -33,10 +37,78 @@ export * from './types';
  */
 export class EmailRecoveryService {
   private readonly deps: EmailRecoveryServiceDeps;
+  private readonly logger: NormalizedLogger;
   private cachedOutlayerPk: Uint8Array | null = null;
+  private zkEmailProverClient: ZkEmailProverClient | null = null;
+  private zkEmailProverClientKey: string | null = null;
 
   constructor(deps: EmailRecoveryServiceDeps) {
     this.deps = deps;
+    this.logger = normalizeLogger(deps.logger);
+  }
+
+  /**
+   * Lightweight view of zk-email prover wiring for health/readiness endpoints.
+   * This does not perform any network calls.
+   */
+  getZkEmailProverBaseUrl(): string | null {
+    const baseUrl = String(this.deps.zkEmailProver?.baseUrl || '').trim().replace(/\/+$/, '');
+    return baseUrl ? baseUrl : null;
+  }
+
+  /**
+   * Readiness check for zk-email prover.
+   *
+   * Returns `healthy: null` when zk-email prover is not configured.
+   * Does not log; callers (routers) may decide how/when to log.
+   */
+  async checkZkEmailProverHealth(): Promise<{
+    configured: boolean;
+    baseUrl: string | null;
+    healthy: boolean | null;
+    errorCode?: string;
+    message?: string;
+    proverCauseCode?: string;
+    proverCauseMessage?: string;
+  }> {
+    const baseUrl = this.getZkEmailProverBaseUrl();
+    const opts = this.deps.zkEmailProver;
+    if (!baseUrl || !opts) {
+      return { configured: false, baseUrl: null, healthy: null };
+    }
+
+    try {
+      const client = this.getZkEmailProverClient({ ...opts, baseUrl });
+      await client.healthz();
+      return { configured: true, baseUrl, healthy: true };
+    } catch (e: unknown) {
+      const mapped = mapZkEmailRecoveryError(e);
+      return {
+        configured: true,
+        baseUrl,
+        healthy: false,
+        errorCode: mapped.errorCode,
+        message: mapped.message,
+        proverCauseCode: mapped.proverCauseCode,
+        proverCauseMessage: mapped.proverCauseMessage,
+      };
+    }
+  }
+
+  private getZkEmailProverClient(opts: ZkEmailProverClientOptions): ZkEmailProverClient {
+    const baseUrl = String(opts.baseUrl || '').replace(/\/+$/, '');
+    const timeoutMs = opts.timeoutMs ?? 60_000;
+    const healthCheck = opts.healthCheck;
+    const key = `${baseUrl}|${timeoutMs}|${healthCheck?.enabled ?? 'default'}|${healthCheck?.ttlMs ?? 'default'}|${healthCheck?.timeoutMs ?? 'default'}`;
+
+    if (this.zkEmailProverClient && this.zkEmailProverClientKey === key) {
+      return this.zkEmailProverClient;
+    }
+
+    const client = new ZkEmailProverClient(opts);
+    this.zkEmailProverClient = client;
+    this.zkEmailProverClientKey = key;
+    return client;
   }
 
   private async getOutlayerEmailDkimPublicKey(): Promise<Uint8Array> {
@@ -82,7 +154,7 @@ export class EmailRecoveryService {
       explicitMode: request.explicitMode,
       emailBlob: request.emailBlob,
     });
-    console.log('[email-recovery] requestEmailRecovery mode selected', {
+    this.logger.debug('[email-recovery] requestEmailRecovery mode selected', {
       mode,
       accountId: request.accountId,
     });
@@ -147,10 +219,10 @@ export class EmailRecoveryService {
 	    }
 
 		    const recipientPk = await this.getOutlayerEmailDkimPublicKey();
-	    console.log('[email-recovery] encrypted using Outlayer public key', {
-	      accountId,
-	      outlayer_pk_bytes: Array.from(recipientPk),
-	    });
+		    this.logger.debug('[email-recovery] encrypted using Outlayer public key', {
+		      accountId,
+		      outlayerPkLen: recipientPk.length,
+		    });
 
 	    const { actions, receiverId } = await buildEncryptedEmailRecoveryActions(this.deps, {
 	      accountId,
@@ -163,16 +235,16 @@ export class EmailRecoveryService {
 	          recipientPk: pk,
 	        });
 
-	        console.log('[email-recovery] encrypted email envelope metadata', {
-	          accountId,
-	          aeadContext,
-	          envelope: {
-	            version: envelope.version,
-	            ephemeral_pub_len: envelope.ephemeral_pub?.length ?? 0,
-	            nonce_len: envelope.nonce?.length ?? 0,
-	            ciphertext_len: envelope.ciphertext?.length ?? 0,
-	          },
-	        });
+		        this.logger.debug('[email-recovery] encrypted email envelope metadata', {
+		          accountId,
+		          aeadContextLen: aeadContext.length,
+		          envelope: {
+		            version: envelope.version,
+		            ephemeral_pub_len: envelope.ephemeral_pub?.length ?? 0,
+		            nonce_len: envelope.nonce?.length ?? 0,
+		            ciphertext_len: envelope.ciphertext?.length ?? 0,
+		          },
+		        });
 
 	        return { envelope };
 	      },
@@ -238,14 +310,14 @@ export class EmailRecoveryService {
     if (!accountId) {
       return {
         success: false,
-        error: 'accountId is required',
+        error: 'zkemail_missing_account_id',
         message: 'accountId is required',
       };
     }
     if (!emailBlob || typeof emailBlob !== 'string') {
       return {
         success: false,
-        error: 'emailBlob (raw email) is required',
+        error: 'zkemail_missing_email_blob',
         message: 'emailBlob (raw email) is required',
       };
     }
@@ -253,59 +325,49 @@ export class EmailRecoveryService {
 	    const { ensureSignerAndRelayerAccount, zkEmailProver } = this.deps;
 
     if (!zkEmailProver || !zkEmailProver.baseUrl) {
-      console.error('[email-recovery] zk-email missing prover configuration', { accountId });
+      this.logger.warn('[email-recovery] zk-email missing prover configuration', { accountId });
       return {
         success: false,
-        error: 'zk-email prover configuration is missing',
+        error: 'zkemail_prover_not_configured',
         message: 'zk-email prover configuration is missing',
       };
     }
+
+    const prepared = prepareZkEmailRecovery(emailBlob, accountId);
+    if (!prepared.ok) {
+      const log = {
+        accountId,
+        requestId: prepared.requestId,
+        proverBaseUrl: zkEmailProver.baseUrl,
+        errorCode: prepared.errorCode,
+        errorMessage: prepared.message,
+        accountIdSubject: prepared.subjectAccountId,
+      };
+      if (prepared.errorCode === 'zkemail_account_mismatch') {
+        this.logger.warn('[email-recovery] zk-email account mismatch', log);
+      } else {
+        this.logger.warn('[email-recovery] zk-email recovery rejected', log);
+      }
+      return { success: false, error: prepared.errorCode, message: prepared.message };
+    }
+
+    const { payload, bindings } = prepared.prepared;
 
     try {
       await ensureSignerAndRelayerAccount();
     } catch (e: any) {
       const msg = e?.message || 'Failed to initialize relayer account';
-      console.error('[email-recovery] zk-email ensureSignerAndRelayerAccount failed', {
+      this.logger.error('[email-recovery] zk-email ensureSignerAndRelayerAccount failed', {
         accountId,
+        requestId: bindings.requestId,
         error: msg,
       });
-      return { success: false, error: msg, message: msg };
+      return { success: false, error: 'zkemail_relayer_init_failed', message: msg };
     }
 
 	    try {
-	      const forwardable = buildForwardablePayloadFromRawEmail(emailBlob);
-	      const normalized = normalizeForwardableEmailPayload(forwardable);
-	      if (!normalized.ok) {
-	        return {
-	          success: false,
-	          error: 'invalid_email_payload',
-	          message: normalized.message || 'Invalid email payload for zk-email recovery',
-	        };
-	      }
-
-	      const bindings = extractZkEmailBindingsFromPayload(normalized.payload);
-	      if (!bindings) {
-	        console.warn('[email-recovery] zk-email bindings parse error', { accountId });
-	        return {
-	          success: false,
-	          error: 'zkemail_parse_error_bindings',
-	          message: 'Failed to parse accountId/new_public_key/from_email/timestamp from email',
-	        };
-	      }
-
-	      if (bindings.accountId !== accountId) {
-	        console.warn('[email-recovery] zk-email account mismatch', {
-	          accountIdRequested: accountId,
-	          accountIdSubject: bindings.accountId,
-	        });
-	        return {
-	          success: false,
-	          error: 'zkemail_account_mismatch',
-	          message: 'accountId in subject does not match requested accountId',
-	        };
-	      }
-
-	      const proofResult = await generateZkEmailProofFromPayload(normalized.payload, zkEmailProver);
+	      const proverClient = this.getZkEmailProverClient(zkEmailProver);
+	      const proofResult = await generateZkEmailProofFromPayload(payload, proverClient);
 
 	      const contractArgs = {
 	        proof: proofResult.proof,
@@ -326,35 +388,23 @@ export class EmailRecoveryService {
 	        actions,
 	        label: `ZK-email recovery requested for ${accountId}`,
 	      });
-	    } catch (error: any) {
-	      const code = (error && typeof error.code === 'string') ? (error.code as string) : undefined;
-	      let errorCode = 'zkemail_unknown_error';
-	      let msg = error?.message || 'Unknown zk-email recovery error';
+		    } catch (error: any) {
+        const mapped = mapZkEmailRecoveryError(error);
 
-	      if (code === 'prover_timeout') {
-	        errorCode = 'zkemail_prover_timeout';
-	        msg = 'ZK-email prover request timed out';
-	      } else if (code === 'prover_http_error') {
-	        errorCode = 'zkemail_prover_http_error';
-	        msg = error?.message || 'ZK-email prover HTTP error';
-	      } else if (code === 'prover_network_error') {
-	        errorCode = 'zkemail_prover_network_error';
-	        msg = error?.message || 'ZK-email prover network error';
-	      } else if (code === 'missing_raw_email') {
-	        errorCode = 'zkemail_missing_raw_email';
-	        msg = 'raw email contents are required to generate a zk-email proof';
-	      }
-
-	      console.error('[email-recovery] zk-email recovery error', {
-	        accountId,
-	        errorCode,
-	        errorMessage: msg,
-	      });
+		      this.logger.error('[email-recovery] zk-email recovery error', {
+		        accountId,
+	          requestId: bindings.requestId,
+		        errorCode: mapped.errorCode,
+		        errorMessage: mapped.message,
+	          proverBaseUrl: zkEmailProver.baseUrl,
+	          proverCauseCode: mapped.proverCauseCode,
+	          proverCauseMessage: mapped.proverCauseMessage,
+		      });
 
 	      return {
 	        success: false,
-	        error: errorCode,
-	        message: msg,
+	        error: mapped.errorCode,
+	        message: mapped.message,
 	      };
 	    }
 	  }

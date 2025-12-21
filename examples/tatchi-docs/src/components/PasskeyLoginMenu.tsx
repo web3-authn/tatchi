@@ -5,13 +5,16 @@ import {
   LoginPhase,
   AuthMenuMode,
   DeviceLinkingPhase,
-  DeviceLinkingStatus
+  DeviceLinkingStatus,
+  EmailRecoveryPhase,
+  EmailRecoveryStatus,
 } from '@tatchi-xyz/sdk/react'
 import {
   type RegistrationSSEEvent,
   AccountRecoveryPhase,
   AccountRecoveryStatus,
-  type DeviceLinkingSSEEvent
+  type DeviceLinkingSSEEvent,
+  type EmailRecoverySSEEvent,
 } from '@tatchi-xyz/sdk/react'
 import { PasskeyAuthMenu } from '@tatchi-xyz/sdk/react'
 import { toast } from 'sonner'
@@ -132,6 +135,10 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
       // session: {
       //   kind: 'jwt',
       // },
+      signingSession: {
+        ttlMs: 24 * 60 * 60, // 1 day
+        remainingUses: 3
+      },
       onEvent: (event) => {
         switch (event.phase) {
           case LoginPhase.STEP_1_PREPARATION:
@@ -203,6 +210,42 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
     }
   }
 
+  const onEmailRecoveryEvents = (event: EmailRecoverySSEEvent) => {
+    const toastId = 'email-recovery';
+    if (event.phase === EmailRecoveryPhase.STEP_6_COMPLETE && event.status === EmailRecoveryStatus.SUCCESS) {
+      toast.success(event.message || 'Email recovery complete', { id: toastId });
+      return;
+    }
+    if (event.phase === EmailRecoveryPhase.ERROR || event.status === EmailRecoveryStatus.ERROR) {
+      toast.error((event as any)?.error || event.message || 'Email recovery failed', { id: toastId });
+      return;
+    }
+
+    switch (event.phase) {
+      case EmailRecoveryPhase.RESUMED_FROM_PENDING:
+        toast.loading(event.message || 'Resuming pending email recovery…', { id: toastId });
+        return;
+      case EmailRecoveryPhase.STEP_1_PREPARATION:
+        toast.loading(event.message || 'Preparing email recovery…', { id: toastId });
+        return;
+      case EmailRecoveryPhase.STEP_2_TOUCH_ID_REGISTRATION:
+        toast.loading(event.message || 'Registering this device (Touch ID / Passkey)…', { id: toastId });
+        return;
+      case EmailRecoveryPhase.STEP_3_AWAIT_EMAIL:
+        toast.loading(event.message || 'Waiting for the recovery email to be sent and verified…', { id: toastId });
+        return;
+      case EmailRecoveryPhase.STEP_4_POLLING_ADD_KEY:
+      case EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT:
+        toast.loading(event.message || 'Polling for recovery verification…', { id: toastId });
+        return;
+      case EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION:
+        toast.loading(event.message || 'Finalizing recovery registration…', { id: toastId });
+        return;
+      default:
+        return;
+    }
+  };
+
   return (
     <div className="passkey-login-container-root">
       <PasskeyAuthMenu
@@ -228,6 +271,14 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
             toast.error(error.message || 'Device linking failed', { id: toastId });
           },
           onCancelled: () => { toast.dismiss('device-linking') }
+        }}
+        emailRecoveryOptions={{
+          onEvent: onEmailRecoveryEvents,
+          onError: (error: Error) => {
+            const toastId = 'email-recovery';
+            console.error('Email recovery error:', error);
+            toast.error(error.message || 'Email recovery failed', { id: toastId });
+          },
         }}
       />
     </div>

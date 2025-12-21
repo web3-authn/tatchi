@@ -2,6 +2,7 @@ import React from 'react';
 import { PasskeyAuthMenuSkeletonInner } from './skeleton';
 import { PasskeyAuthMenuThemeScope } from './themeScope';
 import type { PasskeyAuthMenuProps } from './types';
+import { useTheme } from '../theme';
 
 function createClientLazy() {
   return React.lazy(() => import('./client').then((m) => ({ default: m.PasskeyAuthMenuClient })));
@@ -45,12 +46,16 @@ export const PasskeyAuthMenu: React.FC<PasskeyAuthMenuProps> = (props) => {
   const [retryKey, setRetryKey] = React.useState(0);
   const ClientLazy = React.useMemo(() => createClientLazy(), [retryKey]);
 
+  // Align with the SDK Theme boundary when present (TatchiPasskeyProvider wraps one by default).
+  // Falls back to system preference when used standalone.
+  const { theme } = useTheme();
+
   React.useEffect(() => {
     setIsClient(true);
   }, []);
 
   return (
-    <PasskeyAuthMenuThemeScope>
+    <PasskeyAuthMenuThemeScope theme={theme}>
       {isClient ? (
         <LazyErrorBoundary
           onRetry={() => setRetryKey((k) => k + 1)}

@@ -155,10 +155,37 @@ export interface RecoveryEmailRecord {
 export class PasskeyClientDBManager {
   private config: PasskeyClientDBConfig;
   private db: IDBPDatabase | null = null;
+  private disabled = false;
   private eventListeners: Set<(event: IndexedDBEvent) => void> = new Set();
 
   constructor(config: PasskeyClientDBConfig = DB_CONFIG) {
     this.config = config;
+  }
+
+  getDbName(): string {
+    return this.config.dbName;
+  }
+
+  setDbName(dbName: string): void {
+    const next = String(dbName || '').trim();
+    if (!next || next === this.config.dbName) return;
+    try { (this.db as any)?.close?.(); } catch {}
+    this.db = null;
+    this.config = { ...this.config, dbName: next };
+  }
+
+  isDisabled(): boolean {
+    return this.disabled;
+  }
+
+  setDisabled(disabled: boolean): void {
+    const next = !!disabled;
+    if (next === this.disabled) return;
+    this.disabled = next;
+    if (next) {
+      try { (this.db as any)?.close?.(); } catch {}
+      this.db = null;
+    }
   }
 
   // === EVENT SYSTEM ===
@@ -181,6 +208,9 @@ export class PasskeyClientDBManager {
   }
 
   private async getDB(): Promise<IDBPDatabase> {
+    if (this.disabled) {
+      throw new Error('[PasskeyClientDBManager] IndexedDB is disabled in this environment.');
+    }
     if (this.db) {
       return this.db;
     }
@@ -936,23 +966,6 @@ export class PasskeyClientDBManager {
     const index = store.index('nearAccountId');
     const result = await index.getAll(accountId);
     return (result as RecoveryEmailRecord[]) || [];
-  }
-
-  /**
-   * Clear all recovery email records for an account.
-   */
-  async clearRecoveryEmails(nearAccountId: AccountId): Promise<void> {
-    if (!nearAccountId) return;
-    const db = await this.getDB();
-    const accountId = toAccountId(nearAccountId);
-    const tx = db.transaction(DB_CONFIG.recoveryEmailStore, 'readwrite');
-    const store = tx.objectStore(DB_CONFIG.recoveryEmailStore);
-    const index = store.index('nearAccountId');
-    const existing = await index.getAll(accountId) as RecoveryEmailRecord[];
-
-    for (const rec of existing) {
-      await store.delete([accountId, rec.hashHex]);
-    }
   }
 
   /**

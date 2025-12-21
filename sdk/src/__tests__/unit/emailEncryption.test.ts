@@ -41,7 +41,7 @@ test.describe('Email encryption round-trip (Outlayer DKIM flow)', () => {
 
         const { envelope } = await encryptEmailForOutlayer({
           emailRaw,
-          context,
+          aeadContext: context,
           recipientPk,
           testOverrides: {
             ephemeralSecretKey: ephemeralSk,

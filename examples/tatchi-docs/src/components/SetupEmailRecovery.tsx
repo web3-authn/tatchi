@@ -7,6 +7,7 @@ import type { ActionResult, ActionArgs } from '@tatchi-xyz/sdk/react';
 import { ActionType } from '@tatchi-xyz/sdk/react';
 import { LoadingButton } from './LoadingButton';
 import EmailRecoveryFields from './EmailRecoveryFields';
+import EmailRecoveryPolicy from './EmailRecoveryPolicy';
 import { NEAR_EXPLORER_BASE_URL } from '../types';
 
 export const SetupEmailRecovery: React.FC = () => {
@@ -48,64 +49,6 @@ export const SetupEmailRecovery: React.FC = () => {
       return false;
     }
     return true;
-  };
-
-  const handleDeleteEmailRecovery = async () => {
-    if (!tatchi || !nearAccountId) return;
-
-    if (!ensureTestnet()) return;
-
-    const toastId = 'email-recovery-delete';
-    setIsBusy(true);
-
-    try {
-      toast.loading('Disabling email recovery (clearing emails)...', { id: toastId });
-
-      const result = await tatchi.clearRecoveryEmails(
-        nearAccountId,
-        {
-          waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
-          afterCall: (success: boolean, actionResult?: ActionResult) => {
-            try {
-              toast.dismiss(toastId);
-            } catch {}
-
-            const txId = actionResult?.transactionId;
-
-            if (success && txId) {
-              const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
-              toast.success('Email recovery disabled for this account', {
-                description: (
-                  <a href={txLink} target="_blank" rel="noopener noreferrer">
-                    View transaction on NearBlocks
-                  </a>
-                ),
-              });
-            } else if (success) {
-              toast.success('Email recovery disabled for this account');
-            } else {
-              const message = actionResult?.error || 'Failed to disable email recovery';
-              toast.error(message);
-            }
-          },
-        },
-      );
-
-      if (!result?.success) {
-        toast.error(result?.error || 'Failed to disable email recovery');
-      }
-      if (result?.success) {
-        void refreshOnChainEmails();
-      }
-    } catch (error: any) {
-      try {
-        toast.dismiss(toastId);
-      } catch {}
-      const message = error?.message || 'Failed to disable email recovery';
-      toast.error(message);
-    } finally {
-      setIsBusy(false);
-    }
   };
 
   const handleSetRecoveryEmails = async () => {
@@ -256,7 +199,6 @@ export const SetupEmailRecovery: React.FC = () => {
           onChange={setRecoveryEmails}
           disabled={isBusy}
           onChainHashes={onChainHashes}
-          onClear={handleDeleteEmailRecovery}
         />
         <div style={{ marginTop: '0.5rem' }}>
           <LoadingButton
@@ -265,63 +207,21 @@ export const SetupEmailRecovery: React.FC = () => {
             loadingText="Saving..."
             variant="secondary"
             size="small"
-            style={{ minWidth: 180 }}
+            style={{ width: 200 }}
           >
             Set Recovery Emails
           </LoadingButton>
         </div>
       </div>
-      <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 480 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 13, opacity: 0.9 }}>Recovery policy</span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={minRequiredEmails}
-            onChange={e => setMinRequiredEmails(e.target.value)}
-            disabled={isBusy}
-            placeholder="Min required emails"
-            style={{
-              width: 80,
-              padding: '0.25rem 0.5rem',
-              borderRadius: 9999,
-              border: '1px solid rgba(255,255,255,0.16)',
-              background: 'rgba(11,15,25,0.85)',
-              color: 'inherit',
-            }}
-          />
-          <span style={{ fontSize: 12, opacity: 0.8 }}>Email</span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={maxAgeMinutes}
-            onChange={e => setMaxAgeMinutes(e.target.value)}
-            disabled={isBusy}
-            placeholder="Max age (minutes)"
-            style={{
-              width: 120,
-              padding: '0.25rem 0.5rem',
-              borderRadius: 9999,
-              border: '1px solid rgba(255,255,255,0.16)',
-              background: 'rgba(11,15,25,0.85)',
-              color: 'inherit',
-            }}
-          />
-          <span style={{ fontSize: 12, opacity: 0.8 }}>min timeout</span>
-          <LoadingButton
-            onClick={handleSetRecoveryPolicy}
-            loading={isBusy}
-            loadingText="Saving..."
-            variant="secondary"
-            size="small"
-            style={{ minWidth: 140 }}
-          >
-            Set Policy
-          </LoadingButton>
-        </div>
-      </div>
+      <EmailRecoveryPolicy
+        minRequiredEmails={minRequiredEmails}
+        onChangeMinRequiredEmails={setMinRequiredEmails}
+        maxAgeMinutes={maxAgeMinutes}
+        onChangeMaxAgeMinutes={setMaxAgeMinutes}
+        disabled={isBusy}
+        loading={isBusy}
+        onSubmit={handleSetRecoveryPolicy}
+      />
     </>
   );
 };

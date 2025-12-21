@@ -25,7 +25,7 @@ import type {
   SignerWasmModuleSupplier,
 } from './types';
 
-import { EMAIL_DKIM_VERIFIER_ACCOUNT_ID } from '../../core/EmailRecovery';
+import { DEFAULT_EMAIL_RECOVERY_CONTRACTS } from '../../core/defaultConfigs';
 import { EmailRecoveryService } from '../email-recovery';
 import { ShamirService } from './ShamirService';
 import { SignedDelegate } from '../../core/types/delegate';
@@ -34,6 +34,7 @@ import {
   executeSignedDelegateWithRelayer,
   type DelegateActionPolicy,
 } from '../delegateAction';
+import { normalizeLogger, type NormalizedLogger } from './logger';
 
 // =============================
 // WASM URL CONSTANTS + HELPERS
@@ -44,7 +45,7 @@ const SIGNER_WASM_MAIN_PATH = '../../wasm_signer_worker/pkg/wasm_signer_worker_b
 // Fallback location (dist/workers copy step)
 const SIGNER_WASM_FALLBACK_PATH = '../../../workers/wasm_signer_worker_bg.wasm';
 
-function getSignerWasmUrls(): URL[] {
+function getSignerWasmUrls(logger: NormalizedLogger): URL[] {
   const paths = [SIGNER_WASM_MAIN_PATH, SIGNER_WASM_FALLBACK_PATH];
   const resolved: URL[] = [];
   const baseUrl = import.meta.url;
@@ -54,7 +55,7 @@ function getSignerWasmUrls(): URL[] {
       if (!baseUrl) throw new Error('import.meta.url is undefined');
       resolved.push(new URL(path, baseUrl));
     } catch (err) {
-      console.warn(`Failed to resolve signer WASM relative URL for path "${path}":`, err);
+      logger.warn(`Failed to resolve signer WASM relative URL for path "${path}":`, err);
     }
   }
 
@@ -75,6 +76,7 @@ export class AuthService {
   private nearClient: MinimalNearClient;
   private relayerPublicKey: string = '';
   private signerWasmReady = false;
+  private readonly logger: NormalizedLogger;
 
   // Transaction queue to prevent nonce conflicts
   private transactionQueue: Promise<any> = Promise.resolve();
@@ -103,7 +105,10 @@ export class AuthService {
         || '120000000000000', // 120 TGas
       shamir: config.shamir,
       signerWasm: config.signerWasm,
+      logger: config.logger,
+      zkEmailProver: config.zkEmailProver,
     };
+    this.logger = normalizeLogger(this.config.logger);
     const graceFileCandidate = (this.config.shamir?.graceShamirKeysFile || '').trim();
     this.shamirService = new ShamirService(this.config.shamir, graceFileCandidate || 'grace-keys.json');
     this.nearClient = new MinimalNearClient(this.config.nearRpcUrl);
@@ -111,18 +116,20 @@ export class AuthService {
       relayerAccountId: this.config.relayerAccountId,
       relayerPrivateKey: this.config.relayerPrivateKey,
       networkId: this.config.networkId,
-      emailDkimVerifierAccountId: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
+      emailDkimVerifierAccountId: DEFAULT_EMAIL_RECOVERY_CONTRACTS.emailDkimVerifierAccountId,
       nearClient: this.nearClient,
+      logger: this.config.logger,
       ensureSignerAndRelayerAccount: () => this._ensureSignerAndRelayerAccount(),
       queueTransaction: <T>(fn: () => Promise<T>, label: string) => this.queueTransaction(fn, label),
       fetchTxContext: (accountId: string, publicKey: string) => this.fetchTxContext(accountId, publicKey),
       signWithPrivateKey: (input) => this.signWithPrivateKey(input),
       getRelayerPublicKey: () => this.relayerPublicKey,
+      zkEmailProver: this.config.zkEmailProver,
     });
 
     // Log effective configuration at construction time so operators can
     // verify wiring immediately when the service is created.
-    console.log(`
+    this.logger.info(`
     AuthService initialized with:
     • networkId: ${this.config.networkId}
     • nearRpcUrl: ${this.config.nearRpcUrl}
@@ -130,7 +137,16 @@ export class AuthService {
     • webAuthnContractId: ${this.config.webAuthnContractId}
     • accountInitialBalance: ${this.config.accountInitialBalance} (${formatYoctoToNear(this.config.accountInitialBalance)} NEAR)
     • createAccountAndRegisterGas: ${this.config.createAccountAndRegisterGas} (${formatGasToTGas(this.config.createAccountAndRegisterGas)})
-    ${this.config.shamir ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...` : '• shamir: not configured'}
+    ${
+      this.config.shamir
+        ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...`
+        : '• shamir: not configured'
+    }
+    ${
+      this.config.zkEmailProver?.baseUrl
+        ? `• zkEmailProver: ${this.config.zkEmailProver.baseUrl}`
+        : `• zkEmailProver: not configured`
+    }
     `);
   }
 
@@ -171,7 +187,7 @@ export class AuthService {
       const { seed, pub } = parseNearSecretKey(this.config.relayerPrivateKey);
       this.relayerPublicKey = toPublicKeyString(pub);
     } catch (e) {
-      console.warn('Failed to derive public key from relayerPrivateKey; ensure it is in ed25519:<base58> format');
+      this.logger.warn('Failed to derive public key from relayerPrivateKey; ensure it is in ed25519:<base58> format');
       this.relayerPublicKey = '';
     }
 
@@ -190,16 +206,16 @@ export class AuthService {
         this.signerWasmReady = true;
         return;
       } catch (e) {
-        console.error('Failed to initialize signer WASM via provided override:', e);
+        this.logger.error('Failed to initialize signer WASM via provided override:', e);
         throw e;
       }
     }
 
     let candidates: URL[];
     try {
-      candidates = getSignerWasmUrls();
+      candidates = getSignerWasmUrls(this.logger);
     } catch (err) {
-      console.error('Failed to resolve signer WASM URLs:', err);
+      this.logger.error('Failed to resolve signer WASM URLs:', err);
       throw err;
     }
 
@@ -218,13 +234,13 @@ export class AuthService {
           return;
         } catch (err) {
           lastError = err;
-          console.warn(`Failed to initialize signer WASM from ${candidate.toString()}, trying next candidate...`);
+          this.logger.warn(`Failed to initialize signer WASM from ${candidate.toString()}, trying next candidate...`);
         }
       }
 
       throw lastError ?? new Error('Unable to initialize signer WASM from any candidate URL');
     } catch (e) {
-      console.error('Failed to initialize signer WASM:', e);
+      this.logger.error('Failed to initialize signer WASM:', e);
       throw e instanceof Error ? e : new Error(String(e));
     }
   }
@@ -304,17 +320,17 @@ export class AuthService {
         }
 
         // Check if account already exists
-        console.log(`Checking if account ${request.accountId} already exists...`);
+        this.logger.info(`Checking if account ${request.accountId} already exists...`);
         const accountExists = await this.checkAccountExists(request.accountId);
         if (accountExists) {
           throw new Error(`Account ${request.accountId} already exists. Cannot create duplicate account.`);
         }
-        console.log(`Account ${request.accountId} is available for creation`);
+        this.logger.info(`Account ${request.accountId} is available for creation`);
 
         const initialBalance = this.config.accountInitialBalance;
 
-        console.log(`Creating account: ${request.accountId}`);
-        console.log(`Initial balance: ${initialBalance} yoctoNEAR`);
+        this.logger.info(`Creating account: ${request.accountId}`);
+        this.logger.info(`Initial balance: ${initialBalance} yoctoNEAR`);
 
         // Build actions for CreateAccount + Transfer + AddKey(FullAccess)
         const actions: ActionArgsWasm[] = [
@@ -348,7 +364,7 @@ export class AuthService {
         // Broadcast transaction via MinimalNearClient using a strongly typed SignedTransaction
         const result = await this.nearClient.sendTransaction(signed);
 
-        console.log(`Account creation completed: ${result.transaction.hash}`);
+        this.logger.info(`Account creation completed: ${result.transaction.hash}`);
         const nearAmount = (Number(BigInt(initialBalance)) / 1e24).toFixed(6);
         return {
           success: true,
@@ -358,7 +374,7 @@ export class AuthService {
         };
 
       } catch (error: any) {
-        console.error(`Account creation failed for ${request.accountId}:`, error);
+        this.logger.error(`Account creation failed for ${request.accountId}:`, error);
         return {
           success: false,
           error: error.message || 'Unknown account creation error',
@@ -381,14 +397,14 @@ export class AuthService {
         }
 
         // Check if account already exists
-        console.log(`Checking if account ${request.new_account_id} already exists...`);
+        this.logger.info(`Checking if account ${request.new_account_id} already exists...`);
         const accountExists = await this.checkAccountExists(request.new_account_id);
         if (accountExists) {
           throw new Error(`Account ${request.new_account_id} already exists. Cannot create duplicate account.`);
         }
-        console.log(`Account ${request.new_account_id} is available for atomic creation and registration`);
-        console.log(`Registering account: ${request.new_account_id}`);
-        console.log(`Contract: ${this.config.webAuthnContractId}`);
+        this.logger.info(`Account ${request.new_account_id} is available for atomic creation and registration`);
+        this.logger.info(`Registering account: ${request.new_account_id}`);
+        this.logger.info(`Contract: ${this.config.webAuthnContractId}`);
 
         // Prepare contract arguments
         const contractArgs = {
@@ -426,11 +442,11 @@ export class AuthService {
         // Parse contract execution results to detect failures
         const contractError = parseContractExecutionError(result, request.new_account_id);
         if (contractError) {
-          console.error(`Contract execution failed for ${request.new_account_id}:`, contractError);
+          this.logger.error(`Contract execution failed for ${request.new_account_id}:`, contractError);
           throw new Error(contractError);
         }
 
-        console.log(`Registration completed: ${result.transaction.hash}`);
+        this.logger.info(`Registration completed: ${result.transaction.hash}`);
         return {
           success: true,
           transactionHash: result.transaction.hash,
@@ -439,7 +455,7 @@ export class AuthService {
         };
 
       } catch (error: any) {
-        console.error(`Atomic registration failed for ${request.new_account_id}:`, error);
+        this.logger.error(`Atomic registration failed for ${request.new_account_id}:`, error);
         return {
           success: false,
           error: error.message || 'Unknown atomic registration error',
@@ -541,7 +557,7 @@ export class AuthService {
       }
       return Array.from(out);
     } catch (e) {
-      console.warn('[AuthService] getRorOrigins failed:', e);
+      this.logger.warn('[AuthService] getRorOrigins failed:', e);
       return [];
     }
   }
@@ -588,10 +604,10 @@ export class AuthService {
         }
         // As a safety valve for flaky RPCs, treat persistent retryable errors as not-found
         if (isRetryable(msg)) {
-          console.warn(`[AuthService] Assuming account '${accountId}' not found after retryable RPC errors:`, msg);
+          this.logger.warn(`[AuthService] Assuming account '${accountId}' not found after retryable RPC errors:`, msg);
           return false;
         }
-        console.error(`Error checking account existence for ${accountId}:`, error);
+        this.logger.error(`Error checking account existence for ${accountId}:`, error);
         throw error;
       }
     }
@@ -754,7 +770,7 @@ export class AuthService {
           res.status(status).json(result);
         }
       } catch (error: any) {
-        console.error('Error in verify authentication middleware:', error);
+        this.logger.error('Error in verify authentication middleware:', error);
         res.status(500).json({ code: 'internal', message: error?.message || 'Internal server error' });
       }
     };
@@ -765,21 +781,21 @@ export class AuthService {
    */
   private async queueTransaction<T>(operation: () => Promise<T>, description: string): Promise<T> {
     this.queueStats.pending++;
-    console.log(`[AuthService] Queueing: ${description} (pending: ${this.queueStats.pending})`);
+    this.logger.debug(`[AuthService] Queueing: ${description} (pending: ${this.queueStats.pending})`);
 
     this.transactionQueue = this.transactionQueue
       .then(async () => {
         try {
-          console.log(`[AuthService] Executing: ${description}`);
+          this.logger.debug(`[AuthService] Executing: ${description}`);
           const result = await operation();
           this.queueStats.completed++;
           this.queueStats.pending--;
-          console.log(`[AuthService] Completed: ${description} (pending: ${this.queueStats.pending})`);
+          this.logger.debug(`[AuthService] Completed: ${description} (pending: ${this.queueStats.pending})`);
           return result;
         } catch (error: any) {
           this.queueStats.failed++;
           this.queueStats.pending--;
-          console.error(`[AuthService] Failed: ${description} (failed: ${this.queueStats.failed}):`, error?.message);
+          this.logger.error(`[AuthService] Failed: ${description} (failed: ${this.queueStats.failed}):`, error?.message);
           throw error;
         }
       })

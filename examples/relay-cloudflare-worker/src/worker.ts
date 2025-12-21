@@ -31,6 +31,8 @@ export interface Env {
   WEBAUTHN_CONTRACT_ID: string;
   ACCOUNT_INITIAL_BALANCE?: string;
   CREATE_ACCOUNT_AND_REGISTER_GAS?: string;
+  ZK_EMAIL_PROVER_BASE_URL?: string;
+  ZK_EMAIL_PROVER_TIMEOUT_MS?: string;
   SHAMIR_P_B64U: string;
   SHAMIR_E_S_B64U: string;
   SHAMIR_D_S_B64U: string;
@@ -75,6 +77,12 @@ function getService(env: Env): AuthService {
       networkId: env.NETWORK_ID || 'testnet',
       accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE || '40000000000000000000000', // 0.04 NEAR
       createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS || '85000000000000', // 85 TGas (tested)
+      zkEmailProver: env.ZK_EMAIL_PROVER_BASE_URL
+        ? {
+            baseUrl: env.ZK_EMAIL_PROVER_BASE_URL,
+            timeoutMs: Number(env.ZK_EMAIL_PROVER_TIMEOUT_MS || 0) || undefined,
+          }
+        : undefined,
       shamir: {
         shamir_p_b64u: env.SHAMIR_P_B64U,
         shamir_e_s_b64u: env.SHAMIR_E_S_B64U,
@@ -128,6 +136,7 @@ export default {
     });
     const router = createCloudflareRouter(s, {
       healthz: true,
+      readyz: true,
       // Pass raw env strings; router normalizes CSV/duplicates internally
       corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN],
       session
@@ -136,50 +145,10 @@ export default {
     if (url.pathname === '/signed-delegate') {
       return handleSignedDelegateRoute(s, request, {
         healthz: true,
+        readyz: true,
         corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN],
         session,
       });
-    }
-
-    if (url.pathname === '/recover-email-zk' && request.method === 'POST') {
-      try {
-        const body = await request.json().catch(() => null) as any;
-        const accountId = (body?.accountId || '').trim();
-        const emailBlob = body?.emailBlob;
-        if (!accountId || !emailBlob || typeof emailBlob !== 'string') {
-          return new Response(
-            JSON.stringify({ success: false, error: 'accountId and emailBlob are required' }),
-            { status: 400, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-        if (!s.emailRecovery) {
-          return new Response(
-            JSON.stringify({ success: false, error: 'email recovery service unavailable' }),
-            { status: 503, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-
-        const result = await s.emailRecovery.requestEmailRecovery({
-          accountId,
-          emailBlob,
-        });
-
-        const status = result.success ? 200 : 502;
-        const headers = new Headers({ 'Content-Type': 'application/json' });
-        withCorsForEnv(headers, env, request);
-        return new Response(JSON.stringify(result), {
-          status,
-          headers,
-        });
-      } catch (e: any) {
-        const msg = e?.message || 'zk-email recovery endpoint error';
-        const headers = new Headers({ 'Content-Type': 'application/json' });
-        withCorsForEnv(headers, env, request);
-        return new Response(
-          JSON.stringify({ success: false, error: msg }),
-          { status: 500, headers }
-        );
-      }
     }
 
     return router(request, env as unknown as CfEnv, ctx);
