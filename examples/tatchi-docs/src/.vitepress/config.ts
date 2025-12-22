@@ -55,6 +55,10 @@ function docsRootRedirectHtml(target: string) {
 // VitePress defineConfig expects a plain object. Resolve env statically here.
 const resolvedMode = (process.env.NODE_ENV === 'production' ? 'production' : 'development') as 'production' | 'development'
 const env = loadEnv(resolvedMode, projectRoot, '')
+// Bitwarden and other password managers inject extension iframes/scripts that are blocked
+// by COEP=require-corp on the host page. Default to COEP off for the docs site; switch
+// back on explicitly when you need cross-origin isolation testing.
+const coepMode = (env.VITE_COEP_MODE === 'strict' ? 'strict' : 'off') as 'strict' | 'off'
 // Forward VITE_* to process.env so Node-side plugins can read them
 if (env.VITE_WEBAUTHN_CONTRACT_ID) process.env.VITE_WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID
 if (env.VITE_NEAR_RPC_URL) process.env.VITE_NEAR_RPC_URL = env.VITE_NEAR_RPC_URL
@@ -326,7 +330,8 @@ export default defineConfig({
       }),
       docsRootRedirectPlugin(DOCS_ROOT_REDIRECT_TARGET),
       // Dev: serve /wallet-service and /sdk with headers (no files written).
-      // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP/COEP/CORP and
+      // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP + Permissions-Policy
+      // (and optional COEP/CORP when enabled) and
       // a Permissions-Policy delegating WebAuthn to the wallet origin. Wallet HTML gets
       // strict CSP. If your CI already writes a _headers file, this will no-op.
       tatchiWallet({
@@ -335,6 +340,7 @@ export default defineConfig({
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
         walletOrigin: env.VITE_WALLET_ORIGIN,
         emitHeaders: true,
+        coepMode,
       }),
     ],
   },

@@ -15,6 +15,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const appSrc = fileURLToPath(new URL('./src', import.meta.url))
   const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url))
+  // Bitwarden and other password managers inject extension iframes/scripts that are blocked
+  // by COEP=require-corp on the host page. Default to COEP off for the docs site; switch
+  // back on explicitly when you need cross-origin isolation testing.
+  const coepMode = (env.VITE_COEP_MODE === 'strict' ? 'strict' : 'off') as 'strict' | 'off'
   // Make VITE_* visible to Node-side dev plugins
   if (env.VITE_WEBAUTHN_CONTRACT_ID) process.env.VITE_WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID
   if (env.VITE_NEAR_RPC_URL) process.env.VITE_NEAR_RPC_URL = env.VITE_NEAR_RPC_URL
@@ -47,16 +51,14 @@ export default defineConfig(({ mode }) => {
         },
       }),
       // Web3Authn dev integration: wallet server (serve SDK + wallet HTML + headers)
-      // Build: emit _headers for COOP/COEP/CORP + Permissions‑Policy; wallet HTML gets strict CSP.
+      // Build: emit _headers for COOP + Permissions‑Policy (and optional COEP/CORP when enabled); wallet HTML gets strict CSP.
       tatchiWallet({
         enableDebugRoutes: true,
         sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
         walletOrigin: env.VITE_WALLET_ORIGIN,
         emitHeaders: true,
-        // Default to strict COEP/CORP; set coepMode: 'off' to disable COEP on app pages
-        // when debugging extensions (e.g., password managers) that are not COEP-ready.
-        coepMode: 'strict',
+        coepMode,
         // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP/COEP and
         // a Permissions-Policy delegating WebAuthn to the wallet origin.
         // If your CI already writes a _headers file, this plugin will no-op.

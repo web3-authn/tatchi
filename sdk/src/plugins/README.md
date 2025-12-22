@@ -4,7 +4,8 @@ This folder contains header builders and small plugins for Vite and Next. They p
 
 Takeaways:
 - Strict CSP is applied only to wallet HTML routes (`/wallet-service`, `/export-viewer`), not to your app pages.
-- Dev servers set COEP/CORP by default so workers/WASM load cross‑origin reliably (configurable via `coepMode`).
+- COEP is **off by default**; enable it only when you need cross‑origin isolation (`coepMode: 'strict'` or `VITE_COEP_MODE=strict`).
+- COEP `require-corp` can break browser extensions (e.g., Bitwarden/1Password overlays); this is why the default is off.
 - Permissions‑Policy delegates WebAuthn + clipboard to your configured wallet origin.
 - CORS is echoed dynamically for SDK assets during dev; production CORS is opt‑in.
 
@@ -21,11 +22,11 @@ Takeaways:
     - Typical use: apply strict CSP to wallet HTML only, not app pages.
 
 - `vite.ts`
-  - `tatchiServeSdk({ sdkBasePath?, sdkDistRoot?, enableDebugRoutes? })`
+  - `tatchiServeSdk({ sdkBasePath?, sdkDistRoot?, enableDebugRoutes?, coepMode? })`
     - Serves SDK files under a stable base (default `/sdk`).
-    - Sets COEP/CORP on all SDK assets; echoes CORS from request (dev only).
+    - Sets COEP/CORP only in strict mode; echoes CORS from request (dev only).
     - Emits two tiny virtual assets used by wallet pages: `wallet-shims.js`, `wallet-service.css`.
-  - `tatchiWalletService({ walletServicePath?, sdkBasePath? })`
+  - `tatchiWalletService({ walletServicePath?, sdkBasePath?, coepMode? })`
     - Serves minimal wallet HTML with only external CSS/JS (no inline) so strict CSP works.
   - `tatchiWasmMime()`
     - Forces `application/wasm` for any `.wasm` file.
@@ -35,13 +36,13 @@ Takeaways:
     - Optional dev CSP on wallet HTML only: `devCSP: 'strict' | 'compatible'`.
   - `tatchiApp({ walletOrigin?, emitHeaders?, coepMode? })`
     - Dev (serve): same behavior as `tatchiAppServer({ walletOrigin })` (headers only on the app origin).
-    - Build (build): when `emitHeaders: true`, writes `_headers` (COOP/COEP/CORP + Permissions‑Policy; strict CSP scoped to wallet HTML routes).
+    - Build (build): when `emitHeaders: true`, writes `_headers` (COOP + Permissions‑Policy; optional COEP/CORP when enabled; strict CSP scoped to wallet HTML routes).
   - `tatchiWallet({ walletOrigin?, walletServicePath?, sdkBasePath?, emitHeaders?, coepMode? })`
     - Dev (serve): same behavior as `tatchiWalletServer({ ... })` (serves `/wallet-service` + `/sdk` with headers).
     - Build (build): when `emitHeaders: true`, writes `_headers` (same as above; strict CSP scoped to wallet HTML routes).
   - `tatchiApp({ walletOrigin?, emitHeaders? })`
     - Dev (serve): same behavior as `tatchiAppServer({ walletOrigin })` (headers only on the app origin).
-    - Build (build): when `emitHeaders: true`, writes `_headers` (COOP/COEP/CORP + Permissions‑Policy; strict CSP scoped to wallet HTML routes).
+    - Build (build): when `emitHeaders: true`, writes `_headers` (COOP + Permissions‑Policy; optional COEP/CORP when enabled; strict CSP scoped to wallet HTML routes).
   - Convenience dev servers:
     - `tatchiWalletServer({...})` → wallet origin (`/wallet-service` + `/sdk` + headers)
     - `tatchiAppServer({...})` → app origin (headers only; combine with `tatchiServeSdk` if needed)
@@ -56,9 +57,9 @@ Takeaways:
 
 ## Dev behavior (Vite)
 
-- App pages: receive COOP/COEP/CORP and Permissions‑Policy. No CSP is attached, so inline styles/scripts in your app continue to work.
-- Wallet pages (`/wallet-service`): same headers + strict CSP by default (configurable via `VITE_WALLET_DEV_CSP=compatible`).
-- SDK assets (`/sdk/*`): COEP/CORP and dev CORS echo:
+- App pages: receive COOP and Permissions‑Policy. COEP/CORP are added only when `coepMode: 'strict'` (or `VITE_COEP_MODE=strict`). No CSP is attached, so inline styles/scripts in your app continue to work.
+- Wallet pages (`/wallet-service`): same headers + strict CSP by default (configurable via `VITE_WALLET_DEV_CSP=compatible`). COEP/CORP only in strict mode.
+- SDK assets (`/sdk/*`): dev CORS echo; COEP/CORP only in strict mode:
   - JS: echoes `Access-Control-Allow-Origin` to the request `Origin`, includes `Allow-Credentials: true`.
   - CSS: permits `*` without credentials (safe and cache‑friendly).
 
@@ -67,6 +68,7 @@ Takeaways:
 - `VITE_WALLET_ORIGIN` – absolute wallet origin used in `Permissions-Policy`.
 - `VITE_WALLET_SERVICE_PATH` – path for wallet HTML (default `/wallet-service`).
 - `VITE_SDK_BASE_PATH` – path for SDK assets (default `/sdk`).
+- `VITE_COEP_MODE` – `'strict' | 'off'` (defaults to off; tests should set `strict`).
 - `VITE_WALLET_DEV_CSP` – `'strict' | 'compatible'` (dev only; default strict in tests and dev servers).
 
 ## Recommended usage (wrappers)
