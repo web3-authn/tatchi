@@ -79,9 +79,21 @@ export function buildExportViewerHtml(sdkBasePath: string): string {
 </html>`
 }
 
+export function resolveCoepMode(explicit?: 'strict' | 'off'): 'strict' | 'off' {
+  if (explicit === 'strict' || explicit === 'off') return explicit
+  const raw = String((globalThis as any)?.process?.env?.VITE_COEP_MODE || '').trim().toLowerCase()
+  if (raw === 'strict' || raw === 'on' || raw === '1' || raw === 'require-corp') return 'strict'
+  if (raw === 'off' || raw === '0' || raw === 'false') return 'off'
+  return 'off'
+}
+
 export function applyCoepCorp(res: any) {
   res.setHeader?.('Cross-Origin-Embedder-Policy', 'require-corp')
   res.setHeader?.('Cross-Origin-Resource-Policy', 'cross-origin')
+}
+
+export function applyCoepCorpIfNeeded(res: any, coepMode?: 'strict' | 'off') {
+  if (resolveCoepMode(coepMode) !== 'off') applyCoepCorp(res)
 }
 
 export function echoCorsFromRequest(

@@ -1,4 +1,134 @@
-import type { AuthServiceConfig } from './types';
+import type {
+  AuthServiceConfig,
+  AuthServiceConfigInput,
+  ShamirConfig,
+  ShamirConfigEnvInput,
+  ZkEmailProverConfigEnvInput,
+} from './types';
+
+export const AUTH_SERVICE_CONFIG_DEFAULTS = {
+  // Prefer FastNEAR for testnet by default (more reliable in practice).
+  // If you set `networkId: 'mainnet'` and omit `nearRpcUrl`, the default switches to NEAR mainnet RPC.
+  nearRpcUrlTestnet: 'https://test.rpc.fastnear.com',
+  nearRpcUrlMainnet: 'https://rpc.mainnet.near.org',
+  networkId: 'testnet',
+  // 0.03 NEAR (typical for examples; adjust based on your app/storage needs).
+  accountInitialBalance: '30000000000000000000000',
+  // 85 TGas (tested)
+  createAccountAndRegisterGas: '85000000000000',
+} as const;
+
+function defaultNearRpcUrl(networkId: string): string {
+  const net = String(networkId || '').trim().toLowerCase();
+  if (net === 'mainnet') return AUTH_SERVICE_CONFIG_DEFAULTS.nearRpcUrlMainnet;
+  return AUTH_SERVICE_CONFIG_DEFAULTS.nearRpcUrlTestnet;
+}
+
+function normalizeOptionalString(v: unknown): string {
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+function normalizeZkEmailProverConfig(
+  input: AuthServiceConfigInput['zkEmailProver'],
+): AuthServiceConfig['zkEmailProver'] | undefined {
+  if (!input) return undefined;
+
+  // Full options object
+  if (typeof (input as any).baseUrl === 'string') {
+    const baseUrl = normalizeOptionalString((input as any).baseUrl);
+    if (!baseUrl) return undefined;
+    return input as AuthServiceConfig['zkEmailProver'];
+  }
+
+  // Env-shaped input
+  const envInput = input as ZkEmailProverConfigEnvInput;
+  const baseUrl = normalizeOptionalString(envInput.ZK_EMAIL_PROVER_BASE_URL);
+  const timeoutMsRaw = normalizeOptionalString(envInput.ZK_EMAIL_PROVER_TIMEOUT_MS);
+
+  const anyProvided = Boolean(baseUrl || timeoutMsRaw);
+  if (!anyProvided) return undefined;
+  if (!baseUrl) {
+    throw new Error('zkEmailProver enabled but ZK_EMAIL_PROVER_BASE_URL is not set');
+  }
+
+  const timeoutMs = timeoutMsRaw ? Number(timeoutMsRaw) : undefined;
+  if (timeoutMsRaw && (!Number.isFinite(timeoutMs) || timeoutMs! <= 0)) {
+    throw new Error('ZK_EMAIL_PROVER_TIMEOUT_MS must be a positive integer (ms)');
+  }
+
+  return {
+    baseUrl,
+    timeoutMs,
+  };
+}
+
+function normalizeShamirConfig(input: AuthServiceConfigInput['shamir']): AuthServiceConfig['shamir'] | undefined {
+  if (!input) return undefined;
+
+  // Already normalized config shape
+  if (typeof (input as any).shamir_p_b64u === 'string') {
+    const c = input as ShamirConfig;
+    // Treat all-empty as disabled for safety
+    const anyProvided = Boolean(
+      normalizeOptionalString(c.shamir_p_b64u) ||
+      normalizeOptionalString(c.shamir_e_s_b64u) ||
+      normalizeOptionalString(c.shamir_d_s_b64u),
+    );
+    if (!anyProvided) return undefined;
+    return c;
+  }
+
+  // Env-shaped input
+  const envInput = input as ShamirConfigEnvInput;
+  const p = normalizeOptionalString(envInput.SHAMIR_P_B64U);
+  const e = normalizeOptionalString(envInput.SHAMIR_E_S_B64U);
+  const d = normalizeOptionalString(envInput.SHAMIR_D_S_B64U);
+  const graceFileEnv = normalizeOptionalString(envInput.SHAMIR_GRACE_KEYS_FILE);
+
+  const anyProvided = Boolean(p || e || d || graceFileEnv);
+  if (!anyProvided) return undefined;
+
+  if (!p || !e || !d) {
+    throw new Error('Shamir enabled but SHAMIR_P_B64U / SHAMIR_E_S_B64U / SHAMIR_D_S_B64U are not all set');
+  }
+
+  const graceShamirKeysFile =
+    // Preserve explicit empty-string overrides (workers use this to disable FS).
+    envInput.graceShamirKeysFile !== undefined
+      ? envInput.graceShamirKeysFile
+      : (graceFileEnv || undefined);
+
+  return {
+    shamir_p_b64u: p,
+    shamir_e_s_b64u: e,
+    shamir_d_s_b64u: d,
+    graceShamirKeys: envInput.graceShamirKeys,
+    graceShamirKeysFile,
+    moduleOrPath: envInput.moduleOrPath,
+  };
+}
+
+export function createAuthServiceConfig(input: AuthServiceConfigInput): AuthServiceConfig {
+  const networkId = String(input.networkId || '').trim() || AUTH_SERVICE_CONFIG_DEFAULTS.networkId;
+  const config: AuthServiceConfig = {
+    relayerAccountId: input.relayerAccountId,
+    relayerPrivateKey: input.relayerPrivateKey,
+    webAuthnContractId: input.webAuthnContractId,
+    nearRpcUrl: String(input.nearRpcUrl || '').trim() || defaultNearRpcUrl(networkId),
+    networkId: networkId,
+    accountInitialBalance: String(input.accountInitialBalance || '').trim()
+      || AUTH_SERVICE_CONFIG_DEFAULTS.accountInitialBalance,
+    createAccountAndRegisterGas: String(input.createAccountAndRegisterGas || '').trim()
+      || AUTH_SERVICE_CONFIG_DEFAULTS.createAccountAndRegisterGas,
+    shamir: normalizeShamirConfig(input.shamir),
+    signerWasm: input.signerWasm,
+    logger: input.logger,
+    zkEmailProver: normalizeZkEmailProverConfig(input.zkEmailProver),
+  };
+
+  validateConfigs(config);
+  return config;
+}
 
 export function validateConfigs(config: AuthServiceConfig): void {
 
@@ -19,4 +149,17 @@ export function validateConfigs(config: AuthServiceConfig): void {
   if (!config.relayerPrivateKey?.startsWith('ed25519:')) {
     throw new Error('Relayer private key must be in format "ed25519:base58privatekey"');
   }
+}
+
+export function parseBool(v: unknown): boolean {
+  const s = String(v ?? '').trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+}
+
+export function requireEnvVar<T extends object, K extends keyof T & string>(env: T, name: K): string {
+  const raw = (env as any)?.[name] as unknown;
+  if (typeof raw !== 'string') throw new Error(`Missing required env var: ${name}`);
+  const v = raw.trim();
+  if (!v) throw new Error(`Missing required env var: ${name}`);
+  return v;
 }

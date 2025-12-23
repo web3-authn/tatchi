@@ -10,16 +10,34 @@ export const ensureComponentModule = async (
   { modulePath, tagName }: ComponentImportOptions
 ): Promise<void> => {
   await page.evaluate(async ({ path, tag }) => {
+    const withTimeout = async <T>(p: Promise<T>, ms: number, label: string): Promise<T> => {
+      let timer: number | undefined;
+      try {
+        const timeout = new Promise<never>((_, reject) => {
+          timer = window.setTimeout(() => reject(new Error(label)), ms);
+        });
+        return await Promise.race([p, timeout]);
+      } finally {
+        if (timer != null) {
+          try { clearTimeout(timer); } catch {}
+        }
+      }
+    };
+
     if (!(window as any).__w3aLoadedModules) {
       (window as any).__w3aLoadedModules = new Set<string>();
     }
     const cache: Set<string> = (window as any).__w3aLoadedModules;
     if (!cache.has(path)) {
-      await import(path);
+      await withTimeout(import(path), 30_000, `Timed out importing module: ${path}`);
       cache.add(path);
     }
     if (tag) {
-      await (customElements.whenDefined?.(tag) ?? Promise.resolve());
+      await withTimeout(
+        customElements.whenDefined?.(tag) ?? Promise.resolve(),
+        10_000,
+        `Custom element was not defined after importing ${path}: ${tag}`
+      );
     }
   }, { path: modulePath, tag: tagName });
 };

@@ -412,7 +412,7 @@ export async function getRecoveryEmailHashesContractCall(
 
 /**
  * Build action args to update on-chain recovery emails for an account.
- * If the per-account contract is missing, deploy/attach the global recoverer via `new`.
+ * If the per-account contract is missing, deploy/attach the global recoverer via `init_email_recovery`.
  */
 export async function buildSetRecoveryEmailsActions(
   nearClient: NearClient,
@@ -429,16 +429,16 @@ export async function buildSetRecoveryEmailsActions(
   }
 
   const {
-    emailRecovererCodeAccountId,
-    zkEmailVerifierAccountId,
-    emailDkimVerifierAccountId,
+    emailRecovererGlobalContract,
+    zkEmailVerifierContract,
+    emailDkimVerifierContract,
   } = contracts;
 
   return hasContract
     ? [
         {
           type: ActionType.UseGlobalContract,
-          accountId: emailRecovererCodeAccountId,
+          accountId: emailRecovererGlobalContract,
         },
         {
           type: ActionType.FunctionCall,
@@ -453,14 +453,14 @@ export async function buildSetRecoveryEmailsActions(
     : [
         {
           type: ActionType.UseGlobalContract,
-          accountId: emailRecovererCodeAccountId,
+          accountId: emailRecovererGlobalContract,
         },
         {
           type: ActionType.FunctionCall,
-          methodName: 'new',
+          methodName: 'init_email_recovery',
           args: {
-            zk_email_verifier: zkEmailVerifierAccountId,
-            email_dkim_verifier: emailDkimVerifierAccountId,
+            zk_email_verifier: zkEmailVerifierContract,
+            email_dkim_verifier: emailDkimVerifierContract,
             policy: null,
             recovery_emails: recoveryEmailHashes,
           },

@@ -13,6 +13,7 @@ export * from './config';
 export { base64UrlEncode, base64UrlDecode } from './utils/encoders';
 export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from './core/defaultConfigs';
 export { buildConfigsFromEnv } from './core/defaultConfigs';
+export { detectTatchiWalletExtension } from './core/ExtensionWallet/detect';
 
 ///////////////////////////////////////////////////////////////
 // === Types re-exported from various type definition files ===

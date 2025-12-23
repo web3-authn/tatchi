@@ -1088,12 +1088,16 @@ export class WebAuthnManager {
     transactions,
     rpcCall,
     confirmationConfigOverride,
+    title,
+    body,
     onEvent,
   }: {
     transactions: TransactionInputWasm[],
     rpcCall: RpcCallPayload,
     // Accept partial override; merging happens in handlers layer
     confirmationConfigOverride?: Partial<ConfirmationConfig>,
+    title?: string;
+    body?: string;
     onEvent?: (update: onProgressEvents) => void,
   }): Promise<SignTransactionResult[]> {
 
@@ -1108,6 +1112,8 @@ export class WebAuthnManager {
 	          transactions,
 	          rpcCall,
 	          confirmationConfigOverride,
+	          title,
+	          body,
 	          onEvent,
 	          sessionId,
 	        }),
@@ -1118,12 +1124,16 @@ export class WebAuthnManager {
     delegate,
     rpcCall,
     confirmationConfigOverride,
+    title,
+    body,
     onEvent,
   }: {
     delegate: DelegateActionInput;
     rpcCall: RpcCallPayload;
     // Accept partial override; merging happens in handlers layer
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
+    title?: string;
+    body?: string;
     onEvent?: (update: onProgressEvents) => void;
   }): Promise<{
     signedDelegate: WasmSignedDelegate;
@@ -1147,6 +1157,8 @@ export class WebAuthnManager {
 	          delegate,
 	          rpcCall: normalizedRpcCall,
 	          confirmationConfigOverride,
+	          title,
+	          body,
 	          onEvent,
 	          sessionId,
 	        });

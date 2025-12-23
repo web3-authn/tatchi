@@ -498,17 +498,24 @@ export class WalletIframeRouter {
       afterCall?: AfterCall<SignTransactionResult[]>;
       // Allow minimal overrides (e.g., { uiMode: 'drawer' })
       confirmationConfig?: Partial<ConfirmationConfig>;
+      confirmerText?: { title?: string; body?: string };
     }
   }): Promise<SignTransactionResult[]> {
     // Do not forward non-cloneable functions in options; host emits its own PROGRESS messages
+    const safeOptions = payload.options
+      ? {
+          ...(payload.options.confirmationConfig
+            ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+            : {}),
+          ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
+        }
+      : undefined;
     const res = await this.post<SignTransactionResult>({
       type: 'PM_SIGN_TXS_WITH_ACTIONS',
       payload: {
         nearAccountId: payload.nearAccountId,
         transactions: payload.transactions,
-        options: payload.options?.confirmationConfig
-          ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
-          : undefined
+        options: safeOptions && Object.keys(safeOptions).length > 0 ? safeOptions : undefined
       },
       options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
@@ -523,16 +530,23 @@ export class WalletIframeRouter {
       onError?: (error: Error) => void;
       afterCall?: AfterCall<any>;
       confirmationConfig?: Partial<ConfirmationConfig>;
+      confirmerText?: { title?: string; body?: string };
     }
   }): Promise<unknown> {
+    const safeOptions = payload.options
+      ? {
+          ...(payload.options.confirmationConfig
+            ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+            : {}),
+          ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
+        }
+      : undefined;
     const res = await this.post<unknown>({
       type: 'PM_SIGN_DELEGATE_ACTION',
       payload: {
         nearAccountId: payload.nearAccountId,
         delegate: payload.delegate,
-        options: payload.options?.confirmationConfig
-          ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
-          : undefined
+        options: safeOptions && Object.keys(safeOptions).length > 0 ? safeOptions : undefined
       },
       options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
@@ -706,6 +720,7 @@ export class WalletIframeRouter {
       ? {
           waitUntil: options.waitUntil,
           confirmationConfig: options.confirmationConfig,
+          ...(options.confirmerText ? { confirmerText: options.confirmerText } : {}),
         }
       : undefined;
 
@@ -852,6 +867,7 @@ export class WalletIframeRouter {
           waitUntil: options.waitUntil,
           executionWait: options.executionWait,
           confirmationConfig: options.confirmationConfig,
+          ...(options.confirmerText ? { confirmerText: options.confirmerText } : {}),
         }
       : undefined;
 

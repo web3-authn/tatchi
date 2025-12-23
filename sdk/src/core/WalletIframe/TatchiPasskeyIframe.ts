@@ -311,7 +311,11 @@ export class TatchiPasskeyIframe {
       const res = await this.router.signDelegateAction({
         nearAccountId: args.nearAccountId,
         delegate: args.delegate,
-        options: { onEvent: options?.onEvent },
+        options: {
+          onEvent: options?.onEvent,
+          confirmationConfig: options?.confirmationConfig,
+          confirmerText: options?.confirmerText,
+        },
       }) as SignDelegateActionResult;
       await options?.afterCall?.(true, res);
       return res;

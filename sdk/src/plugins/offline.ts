@@ -1,6 +1,6 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { applyCoepCorp, setContentType } from './plugin-utils'
+import { applyCoepCorpIfNeeded, resolveCoepMode, setContentType } from './plugin-utils'
 
 // Offline export route HTML: fully externalized (no inline) so strict CSP works.
 export function buildOfflineExportHtml(sdkBasePath: string): string {
@@ -97,9 +97,11 @@ export function addOfflineExportDevRoutes(
     sdkBasePath: string
     offlineHtml: string
     includeAppModule?: boolean
+    coepMode?: 'strict' | 'off'
   }
 ) {
   const { sdkDistRoot, sdkBasePath, offlineHtml, includeAppModule } = opts
+  const coepMode = resolveCoepMode(opts.coepMode)
 
   // Route: /offline-export (HTML)
   server.middlewares.use((req: any, res: any, next: any) => {
@@ -109,7 +111,7 @@ export function addOfflineExportDevRoutes(
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
     // HTML should never be cached; keeps SW updates and app changes visible
     res.setHeader('Cache-Control', 'no-cache')
-    applyCoepCorp(res)
+    applyCoepCorpIfNeeded(res, coepMode)
     res.end(offlineHtml)
   })
 
@@ -130,7 +132,7 @@ export function addOfflineExportDevRoutes(
     res.statusCode = 200
     res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8')
     res.setHeader('Cache-Control', 'no-cache')
-    applyCoepCorp(res)
+    applyCoepCorpIfNeeded(res, coepMode)
     res.end(JSON.stringify(manifest))
   })
 
@@ -149,7 +151,7 @@ export function addOfflineExportDevRoutes(
       res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
       // Ensure SW updates are fetched fresh during dev
       res.setHeader('Cache-Control', 'no-cache')
-      applyCoepCorp(res)
+      applyCoepCorpIfNeeded(res, coepMode)
       fs.createReadStream(filePath).pipe(res)
     } catch (e) {
       res.statusCode = 500
@@ -171,7 +173,7 @@ export function addOfflineExportDevRoutes(
       }
       res.statusCode = 200
       setContentType(res, filePath)
-      applyCoepCorp(res)
+      applyCoepCorpIfNeeded(res, coepMode)
       fs.createReadStream(filePath).pipe(res)
     } catch (e) {
       res.statusCode = 500
@@ -196,7 +198,7 @@ export function addOfflineExportDevRoutes(
       res.statusCode = 200
       res.setHeader('Content-Type', 'application/json; charset=utf-8')
       res.setHeader('Cache-Control', 'no-cache')
-      applyCoepCorp(res)
+      applyCoepCorpIfNeeded(res, coepMode)
       res.end(JSON.stringify(entries))
     } catch (e) {
       res.statusCode = 500
@@ -219,7 +221,7 @@ export function addOfflineExportDevRoutes(
         res.statusCode = 200
         res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
         res.setHeader('Cache-Control', 'no-cache')
-        applyCoepCorp(res)
+        applyCoepCorpIfNeeded(res, coepMode)
         fs.createReadStream(filePath).pipe(res)
       } catch (e) {
         res.statusCode = 500
@@ -238,7 +240,7 @@ export function addOfflineExportDevRoutes(
         if (!fs.existsSync(filePath)) return next()
         res.statusCode = 200
         res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
-        applyCoepCorp(res)
+        applyCoepCorpIfNeeded(res, coepMode)
         fs.createReadStream(filePath).pipe(res)
       } catch {
         next()

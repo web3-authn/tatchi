@@ -7,7 +7,7 @@ export interface EmailRecoveryServiceDeps {
   relayerAccountId: string;
   relayerPrivateKey: string;
   networkId: string;
-  emailDkimVerifierAccountId: string;
+  emailDkimVerifierContract: string;
   nearClient: MinimalNearClient;
   /**
    * Optional logger. When unset, EmailRecoveryService is silent (no `console.*`).

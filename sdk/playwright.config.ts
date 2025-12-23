@@ -13,6 +13,12 @@ if (process.env.VITE_WALLET_DEV_CSP == null) {
   process.env.VITE_WALLET_DEV_CSP = 'strict';
 }
 
+// Enable COEP during tests to exercise cross-origin isolation behavior.
+// Default app behavior is COEP off to preserve browser extension compatibility.
+if (process.env.VITE_COEP_MODE == null) {
+  process.env.VITE_COEP_MODE = 'strict';
+}
+
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
@@ -76,6 +82,7 @@ export default defineConfig({
     // Propagate strict CSP to the dev server process.
     env: {
       VITE_WALLET_DEV_CSP: process.env.VITE_WALLET_DEV_CSP ?? 'strict',
+      VITE_COEP_MODE: process.env.VITE_COEP_MODE ?? 'strict',
     },
   },
 });

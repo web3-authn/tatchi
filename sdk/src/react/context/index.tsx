@@ -123,4 +123,3 @@ export type {
   RegistrationResult,
   LoginResult,
 } from '../types';
-

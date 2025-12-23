@@ -319,6 +319,7 @@ export async function executeActionInternal({
 }): Promise<ActionResult> {
 
   const { onEvent, onError, afterCall, waitUntil } = options || {};
+  const confirmerText = options?.confirmerText;
   const actions = Array.isArray(actionArgs) ? actionArgs : [actionArgs];
 
   try {
@@ -338,7 +339,7 @@ export async function executeActionInternal({
         receiverId: receiverId,
         actions: actions,
       }],
-      options: { onEvent, onError, waitUntil },
+      options: { onEvent, onError, waitUntil, confirmerText },
       confirmationConfigOverride
     });
 
@@ -459,7 +460,7 @@ export async function signTransactionsWithActionsInternal({
   confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<SignTransactionResult[]> {
 
-  const { onEvent, onError, waitUntil } = options || {};
+  const { onEvent, onError, waitUntil, confirmerText } = options || {};
 
   try {
     // Emit started event
@@ -480,7 +481,7 @@ export async function signTransactionsWithActionsInternal({
       context,
       nearAccountId,
       transactionInputs,
-      { onEvent, onError, waitUntil, confirmationConfigOverride }
+      { onEvent, onError, waitUntil, confirmerText, confirmationConfigOverride }
     );
 
     return signedTxs;
@@ -553,7 +554,7 @@ async function wasmAuthenticateAndSignTransactions(
   // Per-call override for confirmation behavior (does not persist to IndexedDB)
 ): Promise<SignTransactionResult[]> {
 
-  const { onEvent, onError, confirmationConfigOverride } = options || {};
+  const { onEvent, onError, confirmationConfigOverride, confirmerText } = options || {};
   const { webAuthnManager } = context;
 
   onEvent?.({
@@ -584,6 +585,8 @@ async function wasmAuthenticateAndSignTransactions(
     },
     // VRF challenge and NEAR data computed in confirmation flow
     confirmationConfigOverride: confirmationConfigOverride,
+    title: confirmerText?.title,
+    body: confirmerText?.body,
     // Pass through the onEvent callback for progress updates
     onEvent: onEvent ? (progressEvent: onProgressEvents) => {
       if (progressEvent.phase === ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION) {

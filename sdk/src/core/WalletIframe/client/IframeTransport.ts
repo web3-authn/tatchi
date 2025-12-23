@@ -115,11 +115,52 @@ export class IframeTransport {
   /** Returns the underlying iframe element if it exists. */
   getIframeEl(): HTMLIFrameElement | null { return this.iframeEl; }
 
+  /**
+   * Guardrail: prevent multiple overlay iframes accumulating when apps accidentally
+   * create more than one WalletIframeRouter/TatchiPasskey instance.
+   */
+  private removeExistingOverlaysForOrigin(): void {
+    try {
+      const isDev = (() => {
+        const env = (globalThis as any)?.process?.env?.NODE_ENV;
+        if (env && env !== 'production') return true;
+        const h = window.location.hostname || '';
+        if (/localhost|127\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)|\.local(?:host)?$/i.test(h)) return true;
+        return false;
+      })();
+
+      const existing = Array.from(document.querySelectorAll('iframe.w3a-wallet-overlay')) as HTMLIFrameElement[];
+      const matches = existing.filter((el) => {
+        const dsOrigin = (el as any)?.dataset?.w3aOrigin as string | undefined;
+        if (dsOrigin) return dsOrigin === this.walletOrigin;
+        try { return new URL(el.src).origin === this.walletOrigin; } catch { return false; }
+      });
+
+      if (!matches.length) return;
+
+      if (isDev) {
+        const routerIds = matches
+          .map((el) => (el as any)?.dataset?.w3aRouterId)
+          .filter((v): v is string => typeof v === 'string' && v.length > 0);
+        console.warn(
+          `[IframeTransport] Found existing wallet overlay iframe(s) for ${this.walletOrigin}. This usually indicates multiple SDK instances. Removing old iframe(s) to avoid duplicates.`,
+          { count: matches.length, routerIds }
+        );
+      }
+
+      for (const el of matches) {
+        try { el.remove(); } catch {}
+      }
+    } catch {}
+  }
+
   /** Ensure the iframe element exists and is appended to the DOM. Idempotent. */
   ensureIframeMounted(): HTMLIFrameElement {
     if (this.iframeEl) {
       return this.iframeEl;
     }
+
+    this.removeExistingOverlaysForOrigin();
 
     const iframe = document.createElement('iframe');
     // Hidden by default via CSS classes; higher layers toggle state using overlay-styles.

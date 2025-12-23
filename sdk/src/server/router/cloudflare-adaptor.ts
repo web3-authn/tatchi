@@ -8,6 +8,7 @@ import { buildCorsOrigins } from '../core/SessionService';
 import type { SessionAdapter } from './express-adaptor';
 import type { CreateAccountAndRegisterRequest } from '../core/types';
 import { parseRecoverEmailRequest } from '../email-recovery/emailParsers';
+import type { DelegateActionPolicy } from '../delegateAction';
 import type { RouterLogger } from './logger';
 import { normalizeRouterLogger } from './logger';
 
@@ -17,6 +18,18 @@ export interface RelayRouterOptions {
   // Optional list(s) of CORS origins (CSV strings or literal origins).
   // Pass raw strings; the router normalizes/merges internally.
   corsOrigins?: Array<string | undefined>;
+  /**
+   * Optional route for submitting NEP-461 SignedDelegate meta-transactions.
+   *
+   * - When omitted: disabled.
+   * - When set: enabled at `route`.
+   *
+   * `policy` is server-controlled and is never read from the request body.
+   */
+  signedDelegate?: {
+    route: string;
+    policy?: DelegateActionPolicy;
+  };
   // Optional: customize session route paths
   sessionRoutes?: { auth?: string; logout?: string };
   // Optional: pluggable session adapter
@@ -26,12 +39,68 @@ export interface RelayRouterOptions {
 }
 
 // Minimal Worker runtime types (avoid adding @cloudflare/workers-types dependency here)
-export interface CfEnv { [key: string]: string | undefined }
-export interface CfExecutionContext { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void }
-export interface CfScheduledEvent { scheduledTime?: number; cron?: string }
+export interface CfEnv {
+  // Optional env overrides for `/.well-known/webauthn` (ROR origins list).
+  //
+  // Note: Do not add an index signature here. Cloudflare env bindings can include
+  // KV namespaces, Durable Objects, etc., and requiring `[key: string]: string`
+  // makes real-world `Env` types not assignable.
+  ROR_CONTRACT_ID?: string;
+  WEBAUTHN_CONTRACT_ID?: string;
+  ROR_METHOD?: string;
+}
+
+/**
+ * Convenience env shape matching the `examples/relay-cloudflare-worker` configuration.
+ * This is optional — you can define your own `Env` type with different binding names.
+ */
+export interface RelayCloudflareWorkerEnv {
+  RELAYER_ACCOUNT_ID: string;
+  RELAYER_PRIVATE_KEY: string;
+  // Optional overrides (SDK provides defaults when omitted)
+  NEAR_RPC_URL?: string;
+  NETWORK_ID?: string;
+  WEBAUTHN_CONTRACT_ID: string;
+  ACCOUNT_INITIAL_BALANCE?: string;
+  CREATE_ACCOUNT_AND_REGISTER_GAS?: string;
+  ZK_EMAIL_PROVER_BASE_URL?: string;
+  ZK_EMAIL_PROVER_TIMEOUT_MS?: string;
+  SHAMIR_P_B64U: string;
+  SHAMIR_E_S_B64U: string;
+  SHAMIR_D_S_B64U: string;
+  EXPECTED_ORIGIN?: string;
+  EXPECTED_WALLET_ORIGIN?: string;
+  ENABLE_ROTATION?: string;
+  RECOVER_EMAIL_RECIPIENT?: string;
+}
+
+export interface CfExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+  passThroughOnException(): void
+}
+export interface CfScheduledEvent {
+  scheduledTime?: number;
+  cron?: string
+}
+export interface CfEmailMessage {
+  from: string;
+  to: string;
+  // Cloudflare uses `Headers`, but keep this flexible for userland tests.
+  headers: Headers | Iterable<[string, string]> | Record<string, string>;
+  raw: ReadableStream | ArrayBuffer | string;
+  rawSize?: number;
+  setReject(reason: string): void;
+}
 
 export type FetchHandler = (request: Request, env?: CfEnv, ctx?: CfExecutionContext) => Promise<Response>;
 export type ScheduledHandler = (event: CfScheduledEvent, env?: CfEnv, ctx?: CfExecutionContext) => Promise<void>;
+export type EmailHandler = (message: CfEmailMessage, env?: CfEnv, ctx?: CfExecutionContext) => Promise<void>;
+
+function normalizePath(path: string): string {
+  const trimmed = String(path || '').trim();
+  if (!trimmed) return '';
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
 
 function json(body: unknown, init?: ResponseInit, extraHeaders?: Record<string, string>): Response {
   const headers = new Headers({ 'Content-Type': 'application/json; charset=utf-8' });
@@ -75,11 +144,160 @@ function withCors(headers: Headers, opts?: RelayRouterOptions, request?: Request
   }
 }
 
+function normalizeEmailAddress(input: string): string {
+  const trimmed = String(input || '').trim();
+  const angleStart = trimmed.indexOf('<');
+  const angleEnd = trimmed.indexOf('>');
+  if (angleStart !== -1 && angleEnd > angleStart) {
+    return trimmed.slice(angleStart + 1, angleEnd).trim().toLowerCase();
+  }
+  return trimmed.toLowerCase();
+}
+
+function toLowercaseHeaderRecord(input: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!input) return out;
+
+  const maybeHeaders = input as any;
+  if (typeof maybeHeaders.forEach === 'function') {
+    try {
+      maybeHeaders.forEach((v: unknown, k: unknown) => {
+        out[String(k).toLowerCase()] = String(v);
+      });
+      return out;
+    } catch { }
+  }
+
+  if (typeof maybeHeaders[Symbol.iterator] === 'function') {
+    try {
+      for (const entry of maybeHeaders as Iterable<unknown>) {
+        if (!Array.isArray(entry)) continue;
+        const [k, v] = entry as any[];
+        out[String(k).toLowerCase()] = String(v);
+      }
+      return out;
+    } catch { }
+  }
+
+  if (typeof input === 'object') {
+    for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+      out[String(k).toLowerCase()] = String(v);
+    }
+  }
+
+  return out;
+}
+
+async function buildForwardableEmailPayloadFromCloudflareMessage(message: CfEmailMessage): Promise<{
+  from: string;
+  to: string;
+  headers: Record<string, string>;
+  raw: string;
+  rawSize?: number;
+}> {
+  const from = String(message?.from || '');
+  const to = String(message?.to || '');
+  const headers = toLowercaseHeaderRecord((message as any)?.headers);
+
+  let raw = '';
+  try {
+    raw = await new Response((message as any)?.raw).text();
+  } catch { }
+
+  const rawSize = typeof (message as any)?.rawSize === 'number' ? (message as any).rawSize : undefined;
+
+  return { from, to, headers, raw, rawSize };
+}
+
+export interface CloudflareEmailHandlerOptions {
+  /**
+   * Optional recipient allowlist for emails processed by this handler (case-insensitive).
+   * If unset, any `to` is accepted.
+   */
+  expectedRecipient?: string;
+  /**
+   * If true (default), unexpected recipients only log a warning (Cloudflare routing
+   * is usually already scoped). If false, the handler rejects the email.
+   */
+  allowUnexpectedRecipient?: boolean;
+  /**
+   * When true, logs email metadata (from/to/subject). Defaults to false.
+   */
+  verbose?: boolean;
+  // Optional logger; defaults to silent.
+  logger?: RouterLogger | null;
+}
+
+export function createCloudflareEmailHandler(service: AuthService, opts: CloudflareEmailHandlerOptions = {}): EmailHandler {
+  const logger = normalizeRouterLogger(opts.logger);
+  const expectedRecipient = normalizeEmailAddress(opts.expectedRecipient || '');
+  const allowUnexpectedRecipient = opts.allowUnexpectedRecipient !== false;
+  const verbose = Boolean(opts.verbose);
+
+  return async (message: CfEmailMessage): Promise<void> => {
+    try {
+      const payload = await buildForwardableEmailPayloadFromCloudflareMessage(message);
+
+      const to = normalizeEmailAddress(payload.to);
+      if (expectedRecipient) {
+        if (to !== expectedRecipient) {
+          logger.warn('[email] unexpected recipient', { to, expectedRecipient });
+          if (!allowUnexpectedRecipient) {
+            message.setReject('Email recovery relayer rejected email: unexpected recipient');
+            return;
+          }
+        }
+      }
+
+      if (verbose) {
+        logger.info('[email] from/to', { from: payload.from, to: payload.to, subject: payload.headers['subject'] });
+      }
+
+      const parsed = parseRecoverEmailRequest(payload as any, { headers: payload.headers });
+      if (!parsed.ok) {
+        logger.warn('[email] rejecting', { code: parsed.code, message: parsed.message });
+        message.setReject(`Email recovery relayer rejected email: ${parsed.message}`);
+        return;
+      }
+
+      if (!service.emailRecovery) {
+        logger.warn('[email] rejecting: EmailRecoveryService not configured');
+        message.setReject('Recovery relayer rejected email: email recovery service unavailable');
+        return;
+      }
+
+      const result = await service.emailRecovery.requestEmailRecovery({
+        accountId: parsed.accountId,
+        emailBlob: parsed.emailBlob,
+        explicitMode: parsed.explicitMode,
+      });
+
+      if (!result?.success) {
+        logger.warn('[email] recovery failed', { accountId: parsed.accountId, error: result?.error || 'unknown' });
+        message.setReject(`Email recovery relayer rejected email: ${result?.error || 'recovery failed'}`);
+        return;
+      }
+
+      logger.info('[email] recovery submitted', { accountId: parsed.accountId });
+    } catch (e: any) {
+      logger.error('[email] internal error', { message: e?.message || String(e) });
+      message.setReject('Email recovery relayer rejected email: internal error');
+    }
+  };
+}
+
 export function createCloudflareRouter(service: AuthService, opts: RelayRouterOptions = {}): FetchHandler {
   const notFound = () => new Response('Not Found', { status: 404 });
   const mePath = opts.sessionRoutes?.auth || '/session/auth';
   const logoutPath = opts.sessionRoutes?.logout || '/session/logout';
   const logger = normalizeRouterLogger(opts.logger);
+  const signedDelegatePath = (() => {
+    if (!opts.signedDelegate) return '';
+    const raw = String(opts.signedDelegate.route || '').trim();
+    if (!raw) throw new Error('RelayRouterOptions.signedDelegate.route is required');
+    return normalizePath(raw);
+  })();
+  const signedDelegatePolicy = opts.signedDelegate?.policy;
 
   return async function handler(request: Request, env?: CfEnv, ctx?: CfExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -163,6 +381,50 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
 
         const result = await service.createAccountAndRegisterUser(input);
         const res = json(result, { status: result.success ? 200 : 400 });
+        withCors(res.headers, opts, request);
+        return res;
+      }
+
+      // SignedDelegate meta-tx submission (optional)
+      if (signedDelegatePath && pathname === signedDelegatePath) {
+        if (method === 'OPTIONS') {
+          const res = new Response(null, { status: 204 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+        if (method !== 'POST') return notFound();
+
+        let body: unknown;
+        try { body = await request.json(); } catch { body = null; }
+        const valid = isObject(body) && typeof (body as any).hash === 'string' && Boolean((body as any).hash) && Boolean((body as any).signedDelegate);
+        if (!valid) {
+          const res = json({ ok: false, code: 'invalid_body', message: 'Expected { hash, signedDelegate }' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+
+        const result = await service.executeSignedDelegate({
+          hash: String((body as any).hash),
+          signedDelegate: (body as any).signedDelegate,
+          policy: signedDelegatePolicy,
+        });
+
+        if (!result || !result.ok) {
+          const res = json({
+            ok: false,
+            code: result?.code || 'delegate_execution_failed',
+            message: result?.error || 'Failed to execute delegate action',
+          }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+
+        const res = json({
+          ok: true,
+          relayerTxHash: result.transactionHash || null,
+          status: 'submitted',
+          outcome: result.outcome ?? null,
+        }, { status: 200 });
         withCors(res.headers, opts, request);
         return res;
       }

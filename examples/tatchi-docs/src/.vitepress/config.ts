@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitepress'
 import { fileURLToPath } from 'node:url'
-import { loadEnv } from 'vite'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { loadEnv, type Plugin } from 'vite'
 import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
@@ -8,9 +10,55 @@ const appSrc = fileURLToPath(new URL('../', import.meta.url))
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
 const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url))
 
+const DOCS_ROOT_PATH = '/docs'
+const DOCS_ROOT_REDIRECT_TARGET = '/docs/getting-started/overview'
+
+function docsRootRedirectPlugin(target: string): Plugin {
+  function redirectIfDocsRoot(req: { url?: string }, res: { statusCode: number; setHeader: (k: string, v: string) => void; end: () => void }, next: () => void) {
+    const path = (req.url || '').split('?')[0]
+    if (path !== DOCS_ROOT_PATH && path !== `${DOCS_ROOT_PATH}/`) return next()
+
+    res.statusCode = 302
+    res.setHeader('Location', target)
+    res.end()
+  }
+
+  return {
+    name: 'tatchi-docs-root-redirect',
+    configureServer(server) {
+      server.middlewares.use(redirectIfDocsRoot)
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(redirectIfDocsRoot)
+    },
+  }
+}
+
+function docsRootRedirectHtml(target: string) {
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content="0; url=${target}" />
+    <link rel="canonical" href="https://tatchi.xyz${target}" />
+    <meta name="robots" content="noindex" />
+    <title>Redirecting…</title>
+  </head>
+  <body>
+    <p>Redirecting to <a href="${target}">${target}</a>…</p>
+    <script>window.location.replace(${JSON.stringify(target)})</script>
+  </body>
+</html>
+`
+}
+
 // VitePress defineConfig expects a plain object. Resolve env statically here.
 const resolvedMode = (process.env.NODE_ENV === 'production' ? 'production' : 'development') as 'production' | 'development'
 const env = loadEnv(resolvedMode, projectRoot, '')
+// Bitwarden and other password managers inject extension iframes/scripts that are blocked
+// by COEP=require-corp on the host page. Default to COEP off for the docs site; switch
+// back on explicitly when you need cross-origin isolation testing.
+const coepMode = (env.VITE_COEP_MODE === 'strict' ? 'strict' : 'off') as 'strict' | 'off'
 // Forward VITE_* to process.env so Node-side plugins can read them
 if (env.VITE_WEBAUTHN_CONTRACT_ID) process.env.VITE_WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID
 if (env.VITE_NEAR_RPC_URL) process.env.VITE_NEAR_RPC_URL = env.VITE_NEAR_RPC_URL
@@ -24,6 +72,33 @@ export default defineConfig({
 
   sitemap: {
     hostname: 'https://tatchi.xyz',
+  },
+  buildEnd: (siteConfig) => {
+    const outDir = siteConfig.outDir
+
+    // Static fallback for hosts that don't support _redirects.
+    const docsIndexPath = join(outDir, 'docs', 'index.html')
+    mkdirSync(dirname(docsIndexPath), { recursive: true })
+    writeFileSync(docsIndexPath, docsRootRedirectHtml(DOCS_ROOT_REDIRECT_TARGET), 'utf8')
+
+    // Netlify/Cloudflare Pages compatible redirect (true HTTP redirect).
+    const redirectsPath = join(outDir, '_redirects')
+    const redirectLines = [
+      '',
+      '# Docs root → Getting Started overview',
+      `${DOCS_ROOT_PATH}  ${DOCS_ROOT_REDIRECT_TARGET}  301`,
+      `${DOCS_ROOT_PATH}/  ${DOCS_ROOT_REDIRECT_TARGET}  301`,
+      '',
+    ].join('\n')
+
+    if (!existsSync(redirectsPath)) {
+      writeFileSync(redirectsPath, redirectLines.trimStart(), 'utf8')
+      return
+    }
+
+    const existing = readFileSync(redirectsPath, 'utf8')
+    if (existing.includes(`${DOCS_ROOT_PATH}  ${DOCS_ROOT_REDIRECT_TARGET}`)) return
+    writeFileSync(redirectsPath, existing.replace(/\s*$/, '') + redirectLines, 'utf8')
   },
   head: [
     ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
@@ -253,8 +328,10 @@ export default defineConfig({
           process: true,
         },
       }),
+      docsRootRedirectPlugin(DOCS_ROOT_REDIRECT_TARGET),
       // Dev: serve /wallet-service and /sdk with headers (no files written).
-      // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP/COEP/CORP and
+      // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP + Permissions-Policy
+      // (and optional COEP/CORP when enabled) and
       // a Permissions-Policy delegating WebAuthn to the wallet origin. Wallet HTML gets
       // strict CSP. If your CI already writes a _headers file, this will no-op.
       tatchiWallet({
@@ -263,6 +340,7 @@ export default defineConfig({
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
         walletOrigin: env.VITE_WALLET_ORIGIN,
         emitHeaders: true,
+        coepMode,
       }),
     ],
   },

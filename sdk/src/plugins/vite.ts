@@ -3,22 +3,22 @@
 //
 // What these plugins do:
 // - Serve SDK assets under a base path, expose a wallet service route,
-// - Add dev headers (COOP/COEP/CORP + Permissions-Policy), and enforce WASM MIME.
+// - Add dev headers (COOP + Permissions-Policy, optional COEP/CORP), and enforce WASM MIME.
 // - IMPORTANT: Strict CSP is scoped only to wallet HTML routes (/wallet-service, /export-viewer),
 //   not to the host app pages. App routes remain free to use inline styles/scripts.
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { createRequire } from 'node:module'
 import { buildPermissionsPolicy, buildWalletCsp } from './headers'
 import {
   addPreconnectLink,
   buildWalletServiceHtml,
   buildExportViewerHtml,
-  applyCoepCorp,
+  applyCoepCorpIfNeeded,
   echoCorsFromRequest,
   fetchRorOriginsFromNear,
   normalizeBase,
+  resolveCoepMode,
   resolveSdkDistRoot,
 } from './plugin-utils'
 import { addOfflineExportDevRoutes, buildOfflineExportHtml, emitOfflineExportAssets } from './offline'
@@ -42,10 +42,11 @@ export type Web3AuthnDevOptions = {
   enableDebugRoutes?: boolean
   /**
    * Controls Cross-Origin-Embedder-Policy (COEP) behavior in dev.
-   * - 'strict' (default): emit `Cross-Origin-Embedder-Policy: require-corp`
+   * - 'off' (default): do not emit COEP/CORP on app pages.
+   * - 'strict': emit `Cross-Origin-Embedder-Policy: require-corp`
    *   and `Cross-Origin-Resource-Policy: cross-origin` on app pages.
-   * - 'off': do not emit COEP/CORP on app pages (useful for debugging
-   *   extensions or environments that are not COEP-ready).
+   *
+   * Tip: set `VITE_COEP_MODE=strict` in tests/CI to enable isolation automatically.
    */
   coepMode?: 'strict' | 'off'
 }
@@ -54,11 +55,13 @@ export type ServeSdkOptions = {
   sdkDistRoot?: string
   sdkBasePath?: string
   enableDebugRoutes?: boolean
+  coepMode?: 'strict' | 'off'
 }
 
 export type WalletServiceOptions = {
   walletServicePath?: string
   sdkBasePath?: string
+  coepMode?: 'strict' | 'off'
 }
 
 export type DevHeadersOptions = {
@@ -73,8 +76,8 @@ export type DevHeadersOptions = {
   devCSP?: 'strict' | 'compatible'
   /**
    * Controls Cross-Origin-Embedder-Policy (COEP) behavior in dev.
-   * - 'strict' (default): emit COEP/CORP headers on app pages.
-   * - 'off': do not emit COEP/CORP on app pages.
+   * - 'off' (default): do not emit COEP/CORP headers on app pages.
+   * - 'strict': emit COEP/CORP headers on app pages.
    */
   coepMode?: 'strict' | 'off'
 }
@@ -128,7 +131,7 @@ const WALLET_SURFACE_CSS = [
 ].join('\n')
 
 /**
- * Tatchi SDK plugin: serve SDK assets under a stable base (default: /sdk) with COEP/CORP and permissive CORS.
+ * Tatchi SDK plugin: serve SDK assets under a stable base (default: /sdk) with optional COEP/CORP (strict mode) and permissive CORS.
  * Where it runs: both the app server and the wallet-iframe server.
  * - App server: lets host pages and Lit components load SDK CSS/JS locally.
  * - Wallet server: used by /wallet-service to load wallet-iframe-host.js and related CSS/JS.
@@ -137,6 +140,7 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
   const configuredBase = normalizeBase(opts.sdkBasePath, '/sdk')
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
   const enableDebugRoutes = opts.enableDebugRoutes === true
+  const coepMode = resolveCoepMode(opts.coepMode)
   const offlineHtml = buildOfflineExportHtml(configuredBase)
 
   // In dev we want both '/sdk' and a custom base to work.
@@ -155,6 +159,7 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
         sdkBasePath: configuredBase,
         offlineHtml,
         includeAppModule: true,
+        coepMode,
       })
       // Serve a tiny shim as a virtual asset to enable strict CSP (no inline scripts)
       server.middlewares.use((req: any, res: any, next: any) => {
@@ -163,7 +168,7 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           res.statusCode = 200
           res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
           // Align with SDK asset headers so COEP/CORP environments can import
-          applyCoepCorp(res)
+          applyCoepCorpIfNeeded(res, coepMode)
           // Dev-only CORS echo (no preflight handling on this route)
           echoCorsFromRequest(res, req, { handlePreflight: false })
           res.end(WALLET_SHIM_SOURCE)
@@ -173,7 +178,7 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           res.statusCode = 200
           res.setHeader('Content-Type', 'text/css; charset=utf-8')
           // Important: provide CORP for cross‑origin CSS so COEP documents can load it
-          applyCoepCorp(res)
+          applyCoepCorpIfNeeded(res, coepMode)
           // Dev-only CORS echo (no preflight handling on this route)
           echoCorsFromRequest(res, req, { handlePreflight: false })
           res.end(WALLET_SURFACE_CSS)
@@ -215,7 +220,7 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
 
         setContentType(res, candidate)
         // SDK assets need COEP headers to work in wallet iframe with COEP enabled
-        applyCoepCorp(res)
+        applyCoepCorpIfNeeded(res, coepMode)
         // Dev-only CORS echo (no preflight handling here)
         echoCorsFromRequest(res, req, { handlePreflight: false })
         const stream = fs.createReadStream(candidate)
@@ -233,6 +238,7 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
 export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin {
   const walletServicePath = normalizeBase(opts.walletServicePath, '/wallet-service')
   const sdkBasePath = normalizeBase(opts.sdkBasePath, '/sdk')
+  const coepMode = resolveCoepMode(opts.coepMode)
 
   const html = buildWalletServiceHtml(sdkBasePath)
   const offlineHtml = buildOfflineExportHtml(sdkBasePath)
@@ -249,7 +255,7 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
         if (url === walletServicePath) {
           res.statusCode = 200
           res.setHeader('Content-Type', 'text/html; charset=utf-8')
-          applyCoepCorp(res)
+          applyCoepCorpIfNeeded(res, coepMode)
           res.end(html)
           return
         }
@@ -262,6 +268,7 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
         sdkBasePath,
         offlineHtml,
         includeAppModule: false,
+        coepMode,
       })
     },
   }
@@ -290,7 +297,7 @@ export function tatchiWasmMime(): VitePlugin {
 }
 
 /**
- * Dev plugin: add Permissions-Policy (delegating WebAuthn + clipboard), COOP/COEP/CORP, and optional dev CSP.
+ * Dev plugin: add Permissions-Policy (delegating WebAuthn + clipboard), COOP, optional COEP/CORP, and optional dev CSP.
  * Where it runs: both app and wallet-iframe dev servers.
  * Notes:
  * - Uses Structured Header format for Permissions-Policy (double-quoted origins).
@@ -302,7 +309,7 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   const walletServicePath = normalizeBase(opts.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
   const sdkBasePath = normalizeBase(opts.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
   const devCSPMode = (opts.devCSP ?? (process.env.VITE_WALLET_DEV_CSP as 'strict' | 'compatible' | undefined))
-  const coepMode: 'strict' | 'off' = opts.coepMode === 'off' ? 'off' : 'strict'
+  const coepMode = resolveCoepMode(opts.coepMode)
 
   // Build headers via shared helpers to avoid drift.
   const permissionsPolicy = buildPermissionsPolicy(walletOrigin)
@@ -323,6 +330,7 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
       console.log('[tatchi] headers enabled', {
         walletServicePath,
         sdkBasePath,
+        coepMode,
         rorContractId: rorContractId || '(none)',
         nearRpcUrl
       })
@@ -382,7 +390,7 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
 
         if (url.startsWith(`${sdkBasePath}/`)) {
           // Dev-only CORS for SDK assets served by Vite
-          applyCoepCorp(res)
+          applyCoepCorpIfNeeded(res, coepMode)
           // Honor existing echo from SDK server; otherwise echo
           const ended = echoCorsFromRequest(res, req, { honorExistingAcaOrigin: true, handlePreflight: true })
           if (ended) return
@@ -412,11 +420,11 @@ function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
   const setDevHeaders = options.setDevHeaders !== false // default true
   const enableDebugRoutes = options.enableDebugRoutes === true
   const sdkDistRoot = resolveSdkDistRoot(options.sdkDistRoot)
-  const coepMode: 'strict' | 'off' = options.coepMode === 'off' ? 'off' : 'strict'
+  const coepMode = resolveCoepMode(options.coepMode)
 
   // Build the sub-plugins to keep logic small and testable
-  const sdkPlugin = tatchiServeSdk({ sdkBasePath, sdkDistRoot, enableDebugRoutes })
-  const walletPlugin = tatchiWalletService({ walletServicePath, sdkBasePath })
+  const sdkPlugin = tatchiServeSdk({ sdkBasePath, sdkDistRoot, enableDebugRoutes, coepMode })
+  const walletPlugin = tatchiWalletService({ walletServicePath, sdkBasePath, coepMode })
   const wasmMimePlugin = tatchiWasmMime()
   // Flip wallet CSP to strict by default in dev. Consumers can override via
   // VITE_WALLET_DEV_CSP or by composing tatchiHeaders directly.
@@ -443,12 +451,12 @@ function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
 }
 
 // === Build-time helper: emit Cloudflare Pages/Netlify _headers ===
-// This plugin writes a _headers file into Vite's outDir with COOP/COEP and a
+// This plugin writes a _headers file into Vite's outDir with COOP and optional COEP and a
 // Permissions-Policy delegating WebAuthn to the configured wallet origin.
 // It is a no-op if a _headers file already exists (to avoid overriding app settings).
 /**
  * Build-time plugin: writes a Cloudflare Pages/Netlify-compatible `_headers` file into Vite's `outDir`.
- * Adds COOP/COEP/CORP (configurable via coepMode) and a Permissions-Policy delegating WebAuthn to the configured wallet origin.
+ * Adds COOP + Permissions-Policy and optional COEP/CORP (configurable via coepMode) delegating WebAuthn to the configured wallet origin.
  * Where it runs: build for either the app or a static wallet host (not used in dev).
  * Notes: no-ops if `_headers` already exists in `outDir` (to avoid overriding platform config).
  */
@@ -457,7 +465,7 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
   const walletOrigin = walletOriginRaw?.trim()
   const walletServicePath = normalizeBase(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
   const sdkBasePath = normalizeBase(process.env.VITE_SDK_BASE_PATH, '/sdk')
-  const coepMode: 'strict' | 'off' = opts.coepMode === 'off' ? 'off' : 'strict'
+  const coepMode = resolveCoepMode(opts.coepMode)
 
   // Build headers via shared helpers to avoid drift between frameworks
   const permissionsPolicy = buildPermissionsPolicy(walletOrigin)
@@ -539,7 +547,7 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
           const content = contentLines.join('\n') + '\n'
           fs.mkdirSync(outDir, { recursive: true })
           fs.writeFileSync(hdrPath, content, 'utf-8')
-          console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy' + (configuredAcaOrigin ? ' + CORS' : ''))
+          console.log('[tatchi] emitted _headers with COOP' + (coepMode === 'off' ? '' : '/COEP/CORP') + ' + Permissions-Policy' + (configuredAcaOrigin ? ' + CORS' : ''))
         }
 
         const sdkDir = path.join(outDir, sdkBasePath.replace(/^\//, ''))
@@ -609,12 +617,11 @@ export function tatchiAppServer(options: Omit<Web3AuthnDevOptions, 'mode'> = {})
  * Convenience wrapper: app origin helper that combines dev-time headers with optional
  * build-time headers emission for static hosts.
  *
- * Dev-time (serve): applies COOP/COEP/CORP and Permissions-Policy via tatchiAppServer.
+ * Dev-time (serve): applies COOP + Permissions-Policy, plus optional COEP/CORP, via tatchiAppServer.
  * Build-time (build): when `emitHeaders` is true, writes a Cloudflare Pages/Netlify
  * `_headers` file into Vite's `outDir` via tatchiBuildHeaders, scoping strict CSP to
  * wallet HTML routes only.
- *   - Emits: COOP=same-origin, COEP=require-corp, CORP=cross-origin, and a
- *     Permissions-Policy delegating WebAuthn/clipboard to the configured wallet origin.
+ *   - Emits: `COOP: same-origin`, `Permissions-Policy: …`, and (when `coepMode === 'strict'`) `COEP: require-corp` + `CORP: cross-origin`.
  *   - No-op if a `_headers` file already exists in `outDir` (avoids clobbering CI/platform rules).
  *
  * Notes
@@ -639,9 +646,7 @@ export function tatchiApp(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHea
  * Build-time (build): when `emitHeaders` is true, writes a Cloudflare Pages/Netlify
  * `_headers` file into Vite's `outDir` via tatchiBuildHeaders, scoping strict CSP to
  * wallet HTML routes only.
- *   - Emits: COOP=same-origin (wallet HTML routes use `unsafe-none`), COEP=require-corp,
- *     CORP=cross-origin, and a Permissions-Policy delegating WebAuthn/clipboard to the
- *     configured wallet origin.
+ *   - Emits: `COOP: same-origin` (wallet HTML routes use `unsafe-none`), `Permissions-Policy: …`, and (when `coepMode === 'strict'`) `COEP: require-corp` + `CORP: cross-origin`.
  *   - No-op if a `_headers` file already exists in `outDir` (avoids clobbering CI/platform rules).
  *
  * Notes

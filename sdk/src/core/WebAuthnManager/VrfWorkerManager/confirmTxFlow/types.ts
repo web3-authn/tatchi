@@ -41,6 +41,8 @@ export interface SecureConfirmDecision extends ForbiddenMainThreadSecrets {
 
 export interface TransactionSummary {
   totalAmount?: string;
+  title?: string;
+  body?: string;
   method?: string;
   intentDigest?: string;
   receiverId?: string;

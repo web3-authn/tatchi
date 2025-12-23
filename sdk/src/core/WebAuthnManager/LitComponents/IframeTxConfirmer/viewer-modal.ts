@@ -47,6 +47,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     totalAmount: { type: String },
     method: { type: String },
     fingerprint: { type: String },
+    body: { type: String },
     title: { type: String },
     cancelText: { type: String },
     confirmText: { type: String },
@@ -61,7 +62,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   totalAmount = '';
   method = '';
   fingerprint = '';
-  title = 'Sign with Passkey';
+  body = '';
+  title = '';
   cancelText = 'Cancel';
   confirmText = 'Next';
   txSigningRequests: TransactionInputWasm[] = [];
@@ -237,7 +239,9 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
                   <!-- Hero heading -->
                   ${(() => {
                     const isRegistration = (this.txSigningRequests?.length || 0) === 0;
-                    const heading = isRegistration ? 'Register with Passkey' : 'Confirm with Passkey';
+                    const fallback = isRegistration ? 'Register with Passkey' : 'Confirm with Passkey';
+                    const titleText = (this.title || '').trim();
+                    const heading = titleText || fallback;
                     return html`<h2 class="hero-heading">${heading}</h2>`;
                   })()}
                   ${this.errorMessage
@@ -282,6 +286,9 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
                           : ''}
                       </span>
                     </div>
+                    ${this.body && this.body.trim()
+                      ? html`<div class="rpid-body">${this.body}</div>`
+                      : ''}
                   </div>
                 </div>
               </div>

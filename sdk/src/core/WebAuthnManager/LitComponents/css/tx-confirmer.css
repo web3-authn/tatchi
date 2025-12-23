@@ -759,6 +759,15 @@ w3a-drawer {
 .rpid-wrapper {
   margin-bottom: 1rem;
 }
+.rpid-body {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--w3a-colors-textSecondary);
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  white-space: pre-line;
+}
 .drawer-tx-confirmer-root .rpid {
   display: flex;
   flex-direction: row;

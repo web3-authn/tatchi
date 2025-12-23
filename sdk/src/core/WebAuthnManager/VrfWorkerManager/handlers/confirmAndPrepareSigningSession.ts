@@ -25,11 +25,15 @@ export interface ConfirmAndPrepareSigningSessionTransactionParams extends Confir
   kind: 'transaction';
   txSigningRequests: TransactionInputWasm[];
   rpcCall: RpcCallPayload;
+  title?: string;
+  body?: string;
 }
 
 export interface ConfirmAndPrepareSigningSessionDelegateParams extends ConfirmAndPrepareSigningSessionBaseParams {
   kind: 'delegate';
   nearAccountId: string;
+  title?: string;
+  body?: string;
   delegate: {
     senderId: string;
     receiverId: string;
@@ -92,6 +96,8 @@ export async function confirmAndPrepareSigningSession(
         receiverId: txSigningRequests[0]?.receiverId,
         totalAmount: computeTotalAmountYocto(txSigningRequests),
         type: 'transaction',
+        ...(params.title != null ? { title: params.title } : {}),
+        ...(params.body != null ? { body: params.body } : {}),
       };
 
       request = {
@@ -127,6 +133,8 @@ export async function confirmAndPrepareSigningSession(
         receiverId: txSigningRequests[0]?.receiverId,
         totalAmount: computeTotalAmountYocto(txSigningRequests),
         type: 'delegateAction',
+        ...(params.title != null ? { title: params.title } : {}),
+        ...(params.body != null ? { body: params.body } : {}),
         delegate: {
           senderId: params.delegate.senderId,
           receiverId: params.delegate.receiverId,

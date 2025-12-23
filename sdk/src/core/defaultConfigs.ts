@@ -53,9 +53,9 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
     }
   },
   emailRecoveryContracts: {
-    emailRecovererCodeAccountId: 'w3a-email-recoverer-v1.testnet',
-    zkEmailVerifierAccountId: 'zk-email-verifier-v1.testnet',
-    emailDkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
+    emailRecovererGlobalContract: 'w3a-email-recoverer-v1.testnet',
+    zkEmailVerifierContract: 'zk-email-verifier-v1.testnet',
+    emailDkimVerifierContract: 'email-dkim-verifier-v1.testnet',
   },
   // Configure iframeWallet in application code to point at your dedicated wallet origin when available.
   iframeWallet: {
@@ -67,9 +67,9 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
 };
 
 export const DEFAULT_EMAIL_RECOVERY_CONTRACTS: EmailRecoveryContracts = {
-  emailRecovererCodeAccountId: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailDkimVerifierAccountId,
-  zkEmailVerifierAccountId: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.zkEmailVerifierAccountId,
-  emailDkimVerifierAccountId: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailDkimVerifierAccountId,
+  emailRecovererGlobalContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailDkimVerifierContract,
+  zkEmailVerifierContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.zkEmailVerifierContract,
+  emailDkimVerifierContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailDkimVerifierContract,
 };
 
 // Merge defaults with overrides
@@ -129,12 +129,12 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
       },
     },
     emailRecoveryContracts: {
-      emailRecovererCodeAccountId: overrides.emailRecoveryContracts?.emailRecovererCodeAccountId
-        ?? defaults.emailRecoveryContracts?.emailRecovererCodeAccountId,
-      zkEmailVerifierAccountId: overrides.emailRecoveryContracts?.zkEmailVerifierAccountId
-        ?? defaults.emailRecoveryContracts?.zkEmailVerifierAccountId,
-      emailDkimVerifierAccountId: overrides.emailRecoveryContracts?.emailDkimVerifierAccountId
-        ?? defaults.emailRecoveryContracts?.emailDkimVerifierAccountId,
+      emailRecovererGlobalContract: overrides.emailRecoveryContracts?.emailRecovererGlobalContract
+        ?? defaults.emailRecoveryContracts?.emailRecovererGlobalContract,
+      zkEmailVerifierContract: overrides.emailRecoveryContracts?.zkEmailVerifierContract
+        ?? defaults.emailRecoveryContracts?.zkEmailVerifierContract,
+      emailDkimVerifierContract: overrides.emailRecoveryContracts?.emailDkimVerifierContract
+        ?? defaults.emailRecoveryContracts?.emailDkimVerifierContract,
     },
     iframeWallet: {
       walletOrigin: overrides.iframeWallet?.walletOrigin

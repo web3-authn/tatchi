@@ -23,6 +23,8 @@ export async function signDelegateAction({
   rpcCall,
   onEvent,
   confirmationConfigOverride,
+  title,
+  body,
   sessionId: providedSessionId,
 }: {
   ctx: SignerWorkerManagerContext;
@@ -30,6 +32,8 @@ export async function signDelegateAction({
   rpcCall: RpcCallPayload;
   onEvent?: (update: onProgressEvents) => void;
   confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  title?: string;
+  body?: string;
   sessionId?: string;
 }): Promise<{
   signedDelegate: WasmSignedDelegate;
@@ -80,6 +84,8 @@ export async function signDelegateAction({
     },
     rpcCall: resolvedRpcCall,
     confirmationConfigOverride,
+    title,
+    body,
   });
 
   const intentDigest = confirmation.intentDigest;

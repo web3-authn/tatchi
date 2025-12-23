@@ -105,9 +105,9 @@ export interface SignAndSendDelegateActionResult {
 }
 
 export type EmailRecoveryContracts = {
-  emailRecovererCodeAccountId: string;
-  zkEmailVerifierAccountId: string;
-  emailDkimVerifierAccountId: string;
+  emailRecovererGlobalContract: string;
+  zkEmailVerifierContract: string;
+  emailDkimVerifierContract: string;
 };
 
 //////////////////////////////////

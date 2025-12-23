@@ -1,7 +1,7 @@
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
 import { MinimalNearClient, SignedTransaction } from '../../core/NearClient';
 import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
-import { validateConfigs } from './config';
+import { createAuthServiceConfig } from './config';
 import { formatGasToTGas, formatYoctoToNear } from './utils';
 import { parseContractExecutionError } from './errors';
 
@@ -16,6 +16,7 @@ import initSignerWasm, {
 
 import type {
   AuthServiceConfig,
+  AuthServiceConfigInput,
   AccountCreationRequest,
   AccountCreationResult,
   CreateAccountAndRegisterRequest,
@@ -87,27 +88,8 @@ export class AuthService {
   // DKIM/TEE email recovery logic (delegated to EmailRecoveryService)
   public readonly emailRecovery: EmailRecoveryService | null = null;
 
-  constructor(config: AuthServiceConfig) {
-    validateConfigs(config);
-
-    this.config = {
-      // Use defaults if not set
-      relayerAccountId: config.relayerAccountId,
-      relayerPrivateKey: config.relayerPrivateKey,
-      webAuthnContractId: config.webAuthnContractId,
-      nearRpcUrl: config.nearRpcUrl
-        || 'https://rpc.testnet.near.org',
-      networkId: config.networkId
-        || 'testnet',
-      accountInitialBalance: config.accountInitialBalance
-        || '50000000000000000000000', // 0.05 NEAR
-      createAccountAndRegisterGas: config.createAccountAndRegisterGas
-        || '120000000000000', // 120 TGas
-      shamir: config.shamir,
-      signerWasm: config.signerWasm,
-      logger: config.logger,
-      zkEmailProver: config.zkEmailProver,
-    };
+  constructor(config: AuthServiceConfigInput) {
+    this.config = createAuthServiceConfig(config);
     this.logger = normalizeLogger(this.config.logger);
     const graceFileCandidate = (this.config.shamir?.graceShamirKeysFile || '').trim();
     this.shamirService = new ShamirService(this.config.shamir, graceFileCandidate || 'grace-keys.json');
@@ -116,7 +98,7 @@ export class AuthService {
       relayerAccountId: this.config.relayerAccountId,
       relayerPrivateKey: this.config.relayerPrivateKey,
       networkId: this.config.networkId,
-      emailDkimVerifierAccountId: DEFAULT_EMAIL_RECOVERY_CONTRACTS.emailDkimVerifierAccountId,
+      emailDkimVerifierContract: DEFAULT_EMAIL_RECOVERY_CONTRACTS.emailDkimVerifierContract,
       nearClient: this.nearClient,
       logger: this.config.logger,
       ensureSignerAndRelayerAccount: () => this._ensureSignerAndRelayerAccount(),
