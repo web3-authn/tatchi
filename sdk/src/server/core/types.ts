@@ -78,6 +78,23 @@ export interface ShamirConfig {
   moduleOrPath?: ShamirWasmModuleSupplier;
 }
 
+/**
+ * Env-var-shaped Shamir config input, for ergonomic wiring in examples.
+ * This is normalized to `ShamirConfig` by `createAuthServiceConfig(...)`.
+ */
+export interface ShamirConfigEnvInput {
+  SHAMIR_P_B64U?: string;
+  SHAMIR_E_S_B64U?: string;
+  SHAMIR_D_S_B64U?: string;
+  SHAMIR_GRACE_KEYS_FILE?: string;
+  // Optional extras (non-env): useful for serverless runtimes
+  graceShamirKeys?: ShamirConfig['graceShamirKeys'];
+  graceShamirKeysFile?: string;
+  moduleOrPath?: ShamirWasmModuleSupplier;
+}
+
+export type ShamirConfigInput = ShamirConfig | ShamirConfigEnvInput;
+
 export type SignerWasmModuleSupplier =
   | InitInput
   | Promise<InitInput>
@@ -115,6 +132,39 @@ export interface AuthServiceConfig {
    */
   zkEmailProver?: ZkEmailProverClientOptions;
 }
+
+/**
+ * Env-var-shaped zk-email prover input, for ergonomic wiring in examples.
+ * This is normalized to `ZkEmailProverClientOptions` by `createAuthServiceConfig(...)`.
+ */
+export interface ZkEmailProverConfigEnvInput {
+  ZK_EMAIL_PROVER_BASE_URL?: string;
+  ZK_EMAIL_PROVER_TIMEOUT_MS?: string;
+}
+
+export type ZkEmailProverConfigInput = ZkEmailProverClientOptions | ZkEmailProverConfigEnvInput;
+
+/**
+ * User-facing input shape for `AuthService`. Fields that have SDK defaults are optional here.
+ *
+ * Defaults are applied by `createAuthServiceConfig(...)` and by `new AuthService(...)`.
+ */
+export type AuthServiceConfigInput = Omit<
+  AuthServiceConfig,
+  'nearRpcUrl'
+  | 'networkId'
+  | 'accountInitialBalance'
+  | 'createAccountAndRegisterGas'
+  | 'shamir'
+  | 'zkEmailProver'
+> & {
+  nearRpcUrl?: string;
+  networkId?: string;
+  accountInitialBalance?: string;
+  createAccountAndRegisterGas?: string;
+  shamir?: ShamirConfigInput;
+  zkEmailProver?: ZkEmailProverConfigInput;
+};
 
 // Account creation and registration types (imported from relay-server types)
 export interface AccountCreationRequest {

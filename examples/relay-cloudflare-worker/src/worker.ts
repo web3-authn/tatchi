@@ -1,7 +1,4 @@
-import {
-  AuthService,
-  type AuthServiceConfigInput,
-} from '@tatchi-xyz/sdk/server';
+import { AuthService } from '@tatchi-xyz/sdk/server';
 import {
   createCloudflareCron,
   createCloudflareEmailHandler,
@@ -9,21 +6,20 @@ import {
 } from '@tatchi-xyz/sdk/server/router/cloudflare';
 import type {
   CfEmailMessage,
-  CfExecutionContext,
   CfScheduledEvent,
-  RelayCloudflareWorkerEnv,
+  CfExecutionContext as Ctx,
+  RelayCloudflareWorkerEnv as Env,
 } from '@tatchi-xyz/sdk/server/router/cloudflare';
 import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
 import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf';
 import jwtSession from './jwtSession';
 
-export interface Env extends RelayCloudflareWorkerEnv {}
 // Singleton AuthService instance shared across fetch/email/scheduled events
 let service: AuthService | null = null;
 
 function getAuthService(env: Env): AuthService {
   if (!service) {
-    const authServiceConfig: AuthServiceConfigInput = {
+    service = new AuthService({
       relayerAccountId: env.RELAYER_ACCOUNT_ID,
       relayerPrivateKey: env.RELAYER_PRIVATE_KEY,
       webAuthnContractId: env.WEBAUTHN_CONTRACT_ID,
@@ -45,8 +41,7 @@ function getAuthService(env: Env): AuthService {
       signerWasm: {
         moduleOrPath: signerWasmModule, // Pass WASM module for Cloudflare Workers
       },
-    };
-    service = new AuthService(authServiceConfig);
+    });
   }
   return service;
 }
@@ -57,7 +52,7 @@ export default {
    * - Handles REST API routes (create_account_and_register_user, /recover-email, sessions, etc.)
    * - Reuses the shared AuthService + session adapter via createCloudflareRouter.
    */
-  async fetch(request: Request, env: Env, ctx: CfExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: Ctx): Promise<Response> {
     const authService = getAuthService(env);
     const router = createCloudflareRouter(authService, {
       healthz: true,
@@ -65,7 +60,7 @@ export default {
       // Pass raw env strings; router normalizes CSV/duplicates internally
       corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN],
       signedDelegate: { route: '/signed-delegate' },
-      session: jwtSession ? jwtSession : undefined,
+      session: jwtSession,
     });
     return router(request, env, ctx);
   },
@@ -75,7 +70,7 @@ export default {
    * - Used for optional Shamir key rotation and health heartbeats.
    * - Activated when ENABLE_ROTATION='1' and a cron schedule is configured.
    */
-  async scheduled(event: CfScheduledEvent, env: Env, ctx: CfExecutionContext) {
+  async scheduled(event: CfScheduledEvent, env: Env, ctx: Ctx) {
     const authService = getAuthService(env);
     const enabled = env.ENABLE_ROTATION === '1';
     const cron = createCloudflareCron(authService, {
@@ -91,7 +86,7 @@ export default {
    * - Normalizes headers/raw body, parses accountId from Subject/headers,
    *   and calls AuthService.emailRecovery for encrypted DKIM/TEE-based recovery.
    */
-  async email(message: CfEmailMessage, env: Env, ctx: CfExecutionContext): Promise<void> {
+  async email(message: CfEmailMessage, env: Env, ctx: Ctx): Promise<void> {
     const authService = getAuthService(env);
     const handler = createCloudflareEmailHandler(authService, {
       expectedRecipient: env.RECOVER_EMAIL_RECIPIENT,

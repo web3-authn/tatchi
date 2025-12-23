@@ -52,10 +52,9 @@ app.use((_req, res, next) => {
   next();
 });
 
-// Middleware (JSON API only)
 app.use(express.json({ limit: '1mb' }));
 
-// Mount standardized router built from AuthService
+// Mount router built from AuthService
 app.use('/', createRelayRouter(authService, {
   healthz: true,
   readyz: true,
@@ -67,7 +66,6 @@ app.use('/', createRelayRouter(authService, {
 const server = app.listen(config.port, () => {
   console.log(`Server listening on http://localhost:${config.port}`);
   console.log(`Expected Frontend Origin: ${config.expectedOrigin}`);
-
   authService.getRelayerAccount()
     .then(relayer => console.log(`AuthService started with relayer account: ${relayer.accountId}`))
     .catch((err: Error) => console.error("AuthService initial check failed:", err));

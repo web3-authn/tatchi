@@ -1,6 +1,7 @@
 import type { Request, Response, Router as ExpressRouter } from 'express';
 import express from 'express';
 import type { AuthService } from '../core/AuthService';
+import { buildCorsOrigins } from '../core/SessionService';
 import {
   handleApplyServerLock,
   handleRemoveServerLock,
@@ -10,16 +11,63 @@ import {
   handleRemoveGraceKey,
 } from '../core/shamirHandlers';
 import { parseRecoverEmailRequest } from '../email-recovery/emailParsers';
+import type { DelegateActionPolicy } from '../delegateAction';
 import type { RouterLogger } from './logger';
 import { normalizeRouterLogger } from './logger';
 
 export interface RelayRouterOptions {
   healthz?: boolean;
   readyz?: boolean;
+  // Optional list(s) of CORS origins (CSV strings or literal origins).
+  // Pass raw strings; the router normalizes/merges internally.
+  corsOrigins?: Array<string | undefined>;
+  /**
+   * Optional route for submitting NEP-461 SignedDelegate meta-transactions.
+   *
+   * - When omitted: disabled.
+   * - When set: enabled at `route`.
+   *
+   * `policy` is server-controlled and is never read from the request body.
+   */
+  signedDelegate?: {
+    route: string;
+    policy?: DelegateActionPolicy;
+  };
   sessionRoutes?: { auth?: string; logout?: string };
   session?: SessionAdapter | null;
   // Optional logger; defaults to silent.
   logger?: RouterLogger | null;
+}
+
+function normalizePath(path: string): string {
+  const trimmed = String(path || '').trim();
+  if (!trimmed) return '';
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
+function withCors(res: Response, opts?: RelayRouterOptions, req?: Request): void {
+  if (!opts?.corsOrigins) return;
+
+  let allowedOrigin: string | '*' | undefined;
+  const normalized = buildCorsOrigins(...(opts.corsOrigins || []));
+  if (normalized === '*') {
+    allowedOrigin = '*';
+    res.set('Access-Control-Allow-Origin', '*');
+  } else if (Array.isArray(normalized)) {
+    const origin = String((req as any)?.headers?.origin || '').trim();
+    if (origin && normalized.includes(origin)) {
+      allowedOrigin = origin;
+      res.set('Access-Control-Allow-Origin', origin);
+      res.set('Vary', 'Origin');
+    }
+  }
+
+  res.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  // Only advertise credentials when we echo back a specific origin (not '*')
+  if (allowedOrigin && allowedOrigin !== '*') {
+    res.set('Access-Control-Allow-Credentials', 'true');
+  }
 }
 
 // Minimal session adapter interface expected by the routers
@@ -36,6 +84,25 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   const mePath = opts.sessionRoutes?.auth || '/session/auth';
   const logoutPath = opts.sessionRoutes?.logout || '/session/logout';
   const logger = normalizeRouterLogger(opts.logger);
+  const signedDelegatePath = (() => {
+    if (!opts.signedDelegate) return '';
+    const raw = String(opts.signedDelegate.route || '').trim();
+    if (!raw) throw new Error('RelayRouterOptions.signedDelegate.route is required');
+    return normalizePath(raw);
+  })();
+  const signedDelegatePolicy = opts.signedDelegate?.policy;
+
+  // Optional CORS: implemented here to keep setup simple for example relayers.
+  // If you prefer custom CORS middleware, omit `corsOrigins` and wire your own.
+  router.use((req: Request, res: Response, next: any) => {
+    withCors(res, opts, req);
+    const method = String((req as any)?.method || '').toUpperCase();
+    if (opts.corsOrigins && method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    next();
+  });
 
   router.post(
     '/create_account_and_register_user',
@@ -71,6 +138,50 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
       }
     }
   );
+
+  if (signedDelegatePath) {
+    router.options(signedDelegatePath, (_req: any, res: any) => {
+      res.sendStatus(204);
+    });
+
+    router.post(signedDelegatePath, async (req: any, res: any) => {
+      try {
+        const { hash, signedDelegate } = req.body || {};
+        if (typeof hash !== 'string' || !hash || !signedDelegate) {
+          res.status(400).json({ ok: false, code: 'invalid_body', message: 'Expected { hash, signedDelegate }' });
+          return;
+        }
+
+        const result = await service.executeSignedDelegate({
+          hash,
+          signedDelegate,
+          policy: signedDelegatePolicy,
+        });
+
+        if (!result || !result.ok) {
+          res.status(400).json({
+            ok: false,
+            code: result?.code || 'delegate_execution_failed',
+            message: result?.error || 'Failed to execute delegate action',
+          });
+          return;
+        }
+
+        res.status(200).json({
+          ok: true,
+          relayerTxHash: result.transactionHash || null,
+          status: 'submitted',
+          outcome: result.outcome ?? null,
+        });
+      } catch (e: any) {
+        res.status(500).json({
+          ok: false,
+          code: 'internal',
+          message: e?.message || 'Internal error while executing delegate action',
+        });
+      }
+    });
+  }
 
   router.post('/vrf/apply-server-lock', async (req: any, res: any) => {
     const shamir = service.shamirService;
@@ -353,4 +464,77 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   }
 
   return router;
+}
+
+export interface KeyRotationCronOptions {
+  enabled?: boolean;
+  intervalMinutes?: number;
+  maxGraceKeys?: number;
+  logger?: RouterLogger | null;
+}
+
+export function startKeyRotationCronjob(
+  service: AuthService,
+  opts: KeyRotationCronOptions = {},
+): { stop(): void } {
+  const logger = normalizeRouterLogger(opts.logger);
+  const enabled = Boolean(opts.enabled);
+  const intervalMinutes = Math.max(1, Number(opts.intervalMinutes || 0) || 60);
+  const maxGraceKeys = Math.max(0, Number(opts.maxGraceKeys ?? 0) || 0);
+
+  let timer: any = null;
+  let inFlight = false;
+
+  const run = async () => {
+    if (!enabled) return;
+    if (inFlight) {
+      logger.warn('[key-rotation-cron] previous rotation still running; skipping');
+      return;
+    }
+    inFlight = true;
+    try {
+      const shamir = service.shamirService;
+      if (!shamir || !shamir.hasShamir()) {
+        logger.warn('[key-rotation-cron] Shamir not configured; skipping rotation');
+        return;
+      }
+
+      const rotation = await shamir.rotateShamirServerKeypair();
+      logger.info('[key-rotation-cron] rotated key', {
+        newKeyId: rotation.newKeyId,
+        previousKeyId: rotation.previousKeyId,
+        graceKeyIds: rotation.graceKeyIds,
+      });
+
+      if (maxGraceKeys > 0) {
+        const graceKeyIds = shamir.getGraceKeyIds();
+        if (graceKeyIds.length > maxGraceKeys) {
+          const toRemove = graceKeyIds.slice(0, graceKeyIds.length - maxGraceKeys);
+          for (const keyId of toRemove) {
+            try {
+              const removed = await shamir.removeGraceKeyInternal(keyId, { persist: true });
+              logger.info('[key-rotation-cron] pruned grace key', { keyId, removed });
+            } catch (e: any) {
+              logger.warn('[key-rotation-cron] failed to prune grace key', { keyId, error: e?.message || String(e) });
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      logger.error('[key-rotation-cron] rotation failed', { error: e?.message || String(e) });
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  if (enabled) {
+    timer = setInterval(() => { void run(); }, intervalMinutes * 60_000);
+  }
+
+  return {
+    stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+    },
+  };
 }
