@@ -3,7 +3,6 @@ import {
   AuthService,
   parseBool,
   requireEnvVar,
-  type AuthServiceConfigInput,
 } from '@tatchi-xyz/sdk/server';
 import { createRelayRouter, startKeyRotationCronjob } from '@tatchi-xyz/sdk/server/router/express';
 
@@ -20,7 +19,7 @@ const config = {
   rotateEveryMinutes: Number(env.ROTATE_EVERY) || 60, // minutes between automatic key rotations
 };
 
-const authServiceConfig: AuthServiceConfigInput = {
+const authService = new AuthService({
   // new accounts with be created with this account: e.g. bob.{relayer-account-id}.near
   // you can make it the same account as the webauthn contract id.
   relayerAccountId: requireEnvVar(env, 'RELAYER_ACCOUNT_ID'),
@@ -41,8 +40,7 @@ const authServiceConfig: AuthServiceConfigInput = {
     SHAMIR_D_S_B64U: env.SHAMIR_D_S_B64U,
     SHAMIR_GRACE_KEYS_FILE: env.SHAMIR_GRACE_KEYS_FILE,
   },
-};
-const authService = new AuthService(authServiceConfig);
+});
 
 const app: Express = express();
 

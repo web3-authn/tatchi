@@ -1,6 +1,6 @@
 {
   "name": "near-account-service-server",
-  "version": "1.0.1",
+  "version": "0.13.0",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

@@ -14,7 +14,8 @@ import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
 import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf';
 import jwtSession from './jwtSession';
 
-// Singleton AuthService instance shared across fetch/email/scheduled events
+// Singleton AuthService instance shared across fetch/email/scheduled events.
+// Singleton avoids re-initializing WASM clients, etc. on every request.
 let service: AuthService | null = null;
 
 function getAuthService(env: Env): AuthService {
