@@ -109,6 +109,8 @@ export class TatchiPasskey {
   private readonly nearClient: NearClient;
   readonly configs: TatchiConfigs;
   private iframeRouter: WalletIframeRouter | null = null;
+  // Deduplicate concurrent initWalletIframe() calls to avoid mounting multiple iframes.
+  private walletIframeInitInFlight: Promise<void> | null = null;
   // Internal active Device2 flow when running locally (not exposed)
   private activeDeviceLinkFlow: LinkDeviceFlow | null = null;
   private activeAccountRecoveryFlow: AccountRecoveryFlow | null = null;
@@ -184,32 +186,47 @@ export class TatchiPasskey {
       }
     }
 
-    // Initialize iframe router once
+    // Initialize iframe router once (and prevent concurrent calls from mounting multiple iframes).
     if (!this.iframeRouter) {
-      const { WalletIframeRouter } = await import('../WalletIframe/client/router');
-      this.iframeRouter = new WalletIframeRouter({
-        walletOrigin,
-        servicePath: walletIframeConfig?.walletServicePath || '/wallet-service',
-        connectTimeoutMs: 20_000, // 20s
-        requestTimeoutMs: 60_000, // 60s
-        theme: this.configs.walletTheme,
-        nearRpcUrl: this.configs.nearRpcUrl,
-        nearNetwork: this.configs.nearNetwork,
-        contractId: this.configs.contractId,
-        nearExplorerUrl: this.configs.nearExplorerUrl,
-        // Ensure relay server config reaches the wallet host for atomic registration
-        relayer: this.configs.relayer,
-        vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
-        emailRecoveryContracts: this.configs.emailRecoveryContracts,
-        rpIdOverride: walletIframeConfig?.rpIdOverride,
-        // Allow apps/CI to control where embedded bundles are served from
-        sdkBasePath: walletIframeConfig?.sdkBasePath,
-      });
+      if (!this.walletIframeInitInFlight) {
+        this.walletIframeInitInFlight = (async () => {
+          const { WalletIframeRouter } = await import('../WalletIframe/client/router');
+          this.iframeRouter = new WalletIframeRouter({
+            walletOrigin,
+            servicePath: walletIframeConfig?.walletServicePath || '/wallet-service',
+            connectTimeoutMs: 20_000, // 20s
+            requestTimeoutMs: 60_000, // 60s
+            theme: this.configs.walletTheme,
+            nearRpcUrl: this.configs.nearRpcUrl,
+            nearNetwork: this.configs.nearNetwork,
+            contractId: this.configs.contractId,
+            nearExplorerUrl: this.configs.nearExplorerUrl,
+            // Ensure relay server config reaches the wallet host for atomic registration
+            relayer: this.configs.relayer,
+            vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
+            emailRecoveryContracts: this.configs.emailRecoveryContracts,
+            rpIdOverride: walletIframeConfig?.rpIdOverride,
+            // Allow apps/CI to control where embedded bundles are served from
+            sdkBasePath: walletIframeConfig?.sdkBasePath,
+          });
+
+          await this.iframeRouter.init();
+          // Opportunistically warm remote NonceManager
+          try { await this.iframeRouter.prefetchBlockheight(); } catch {}
+        })();
+      }
+
+      try {
+        await this.walletIframeInitInFlight;
+      } finally {
+        this.walletIframeInitInFlight = null;
+      }
+    } else {
+      await this.iframeRouter.init();
+      // Opportunistically warm remote NonceManager
+      try { await this.iframeRouter.prefetchBlockheight(); } catch {}
     }
 
-    await this.iframeRouter.init();
-    // Opportunistically warm remote NonceManager and surface initial login state
-    try { await this.iframeRouter.prefetchBlockheight(); } catch {}
     await this.getLoginSession(nearAccountId);
   }
 

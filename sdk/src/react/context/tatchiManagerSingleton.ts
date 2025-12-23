@@ -3,9 +3,30 @@ import { buildConfigsFromEnv } from '@/core/defaultConfigs';
 import type { NearClient } from '@/core/NearClient';
 import type { TatchiConfigs, TatchiConfigsInput } from '@/core/types/tatchi';
 
-// Global singleton to prevent multiple manager instances in StrictMode
-let globalPasskeyManager: TatchiPasskey | null = null;
-let globalConfigKey: string | null = null;
+// Singleton to prevent multiple manager instances in StrictMode and across HMR/module duplication.
+//
+// IMPORTANT: Only persist on `window` (not Node/SSR globalThis) to avoid leaking
+// state across server requests/tests.
+type SingletonState = {
+  manager: TatchiPasskey | null;
+  configKey: string | null;
+};
+
+const WINDOW_SINGLETON_KEY = '__w3a_tatchi_passkey_singleton__';
+
+let moduleSingletonState: SingletonState = {
+  manager: null,
+  configKey: null,
+};
+
+function getSingletonState(): SingletonState {
+  if (typeof window === 'undefined') return moduleSingletonState;
+  const g = globalThis as any;
+  if (!g[WINDOW_SINGLETON_KEY]) {
+    g[WINDOW_SINGLETON_KEY] = { manager: null, configKey: null } satisfies SingletonState;
+  }
+  return g[WINDOW_SINGLETON_KEY] as SingletonState;
+}
 
 function stableStringify(value: unknown): string {
   const seen = new WeakSet<object>();
@@ -48,11 +69,12 @@ function stableStringify(value: unknown): string {
 export function getOrCreateTatchiManager(config: TatchiConfigsInput, nearClient: NearClient): TatchiPasskey {
   const finalConfig: TatchiConfigs = buildConfigsFromEnv(config);
   const nextKey = stableStringify(finalConfig);
-  const configChanged = globalConfigKey !== nextKey;
-  if (!globalPasskeyManager || configChanged) {
+  const state = getSingletonState();
+  const configChanged = state.configKey !== nextKey;
+  if (!state.manager || configChanged) {
     console.debug('TatchiContextProvider: Creating manager with config:', finalConfig);
-    globalPasskeyManager = new TatchiPasskey(finalConfig, nearClient);
-    globalConfigKey = nextKey;
+    state.manager = new TatchiPasskey(finalConfig, nearClient);
+    state.configKey = nextKey;
   }
-  return globalPasskeyManager as TatchiPasskey;
+  return state.manager as TatchiPasskey;
 }
