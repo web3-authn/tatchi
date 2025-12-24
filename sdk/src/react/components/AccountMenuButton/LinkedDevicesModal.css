@@ -309,23 +309,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 8px;
+  padding: 4px 8px;
   border-radius: 999px;
   border: 1px solid var(--w3a-colors-borderPrimary);
-  color: var(--w3a-colors-textPrimary);
+  color: #fff;
+  background: var(--w3a-colors-buttonBackground);
   font-size: 0.825rem;
   font-weight: 600;
   line-height: 1;
-}
-
-.theme-light .w3a-device-badge {
-  border-color: var(--w3a-colors-blue500, var(--w3a-colors-borderPrimary));
-  color: var(--w3a-colors-blue500, var(--w3a-colors-textPrimary));
-}
-
-.theme-dark .w3a-device-badge {
-  border-color: var(--w3a-colors-primary, var(--w3a-colors-borderPrimary));
-  color: var(--w3a-colors-primary, var(--w3a-colors-textPrimary));
 }
 
 .w3a-current-device-text {
@@ -378,7 +369,7 @@
 
 .w3a-btn-primary {
   background: var(--w3a-colors-primary);
-  color: var(--w3a-btn-text);
+  color: #fff;
 }
 
 .w3a-btn-primary:hover:not(:disabled) {

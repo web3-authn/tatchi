@@ -277,26 +277,18 @@ export const registerWalletServiceRoute = async (
   html: string,
   urlPattern: string = 'https://wallet.test/wallet-service*'
 ): Promise<void> => {
-  const patterns = [urlPattern];
-  // Include legacy /service pattern for compatibility with older configs/tests
-  if (urlPattern.includes('wallet-service')) {
-    patterns.push(urlPattern.replace('wallet-service', 'service'));
-  }
-
-  for (const pattern of patterns) {
-    await page.route(pattern, (route) => {
-      console.log(`[wallet-stub] fulfilling ${route.request().url()}`);
-      return route.fulfill({
-        status: 200,
-        headers: {
-          'content-type': 'text/html; charset=utf-8',
-          'cache-control': 'no-store',
-          'cross-origin-resource-policy': 'cross-origin',
-          'cross-origin-embedder-policy': 'require-corp',
-          'cross-origin-opener-policy': 'same-origin-allow-popups',
-        },
-        body: html,
-      });
+  await page.route(urlPattern, (route) => {
+    console.log(`[wallet-stub] fulfilling ${route.request().url()}`);
+    return route.fulfill({
+      status: 200,
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+        'cross-origin-resource-policy': 'cross-origin',
+        'cross-origin-embedder-policy': 'require-corp',
+        'cross-origin-opener-policy': 'same-origin-allow-popups',
+      },
+      body: html,
     });
-  }
+  });
 };

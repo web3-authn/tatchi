@@ -167,6 +167,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
     loginState = null;
   }
   const isControlled = themeProp !== undefined && themeProp !== null;
+  const isWalletIframeMode = !!passkeyManager?.configs?.iframeWallet?.walletOrigin;
 
   const baseLight = React.useMemo(() => LIGHT_TOKENS, []);
   const baseDark = React.useMemo(() => DARK_TOKENS, []);
@@ -213,6 +214,9 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
   // Hydrate from persisted user preference when available (post-login)
   React.useEffect(() => {
     if (isControlled || !passkeyManager || !loginState?.isLoggedIn) return;
+    // In wallet-iframe mode, persisted preferences live on the wallet origin; the app origin
+    // should not attempt to read IndexedDB (it is intentionally disabled).
+    if (isWalletIframeMode) return;
     const up = passkeyManager.userPreferences as any;
     const fn: undefined | (() => Promise<'dark' | 'light' | null>) = up?.getCurrentUserAccountIdTheme?.bind(up);
     if (!fn) return;
@@ -228,25 +232,24 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
       }
     })();
     return () => { cancelled = true; };
-  }, [isControlled, passkeyManager, themeState, loginState?.isLoggedIn]);
+  }, [isControlled, isWalletIframeMode, passkeyManager, themeState, loginState?.isLoggedIn]);
 
   // On login, propagate current theme to user prefs AND wallet host to avoid "first-click does nothing"
   React.useEffect(() => {
     if (isControlled || !passkeyManager?.userPreferences || !loginState?.isLoggedIn || !syncUserPreferences) return;
+    // Wallet-iframe mode: wallet host is the source of truth; avoid pushing app theme on login.
+    if (isWalletIframeMode) return;
     let cancelled = false;
-    (async () => {
-      (async () => {
-        const pref = await passkeyManager.userPreferences.getCurrentUserAccountIdTheme?.();
-        if (cancelled) return;
-        // If no stored preference yet OR it differs, push current theme
-        if (pref !== themeState) {
-          try { passkeyManager.setUserTheme(themeState); }
-          catch { try { passkeyManager.userPreferences.setUserTheme?.(themeState); } catch {} }
-        }
-      })();
+    void (async () => {
+      const pref = await passkeyManager.userPreferences.getCurrentUserAccountIdTheme?.();
+      if (cancelled) return;
+      // If no stored preference yet OR it differs, push current theme
+      if (pref !== themeState) {
+        passkeyManager.setUserTheme?.(themeState);
+      }
     })();
     return () => { cancelled = true; };
-  }, [isControlled, passkeyManager, themeState, loginState?.isLoggedIn, syncUserPreferences]);
+  }, [isControlled, isWalletIframeMode, passkeyManager, themeState, loginState?.isLoggedIn, syncUserPreferences]);
 
   const setTheme = React.useCallback((t: ThemeName) => {
     // Avoid redundant writes and subscription loops
@@ -254,7 +257,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
     if (!isControlled) setThemeState(t);
     // Attempt to sync to user preferences (wallet host when available)
     if (syncUserPreferences && passkeyManager?.setUserTheme) {
-      try { void passkeyManager.setUserTheme(t); } catch {}
+      passkeyManager.setUserTheme(t);
     }
     // Persist locally when not logged in, or if no passkeyManager available
     if (!loginState?.isLoggedIn || !passkeyManager || !syncUserPreferences) {

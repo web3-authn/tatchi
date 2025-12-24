@@ -723,7 +723,7 @@ w3a-drawer {
 }
 .drawer-btn.primary {
   background: var(--w3a-btn-primary, var(--w3a-colors-buttonBackground, #4DAFFE));
-  color: var(--w3a-btn-text, var(--w3a-colors-textButton, #0b1220));
+  color:var(--w3a-colors-textButton, #0b1220);
   border-color: transparent;
 }
 .footer-actions {

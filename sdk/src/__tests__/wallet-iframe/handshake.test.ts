@@ -49,11 +49,7 @@ test.describe('Wallet iframe handshake', () => {
       };
     });
 
-    const expectedSrcs = [
-      new URL('/wallet-service', WALLET_ORIGIN).toString(),
-      new URL('/service', WALLET_ORIGIN).toString(),
-    ];
-    expect(expectedSrcs).toContain(iframeAttributes?.src);
+    expect(iframeAttributes?.src).toBe(new URL('/wallet-service', WALLET_ORIGIN).toString());
     expect(iframeAttributes?.allow).toContain('publickey-credentials-get');
     expect(iframeAttributes?.sandbox).toBeNull();
     expect(iframeAttributes?.pointerEvents).toBe('none');

@@ -111,6 +111,8 @@ export class TatchiPasskey {
   private iframeRouter: WalletIframeRouter | null = null;
   // Deduplicate concurrent initWalletIframe() calls to avoid mounting multiple iframes.
   private walletIframeInitInFlight: Promise<void> | null = null;
+  // Wallet-iframe mode: mirror wallet-host preferences into app-origin in-memory cache.
+  private walletIframePrefsUnsubscribe: (() => void) | null = null;
   // Internal active Device2 flow when running locally (not exposed)
   private activeDeviceLinkFlow: LinkDeviceFlow | null = null;
   private activeAccountRecoveryFlow: AccountRecoveryFlow | null = null;
@@ -124,12 +126,10 @@ export class TatchiPasskey {
     // Configure IndexedDB naming before any local persistence is touched.
     // - Wallet iframe host keeps canonical DB names.
     // - App origin disables IndexedDB entirely when iframe mode is enabled.
-    try {
-      const mode = __isWalletIframeHostMode()
-        ? 'wallet'
-        : (this.configs.iframeWallet?.walletOrigin ? 'disabled' : 'legacy');
-      configureIndexedDB({ mode });
-    } catch {}
+    const mode = __isWalletIframeHostMode()
+      ? 'wallet'
+      : (this.configs.iframeWallet?.walletOrigin ? 'disabled' : 'legacy');
+    configureIndexedDB({ mode });
     // Use provided client or create default one
     this.nearClient = nearClient || new MinimalNearClient(this.configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(this.configs, this.nearClient);
@@ -227,12 +227,38 @@ export class TatchiPasskey {
       try { await this.iframeRouter.prefetchBlockheight(); } catch {}
     }
 
+    // Wallet-iframe mode: keep app-origin UI prefs in sync with the wallet host.
+    if (this.iframeRouter) {
+      this.ensureWalletIframePreferencesMirror(this.iframeRouter);
+      // Best-effort pull snapshot to cover missed events / older hosts.
+      const cfg = await this.iframeRouter.getConfirmationConfig().catch(() => null);
+      if (cfg) {
+        this.userPreferences.applyWalletHostConfirmationConfig({
+          nearAccountId: nearAccountId ? toAccountId(nearAccountId) : null,
+          confirmationConfig: cfg,
+        });
+      }
+    }
+
     await this.getLoginSession(nearAccountId);
   }
 
   /** Get the wallet iframe client if initialized. */
   getWalletIframeClient(): WalletIframeRouter | null {
     return this.iframeRouter;
+  }
+
+  private ensureWalletIframePreferencesMirror(router: WalletIframeRouter): void {
+    if (this.walletIframePrefsUnsubscribe) return;
+    const unsubscribe = router.onPreferencesChanged?.((payload: any) => {
+      const id = payload?.nearAccountId;
+      const nearAccountId = id ? toAccountId(id) : null;
+      this.userPreferences.applyWalletHostConfirmationConfig({
+        nearAccountId,
+        confirmationConfig: payload?.confirmationConfig,
+      });
+    });
+    this.walletIframePrefsUnsubscribe = unsubscribe ?? null;
   }
 
   /**
@@ -336,16 +362,6 @@ export class TatchiPasskey {
       try {
         const router = await this.requireWalletIframeRouter(nearAccountId);
         const res = await router.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
-        // Mirror wallet-host preferences locally (in-memory only) so app UI reads are coherent
-        // without writing IndexedDB on the app origin when iframe mode is enabled.
-        if (res?.success) {
-          try {
-            const up = this.webAuthnManager.getUserPreferences();
-            up.setCurrentUserLocalOnly(toAccountId(nearAccountId));
-            const cfg = await router.getConfirmationConfig().catch(() => null);
-            if (cfg) up.setConfirmationConfigLocalOnly(cfg);
-          } catch {}
-        }
         // Opportunistically warm resources (non-blocking)
         void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);
@@ -383,14 +399,6 @@ export class TatchiPasskey {
           confirmationConfig: confirmationConfigOverride,
           options: { onEvent: options?.onEvent }
         });
-        if (res?.success) {
-          try {
-            const up = this.webAuthnManager.getUserPreferences();
-            up.setCurrentUserLocalOnly(toAccountId(nearAccountId));
-            const cfg = await router.getConfirmationConfig().catch(() => null);
-            if (cfg) up.setConfirmationConfigLocalOnly(cfg);
-          } catch {}
-        }
         void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);
         return res;
@@ -435,14 +443,6 @@ export class TatchiPasskey {
             signingSession: options?.signingSession,
           }
         });
-        // Best-effort: align local (in-memory) preferences cache to wallet host without
-        // persisting user state on the app origin.
-        try {
-          const up = this.webAuthnManager.getUserPreferences();
-          up.setCurrentUserLocalOnly(toAccountId(nearAccountId));
-          const cfg = await router.getConfirmationConfig().catch(() => null);
-          if (cfg) up.setConfirmationConfigLocalOnly(cfg);
-        } catch {}
         // Best-effort warm-up after successful login (non-blocking)
         void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);
@@ -507,8 +507,6 @@ export class TatchiPasskey {
    */
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
     if (this.shouldUseWalletIframe()) {
-      // Mirror locally without persisting on the app origin.
-      this.webAuthnManager.getUserPreferences().setConfirmBehaviorLocalOnly(behavior);
       // Fire and forget; persistence handled in wallet host. Avoid unhandled rejections.
       void (async () => {
         try {
@@ -526,8 +524,6 @@ export class TatchiPasskey {
    */
   setConfirmationConfig(config: ConfirmationConfig): void {
     if (this.shouldUseWalletIframe()) {
-      // Mirror locally without persisting on the app origin.
-      this.webAuthnManager.getUserPreferences().setConfirmationConfigLocalOnly(config);
       // Fire and forget; avoid unhandled rejections in consumers
       void (async () => {
         try {
@@ -542,9 +538,6 @@ export class TatchiPasskey {
 
   setUserTheme(theme: 'dark' | 'light'): void {
     if (this.shouldUseWalletIframe()) {
-      // Ensure local UI updates immediately while propagating to wallet host, without
-      // persisting user state on the app origin.
-      this.webAuthnManager.getUserPreferences().setUserThemeLocalOnly(theme);
       void (async () => {
         try {
           const router = await this.requireWalletIframeRouter();

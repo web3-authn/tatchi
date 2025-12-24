@@ -135,7 +135,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     [safeSetExplorerToast, tatchiPasskey],
   );
 
-  const fetchLocalRecoveryEmails = React.useCallback(
+  const fetchLocalRecoveryEmailsFromIndexedDB = React.useCallback(
     async (rawAccountId: string): Promise<string[]> => {
       const normalized = (rawAccountId || '').trim();
       if (!normalized) {
@@ -176,19 +176,13 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     [],
   );
 
-  const fetchAccountInfo = React.useCallback(
-    async (rawAccountId: string): Promise<EmailRecoveryAccountInfo | null> => {
-      const normalized = (rawAccountId || '').trim();
-      if (!normalized) return null;
-
-      const records = await tatchiPasskey.getRecoveryEmails(normalized);
-
-      return {
-        emailsCount: Array.isArray(records) ? records.length : 0,
-      };
-    },
-    [tatchiPasskey],
-  );
+  const deriveEmailsFromRecoveryRecords = React.useCallback((records: unknown): string[] => {
+    if (!Array.isArray(records) || records.length === 0) return [];
+    const emails = records
+      .map((r: any) => String(r?.email || '').trim().toLowerCase())
+      .filter((e: string) => !!e && e.includes('@'));
+    return Array.from(new Set(emails));
+  }, []);
 
   React.useEffect(() => {
     const normalized = (accountIdInput || '').trim();
@@ -207,25 +201,38 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     const handle = window.setTimeout(() => {
       void (async () => {
         try {
-          const localEmails = await fetchLocalRecoveryEmails(normalized);
-          if (!cancelled) {
-            safeSetLocalRecoveryEmails(localEmails);
-            console.log('[EmailRecoverySlide] local saved emails (state)', { accountId: normalized, localEmails });
+          const isWalletIframeMode = !!tatchiPasskey.configs?.iframeWallet?.walletOrigin;
 
-            if (
-              localEmails.length === 1 &&
-              (recoveryEmailInput.trim() === '' || recoveryEmailInput === lastPrefilledRecoveryEmailRef.current)
-            ) {
-              lastPrefilledRecoveryEmailRef.current = localEmails[0];
-              setRecoveryEmailInput(localEmails[0]);
-              console.log('[EmailRecoverySlide] auto-filled recoveryEmailInput from IndexedDB', {
-                accountId: normalized,
-                email: localEmails[0],
-              });
+          // Legacy mode: suggest recovery emails from local IndexedDB mapping (best-effort).
+          let localEmails: string[] = [];
+          if (!isWalletIframeMode) {
+            localEmails = await fetchLocalRecoveryEmailsFromIndexedDB(normalized);
+            if (!cancelled) {
+              console.log('[EmailRecoverySlide] local saved emails (IndexedDB)', { accountId: normalized, localEmails });
             }
           }
 
-          const info = await fetchAccountInfo(normalized);
+          const records = await tatchiPasskey.getRecoveryEmails(normalized);
+          const resolvedEmails = isWalletIframeMode
+            ? deriveEmailsFromRecoveryRecords(records)
+            : localEmails;
+
+          if (!cancelled) {
+            safeSetLocalRecoveryEmails(resolvedEmails);
+            console.log('[EmailRecoverySlide] recovery email suggestions (state)', { accountId: normalized, emails: resolvedEmails });
+
+            if (
+              resolvedEmails.length === 1 &&
+              (recoveryEmailInput.trim() === '' || recoveryEmailInput === lastPrefilledRecoveryEmailRef.current)
+            ) {
+              lastPrefilledRecoveryEmailRef.current = resolvedEmails[0];
+              setRecoveryEmailInput(resolvedEmails[0]);
+            }
+          }
+
+          const info: EmailRecoveryAccountInfo | null = records
+            ? { emailsCount: Array.isArray(records) ? records.length : 0 }
+            : null;
           if (cancelled) return;
           safeSetAccountInfo(info);
         } catch (err: any) {
@@ -244,13 +251,14 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     };
   }, [
     accountIdInput,
-    fetchAccountInfo,
-    fetchLocalRecoveryEmails,
+    deriveEmailsFromRecoveryRecords,
+    fetchLocalRecoveryEmailsFromIndexedDB,
     recoveryEmailInput,
     safeSetAccountInfo,
     safeSetAccountInfoError,
     safeSetAccountInfoLoading,
     safeSetLocalRecoveryEmails,
+    tatchiPasskey,
   ]);
 
   const handleStart = React.useCallback(async () => {
@@ -291,10 +299,8 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
       safeSetPendingMailtoUrl(result.mailtoUrl);
       safeSetStatusText('Recovery email draft ready. Send it from your recovery address. Waiting for verification…');
 
-      try {
+      if (typeof window !== 'undefined' && typeof window.open === 'function') {
         window.open(result.mailtoUrl, '_blank', 'noopener,noreferrer');
-      } catch {
-        // best-effort; link remains visible
       }
 
       showExplorerToast(normalizedAccountId);
@@ -316,23 +322,18 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
       // Best-effort auto-login: the core flow attempts it, but if it couldn't (e.g. missing Shamir
       // auto-unlock and user cancelled TouchID), try once more here.
       let loginOk = false;
-      try {
-        const session = await tatchiPasskey.getLoginSession(normalizedAccountId);
-        if (session?.login?.isLoggedIn) {
-          loginOk = true;
-        } else {
-          safeSetStatusText('Email recovery completed. Logging you in…');
-          await tatchiPasskey.loginAndCreateSession(normalizedAccountId);
-          loginOk = true;
-        }
-      } catch {
-        loginOk = false;
+      const session = await tatchiPasskey.getLoginSession(normalizedAccountId).catch(() => null);
+      if (session?.login?.isLoggedIn) {
+        loginOk = true;
+      } else {
+        safeSetStatusText('Email recovery completed. Logging you in…');
+        loginOk = await tatchiPasskey.loginAndCreateSession(normalizedAccountId)
+          .then(() => true)
+          .catch(() => false);
       }
 
-      try {
-        await refreshLoginState?.(normalizedAccountId);
-      } catch {
-        // ignore
+      if (refreshLoginState) {
+        await refreshLoginState(normalizedAccountId).catch(() => {});
       }
 
       safeSetStatusText(loginOk ? 'Email recovery completed on this device.' : 'Email recovery completed. Please log in on this device.');
