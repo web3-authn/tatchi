@@ -16,6 +16,7 @@ import {
 } from '../../types';
 import { type DeviceLinkingQRData } from '../../types/linkDevice';
 import type { DelegateActionInput } from '../../types/delegate';
+import type { ConfirmationConfig } from '../../types/signer-worker';
 
 export type WalletProtocolVersion = '1.0.0';
 
@@ -64,6 +65,7 @@ export type ChildToParentType =
   | 'READY'
   | 'PONG'
   | 'PROGRESS'
+  | 'PREFERENCES_CHANGED'
   | 'PM_RESULT'
   | 'ERROR';
 
@@ -81,6 +83,12 @@ export interface RpcEnvelope<T extends string = string, P = unknown> {
 
 export interface ReadyPayload {
   protocolVersion: WalletProtocolVersion;
+}
+
+export interface PreferencesChangedPayload {
+  nearAccountId: string | null;
+  confirmationConfig: ConfirmationConfig;
+  updatedAt: number;
 }
 
 export interface PMSetConfigPayload {
@@ -284,5 +292,6 @@ export type ChildToParentEnvelope =
   | RpcEnvelope<'READY', ReadyPayload>
   | RpcEnvelope<'PONG'>
   | RpcEnvelope<'PROGRESS', ProgressPayload>
+  | RpcEnvelope<'PREFERENCES_CHANGED', PreferencesChangedPayload>
   | RpcEnvelope<'PM_RESULT', PMResultPayload>
   | RpcEnvelope<'ERROR', ErrorPayload>;

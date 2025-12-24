@@ -16,8 +16,7 @@ import { QRCodeScanner } from '../QRCodeScanner';
 import { LinkedDevicesModal } from './LinkedDevicesModal';
 import './Web3AuthProfileButton.css';
 import { Theme, useTheme } from '../theme';
-import { toAccountId } from '../../../core/types/accountIds';
-import { IndexedDBManager } from '../../../core/IndexedDBManager';
+import { AccountId, toAccountId } from '../../../core/types/accountIds';
 
 /**
  * Account Menu Button Component
@@ -96,57 +95,29 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
   // Read current theme from Theme context (falls back to system preference)
   const { theme } = useTheme();
 
-  // Load confirmation config on mount
+  // Keep local view state in sync with SDK preferences (mirrors wallet host in iframe mode)
   useEffect(() => {
-    let isActive = true;
+    if (!tatchi) return;
+    if (!loginState.isLoggedIn || !loggedInAccountId) {
+      setCurrentConfirmConfig(null);
+      return;
+    }
 
-    const syncConfirmationConfig = async () => {
-      if (!tatchi) return;
+    let cancelled = false;
 
-      if (!loginState.isLoggedIn || !loggedInAccountId) {
-        if (isActive) {
-          setCurrentConfirmConfig(null);
-        }
-        return;
-      }
+    if (AccountId.validate(loggedInAccountId).valid) {
+      tatchi.userPreferences.setCurrentUser(toAccountId(loggedInAccountId));
+    }
+    setCurrentConfirmConfig(tatchi.getConfirmationConfig());
 
-      try {
-        tatchi.userPreferences.setCurrentUser(toAccountId(loggedInAccountId));
-      } catch (_) {}
-
-      // Always try to hydrate from source of truth, then mirror locally
-      let fetched: any | null = null;
-      // 1) Wallet iframe (wallet origin) if available
-      try {
-        const client = tatchi.getWalletIframeClient?.();
-        if (client && client.isReady()) {
-          fetched = await client.getConfirmationConfig();
-        }
-      } catch (_) {}
-      // 2) Local IndexedDB for this user
-      if (!fetched) {
-        try {
-          fetched = await IndexedDBManager.clientDB.getConfirmationConfig(toAccountId(loggedInAccountId));
-        } catch (_) {}
-      }
-      // 3) Fallback: current in-memory cache
-      if (!fetched) {
-        try { fetched = tatchi.getConfirmationConfig(); } catch (_) {}
-      }
-
-      if (fetched) {
-        // Mirror into local cache for immediate reads and future sessions
-        try { tatchi.userPreferences.setConfirmationConfig(fetched); } catch (_) {}
-        if (isActive) setCurrentConfirmConfig(fetched);
-      } else {
-        if (isActive) setCurrentConfirmConfig(null);
-      }
-    };
-
-    void syncConfirmationConfig();
+    const unsub = tatchi.userPreferences.onConfirmationConfigChange?.((cfg: any) => {
+      if (cancelled) return;
+      setCurrentConfirmConfig(cfg);
+    });
 
     return () => {
-      isActive = false;
+      cancelled = true;
+      unsub?.();
     };
   }, [tatchi, loginState.isLoggedIn, loggedInAccountId]);
 
@@ -154,32 +125,30 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
   const handleSetUiMode = (mode: 'skip' | 'modal' | 'drawer') => {
     // Only patch the field we intend to change to avoid overwriting theme or other values
     tatchi.setConfirmationConfig({ uiMode: mode } as any);
-    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, uiMode: mode } : { uiMode: mode });
   };
 
   const handleToggleSkipClick = () => {
     if (!currentConfirmConfig) return;
     const newBehavior = currentConfirmConfig.behavior === 'requireClick' ? 'autoProceed' : 'requireClick';
     tatchi.setConfirmBehavior(newBehavior);
-    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, behavior: newBehavior } : prev);
   };
 
   const handleSetDelay = (delay: number) => {
     // Only patch delay; avoid passing a stale theme from local state
     tatchi.setConfirmationConfig({ autoProceedDelay: delay } as any);
-    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, autoProceedDelay: delay } : { autoProceedDelay: delay });
   };
 
   const handleToggleTheme = () => {
     // Determine next theme from current visible theme when possible
     const newTheme = (theme === 'dark' ? 'light' : (theme === 'light' ? 'dark' : (currentConfirmConfig?.theme === 'dark' ? 'light' : 'dark')));
-    try { tatchi.setUserTheme(newTheme); } catch {}
-    setCurrentConfirmConfig((prev: any) => (prev ? { ...prev, theme: newTheme } : prev));
+    tatchi.setUserTheme(newTheme);
     // Always show a quick pulse to acknowledge the press
-    try {
+    if (typeof document !== 'undefined' && document.body) {
       document.body.setAttribute('data-w3a-theme-pulse', '1');
-      window.setTimeout(() => { try { document.body.removeAttribute('data-w3a-theme-pulse'); } catch {} }, 220);
-    } catch {}
+      window.setTimeout(() => {
+        document.body?.removeAttribute('data-w3a-theme-pulse');
+      }, 220);
+    }
   };
 
   // Menu items configuration with context-aware handlers
@@ -255,13 +224,16 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
     if (!isOpen || highlightedIndex < 0 || !highlightShouldFocus) return;
     const el = refs.menuItemsRef.current?.[highlightedIndex];
     if (!el) return;
+    const focusItem = () => {
+      if (typeof (el as any).focus === 'function') {
+        (el as any).focus();
+      }
+    };
     if (typeof window === 'undefined') {
-      try { el.focus(); } catch {}
+      focusItem();
       return;
     }
-    const frame = window.requestAnimationFrame(() => {
-      try { el.focus(); } catch {}
-    });
+    const frame = window.requestAnimationFrame(focusItem);
     return () => window.cancelAnimationFrame(frame);
   }, [isOpen, highlightedIndex, highlightShouldFocus, refs.menuItemsRef]);
 

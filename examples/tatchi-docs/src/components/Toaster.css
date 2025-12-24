@@ -49,7 +49,7 @@
 
 .w3a-toast-action {
   background: var(--w3a-colors-primary);
-  color: var(--w3a-btn-text, #fff);
+  color: #fff;
   border: none;
   border-radius: 8px;
   padding: 6px 10px;

@@ -40,6 +40,7 @@ import type {
   ChildToParentEnvelope,
   ReadyPayload,
   PMSetConfigPayload,
+  PreferencesChangedPayload,
 } from '../shared/messages';
 import { CONFIRM_UI_ELEMENT_SELECTORS } from '../../WebAuthnManager/LitComponents/tags';
 import { MinimalNearClient } from '../../NearClient';
@@ -68,6 +69,7 @@ let walletConfigs: TatchiConfigsInput | null = null;
 let nearClient: MinimalNearClient | null = null;
 let tatchiPasskey: TatchiPasskeyIframe | TatchiPasskey | null = null;
 let themeUnsubscribe: (() => void) | null = null;
+let prefsUnsubscribe: (() => void) | null = null;
 
 // Track request-level cancellations
 const cancelledRequests = new Set<string>();
@@ -111,10 +113,10 @@ function ensureTatchiPasskey(): void {
     tatchiPasskey = new TatchiPasskey(cfg, nearClient);
     // Warm critical resources (Signer/VRF workers, IndexedDB) on the wallet origin.
     // Non-blocking and safe to call without account context.
-    try {
-      const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
-      if (pmAny?.warmCriticalResources) void pmAny.warmCriticalResources();
-    } catch {}
+    const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
+    if (pmAny?.warmCriticalResources) {
+      void pmAny.warmCriticalResources().catch(() => {});
+    }
     // Bridge theme changes to the host document so embedded UIs can react via CSS
     const up = tatchiPasskey.userPreferences;
     // Set initial theme attribute
@@ -124,6 +126,24 @@ function ensureTatchiPasskey(): void {
     themeUnsubscribe = up.onThemeChange((t) => {
       document.documentElement.setAttribute('data-w3a-theme', t);
     });
+
+    // Bridge wallet-host preferences to the parent app so app UI can mirror wallet host state.
+    prefsUnsubscribe?.();
+    const emitPreferencesChanged = (confirmationConfig: PreferencesChangedPayload['confirmationConfig']) => {
+      const id = String(up.getCurrentUserAccountId?.() || '').trim();
+      const nearAccountId = id ? id : null;
+      post({
+        type: 'PREFERENCES_CHANGED',
+        payload: {
+          nearAccountId,
+          confirmationConfig,
+          updatedAt: Date.now(),
+        } satisfies PreferencesChangedPayload,
+      });
+    };
+    prefsUnsubscribe = up.onConfirmationConfigChange?.((cfg) => emitPreferencesChanged(cfg)) || null;
+    // Emit a best-effort snapshot as soon as the host is ready.
+    Promise.resolve().then(() => emitPreferencesChanged(up.getConfirmationConfig())).catch(() => {});
   }
 }
 
@@ -198,11 +218,13 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   // Handle ping/pong for connection health checks
   if (req.type === 'PING') {
     // Initialize TatchiPasskey and prewarm workers on wallet origin (non-blocking)
-    try {
-      ensureTatchiPasskey();
-      const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
-      if (pmAny?.warmCriticalResources) void pmAny.warmCriticalResources();
-    } catch {}
+    if (walletConfigs?.nearRpcUrl && walletConfigs?.contractId) {
+      Promise.resolve().then(() => {
+        ensureTatchiPasskey();
+        const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
+        if (pmAny?.warmCriticalResources) return pmAny.warmCriticalResources();
+      }).catch(() => {});
+    }
     post({ type: 'PONG', requestId });
     return;
   }
@@ -213,11 +235,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     walletConfigs = {
       nearRpcUrl: payload?.nearRpcUrl || walletConfigs?.nearRpcUrl || '',
       nearNetwork: payload?.nearNetwork || walletConfigs?.nearNetwork || 'testnet',
-      // Accept both legacy `contractId` and canonical `contractId`
-      contractId: payload?.contractId
-        || payload?.contractId
-        || walletConfigs?.contractId
-        || '',
+      contractId: payload?.contractId || walletConfigs?.contractId || '',
       nearExplorerUrl: payload?.nearExplorerUrl || walletConfigs?.nearExplorerUrl,
       relayer: payload?.relayer || walletConfigs?.relayer,
       authenticatorOptions: payload?.authenticatorOptions || walletConfigs?.authenticatorOptions,
@@ -232,6 +250,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         },
       }).iframeWallet,
     } as TatchiConfigsInput;
+
     // Configure SDK embedded asset base for Lit modal/embedded components
     const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
     // Default to serving embedded assets from this wallet origin under /sdk/
@@ -239,8 +258,11 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       try {
         const base = new URL('/sdk/', window.location.origin).toString();
         return base.endsWith('/') ? base : base + '/';
-      } catch { return '/sdk/'; }
+      } catch {
+        return '/sdk/';
+      }
     })();
+
     let resolvedBase = defaultRoot;
     if (isString(assetsBaseUrl)) {
       try {

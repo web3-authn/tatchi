@@ -69,8 +69,7 @@ export class TatchiPasskeyIframe {
   private fallbackLocal: TatchiPasskey | null = null;
   private lastConfirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
   private themeListeners: Set<(t: 'light' | 'dark') => void> = new Set();
-  private themePollTimer: number | null = null;
-  private readonly themePollMs = 1500;
+  private prefsUnsubscribe: (() => void) | null = null;
 
   // Expose a userPreferences shim so API matches TatchiPasskey
   get userPreferences() {
@@ -86,9 +85,6 @@ export class TatchiPasskeyIframe {
       getUserTheme: () => this.lastConfirmationConfig.theme,
       setUserTheme: (t: 'light' | 'dark') => {
         this.setUserTheme(t);
-        // Optimistically update local cache and notify listeners
-        this.lastConfirmationConfig = { ...this.lastConfirmationConfig, theme: t } as ConfirmationConfig;
-        this.notifyTheme(t);
       },
       setConfirmBehavior: (b: 'requireClick' | 'autoProceed') => { this.setConfirmBehavior(b); },
       setConfirmationConfig: (c: ConfirmationConfig) => { this.setConfirmationConfig(c); },
@@ -100,7 +96,7 @@ export class TatchiPasskeyIframe {
     this.configs = buildConfigsFromEnv(configs);
     // In iframe-wallet mode, disable app-origin IndexedDB entirely so no SDK tables are created there.
     // Wallet iframe host uses canonical DB names within the wallet origin.
-    try { configureIndexedDB({ mode: 'disabled' }); } catch {}
+    configureIndexedDB({ mode: 'disabled' });
 
     const walletOrigin = this.configs.iframeWallet?.walletOrigin;
     if (!walletOrigin) {
@@ -142,14 +138,14 @@ export class TatchiPasskeyIframe {
 
   async initWalletIframe(): Promise<void> {
     await this.router.init();
-    try {
-      const cfg = await this.router.getConfirmationConfig();
-      this.lastConfirmationConfig = {
-        ...DEFAULT_CONFIRMATION_CONFIG,
-        ...cfg
-      } as ConfirmationConfig;
-      this.notifyTheme(this.lastConfirmationConfig.theme);
-    } catch {}
+    if (!this.prefsUnsubscribe) {
+      this.prefsUnsubscribe = this.router.onPreferencesChanged?.((payload: any) => {
+        const cfg = payload?.confirmationConfig as ConfirmationConfig | undefined;
+        if (!cfg) return;
+        this.applyRemoteConfirmationConfig(cfg);
+      }) || null;
+    }
+    await this.refreshConfirmationConfig();
   }
 
   private async requireRouterReady(): Promise<WalletIframeRouter> {
@@ -465,10 +461,9 @@ export class TatchiPasskeyIframe {
   }
 
   async stopDevice2LinkingFlow(): Promise<void> {
-    try {
-      await this.requireRouterReady();
-      await this.router.stopDevice2LinkingFlow();
-    } catch {}
+    await this.requireRouterReady()
+      .then(() => this.router.stopDevice2LinkingFlow())
+      .catch(() => {});
   }
 
   // Device1: Link device in the host (AddKey + mapping) using scanned QR payload
@@ -497,21 +492,19 @@ export class TatchiPasskeyIframe {
 
   // Parity with PasskeyManager API
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
-    this.router.setConfirmBehavior(behavior);
+    void this.router.setConfirmBehavior(behavior)
+      .then(() => this.refreshConfirmationConfig())
+      .catch(() => {});
   }
   setConfirmationConfig(config: ConfirmationConfig): void {
-    // Update local cache synchronously for immediate reads
-    this.lastConfirmationConfig = {
-      ...DEFAULT_CONFIRMATION_CONFIG,
-      ...this.lastConfirmationConfig,
-      ...config
-    } as ConfirmationConfig;
-    this.router.setConfirmationConfig(config);
+    void this.router.setConfirmationConfig(config)
+      .then(() => this.refreshConfirmationConfig())
+      .catch(() => {});
   }
   setUserTheme(theme: 'dark' | 'light'): void {
-    this.lastConfirmationConfig = { ...this.lastConfirmationConfig, theme } as ConfirmationConfig;
-    this.router.setTheme(theme);
-    this.notifyTheme(theme);
+    void this.router.setTheme(theme)
+      .then(() => this.refreshConfirmationConfig())
+      .catch(() => {});
   }
   getConfirmationConfig(): ConfirmationConfig {
     // Synchronous API parity with PasskeyManager
@@ -522,12 +515,9 @@ export class TatchiPasskeyIframe {
   }
   async getRecentLogins(): Promise<GetRecentLoginsResult> {
     // In wallet-iframe mode, do not fall back to app-origin persistence.
-    try {
-      await this.requireRouterReady();
-      return await this.router.getRecentLogins();
-    } catch {
-      return { accountIds: [], lastUsedAccount: null };
-    }
+    return await this.requireRouterReady()
+      .then(() => this.router.getRecentLogins())
+      .catch(() => ({ accountIds: [], lastUsedAccount: null }));
   }
 
   // === Derived addresses ===
@@ -682,5 +672,22 @@ export class TatchiPasskeyIframe {
     for (const cb of Array.from(this.themeListeners)) {
       try { cb(t); } catch {}
     }
+  }
+
+  private applyRemoteConfirmationConfig(cfg: ConfirmationConfig): void {
+    const prevTheme = this.lastConfirmationConfig.theme;
+    this.lastConfirmationConfig = {
+      ...DEFAULT_CONFIRMATION_CONFIG,
+      ...(cfg || {}),
+    } as ConfirmationConfig;
+    if (this.lastConfirmationConfig.theme !== prevTheme) {
+      this.notifyTheme(this.lastConfirmationConfig.theme);
+    }
+  }
+
+  private async refreshConfirmationConfig(): Promise<void> {
+    await this.router.getConfirmationConfig()
+      .then((cfg) => this.applyRemoteConfirmationConfig(cfg))
+      .catch(() => {});
   }
 }

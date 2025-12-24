@@ -54,6 +54,10 @@ const WALLET_STUB_RESPONSE_SCRIPT = String.raw`
           signingSession: null,
         });
       }
+
+      if (data.type === 'PM_GET_CONFIRMATION_CONFIG') {
+        respond({ theme: 'dark', behavior: 'requireClick', uiMode: 'modal' });
+      }
     };
   };
 `;

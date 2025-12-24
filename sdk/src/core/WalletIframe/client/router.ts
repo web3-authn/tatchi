@@ -65,6 +65,7 @@ import {
   type ParentToChildEnvelope,
   type ChildToParentEnvelope,
   type ProgressPayload,
+  type PreferencesChangedPayload,
 } from '../shared/messages';
 import { SignedTransaction } from '../../NearClient';
 import { OnEventsProgressBus, defaultPhaseHeuristics } from './on-events-progress-bus';
@@ -188,6 +189,7 @@ export class WalletIframeRouter {
   private reqCounter = 0;
   private readyListeners: Set<() => void> = new Set();
   private vrfStatusListeners: Set<(status: { active: boolean; nearAccountId: string | null; sessionDuration?: number }) => void> = new Set();
+  private preferencesChangedListeners: Set<(payload: PreferencesChangedPayload) => void> = new Set();
   // Coalesce duplicate Device2 start calls (e.g., React StrictMode double-effects)
   private device2StartPromise: Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> | null = null;
   private progressBus: OnEventsProgressBus;
@@ -306,12 +308,11 @@ export class WalletIframeRouter {
         this.hideFrameForActivation();
         if (ok) {
           const acct = payload?.result?.nearAccountId;
-          Promise.resolve().then(async () => {
-            try {
-              const { login: st } = await this.getLoginSession(acct);
+          void this.getLoginSession(acct)
+            .then(({ login: st }) => {
               this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
-            } catch {}
-          }).catch(() => {});
+            })
+            .catch(() => {});
         }
         return;
       }
@@ -466,6 +467,12 @@ export class WalletIframeRouter {
     return () => { this.vrfStatusListeners.delete(listener); };
   }
 
+  // Subscribe to wallet-host preference changes (authoritative in wallet-iframe mode).
+  onPreferencesChanged(listener: (payload: PreferencesChangedPayload) => void): () => void {
+    this.preferencesChangedListeners.add(listener);
+    return () => { this.preferencesChangedListeners.delete(listener); };
+  }
+
   private emitVrfStatusChanged(status: {
     active: boolean;
     nearAccountId: string | null;
@@ -473,6 +480,13 @@ export class WalletIframeRouter {
   }): void {
     for (const cb of Array.from(this.vrfStatusListeners)) {
       try { cb(status); } catch {}
+    }
+  }
+
+  private emitPreferencesChanged(payload: PreferencesChangedPayload): void {
+    if (!this.preferencesChangedListeners.size) return;
+    for (const cb of Array.from(this.preferencesChangedListeners)) {
+      try { cb(payload); } catch {}
     }
   }
 
@@ -570,7 +584,7 @@ export class WalletIframeRouter {
     try {
       // Optional one-time confirmation override (non-persistent)
       if (payload.confirmationConfig) {
-        try { await this.setConfirmationConfig(payload.confirmationConfig); } catch {}
+        await this.setConfirmationConfig(payload.confirmationConfig);
       }
 
       // Step 2: Strip non-serializable functions from options (functions can't cross iframe boundary)
@@ -1088,6 +1102,11 @@ export class WalletIframeRouter {
 
   private onPortMessage(e: MessageEvent<ChildToParentEnvelope>) {
     const msg = e.data as ChildToParentEnvelope;
+    // Some wallet-host messages are push-style and are not correlated to a requestId.
+    if (msg.type === 'PREFERENCES_CHANGED') {
+      this.emitPreferencesChanged(msg.payload as PreferencesChangedPayload);
+      return;
+    }
     const requestId = msg.requestId;
     if (!requestId) return;
 
@@ -1370,12 +1389,12 @@ export class WalletIframeRouter {
 
   /** Public helper for tests/tools: get the underlying iframe element. */
   getIframeEl(): HTMLIFrameElement | null {
-    try { return this.transport.getIframeEl(); } catch { return null; }
+    return this.transport.getIframeEl();
   }
 
   /** Public helper for tests/tools: inspect current overlay state. */
   getOverlayState(): { visible: boolean; mode: 'hidden' | 'fullscreen' | 'anchored'; sticky: boolean; rect?: DOMRectLike } {
-    try { return this.overlay.getState(); } catch { return { visible: false, mode: 'hidden', sticky: false }; }
+    return this.overlay.getState();
   }
 
   /**

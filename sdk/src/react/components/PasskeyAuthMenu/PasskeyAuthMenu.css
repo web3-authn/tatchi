@@ -716,7 +716,6 @@
   max-width: 100%;
   background: var(--w3a-colors-surface) !important;
   border: 1px solid var(--w3a-colors-borderPrimary);
-  box-shadow: var(--w3a-shadows-sm) !important;
   border-radius: 2rem;
   cursor: pointer;
   color: var(--w3a-colors-textPrimary);
@@ -731,19 +730,19 @@
 .w3a-link-device-btn:hover:not(:disabled),
 .w3a-link-device-btn:focus-visible {
   background: var(--w3a-colors-surface2) !important;
-  box-shadow: var(--w3a-shadows-md) !important;
 }
 
 .w3a-link-device-btn-primary {
-  background: var(--w3a-colors-buttonBackground, var(--w3a-colors-primary, #3b82f6));
+  background: var(--w3a-colors-buttonBackground, var(--w3a-colors-primary, #3b82f6)) !important;
+  border-color: transparent;
   border-radius: 2rem;
   color: var(--w3a-colors-textButton, white);
 }
 
-.w3a-link-device-btn-primary:hover:not(:disabled) {
-  background: var(--w3a-colors-buttonBackground, var(--w3a-colors-primaryHover, #2563eb));
+.w3a-link-device-btn-primary:hover:not(:disabled),
+.w3a-link-device-btn-primary:focus-visible {
+  background: var(--w3a-colors-buttonHoverBackground, var(--w3a-colors-primaryHover, #2563eb)) !important;
   color: var(--w3a-colors-textButton, white);
-  box-shadow: var(--w3a-shadows-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
 }
 
 .w3a-link-device-btn-primary:disabled {
@@ -814,7 +813,6 @@
 
 .w3a-email-recovery-input-pill:focus-within {
   border-color: var(--w3a-colors-primary, #3b82f6);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--w3a-colors-primary, #3b82f6), transparent 72%);
 }
 
 .w3a-email-recovery-actions {
