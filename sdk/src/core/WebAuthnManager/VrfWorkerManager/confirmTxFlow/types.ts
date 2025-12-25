@@ -88,7 +88,13 @@ export type SigningAuthMode = 'webauthn' | 'warmSession';
 
 // V2 summaries (render-oriented / UI hints)
 export interface TxSummary { totalAmount?: string; method?: string; receiverId?: string }
-export interface RegistrationSummary { nearAccountId: string; deviceNumber?: number; contractId?: string }
+export interface RegistrationSummary {
+  nearAccountId: string;
+  deviceNumber?: number;
+  contractId?: string;
+  title?: string;
+  body?: string;
+}
 export type ExportOperation = 'Export Private Key' | 'Decrypt Private Key';
 export interface ExportSummary { operation: ExportOperation; accountId: string; publicKey: string; warning: string }
 export interface Nep413Summary { operation: 'Sign NEP-413 Message'; message: string; recipient: string; accountId: string }

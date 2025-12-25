@@ -14,6 +14,7 @@ export async function requestRegistrationCredentialConfirmation(
   params: {
     nearAccountId: string;
     deviceNumber: number;
+    confirmerText?: { title?: string; body?: string };
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
     contractId: string;
     nearRpcUrl: string;
@@ -24,6 +25,7 @@ export async function requestRegistrationCredentialConfirmation(
     ctx: hostCtx,
     nearAccountId: params.nearAccountId,
     deviceNumber: params.deviceNumber,
+    confirmerText: params.confirmerText,
     contractId: params.contractId,
     nearRpcUrl: params.nearRpcUrl,
     // Flow expects `confirmationConfig` on the request envelope; forward the override.

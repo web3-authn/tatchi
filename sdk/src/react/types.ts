@@ -16,7 +16,7 @@ import type { ConfirmationConfig, ConfirmationBehavior } from '../core/types/sig
 import type { ClientUserData } from '../core/IndexedDBManager/passkeyClientDB';
 import type { ActionArgs } from '../core/types/actions';
 import type {
-  StartDeviceLinkingOptionsDevice2,
+  StartDevice2LinkingFlowArgs,
   ScanAndLinkDeviceOptionsDevice1,
   DeviceLinkingQRData
 } from '../core/types/linkDevice';
@@ -151,7 +151,7 @@ export interface TatchiContextType {
   }) => Promise<RecoveryResult>;
 
   // Device linking functions
-  startDevice2LinkingFlow: (options?: StartDeviceLinkingOptionsDevice2) => Promise<{
+  startDevice2LinkingFlow: (args?: StartDevice2LinkingFlowArgs) => Promise<{
     qrData: DeviceLinkingQRData;
     qrCodeDataURL: string
   }>;
@@ -232,6 +232,7 @@ export type {
 } from '../core/types/tatchi';
 
 export type {
+  StartDevice2LinkingFlowArgs,
   StartDeviceLinkingOptionsDevice2,
   ScanAndLinkDeviceOptionsDevice1,
 } from '../core/types/linkDevice';

@@ -699,6 +699,9 @@ export class SignerWorkerManager {
     nonce: string;
     state: string | null;
     accountId: string;
+    title?: string;
+    body?: string;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
     sessionId: string;
     contractId?: string;
     nearRpcUrl?: string;

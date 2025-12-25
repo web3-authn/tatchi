@@ -141,12 +141,14 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
 
     PM_LINK_DEVICE_WITH_SCANNED_QR_DATA: async (req: Req<'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA'>) => {
       const pm = getTatchiPasskey();
-      const { qrData, fundingAmount } = req.payload || {};
+      const { qrData, fundingAmount, options } = req.payload || {};
       if (respondIfCancelled(req.requestId)) return;
 
       const result = await pm.linkDeviceWithScannedQRData(qrData as DeviceLinkingQRData, {
         fundingAmount: fundingAmount as string,
-        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
+        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+        confirmationConfig: options?.confirmationConfig as any,
+        confirmerText: options?.confirmerText,
       } as ScanAndLinkDeviceOptionsDevice1);
 
       if (respondIfCancelled(req.requestId)) return;
@@ -157,8 +159,15 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const pm = getTatchiPasskey();
       if (respondIfCancelled(req.requestId)) return;
 
+      const { ui, cameraId, options } = req.payload || {};
       const { qrData, qrCodeDataURL } = await pm.startDevice2LinkingFlow({
-        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+        ui,
+        cameraId,
+        options: {
+          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+          confirmationConfig: options?.confirmationConfig as any,
+          confirmerText: options?.confirmerText,
+        },
       });
 
       if (respondIfCancelled(req.requestId)) return;
@@ -407,13 +416,15 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     },
     PM_START_EMAIL_RECOVERY: async (req: Req<'PM_START_EMAIL_RECOVERY'>) => {
       const pm = getTatchiPasskey();
-      const { accountId, recoveryEmail } = (req.payload as PMStartEmailRecoveryPayload);
+      const { accountId, recoveryEmail, options } = (req.payload as PMStartEmailRecoveryPayload);
       if (respondIfCancelled(req.requestId)) return;
       const result = await pm.startEmailRecovery({
         accountId,
         recoveryEmail,
         options: {
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
+          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+          confirmerText: options?.confirmerText,
+          confirmationConfig: options?.confirmationConfig as any,
         } as any,
       });
       if (respondIfCancelled(req.requestId)) return;

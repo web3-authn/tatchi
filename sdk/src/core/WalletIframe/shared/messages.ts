@@ -11,8 +11,7 @@ import {
   ActionHooksOptions,
   RegistrationHooksOptions,
   SignAndSendTransactionHooksOptions,
-  ScanAndLinkDeviceOptionsDevice1,
-  StartDeviceLinkingOptionsDevice2
+  ScanAndLinkDeviceOptionsDevice1
 } from '../../types';
 import { type DeviceLinkingQRData } from '../../types/linkDevice';
 import type { DelegateActionInput } from '../../types/delegate';
@@ -190,6 +189,10 @@ export interface PMDeleteDeviceKeyPayload { accountId: string; publicKeyToDelete
 export interface PMStartEmailRecoveryPayload {
   accountId: string;
   recoveryEmail: string;
+  options?: {
+    confirmerText?: { title?: string; body?: string };
+    confirmationConfig?: Record<string, unknown>;
+  };
 }
 
 export interface PMFinalizeEmailRecoveryPayload {
@@ -279,9 +282,18 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA', {
       qrData: DeviceLinkingQRData;
       fundingAmount: string;
+      options?: {
+        confirmationConfig?: Record<string, unknown>;
+        confirmerText?: { title?: string; body?: string };
+      };
     }>
   | RpcEnvelope<'PM_START_DEVICE2_LINKING_FLOW', {
       ui?: 'modal' | 'inline';
+      cameraId?: string;
+      options?: {
+        confirmationConfig?: Record<string, unknown>;
+        confirmerText?: { title?: string; body?: string };
+      };
     }>
   | RpcEnvelope<'PM_STOP_DEVICE2_LINKING_FLOW'>
   | RpcEnvelope<'PM_RECOVER_ACCOUNT_FLOW', { accountId?: string }>

@@ -269,11 +269,13 @@ export class WebAuthnManager {
   async requestRegistrationCredentialConfirmation(params: {
     nearAccountId: string;
     deviceNumber: number;
+    confirmerText?: { title?: string; body?: string };
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
   }): Promise<RegistrationCredentialConfirmationPayload> {
     return this.vrfWorkerManager.requestRegistrationCredentialConfirmation({
       nearAccountId: params.nearAccountId,
       deviceNumber: params.deviceNumber,
+      confirmerText: params.confirmerText,
       confirmationConfigOverride: params.confirmationConfigOverride,
       contractId: this.tatchiPasskeyConfigs.contractId,
       nearRpcUrl: this.tatchiPasskeyConfigs.nearRpcUrl,
@@ -1176,6 +1178,9 @@ export class WebAuthnManager {
     nonce: string;
     state: string | null;
     accountId: AccountId;
+    title?: string;
+    body?: string;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
   }): Promise<{
     success: boolean;
     accountId: string;
@@ -1190,9 +1195,9 @@ export class WebAuthnManager {
 	      const nearRpcUrl = (this.tatchiPasskeyConfigs.nearRpcUrl.split(',')[0] || this.tatchiPasskeyConfigs.nearRpcUrl);
 	      const result = await this.withSigningSession({
 	        sessionId: activeSessionId,
-	        handler: (sessionId) =>
-	          this.signerWorkerManager.signNep413Message({ ...payload, sessionId, contractId, nearRpcUrl }),
-	      });
+        handler: (sessionId) =>
+          this.signerWorkerManager.signNep413Message({ ...payload, sessionId, contractId, nearRpcUrl }),
+      });
 	      if (result.success) {
 	        return result;
 	      } else {

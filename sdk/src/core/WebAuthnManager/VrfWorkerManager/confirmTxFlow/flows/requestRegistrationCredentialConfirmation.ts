@@ -16,6 +16,7 @@ export async function requestRegistrationCredentialConfirmation({
   ctx,
   nearAccountId,
   deviceNumber,
+  confirmerText,
   contractId,
   nearRpcUrl,
   confirmationConfig,
@@ -23,6 +24,7 @@ export async function requestRegistrationCredentialConfirmation({
   ctx: VrfWorkerManagerContext,
   nearAccountId: string,
   deviceNumber: number,
+  confirmerText?: { title?: string; body?: string };
   contractId: string,
   nearRpcUrl: string,
   confirmationConfig?: Partial<ConfirmationConfig>,
@@ -38,6 +40,8 @@ export async function requestRegistrationCredentialConfirmation({
     ? crypto.randomUUID()
     : `register-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+  const title = confirmerText?.title;
+  const body = confirmerText?.body;
   const request: SecureConfirmRequest<{
     nearAccountId: string;
     deviceNumber: number;
@@ -50,6 +54,8 @@ export async function requestRegistrationCredentialConfirmation({
       nearAccountId,
       deviceNumber,
       contractId: resolvedContractId,
+      ...(title != null ? { title } : {}),
+      ...(body != null ? { body } : {}),
     },
     payload: {
       nearAccountId,

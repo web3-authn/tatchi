@@ -73,14 +73,18 @@ export async function registerPasskeyInternal(
       message: 'Account available - generating VRF credentials...'
     });
 
+    const confirmationConfig = {
+      uiMode: 'modal',
+      behavior: 'requireClick', // cross‑origin safari requirement: must requireClick
+      theme: (context.configs?.walletTheme === 'light') ? 'light' : 'dark',
+      ...(confirmationConfigOverride ?? options?.confirmationConfig ?? {}),
+    };
+
     const registrationSession = await context.webAuthnManager.requestRegistrationCredentialConfirmation({
       nearAccountId: String(nearAccountId),
       deviceNumber: 1,
-      confirmationConfigOverride: confirmationConfigOverride ?? {
-        uiMode: 'modal',
-        behavior: 'requireClick', // cross‑origin safari requirement: must requireClick
-        theme: (context.configs?.walletTheme === 'light') ? 'light' : 'dark',
-      },
+      confirmerText: options?.confirmerText,
+      confirmationConfigOverride: confirmationConfig,
     });
 
     const credential = registrationSession.credential;

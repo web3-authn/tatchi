@@ -45,19 +45,21 @@ export function ShowQRCode({
     (async () => {
       try {
         const { qrCodeDataURL } = await startDevice2LinkingFlow({
-          onEvent: (event: DeviceLinkingSSEEvent) => {
-            if (cancelled) return;
-            setDeviceLinkingState(prev => ({ ...prev, lastPhase: String(event.phase), lastMessage: event.message }));
-            onEvent(event);
-            if (event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE && event.status === DeviceLinkingStatus.SUCCESS) {
+          options: {
+            onEvent: (event: DeviceLinkingSSEEvent) => {
+              if (cancelled) return;
+              setDeviceLinkingState(prev => ({ ...prev, lastPhase: String(event.phase), lastMessage: event.message }));
+              onEvent(event);
+              if (event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE && event.status === DeviceLinkingStatus.SUCCESS) {
+                try { onClose(); } catch {}
+              }
+            },
+            onError: (error: Error) => {
+              if (cancelled) return;
+              setDeviceLinkingState({ mode: 'idle', isProcessing: false });
+              onError(error);
               try { onClose(); } catch {}
             }
-          },
-          onError: (error: Error) => {
-            if (cancelled) return;
-            setDeviceLinkingState({ mode: 'idle', isProcessing: false });
-            onError(error);
-            try { onClose(); } catch {}
           }
         });
         if (!cancelled && sessionRef.current === mySession) {
