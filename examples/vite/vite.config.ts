@@ -13,6 +13,14 @@ import { tatchiApp } from '@tatchi-xyz/sdk/plugins/vite'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.tatchi.xyz'
+  // Phase 0 extension embedding may fail under app-page COEP=require-corp.
+  // Allow opting out via env, and default to 'off' when targeting a chrome-extension:// wallet origin.
+  const coepMode = (() => {
+    const override = (env.VITE_COEP_MODE || '').trim()
+    if (override === 'off') return 'off'
+    if (override === 'strict') return 'strict'
+    return walletOrigin.startsWith('chrome-extension://') ? 'off' : 'strict'
+  })()
   return {
     clearScreen: false,
     logLevel: 'info',
@@ -25,7 +33,7 @@ export default defineConfig(({ mode }) => {
       react(),
       // Cross‑origin dev (serve): headers only. Build (emitHeaders=true): emit _headers
       // for COOP/COEP/CORP + Permissions‑Policy; wallet HTML gets strict CSP.
-      tatchiApp({ walletOrigin, enableDebugRoutes: true, emitHeaders: true }),
+      tatchiApp({ walletOrigin, enableDebugRoutes: true, emitHeaders: true, coepMode }),
     ],
   }
 })

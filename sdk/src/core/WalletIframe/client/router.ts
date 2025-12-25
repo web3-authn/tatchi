@@ -585,7 +585,8 @@ export class WalletIframeRouter {
     try {
       // Optional one-time confirmation override (non-persistent)
       if (payload.confirmationConfig) {
-        await this.setConfirmationConfig(payload.confirmationConfig);
+        const base = await this.getConfirmationConfig();
+        await this.setConfirmationConfig({ ...base, ...payload.confirmationConfig });
       }
 
       // Step 2: Strip non-serializable functions from options (functions can't cross iframe boundary)

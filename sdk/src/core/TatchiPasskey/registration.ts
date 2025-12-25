@@ -73,7 +73,7 @@ export async function registerPasskeyInternal(
       message: 'Account available - generating VRF credentials...'
     });
 
-    const confirmationConfig = {
+    const confirmationConfig: Partial<ConfirmationConfig> = {
       uiMode: 'modal',
       behavior: 'requireClick', // cross‑origin safari requirement: must requireClick
       theme: (context.configs?.walletTheme === 'light') ? 'light' : 'dark',
