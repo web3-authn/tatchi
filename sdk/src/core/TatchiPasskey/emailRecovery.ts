@@ -18,6 +18,7 @@ import type {
 } from '../types/vrf-worker';
 import type { WebAuthnRegistrationCredential } from '../types';
 import type { ConfirmationConfig } from '../types/signer-worker';
+import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 
 export type PendingEmailRecoveryStatus =
   | 'awaiting-email'
@@ -137,6 +138,14 @@ export class EmailRecoveryFlow {
     return getEmailRecoveryConfig(this.context.configs);
   }
 
+  private getPendingIndexKey(accountId: AccountId): string {
+    return `pendingEmailRecovery:${accountId}`;
+  }
+
+  private getPendingRecordKey(accountId: AccountId, nearPublicKey: string): string {
+    return `${this.getPendingIndexKey(accountId)}:${nearPublicKey}`;
+  }
+
   private async checkVerificationStatus(
     rec: PendingEmailRecovery
   ): Promise<{ completed: boolean; success: boolean; errorMessage?: string } | null> {
@@ -200,28 +209,64 @@ export class EmailRecoveryFlow {
     nearPublicKey?: string
   ): Promise<PendingEmailRecovery | null> {
     const { pendingTtlMs } = this.getConfig();
-    const keyPrefix = `pendingEmailRecovery:${accountId}`;
-    const key = nearPublicKey ? `${keyPrefix}:${nearPublicKey}` : keyPrefix;
-    const record = await IndexedDBManager.clientDB.getAppState<PendingEmailRecovery | null>(key);
-    if (!record) return null;
-    if (Date.now() - record.createdAt > pendingTtlMs) {
-      await IndexedDBManager.clientDB.setAppState(key, undefined as any);
+
+    const indexKey = this.getPendingIndexKey(accountId);
+    const indexedNearPublicKey = await IndexedDBManager.clientDB.getAppState<string>(indexKey);
+    const resolvedNearPublicKey = nearPublicKey ?? indexedNearPublicKey;
+    if (!resolvedNearPublicKey) {
       return null;
     }
+
+    const recordKey = this.getPendingRecordKey(accountId, resolvedNearPublicKey);
+    const record = await IndexedDBManager.clientDB.getAppState<PendingEmailRecovery>(recordKey);
+    const shouldClearIndex = indexedNearPublicKey === resolvedNearPublicKey;
+    if (!record) {
+      if (shouldClearIndex) {
+        await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => {});
+      }
+      return null;
+    }
+
+    if (Date.now() - record.createdAt > pendingTtlMs) {
+      await IndexedDBManager.clientDB.setAppState(recordKey, undefined as any).catch(() => {});
+      if (shouldClearIndex) {
+        await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => {});
+      }
+      return null;
+    }
+
+    // Keep the per-account pointer updated so `finalizeEmailRecovery({ accountId })` can resume.
+    await IndexedDBManager.clientDB.setAppState(indexKey, record.nearPublicKey).catch(() => {});
     return record;
   }
 
   private async savePending(rec: PendingEmailRecovery): Promise<void> {
-    const key = `pendingEmailRecovery:${rec.accountId}:${rec.nearPublicKey}`;
+    const key = this.getPendingRecordKey(rec.accountId, rec.nearPublicKey);
     await IndexedDBManager.clientDB.setAppState(key, rec);
+    await IndexedDBManager.clientDB.setAppState(this.getPendingIndexKey(rec.accountId), rec.nearPublicKey).catch(() => {});
     this.pending = rec;
   }
 
   private async clearPending(accountId: AccountId, nearPublicKey?: string): Promise<void> {
-    const keyPrefix = `pendingEmailRecovery:${accountId}`;
-    const key = nearPublicKey ? `${keyPrefix}:${nearPublicKey}` : keyPrefix;
-    await IndexedDBManager.clientDB.setAppState(key, undefined as any);
-    if (this.pending && this.pending.accountId === accountId && (!nearPublicKey || this.pending.nearPublicKey === nearPublicKey)) {
+    const indexKey = this.getPendingIndexKey(accountId);
+    const idx = await IndexedDBManager.clientDB.getAppState<string>(indexKey).catch(() => undefined);
+
+    const resolvedNearPublicKey = nearPublicKey || idx || '';
+    if (resolvedNearPublicKey) {
+      await IndexedDBManager.clientDB
+        .setAppState(this.getPendingRecordKey(accountId, resolvedNearPublicKey), undefined as any)
+        .catch(() => {});
+    }
+
+    if (!nearPublicKey || idx === nearPublicKey) {
+      await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => {});
+    }
+
+    if (
+      this.pending
+      && this.pending.accountId === accountId
+      && (!nearPublicKey || this.pending.nearPublicKey === nearPublicKey)
+    ) {
       this.pending = null;
     }
   }
@@ -373,7 +418,10 @@ export class EmailRecoveryFlow {
     });
 
     try {
-      const confirmerText = this.options?.confirmerText;
+      const confirmerText = {
+        title: this.options?.confirmerText?.title ?? 'Register New Recovery Account',
+        body: this.options?.confirmerText?.body ?? 'Create a recovery account and send an encrypted email to recover your account.',
+      };
       const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
         nearAccountId,
         deviceNumber,
@@ -517,6 +565,30 @@ export class EmailRecoveryFlow {
     }
   }
 
+  /**
+   * Best-effort cancellation and local state reset so callers can retry.
+   * This does not remove any passkey created in the browser/OS (WebAuthn has no delete API),
+   * but it will stop polling and clear the pending IndexedDB record for the given key.
+   */
+  async cancelAndReset(args?: { accountId?: string; nearPublicKey?: string }): Promise<void> {
+    this.stopPolling();
+
+    const normalizedAccountId = (args?.accountId || this.pending?.accountId || '').toString().trim();
+    const nearPublicKey = (args?.nearPublicKey || this.pending?.nearPublicKey || '').toString().trim();
+
+    if (normalizedAccountId) {
+      try {
+        await this.clearPending(toAccountId(normalizedAccountId), nearPublicKey);
+      } catch {
+        // best-effort
+      }
+    }
+
+    this.pending = null;
+    this.error = undefined;
+    this.phase = EmailRecoveryPhase.STEP_1_PREPARATION;
+  }
+
   async finalize(args: { accountId: string; nearPublicKey?: string }): Promise<void> {
     const { accountId, nearPublicKey } = args;
     this.cancelled = false;
@@ -627,6 +699,10 @@ export class EmailRecoveryFlow {
         return;
       }
 
+      // If cancellation happens mid-iteration (e.g. while awaiting a view call),
+      // don't wait an extra pollingIntervalMs before unwinding.
+      if (this.cancelled) break;
+
       await new Promise<void>(resolve => {
         this.pollIntervalResolver = resolve;
         this.pollingTimer = setTimeout(() => {
@@ -685,7 +761,9 @@ export class EmailRecoveryFlow {
       const signedTx = registrationResult.signedTransaction;
 
       try {
-        await this.context.nearClient.sendTransaction(signedTx);
+        // Wait for finality so subsequent contract-gated signing (verify_authentication_response)
+        // can reliably see the newly registered device/passkey.
+        await this.context.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.linkDeviceRegistration);
       } catch (e: any) {
         const msg = String(e?.message || '');
         const err = this.emitError(

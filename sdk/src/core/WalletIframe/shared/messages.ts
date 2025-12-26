@@ -58,7 +58,8 @@ export type ParentToChildType =
   | 'PM_RECOVER_ACCOUNT_FLOW'
   // Email recovery flow
   | 'PM_START_EMAIL_RECOVERY'
-  | 'PM_FINALIZE_EMAIL_RECOVERY';
+  | 'PM_FINALIZE_EMAIL_RECOVERY'
+  | 'PM_STOP_EMAIL_RECOVERY';
 
 export type ChildToParentType =
   | 'READY'
@@ -200,6 +201,11 @@ export interface PMFinalizeEmailRecoveryPayload {
   nearPublicKey?: string;
 }
 
+export interface PMStopEmailRecoveryPayload {
+  accountId?: string;
+  nearPublicKey?: string;
+}
+
 export interface PMSetDerivedAddressPayload {
   nearAccountId: string;
   args: { contractId: string; path: string; address: string };
@@ -298,7 +304,8 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_STOP_DEVICE2_LINKING_FLOW'>
   | RpcEnvelope<'PM_RECOVER_ACCOUNT_FLOW', { accountId?: string }>
   | RpcEnvelope<'PM_START_EMAIL_RECOVERY', PMStartEmailRecoveryPayload>
-  | RpcEnvelope<'PM_FINALIZE_EMAIL_RECOVERY', PMFinalizeEmailRecoveryPayload>;
+  | RpcEnvelope<'PM_FINALIZE_EMAIL_RECOVERY', PMFinalizeEmailRecoveryPayload>
+  | RpcEnvelope<'PM_STOP_EMAIL_RECOVERY', PMStopEmailRecoveryPayload>;
 
 export type ChildToParentEnvelope =
   | RpcEnvelope<'READY', ReadyPayload>

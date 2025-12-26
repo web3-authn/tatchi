@@ -7,6 +7,7 @@ import type {
   PMExecuteActionPayload,
   PMStartEmailRecoveryPayload,
   PMFinalizeEmailRecoveryPayload,
+  PMStopEmailRecoveryPayload,
 } from '../shared/messages';
 import type { TatchiPasskey, PasskeyManagerContext, RecoveryResult } from '../../TatchiPasskey';
 import type { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
@@ -442,6 +443,18 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         } as any,
       });
       if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+    },
+
+    PM_STOP_EMAIL_RECOVERY: async (req: Req<'PM_STOP_EMAIL_RECOVERY'>) => {
+      const pm = getTatchiPasskey();
+      const { accountId, nearPublicKey } = (req.payload || {}) as PMStopEmailRecoveryPayload;
+      try {
+        const maybeCancel = (pm as any)?.cancelEmailRecovery;
+        if (typeof maybeCancel === 'function') {
+          await maybeCancel.call(pm, { accountId, nearPublicKey });
+        }
+      } catch {}
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
   } as unknown as HandlerMap;

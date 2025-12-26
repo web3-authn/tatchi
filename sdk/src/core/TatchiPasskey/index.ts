@@ -1523,6 +1523,27 @@ export class TatchiPasskey {
     await flow.finalize({ accountId, nearPublicKey });
   }
 
+  /**
+   * Best-effort cancellation for an in-flight email recovery flow.
+   * Intended for UI "user cancelled sending email" / retry UX.
+   */
+  async cancelEmailRecovery(args?: { accountId?: string; nearPublicKey?: string }): Promise<void> {
+    const { accountId, nearPublicKey } = args || {};
+    // In wallet-iframe mode, instruct the wallet host to stop the active flow.
+    if (this.shouldUseWalletIframe()) {
+      try {
+        const router = await this.requireWalletIframeRouter();
+        await router.stopEmailRecovery({ accountId, nearPublicKey });
+      } catch {}
+      return;
+    }
+
+    try {
+      await this.activeEmailRecoveryFlow?.cancelAndReset({ accountId, nearPublicKey });
+    } catch {}
+    this.activeEmailRecoveryFlow = null;
+  }
+
   ///////////////////////////////////////
   // === Link Device ===
   ///////////////////////////////////////
