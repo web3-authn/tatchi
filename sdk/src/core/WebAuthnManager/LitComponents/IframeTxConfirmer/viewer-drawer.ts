@@ -272,10 +272,12 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
                     : ''}
                 </span>
               </div>
-              ${this.body && this.body.trim()
-                ? html`<div class="rpid-body">${this.body}</div>`
-                : ''}
             </div>
+            ${
+              this.body && this.body.trim()
+              ? html`<div class="confirmation-body">${this.body}</div>`
+              : ''
+            }
           </div>
           <div class="section responsive-card responsive-card-center">
             <w3a-tx-confirm-content

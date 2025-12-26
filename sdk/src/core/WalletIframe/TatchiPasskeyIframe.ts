@@ -456,6 +456,12 @@ export class TatchiPasskeyIframe {
     }
   }
 
+  async cancelEmailRecovery(args?: { accountId?: string; nearPublicKey?: string }): Promise<void> {
+    await this.requireRouterReady()
+      .then(() => this.router.stopEmailRecovery({ accountId: args?.accountId, nearPublicKey: args?.nearPublicKey }))
+      .catch(() => {});
+  }
+
   // Device2: Start QR generation + polling inside wallet iframe, return QR to parent
   async startDevice2LinkingFlow(
     args: StartDevice2LinkingFlowArgs

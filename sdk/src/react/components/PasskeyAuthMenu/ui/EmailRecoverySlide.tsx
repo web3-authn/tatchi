@@ -24,9 +24,13 @@ type EmailRecoveryAccountInfo = {
   emailsCount: number;
 };
 
+type MailtoUiState = 'ready' | 'opening';
+
 export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPasskey, accountId, refreshLoginState, emailRecoveryOptions }) => {
   const mountedRef = React.useRef(true);
   const explorerToastTimerRef = React.useRef<number | null>(null);
+  const mailtoAttemptTimerRef = React.useRef<number | null>(null);
+  const cancelRequestedRef = React.useRef(false);
   React.useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -35,6 +39,10 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
         window.clearTimeout(explorerToastTimerRef.current);
         explorerToastTimerRef.current = null;
       }
+      if (mailtoAttemptTimerRef.current != null) {
+        window.clearTimeout(mailtoAttemptTimerRef.current);
+        mailtoAttemptTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -42,6 +50,8 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
   const [accountIdInput, setAccountIdInput] = React.useState('');
   const [recoveryEmailInput, setRecoveryEmailInput] = React.useState('');
   const [pendingMailtoUrl, setPendingMailtoUrl] = React.useState<string | null>(null);
+  const [pendingNearPublicKey, setPendingNearPublicKey] = React.useState<string | null>(null);
+  const [mailtoUiState, setMailtoUiState] = React.useState<MailtoUiState>('ready');
   const [statusText, setStatusText] = React.useState<string | null>(null);
   const [pollingElapsedMs, setPollingElapsedMs] = React.useState<number | null>(null);
   const [errorText, setErrorText] = React.useState<string | null>(null);
@@ -66,6 +76,9 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
 
   React.useEffect(() => {
     setPendingMailtoUrl(null);
+    setPendingNearPublicKey(null);
+    setMailtoUiState('ready');
+    cancelRequestedRef.current = false;
     setStatusText(null);
     setPollingElapsedMs(null);
     setErrorText(null);
@@ -77,6 +90,10 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
       window.clearTimeout(explorerToastTimerRef.current);
       explorerToastTimerRef.current = null;
     }
+    if (mailtoAttemptTimerRef.current != null) {
+      window.clearTimeout(mailtoAttemptTimerRef.current);
+      mailtoAttemptTimerRef.current = null;
+    }
   }, [accountId]);
 
   const safeSet = <T,>(setter: React.Dispatch<React.SetStateAction<T>>) => {
@@ -87,6 +104,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
   };
 
   const safeSetPendingMailtoUrl = React.useMemo(() => safeSet(setPendingMailtoUrl), []);
+  const safeSetPendingNearPublicKey = React.useMemo(() => safeSet(setPendingNearPublicKey), []);
   const safeSetStatusText = React.useMemo(() => safeSet(setStatusText), []);
   const safeSetPollingElapsedMs = React.useMemo(() => safeSet(setPollingElapsedMs), []);
   const safeSetErrorText = React.useMemo(() => safeSet(setErrorText), []);
@@ -96,9 +114,11 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
   const safeSetAccountInfoError = React.useMemo(() => safeSet(setAccountInfoError), []);
   const safeSetLocalRecoveryEmails = React.useMemo(() => safeSet(setLocalRecoveryEmails), []);
   const safeSetExplorerToast = React.useMemo(() => safeSet(setExplorerToast), []);
+  const safeSetMailtoUiState = React.useMemo(() => safeSet(setMailtoUiState), []);
 
   const onEvent = React.useCallback(
     (ev: EmailRecoverySSEEvent) => {
+      if (cancelRequestedRef.current) return;
       safeSetStatusText(ev?.message || null);
       emailRecoveryOptions?.onEvent?.(ev);
 
@@ -134,6 +154,78 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     },
     [safeSetExplorerToast, tatchiPasskey],
   );
+
+  const launchMailto = React.useCallback((rawMailtoUrl: string) => {
+    const url = String(rawMailtoUrl || '').trim();
+    if (!url) return;
+
+    if (typeof window !== 'undefined') {
+      try {
+        window.location.href = url;
+      } catch {}
+    }
+  }, []);
+
+  const attemptOpenMailtoFromUserGesture = React.useCallback(
+    (rawMailtoUrl: string) => {
+      const url = String(rawMailtoUrl || '').trim();
+      if (!url) return;
+
+      safeSetMailtoUiState('opening');
+
+      if (mailtoAttemptTimerRef.current != null) {
+        window.clearTimeout(mailtoAttemptTimerRef.current);
+      }
+
+      // If the browser never blurs/hides (i.e. mailto blocked or cancelled), re-enable so users can retry.
+      mailtoAttemptTimerRef.current = window.setTimeout(() => {
+        safeSetMailtoUiState(prev => (prev === 'opening' ? 'ready' : prev));
+        mailtoAttemptTimerRef.current = null;
+      }, 2_000);
+
+      launchMailto(url);
+    },
+    [launchMailto, safeSetMailtoUiState],
+  );
+
+  const attemptOpenMailtoAuto = React.useCallback(
+    (rawMailtoUrl: string) => {
+      const url = String(rawMailtoUrl || '').trim();
+      if (!url) return;
+      // Best-effort only: do not change `mailtoUiState` so users can immediately click the CTA.
+      launchMailto(url);
+    },
+    [launchMailto],
+  );
+
+  React.useEffect(() => {
+    if (mailtoUiState !== 'opening') return;
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    // Heuristic signals that the mail client likely opened. Treat as a hint only:
+    // re-enable immediately so the CTA remains retryable even if this is a false-positive.
+    const markMaybeOpened = () => {
+      safeSetMailtoUiState('ready');
+      if (mailtoAttemptTimerRef.current != null) {
+        window.clearTimeout(mailtoAttemptTimerRef.current);
+        mailtoAttemptTimerRef.current = null;
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') markMaybeOpened();
+    };
+
+    window.addEventListener('blur', markMaybeOpened);
+    window.addEventListener('pagehide', markMaybeOpened);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.removeEventListener('blur', markMaybeOpened);
+      window.removeEventListener('pagehide', markMaybeOpened);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [mailtoUiState, safeSetMailtoUiState]);
 
   const fetchLocalRecoveryEmailsFromIndexedDB = React.useCallback(
     async (rawAccountId: string): Promise<string[]> => {
@@ -275,10 +367,13 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     }
 
     safeSetIsBusy(true);
+    cancelRequestedRef.current = false;
     safeSetErrorText(null);
     safeSetStatusText(null);
     safeSetPollingElapsedMs(null);
     safeSetPendingMailtoUrl(null);
+    safeSetPendingNearPublicKey(null);
+    safeSetMailtoUiState('ready');
 
     let didForwardError = false;
     try {
@@ -288,6 +383,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
         options: {
           onEvent,
           onError: (err: Error) => {
+            if (cancelRequestedRef.current) return;
             safeSetErrorText(err?.message || 'Failed to start email recovery');
             didForwardError = true;
             emailRecoveryOptions?.onError?.(err);
@@ -297,20 +393,20 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
       });
 
       safeSetPendingMailtoUrl(result.mailtoUrl);
-      safeSetStatusText('Recovery email draft ready. Send it from your recovery address. Waiting for verification…');
+      safeSetPendingNearPublicKey(result.nearPublicKey);
+      safeSetStatusText('Recovery email draft ready. If it didn’t open automatically, click “Open recovery email draft”. Waiting for verification…');
 
-      if (typeof window !== 'undefined' && typeof window.open === 'function') {
-        window.open(result.mailtoUrl, '_blank', 'noopener,noreferrer');
-      }
+      // Best-effort open. If blocked/cancelled, the CTA remains immediately clickable for a user-gesture retry.
+      attemptOpenMailtoAuto(result.mailtoUrl);
 
-      showExplorerToast(normalizedAccountId);
-
-      await tatchiPasskey.finalizeEmailRecovery({
+      // Start polling immediately after attempting to open the email prompt.
+      const finalizePromise = tatchiPasskey.finalizeEmailRecovery({
         accountId: normalizedAccountId,
         nearPublicKey: result.nearPublicKey,
         options: {
           onEvent,
           onError: (err: Error) => {
+            if (cancelRequestedRef.current) return;
             safeSetErrorText(err?.message || 'Failed to finalize email recovery');
             didForwardError = true;
             emailRecoveryOptions?.onError?.(err);
@@ -318,6 +414,10 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
           afterCall: async () => {},
         } as any,
       });
+
+      showExplorerToast(normalizedAccountId);
+
+      await finalizePromise;
 
       // Best-effort auto-login: the core flow attempts it, but if it couldn't (e.g. missing Shamir
       // auto-unlock and user cancelled TouchID), try once more here.
@@ -338,8 +438,19 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
 
       safeSetStatusText(loginOk ? 'Email recovery completed on this device.' : 'Email recovery completed. Please log in on this device.');
       safeSetPendingMailtoUrl(null);
+      safeSetPendingNearPublicKey(null);
+      safeSetMailtoUiState('ready');
       safeSetPollingElapsedMs(null);
     } catch (err: any) {
+      if (cancelRequestedRef.current) {
+        safeSetErrorText('Email recovery cancelled. Please try again.');
+        safeSetStatusText(null);
+        safeSetPollingElapsedMs(null);
+        safeSetPendingMailtoUrl(null);
+        safeSetPendingNearPublicKey(null);
+        safeSetMailtoUiState('ready');
+        return;
+      }
       safeSetErrorText(err?.message || 'Failed to start email recovery');
       if (!didForwardError && err instanceof Error) {
         emailRecoveryOptions?.onError?.(err);
@@ -357,8 +468,41 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     safeSetErrorText,
     safeSetIsBusy,
     safeSetPendingMailtoUrl,
+    safeSetPendingNearPublicKey,
     safeSetPollingElapsedMs,
     safeSetStatusText,
+    safeSetMailtoUiState,
+    attemptOpenMailtoAuto,
+    tatchiPasskey,
+  ]);
+
+  const handleCancelEmailRecovery = React.useCallback(async () => {
+    const normalizedAccountId = (accountIdInput || '').trim();
+    cancelRequestedRef.current = true;
+    try {
+      await tatchiPasskey.cancelEmailRecovery({
+        accountId: normalizedAccountId,
+        nearPublicKey: pendingNearPublicKey || undefined,
+      });
+    } catch {}
+
+    safeSetErrorText('Email recovery cancelled. Please try again.');
+    safeSetStatusText(null);
+    safeSetPollingElapsedMs(null);
+    safeSetPendingMailtoUrl(null);
+    safeSetPendingNearPublicKey(null);
+    safeSetMailtoUiState('ready');
+    safeSetIsBusy(false);
+  }, [
+    accountIdInput,
+    pendingNearPublicKey,
+    safeSetErrorText,
+    safeSetIsBusy,
+    safeSetPendingMailtoUrl,
+    safeSetPendingNearPublicKey,
+    safeSetPollingElapsedMs,
+    safeSetStatusText,
+    safeSetMailtoUiState,
     tatchiPasskey,
   ]);
 
@@ -457,13 +601,30 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
         >
           {noRecoveryEmailsConfigured ? 'No recovery emails configured' : (isBusy ? 'Working…' : 'Start Email Recovery')}
         </button>
-      </div>
 
-      {pendingMailtoUrl && (
-        <a className="w3a-email-recovery-link" href={pendingMailtoUrl}>
-          Open recovery email draft
-        </a>
-      )}
+        {pendingMailtoUrl && (
+          <button
+            type="button"
+            onClick={() => attemptOpenMailtoFromUserGesture(pendingMailtoUrl)}
+            className="w3a-link-device-btn w3a-link-device-btn-primary"
+            disabled={mailtoUiState === 'opening'}
+            aria-busy={mailtoUiState === 'opening'}
+          >
+            {mailtoUiState === 'opening' && <span className="w3a-spinner" aria-hidden="true" />}
+            {mailtoUiState === 'opening' ? 'Opening email…' : 'Open recovery email draft'}
+          </button>
+        )}
+
+        {pendingMailtoUrl && (
+          <button
+            type="button"
+            onClick={handleCancelEmailRecovery}
+            className="w3a-link-device-btn"
+          >
+            Cancel and try again
+          </button>
+        )}
+      </div>
 
       {explorerToast && (
         <div className="w3a-email-recovery-toast" role="status" aria-live="polite">

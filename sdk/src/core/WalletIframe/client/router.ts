@@ -1064,6 +1064,13 @@ export class WalletIframeRouter {
     });
   }
 
+  async stopEmailRecovery(payload?: { accountId?: string; nearPublicKey?: string }): Promise<void> {
+    await this.post<void>({
+      type: 'PM_STOP_EMAIL_RECOVERY',
+      payload: { accountId: payload?.accountId, nearPublicKey: payload?.nearPublicKey },
+    });
+  }
+
   // ===== Device Linking (iframe-hosted) =====
   async linkDeviceWithScannedQRData(payload: {
     qrData: DeviceLinkingQRData;

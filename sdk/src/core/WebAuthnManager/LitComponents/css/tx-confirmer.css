@@ -292,7 +292,6 @@ w3a-drawer-tx-confirmer[theme="light"] .modal-container-root {
   min-height: 48px;
   display: grid;
   align-items: flex-start;
-  margin-right: 1rem;
   margin-top: 0.5rem;
 }
 .hero-heading {
@@ -739,6 +738,7 @@ w3a-drawer {
 }
 .responsive-card {
   position: relative;
+  justify-content: flex-end;
   /* Scales with viewport and root font size under text zoom */
   max-width: clamp(20rem, 90vw, 26rem);
   min-width: 0;
@@ -759,13 +759,15 @@ w3a-drawer {
 .rpid-wrapper {
   margin-bottom: 1rem;
 }
-.rpid-body {
+.confirmation-body {
   margin-top: 0.5rem;
   font-size: 0.8rem;
   line-height: 1.35;
   color: var(--w3a-colors-textSecondary);
-  overflow-wrap: anywhere;
-  hyphens: auto;
+  max-width: 340px;
+  margin: 0.5rem;
+  /* overflow-wrap: anywhere; */
+  /* hyphens: auto; */
   white-space: pre-line;
 }
 .drawer-tx-confirmer-root .rpid {

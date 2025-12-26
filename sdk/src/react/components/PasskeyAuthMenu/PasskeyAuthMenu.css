@@ -750,6 +750,18 @@
   cursor: not-allowed;
 }
 
+/* Button-local spinner: match text size inside buttons */
+.w3a-link-device-btn .w3a-spinner {
+  width: 1em;
+  height: 1em;
+  border-width: 2px;
+}
+
+.w3a-link-device-btn-primary .w3a-spinner {
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+}
+
 /* Email recovery slide */
 .w3a-email-recovery-content {
   width: 100%;
@@ -854,6 +866,7 @@
   border: 1px solid var(--w3a-colors-borderPrimary);
   background: var(--w3a-colors-surface);
   color: var(--w3a-colors-textPrimary);
+  margin-bottom: 0.5rem;
 }
 
 .w3a-email-recovery-status.is-error {
