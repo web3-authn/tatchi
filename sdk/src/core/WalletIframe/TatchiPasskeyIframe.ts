@@ -49,7 +49,7 @@ import type {
 } from '../types/sdkSentEvents';
 
 import type { ActionArgs, TransactionInput, TxExecutionStatus } from '../types';
-import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults, StartDeviceLinkingOptionsDevice2 } from '../types/linkDevice';
+import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults } from '../types/linkDevice';
 import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types/linkDevice';
 import { EmailRecoveryFlowOptions } from '../TatchiPasskey/emailRecovery';
 import type { ConfirmationConfig } from '../types/signer-worker';
@@ -192,7 +192,11 @@ export class TatchiPasskeyIframe {
       // - Bridge progress events back to onEvent callback
       const res = await this.router.registerPasskey({
         nearAccountId,
-        options: { onEvent: options?.onEvent } // Bridge progress events from iframe to parent
+        confirmationConfig: options?.confirmationConfig,
+        options: {
+          onEvent: options?.onEvent,
+          ...(options?.confirmerText ? { confirmerText: options.confirmerText } : {})
+        } // Bridge progress events from iframe to parent
       });
       await options?.afterCall?.(true, res);
       return res;
@@ -284,7 +288,11 @@ export class TatchiPasskeyIframe {
         message: args.params.message,
         recipient: args.params.recipient,
         state: args.params.state,
-        options: { onEvent: args.options?.onEvent }
+        options: {
+          onEvent: args.options?.onEvent,
+          confirmerText: args.options?.confirmerText,
+          confirmationConfig: args.options?.confirmationConfig,
+        }
       });
       await args.options?.afterCall?.(true, res);
       return res;
@@ -358,10 +366,14 @@ export class TatchiPasskeyIframe {
   ): Promise<RegistrationResult> {
     try {
       await this.requireRouterReady();
+      const confirmationConfig = confirmationConfigOverride ?? options?.confirmationConfig;
       const res = await this.router.registerPasskey({
         nearAccountId,
-        confirmationConfig: confirmationConfigOverride,
-        options: { onEvent: options?.onEvent }
+        confirmationConfig,
+        options: {
+          onEvent: options?.onEvent,
+          ...(options?.confirmerText ? { confirmerText: options.confirmerText } : {})
+        }
       });
       await options?.afterCall?.(true, res);
       return res;
@@ -404,6 +416,13 @@ export class TatchiPasskeyIframe {
         accountId: args.accountId,
         recoveryEmail: args.recoveryEmail,
         onEvent: args.options?.onEvent as any,
+        options: (() => {
+          const safeOptions = {
+            ...(args.options?.confirmerText ? { confirmerText: args.options.confirmerText } : {}),
+            ...(args.options?.confirmationConfig ? { confirmationConfig: args.options.confirmationConfig } : {}),
+          };
+          return Object.keys(safeOptions).length > 0 ? safeOptions : undefined;
+        })(),
       });
       await args.options?.afterCall?.(true, undefined as any);
       return res;
@@ -438,24 +457,24 @@ export class TatchiPasskeyIframe {
   }
 
   // Device2: Start QR generation + polling inside wallet iframe, return QR to parent
-  async startDevice2LinkingFlow({
-    ui,
-    afterCall,
-    onError,
-    onEvent,
-  }: StartDevice2LinkingFlowArgs): Promise<StartDevice2LinkingFlowResults> {
+  async startDevice2LinkingFlow(
+    args: StartDevice2LinkingFlowArgs
+  ): Promise<StartDevice2LinkingFlowResults> {
     try {
       await this.requireRouterReady();
+      const options = args?.options;
       const res = await this.router.startDevice2LinkingFlow({
-        ui: ui,
-        onEvent: onEvent
+        ui: args?.ui,
+        cameraId: args?.cameraId,
+        options,
       });
-      await afterCall?.(true, res);
+      await options?.afterCall?.(true, res);
       return res
     } catch (err: unknown) {
       const e = toError(err);
-      await onError?.(e);
-      await afterCall?.(false);
+      const options = args?.options;
+      await options?.onError?.(e);
+      await options?.afterCall?.(false);
       throw e;
     }
   }
@@ -477,7 +496,9 @@ export class TatchiPasskeyIframe {
         qrData,
         fundingAmount: options.fundingAmount,
         options: {
-          onEvent: options?.onEvent
+          onEvent: options?.onEvent,
+          confirmationConfig: options?.confirmationConfig,
+          confirmerText: options?.confirmerText,
         }
       });
       await options?.afterCall?.(true, res);

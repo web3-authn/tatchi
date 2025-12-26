@@ -10,13 +10,32 @@ export type RecoveryEmailEntry = {
 export { type RecoveryEmailRecord };
 
 export const canonicalizeEmail = (email: string): string => {
-  let addr = email;
-  const angleStart = email.indexOf('<');
-  const angleEnd = email.indexOf('>');
-  if (angleStart !== -1 && angleEnd > angleStart) {
-    addr = email.slice(angleStart + 1, angleEnd);
+  const raw = String(email || '').trim();
+  if (!raw) return '';
+
+  // Handle cases where a full header line is passed in (e.g. "From: ...").
+  const withoutHeaderName = raw.replace(/^[a-z0-9-]+\s*:\s*/i, '').trim();
+
+  const emailRegex =
+    /([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*)/;
+
+  // Prefer the common "Name <email@domain>" format when present, but still
+  // validate/extract the actual address via regex.
+  const angleMatch = withoutHeaderName.match(/<([^>]+)>/);
+  const candidates = [
+    angleMatch?.[1],
+    withoutHeaderName,
+  ].filter((v): v is string => typeof v === 'string' && v.length > 0);
+
+  for (const candidate of candidates) {
+    const cleaned = candidate.replace(/^mailto:\s*/i, '');
+    const match = cleaned.match(emailRegex);
+    if (match?.[1]) {
+      return match[1].trim().toLowerCase();
+    }
   }
-  return addr.trim().toLowerCase();
+
+  return withoutHeaderName.toLowerCase();
 };
 
 export const bytesToHex = (bytes: number[] | Uint8Array): string => {

@@ -24,6 +24,7 @@ import { ActionType, type ActionArgs } from './types/actions';
 import { VRFChallenge } from './types/vrf-worker';
 import { DEFAULT_WAIT_STATUS, TransactionContext } from './types/rpc';
 import type { AuthenticatorOptions } from './types/authenticatorOptions';
+import type { ConfirmationConfig } from './types/signer-worker';
 import { base64UrlDecode, base64UrlEncode } from '../utils/encoders';
 import { errorMessage } from '../utils/errors';
 import type { EmailRecoveryContracts } from './types/tatchi';
@@ -114,6 +115,8 @@ export async function executeDeviceLinkingContractCalls({
   txBlockHash,
   vrfChallenge,
   onEvent,
+  confirmationConfigOverride,
+  confirmerText,
 }: {
   context: PasskeyManagerContext,
   device1AccountId: AccountId,
@@ -123,7 +126,9 @@ export async function executeDeviceLinkingContractCalls({
   nextNextNextNonce: string,
   txBlockHash: string,
   vrfChallenge: VRFChallenge,
-  onEvent?: (event: DeviceLinkingSSEEvent) => void
+  onEvent?: (event: DeviceLinkingSSEEvent) => void;
+  confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  confirmerText?: { title?: string; body?: string };
 }): Promise<{
   addKeyTxResult: FinalExecutionOutcome;
   storeDeviceLinkingTxResult: FinalExecutionOutcome;
@@ -137,6 +142,9 @@ export async function executeDeviceLinkingContractCalls({
       nearRpcUrl: context.webAuthnManager.tatchiPasskeyConfigs.nearRpcUrl,
       nearAccountId: device1AccountId
     },
+    confirmationConfigOverride,
+    title: confirmerText?.title,
+    body: confirmerText?.body,
     transactions: [
       // Transaction 1: AddKey - Add Device2's key to Device1's account
       {

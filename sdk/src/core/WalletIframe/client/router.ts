@@ -569,9 +569,10 @@ export class WalletIframeRouter {
 
   async registerPasskey(payload: {
     nearAccountId: string;
-    confirmationConfig?: ConfirmationConfig;
+    confirmationConfig?: Partial<ConfirmationConfig>;
     options?: {
-      onEvent?: (ev: RegistrationSSEEvent) => void
+      onEvent?: (ev: RegistrationSSEEvent) => void;
+      confirmerText?: { title?: string; body?: string };
     }
   }): Promise<RegistrationResult> {
     // Step 1: For registration, force fullscreen overlay (not anchored to CTA)
@@ -584,7 +585,8 @@ export class WalletIframeRouter {
     try {
       // Optional one-time confirmation override (non-persistent)
       if (payload.confirmationConfig) {
-        await this.setConfirmationConfig(payload.confirmationConfig);
+        const base = await this.getConfirmationConfig();
+        await this.setConfirmationConfig({ ...base, ...payload.confirmationConfig });
       }
 
       // Step 2: Strip non-serializable functions from options (functions can't cross iframe boundary)
@@ -686,8 +688,20 @@ export class WalletIframeRouter {
     message: string;
     recipient: string;
     state?: string;
-    options?: { onEvent?: (ev: ActionSSEEvent) => void }
+    options?: {
+      onEvent?: (ev: ActionSSEEvent) => void;
+      confirmerText?: { title?: string; body?: string };
+      confirmationConfig?: Partial<ConfirmationConfig>;
+    }
   }): Promise<SignNEP413MessageResult> {
+    const safeOptions = payload.options
+      ? {
+          ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
+          ...(payload.options.confirmationConfig
+            ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+            : {}),
+        }
+      : undefined;
     const res = await this.post<SignNEP413MessageResult>({
       type: 'PM_SIGN_NEP413',
       payload: {
@@ -696,7 +710,8 @@ export class WalletIframeRouter {
           message: payload.message,
           recipient: payload.recipient,
           state: payload.state
-        }
+        },
+        options: safeOptions && Object.keys(safeOptions).length > 0 ? safeOptions : undefined
       },
       options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
@@ -1007,11 +1022,27 @@ export class WalletIframeRouter {
   async startEmailRecovery(payload: {
     accountId: string;
     recoveryEmail: string;
-    onEvent?: (ev: ProgressPayload) => void
+    onEvent?: (ev: ProgressPayload) => void;
+    options?: {
+      confirmerText?: { title?: string; body?: string };
+      confirmationConfig?: Partial<ConfirmationConfig>;
+    }
   }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
+    const safeOptions = payload.options
+      ? {
+          ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
+          ...(payload.options.confirmationConfig
+            ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+            : {}),
+        }
+      : undefined;
     const res = await this.post<{ mailtoUrl: string; nearPublicKey: string }>({
       type: 'PM_START_EMAIL_RECOVERY',
-      payload: { accountId: payload.accountId, recoveryEmail: payload.recoveryEmail },
+      payload: {
+        accountId: payload.accountId,
+        recoveryEmail: payload.recoveryEmail,
+        options: safeOptions && Object.keys(safeOptions).length > 0 ? safeOptions : undefined
+      },
       options: {
         onProgress: payload.onEvent
       }
@@ -1037,16 +1068,29 @@ export class WalletIframeRouter {
   async linkDeviceWithScannedQRData(payload: {
     qrData: DeviceLinkingQRData;
     fundingAmount: string;
-    options?: { onEvent?: (ev: DeviceLinkingSSEEvent) => void }
+    options?: {
+      onEvent?: (ev: DeviceLinkingSSEEvent) => void;
+      confirmationConfig?: Partial<ConfirmationConfig>;
+      confirmerText?: { title?: string; body?: string };
+    }
   }): Promise<LinkDeviceResult> {
     // TouchID required within host
     this.showFrameForActivation();
     try {
+      const safeOptions = payload.options
+        ? {
+            ...(payload.options.confirmationConfig
+              ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+              : {}),
+            ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
+          }
+        : undefined;
       const res = await this.post<LinkDeviceResult>({
         type: 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA',
         payload: {
           qrData: payload.qrData,
-          fundingAmount: payload.fundingAmount
+          fundingAmount: payload.fundingAmount,
+          options: safeOptions && Object.keys(safeOptions).length > 0 ? safeOptions : undefined
         },
         options: {
           onProgress: this.wrapOnEvent(payload.options?.onEvent, isDeviceLinkingSSEEvent)
@@ -1062,13 +1106,24 @@ export class WalletIframeRouter {
     if (this.device2StartPromise) {
       return this.device2StartPromise
     }
+    const options = payload?.options;
+    const safeOptions = options
+      ? {
+          ...(options.confirmationConfig
+            ? { confirmationConfig: options.confirmationConfig as unknown as Record<string, unknown> }
+            : {}),
+          ...(options.confirmerText ? { confirmerText: options.confirmerText } : {}),
+        }
+      : undefined;
     const p = this.post<StartDevice2LinkingFlowResults>({
       type: 'PM_START_DEVICE2_LINKING_FLOW',
       payload: {
-        ui: payload?.ui
+        ui: payload?.ui,
+        cameraId: payload?.cameraId,
+        options: safeOptions
       },
       options: {
-        onProgress: this.wrapOnEvent(payload?.onEvent, isDeviceLinkingSSEEvent),
+        onProgress: this.wrapOnEvent(options?.onEvent, isDeviceLinkingSSEEvent),
         sticky: true
       }
     }).then((res) => res.result)

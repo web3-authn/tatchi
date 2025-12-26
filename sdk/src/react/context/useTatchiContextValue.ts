@@ -92,13 +92,18 @@ export function useTatchiContextValue(args: {
     return tatchi.recoverAccountFlow(args);
   }, [tatchi]);
 
-  const startDevice2LinkingFlow: TatchiContextType['startDevice2LinkingFlow'] = useCallback(async (options) => {
+  const startDevice2LinkingFlow: TatchiContextType['startDevice2LinkingFlow'] = useCallback(async (args) => {
+    const base = args ?? {};
+    const options = base.options;
     return tatchi.startDevice2LinkingFlow({
-      ...options,
-      onEvent: (event: DeviceLinkingSSEEvent) => {
-        options?.onEvent?.(event);
-        if (event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE && event.status === 'success') {
-          void refreshLoginState();
+      ...base,
+      options: {
+        ...(options || {}),
+        onEvent: (event: DeviceLinkingSSEEvent) => {
+          options?.onEvent?.(event);
+          if (event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE && event.status === 'success') {
+            void refreshLoginState();
+          }
         }
       }
     });
@@ -192,4 +197,3 @@ export function useTatchiContextValue(args: {
     viewAccessKeyList,
   ]);
 }
-

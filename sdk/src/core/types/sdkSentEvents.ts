@@ -586,6 +586,14 @@ export interface RegistrationHooksOptions {
   onEvent?: EventCallback<RegistrationSSEEvent>;
   onError?: (error: Error) => void;
   afterCall?: AfterCall<RegistrationResult>;
+  /**
+   * Preferred grouping for per-call confirmer copy.
+   */
+  confirmerText?: { title?: string; body?: string };
+  // Per-call confirmation configuration. When provided, overrides user preferences
+  // for this request only (not persisted).
+  // Accept partial config so callers can pass minimal overrides like { uiMode: 'drawer' }
+  confirmationConfig?: Partial<ConfirmationConfig>;
 }
 
 export interface LoginHooksOptions {
@@ -709,4 +717,11 @@ export interface SignNEP413HooksOptions {
   onError?: (error: Error) => void;
 
   afterCall?: AfterCall<SignNEP413MessageResult>;
+  /**
+   * Preferred grouping for per-call confirmer copy.
+   */
+  confirmerText?: { title?: string; body?: string };
+  // Per-call confirmation configuration (non-persistent)
+  // Accept partial config so callers can pass minimal overrides like { uiMode: 'drawer' }
+  confirmationConfig?: Partial<ConfirmationConfig>;
 }

@@ -59,7 +59,6 @@ import { ActionType, type ActionArgs, type TransactionInput } from '../types/act
 import type {
   DeviceLinkingQRData,
   LinkDeviceResult,
-  StartDeviceLinkingOptionsDevice2,
   ScanAndLinkDeviceOptionsDevice1,
   StartDevice2LinkingFlowArgs,
   StartDevice2LinkingFlowResults
@@ -87,6 +86,7 @@ import {
 } from '../EmailRecovery';
 import type { DelegateActionInput } from '../types/delegate';
 import { buildConfigsFromEnv } from '../defaultConfigs';
+import { EmailRecoveryFlowOptions } from './emailRecovery';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -361,7 +361,15 @@ export class TatchiPasskey {
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(nearAccountId);
-        const res = await router.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
+        const confirmationConfig = options?.confirmationConfig;
+        const res = await router.registerPasskey({
+          nearAccountId,
+          confirmationConfig,
+          options: {
+            onEvent: options?.onEvent,
+            ...(options?.confirmerText ? { confirmerText: options.confirmerText } : {})
+          }
+        });
         // Opportunistically warm resources (non-blocking)
         void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);
@@ -394,10 +402,14 @@ export class TatchiPasskey {
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(nearAccountId);
+        const confirmationConfig = confirmationConfigOverride ?? options?.confirmationConfig;
         const res = await router.registerPasskey({
           nearAccountId,
-          confirmationConfig: confirmationConfigOverride,
-          options: { onEvent: options?.onEvent }
+          confirmationConfig,
+          options: {
+            onEvent: options?.onEvent,
+            ...(options?.confirmerText ? { confirmerText: options.confirmerText } : {})
+          }
         });
         void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);
@@ -1145,12 +1157,14 @@ export class TatchiPasskey {
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(args.nearAccountId);
+        const confirmerText = args.options?.confirmerText;
+        const confirmationConfig = args.options?.confirmationConfig;
         const result = await router.signNep413Message({
           nearAccountId: args.nearAccountId,
           message: args.params.message,
           recipient: args.params.recipient,
           state: args.params.state,
-          options: { onEvent: args.options?.onEvent }
+          options: { onEvent: args.options?.onEvent, confirmerText, confirmationConfig }
         });
         await args.options?.afterCall?.(true, result);
         // Expect wallet to return the same shape as WebAuthnManager.signNEP413Message
@@ -1438,7 +1452,7 @@ export class TatchiPasskey {
   // === Email Recovery Flow ===
   ///////////////////////////////////////
 
-  private getEmailRecoveryFlow(options?: import('./emailRecovery').EmailRecoveryFlowOptions) {
+  private getEmailRecoveryFlow(options?: EmailRecoveryFlowOptions) {
     const { EmailRecoveryFlow } = require('./emailRecovery') as typeof import('./emailRecovery');
     if (!this.activeEmailRecoveryFlow) {
       this.activeEmailRecoveryFlow = new EmailRecoveryFlow(this.getContext(), options);
@@ -1451,16 +1465,23 @@ export class TatchiPasskey {
   async startEmailRecovery(args: {
     accountId: string;
     recoveryEmail: string;
-    options?: import('./emailRecovery').EmailRecoveryFlowOptions;
+    options?: EmailRecoveryFlowOptions;
   }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
     const { accountId, recoveryEmail, options } = args;
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter();
+        const confirmerText = options?.confirmerText;
+        const confirmationConfig = options?.confirmationConfig;
+        const safeOptions = {
+          ...(confirmerText ? { confirmerText } : {}),
+          ...(confirmationConfig ? { confirmationConfig } : {}),
+        };
         const res = await router.startEmailRecovery({
           accountId,
           recoveryEmail,
           onEvent: options?.onEvent as any,
+          options: Object.keys(safeOptions).length > 0 ? safeOptions : undefined,
         });
         await options?.afterCall?.(true, undefined as any);
         return res;
@@ -1478,7 +1499,7 @@ export class TatchiPasskey {
   async finalizeEmailRecovery(args: {
     accountId: string;
     nearPublicKey?: string;
-    options?: import('./emailRecovery').EmailRecoveryFlowOptions;
+    options?: EmailRecoveryFlowOptions;
   }): Promise<void> {
     const { accountId, nearPublicKey, options } = args;
     if (this.shouldUseWalletIframe()) {
@@ -1515,15 +1536,18 @@ export class TatchiPasskey {
     // In wallet-iframe mode, device linking must run inside the wallet origin.
     if (this.shouldUseWalletIframe()) {
       const router = await this.requireWalletIframeRouter();
+      const options = args?.options;
       return await router.startDevice2LinkingFlow({
         ui: args?.ui,
-        onEvent: args?.onEvent
+        cameraId: args?.cameraId,
+        options,
       });
     }
     // Local fallback: keep internal flow reference for cancellation
     this.activeDeviceLinkFlow?.cancel();
     const flow = new LinkDeviceFlow(this.getContext(), {
-      onEvent: args?.onEvent,
+      cameraId: args?.cameraId,
+      options: args?.options,
     });
     this.activeDeviceLinkFlow = flow;
     const { qrData, qrCodeDataURL } = await flow.generateQR();
@@ -1568,7 +1592,11 @@ export class TatchiPasskey {
       const res = await router.linkDeviceWithScannedQRData({
         qrData,
         fundingAmount: options.fundingAmount,
-        options: { onEvent: options.onEvent }
+        options: {
+          onEvent: options.onEvent,
+          confirmationConfig: options.confirmationConfig,
+          confirmerText: options.confirmerText,
+        }
       });
       return res as LinkDeviceResult;
     }

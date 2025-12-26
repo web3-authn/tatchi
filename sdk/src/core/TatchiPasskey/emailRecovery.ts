@@ -17,6 +17,7 @@ import type {
   VRFChallenge,
 } from '../types/vrf-worker';
 import type { WebAuthnRegistrationCredential } from '../types';
+import type { ConfirmationConfig } from '../types/signer-worker';
 
 export type PendingEmailRecoveryStatus =
   | 'awaiting-email'
@@ -44,6 +45,12 @@ export interface EmailRecoveryFlowOptions {
   onEvent?: EventCallback<EmailRecoverySSEEvent>;
   onError?: (error: Error) => void;
   afterCall?: AfterCall<void>;
+  /**
+   * Preferred grouping for per-call confirmer copy.
+   */
+  confirmerText?: { title?: string; body?: string };
+  // Per-call confirmation configuration (non-persistent)
+  confirmationConfig?: Partial<ConfirmationConfig>;
 }
 
 function getEmailRecoveryConfig(configs: TatchiConfigs): {
@@ -366,9 +373,12 @@ export class EmailRecoveryFlow {
     });
 
     try {
+      const confirmerText = this.options?.confirmerText;
       const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
         nearAccountId,
         deviceNumber,
+        confirmerText,
+        confirmationConfigOverride: this.options?.confirmationConfig,
       });
       if (!confirm.confirmed || !confirm.credential) {
         const err = this.emitError(2, 'User cancelled email recovery TouchID confirmation');

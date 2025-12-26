@@ -118,6 +118,7 @@ export interface SessionVrfWorkerManager {
   requestRegistrationCredentialConfirmation(params: {
     nearAccountId: string;
     deviceNumber: number;
+    confirmerText?: { title?: string; body?: string };
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
     contractId: string;
     nearRpcUrl: string;
@@ -338,6 +339,8 @@ export class VrfWorkerManager {
     nearAccountId: string;
     message: string;
     recipient: string;
+    title?: string;
+    body?: string;
     contractId?: string;
     nearRpcUrl?: string;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
@@ -359,6 +362,7 @@ export class VrfWorkerManager {
   async requestRegistrationCredentialConfirmation(params: {
     nearAccountId: string;
     deviceNumber: number;
+    confirmerText?: { title?: string; body?: string };
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
     contractId: string;
     nearRpcUrl: string;

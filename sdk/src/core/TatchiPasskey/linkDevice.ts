@@ -75,6 +75,10 @@ export class LinkDeviceFlow {
   private tempKeyCleanupTimer?: NodeJS.Timeout;
   private readonly TEMP_KEY_CLEANUP_DELAY_MS = DEVICE_LINKING_CONFIG.TIMEOUTS.TEMP_KEY_CLEANUP_MS;
 
+  private get hookOptions() {
+    return this.options?.options;
+  }
+
   constructor(
     context: PasskeyManagerContext,
     options: StartDeviceLinkingOptionsDevice2
@@ -90,7 +94,7 @@ export class LinkDeviceFlow {
   }
 
   private safeOnEvent(evt: DeviceLinkingSSEEvent) {
-    this.ifActive(() => this.options?.onEvent?.(evt));
+    this.ifActive(() => this.hookOptions?.onEvent?.(evt));
   }
 
   /**
@@ -389,7 +393,7 @@ export class LinkDeviceFlow {
           // Non-retryable error - fail permanently
           this.session!.phase = DeviceLinkingPhase.REGISTRATION_ERROR;
           this.error = error;
-          this.options?.onEvent?.({
+          this.hookOptions?.onEvent?.({
             step: 0,
             phase: DeviceLinkingPhase.REGISTRATION_ERROR,
             status: DeviceLinkingStatus.ERROR,
@@ -398,7 +402,7 @@ export class LinkDeviceFlow {
           });
         } else {
           console.warn(`LinkDeviceFlow: Registration failed with retryable error (attempt ${this.registrationRetryCount}/${this.MAX_REGISTRATION_RETRIES}), will retry in ${this.RETRY_DELAY_MS}ms:`, error.message);
-          this.options?.onEvent?.({
+          this.hookOptions?.onEvent?.({
             step: 5,
             phase: DeviceLinkingPhase.STEP_5_ADDKEY_DETECTED,
             status: DeviceLinkingStatus.PROGRESS,
@@ -413,7 +417,7 @@ export class LinkDeviceFlow {
         // Non-retryable error - fail permanently
         this.session!.phase = DeviceLinkingPhase.REGISTRATION_ERROR;
         this.error = error;
-        this.options?.onEvent?.({
+        this.hookOptions?.onEvent?.({
           step: 0,
           phase: DeviceLinkingPhase.REGISTRATION_ERROR,
           status: DeviceLinkingStatus.ERROR,
@@ -541,7 +545,7 @@ export class LinkDeviceFlow {
       const sessionSnapshot = this.session;
 
       // Send additional event after successful auto-login to update React state
-      options?.onEvent?.({
+      options?.options?.onEvent?.({
         step: 8,
         phase: DeviceLinkingPhase.STEP_8_AUTO_LOGIN,
         status: DeviceLinkingStatus.PROGRESS,
@@ -599,7 +603,7 @@ export class LinkDeviceFlow {
             // Ensure last-user device number reflects Device2 for future lookups
             await this.context.webAuthnManager.setLastUser(accountId, deviceNumber);
 
-            this.options?.onEvent?.({
+            this.hookOptions?.onEvent?.({
               step: 8,
               phase: DeviceLinkingPhase.STEP_8_AUTO_LOGIN,
               status: DeviceLinkingStatus.SUCCESS,
@@ -654,7 +658,7 @@ export class LinkDeviceFlow {
         // Ensure last-user device number reflects Device2 for future lookups
         await this.context.webAuthnManager.setLastUser(accountId, deviceNumber);
 
-        this.options?.onEvent?.({
+        this.hookOptions?.onEvent?.({
           step: 8,
           phase: DeviceLinkingPhase.STEP_8_AUTO_LOGIN,
           status: DeviceLinkingStatus.SUCCESS,
@@ -670,7 +674,7 @@ export class LinkDeviceFlow {
         await this.context.webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
         await this.context.webAuthnManager.setLastUser(accountId, deviceNumber);
 
-        this.options?.onEvent?.({
+        this.hookOptions?.onEvent?.({
           step: 0,
           phase: DeviceLinkingPhase.LOGIN_ERROR,
           status: DeviceLinkingStatus.ERROR,
@@ -681,7 +685,7 @@ export class LinkDeviceFlow {
     } catch(loginError: any) {
       console.warn('Login failed after device linking:', loginError);
       // Don't fail the whole linking process if auto-login fails
-      options?.onEvent?.({
+      options?.options?.onEvent?.({
         step: 0,
         phase: DeviceLinkingPhase.LOGIN_ERROR,
         status: DeviceLinkingStatus.ERROR,
@@ -790,9 +794,13 @@ export class LinkDeviceFlow {
     const realAccountId = this.session.accountId;
 
     // Use secureConfirm to collect passkey with device number inside wallet iframe
+    const confirmerText = this.hookOptions?.confirmerText;
+    const confirmationConfigOverride = this.hookOptions?.confirmationConfig;
     const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
       nearAccountId: realAccountId,
       deviceNumber: this.session.deviceNumber!,
+      confirmerText,
+      confirmationConfigOverride,
     });
     if (!confirm.confirmed || !confirm.credential) {
       throw new Error('User cancelled link-device confirmation');

@@ -30,7 +30,7 @@ export * from './types';
  * - Encrypting raw RFC822 emails with encryptEmailForOutlayer, binding an AEAD context
  *   `{ account_id, network_id, payer_account_id }`,
  * - Calling the per-account EmailRecoverer contract with:
- *   - `verify_encrypted_email_and_recover(encrypted_email_blob, aead_context)` for DKIM/TEE,
+ *   - `verify_encrypted_email_and_recover(encrypted_email_blob, aead_context, expected_hashed_email, expected_new_public_key)` for DKIM/TEE,
  *   - `verify_zkemail_and_recover` for zk-email recovery,
  * - Performing legacy plaintext on-chain verification via `verify_email_onchain_and_recover`
  *   for backwards compatibility only.

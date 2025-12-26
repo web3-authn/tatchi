@@ -1,7 +1,8 @@
 import type { ActionArgsWasm } from '../../core/types/actions';
 import { ActionType, validateActionArgsWasm } from '../../core/types/actions';
 import { parseContractExecutionError } from '../core/errors';
-import type { EmailEncryptionContext } from './emailEncryptor';
+import { hashRecoveryEmailForAccount, type EmailEncryptionContext } from './emailEncryptor';
+import { parseHeaderValue, parseRecoverSubjectBindings } from './emailParsers';
 import type { EmailRecoveryResult, EmailRecoveryServiceDeps, EmailRecoveryRequest } from './types';
 
 export async function getOutlayerEncryptionPublicKey(
@@ -67,9 +68,25 @@ export async function buildEncryptedEmailRecoveryActions(
     recipientPk,
   });
 
+  const bindings = parseRecoverSubjectBindings(emailBlob);
+  if (!bindings) {
+    throw new Error('Encrypted email recovery requires Subject: recover-<request_id> <accountId> ed25519:<new_public_key>');
+  }
+  if (bindings.accountId !== accountId) {
+    throw new Error(`Encrypted email recovery subject accountId mismatch (expected "${accountId}", got "${bindings.accountId}")`);
+  }
+
+  const fromHeader = parseHeaderValue(emailBlob, 'from');
+  if (!fromHeader) {
+    throw new Error('Encrypted email recovery requires a From: header');
+  }
+  const expectedHashedEmail = hashRecoveryEmailForAccount({ recoveryEmail: fromHeader, accountId });
+
   const contractArgs = {
     encrypted_email_blob: envelope,
     aead_context: aeadContext,
+    expected_hashed_email: expectedHashedEmail,
+    expected_new_public_key: bindings.newPublicKey,
   };
 
   const actions: ActionArgsWasm[] = [

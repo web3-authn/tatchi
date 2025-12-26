@@ -96,3 +96,90 @@ export function parseRecoverEmailRequest(body: unknown, opts: { headers?: Header
 
   return { ok: true, accountId, emailBlob, explicitMode };
 }
+
+const EMAIL_ADDRESS_REGEX =
+  /([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*)/;
+
+export function canonicalizeEmail(input: string): string {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+
+  // Handle cases where a full header line is passed in (e.g. "From: ...").
+  const withoutHeaderName = raw.replace(/^[a-z0-9-]+\s*:\s*/i, '').trim();
+
+  // Prefer the common "Name <email@domain>" format when present, but still
+  // validate/extract the actual address via regex.
+  const angleMatch = withoutHeaderName.match(/<([^>]+)>/);
+  const candidates = [
+    angleMatch?.[1],
+    withoutHeaderName,
+  ].filter((v): v is string => typeof v === 'string' && v.length > 0);
+
+  for (const candidate of candidates) {
+    const cleaned = candidate.replace(/^mailto:\s*/i, '');
+    const match = cleaned.match(EMAIL_ADDRESS_REGEX);
+    if (match?.[1]) {
+      return match[1].trim().toLowerCase();
+    }
+  }
+
+  return withoutHeaderName.toLowerCase();
+}
+
+export function parseHeaderValue(rawEmail: string, name: string): string | undefined {
+  try {
+    const raw = String(rawEmail || '');
+    if (!raw) return undefined;
+
+    const lines = raw.split(/\r?\n/);
+    const headerLines: string[] = [];
+
+    // Only consider the header section (until the first blank line).
+    for (const line of lines) {
+      if (line.trim() === '') break;
+
+      // RFC822 header folding: lines starting with whitespace continue previous header.
+      if (/^\s/.test(line) && headerLines.length > 0) {
+        headerLines[headerLines.length - 1] += ` ${line.trim()}`;
+        continue;
+      }
+
+      headerLines.push(line);
+    }
+
+    const headerName = name.trim();
+    if (!headerName) return undefined;
+
+    const re = new RegExp(`^${headerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`, 'i');
+    const found = headerLines.find((l) => re.test(l));
+    if (!found) return undefined;
+
+    const idx = found.indexOf(':');
+    const value = idx >= 0 ? found.slice(idx + 1).trim() : '';
+    return value || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function parseRecoverSubjectBindings(
+  rawEmail: string
+): { requestId: string; accountId: string; newPublicKey: string } | null {
+  // Accept either a full RFC822 email or a bare Subject value.
+  let subjectText = (parseHeaderValue(rawEmail, 'subject') || String(rawEmail || '')).trim();
+  if (!subjectText) return null;
+
+  // Strip common reply/forward prefixes.
+  subjectText = subjectText.replace(/^(re|fwd):\s*/i, '').trim();
+  if (!subjectText) return null;
+
+  // Strict format:
+  //   "recover-<request_id> <accountId> ed25519:<pk>"
+  const match = subjectText.match(
+    /^recover-([A-Za-z0-9]{6})\s+([^\s]+)\s+ed25519:([^\s]+)\s*$/i
+  );
+  if (!match) return null;
+
+  const [, requestId, accountId, newPublicKey] = match;
+  return { requestId, accountId, newPublicKey };
+}

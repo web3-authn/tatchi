@@ -2,6 +2,7 @@ import { x25519 } from '@noble/curves/ed25519.js';
 import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { chacha20poly1305 } from '@noble/ciphers/chacha.js';
+import { canonicalizeEmail } from './emailParsers';
 
 export interface EncryptedEmailEnvelope {
   version: number;
@@ -148,4 +149,16 @@ export async function encryptEmailForOutlayer(
   };
 
   return { envelope, aeadContext };
+}
+
+export function hashRecoveryEmailForAccount(args: { recoveryEmail: string; accountId: string }): number[] {
+  const salt = (args.accountId || '').trim().toLowerCase();
+  const canonical = canonicalizeEmail(String(args.recoveryEmail || ''));
+  if (!canonical) {
+    throw new Error('Missing From email address for encrypted email recovery');
+  }
+  const input = `${canonical}|${salt}`;
+  const bytes = new TextEncoder().encode(input);
+  const digest = sha256(bytes);
+  return Array.from(digest);
 }

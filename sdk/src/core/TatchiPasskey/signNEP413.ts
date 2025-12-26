@@ -58,6 +58,8 @@ export async function signNEP413Message(args: {
 }): Promise<SignNEP413MessageResult> {
 
   const { context, nearAccountId, params, options } = args;
+  const confirmerText = options?.confirmerText;
+  const confirmationConfigOverride = options?.confirmationConfig;
   const { nearClient, webAuthnManager } = context;
 
   try {
@@ -106,6 +108,9 @@ export async function signNEP413Message(args: {
       nonce: nextNonce,
       state: params.state || null,
       accountId: nearAccountId,
+      title: confirmerText?.title,
+      body: confirmerText?.body,
+      confirmationConfigOverride,
     });
 
     if (result.success) {

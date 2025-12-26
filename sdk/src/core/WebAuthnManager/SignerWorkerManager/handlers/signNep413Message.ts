@@ -1,5 +1,6 @@
 
 import { WorkerRequestType, isSignNep413MessageSuccess } from '../../../types/signer-worker';
+import type { ConfirmationConfig } from '../../../types/signer-worker';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
 import { isObject } from '../../../WalletIframe/validation';
@@ -19,6 +20,9 @@ export async function signNep413Message({ ctx, payload }: {
     nonce: string;
     state: string | null;
     accountId: string;
+    title?: string;
+    body?: string;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
     sessionId?: string;
     contractId?: string;
     nearRpcUrl?: string;
@@ -52,6 +56,9 @@ export async function signNep413Message({ ctx, payload }: {
       nearAccountId: payload.accountId,
       message: payload.message,
       recipient: payload.recipient,
+      title: payload.title,
+      body: payload.body,
+      confirmationConfigOverride: payload.confirmationConfigOverride,
       contractId: payload.contractId,
       nearRpcUrl: payload.nearRpcUrl,
     });

@@ -5,6 +5,7 @@ import { VRFChallenge } from './vrf-worker';
 import { AccountId } from './accountIds';
 import { SignedTransaction } from '../NearClient';
 import { WebAuthnRegistrationCredential } from '.';
+import type { ConfirmationConfig } from './signer-worker';
 
 export { DeviceLinkingPhase } from './sdkSentEvents';
 
@@ -67,9 +68,13 @@ export interface StartDevice2LinkingFlowResults {
 
 export interface StartDeviceLinkingOptionsDevice2 {
   cameraId?: string;
-  onEvent?: EventCallback<DeviceLinkingSSEEvent>;
-  onError?: (error: Error) => void;
-  afterCall?: AfterCall<any>;
+  options?: {
+    onEvent?: EventCallback<DeviceLinkingSSEEvent>;
+    onError?: (error: Error) => void;
+    afterCall?: AfterCall<any>;
+    confirmationConfig?: Partial<ConfirmationConfig>;
+    confirmerText?: { title?: string; body?: string };
+  };
 }
 
 export interface ScanAndLinkDeviceOptionsDevice1 {
@@ -77,4 +82,6 @@ export interface ScanAndLinkDeviceOptionsDevice1 {
   onEvent?: EventCallback<DeviceLinkingSSEEvent>;
   onError?: (error: Error) => void;
   afterCall?: AfterCall<any>;
+  confirmationConfig?: Partial<ConfirmationConfig>;
+  confirmerText?: { title?: string; body?: string };
 }

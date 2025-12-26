@@ -49,6 +49,8 @@ export interface ConfirmAndPrepareSigningSessionNep413Params extends ConfirmAndP
   nearAccountId: string;
   message: string;
   recipient: string;
+  title?: string;
+  body?: string;
   contractId?: string;
   nearRpcUrl?: string;
 }
@@ -164,6 +166,8 @@ export async function confirmAndPrepareSigningSession(
         intentDigest,
         method: 'NEP-413',
         receiverId: params.recipient,
+        ...(params.title != null ? { title: params.title } : {}),
+        ...(params.body != null ? { body: params.body } : {}),
       };
 
       request = {

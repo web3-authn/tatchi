@@ -103,7 +103,9 @@ export async function linkDeviceWithScannedQRData(
       nextNextNextNonce,
       txBlockHash,
       vrfChallenge,
-      onEvent
+      onEvent,
+      confirmationConfigOverride: options?.confirmationConfig,
+      confirmerText: options?.confirmerText,
     });
 
     const result = {
