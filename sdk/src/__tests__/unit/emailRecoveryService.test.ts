@@ -70,7 +70,7 @@ test.describe('EmailRecoveryService.verifyEncryptedEmailAndRecover', () => {
         const service = new EmailRecoveryService(deps);
 
         const result = await service.verifyEncryptedEmailAndRecover({
-          accountId: 'berp61.w3a-v1.testnet',
+          accountId: 'kerp30.w3a-v1.testnet',
           emailBlob,
         });
 
@@ -111,7 +111,7 @@ test.describe('EmailRecoveryService.verifyEncryptedEmailAndRecover', () => {
     expect(signedArgs).toBeTruthy();
     expect(signedArgs.signerAccountId).toBe('w3a-relayer.testnet');
     // Encrypted path now calls the per-account EmailRecoverer contract.
-    expect(signedArgs.receiverId).toBe('berp61.w3a-v1.testnet');
+    expect(signedArgs.receiverId).toBe('kerp30.w3a-v1.testnet');
     expect(Array.isArray(signedArgs.actions)).toBe(true);
     expect(signedArgs.actions.length).toBe(1);
 
@@ -128,9 +128,15 @@ test.describe('EmailRecoveryService.verifyEncryptedEmailAndRecover', () => {
     // AEAD context should be forwarded to EmailRecoverer and then to EmailDKIMVerifier
     // and must include account_id, network_id, payer_account_id.
     expect(parsedArgs.aead_context).toBeTruthy();
-    expect(parsedArgs.aead_context.account_id).toBe('berp61.w3a-v1.testnet');
+    expect(parsedArgs.aead_context.account_id).toBe('kerp30.w3a-v1.testnet');
     expect(parsedArgs.aead_context.network_id).toBe('testnet');
     expect(parsedArgs.aead_context.payer_account_id).toBe('w3a-relayer.testnet');
+
+    // New contract args: expected hashed email + expected new public key
+    expect(Array.isArray(parsedArgs.expected_hashed_email)).toBe(true);
+    expect(parsedArgs.expected_hashed_email.length).toBe(32);
+    expect(typeof parsedArgs.expected_new_public_key).toBe('string');
+    expect(parsedArgs.expected_new_public_key.length).toBeGreaterThan(0);
   });
 });
 
@@ -186,7 +192,7 @@ test.describe('EmailRecoveryService.requestEmailRecovery (onchain-public)', () =
         const service = new EmailRecoveryService(deps);
 
         const result = await service.requestEmailRecovery({
-          accountId: 'berp61.w3a-v1.testnet',
+          accountId: 'kerp30.w3a-v1.testnet',
           emailBlob,
           explicitMode: 'onchain-public',
         });
@@ -229,7 +235,7 @@ test.describe('EmailRecoveryService.requestEmailRecovery (onchain-public)', () =
 
     expect(signedArgs).toBeTruthy();
     expect(signedArgs.signerAccountId).toBe('w3a-relayer.testnet');
-    expect(signedArgs.receiverId).toBe('berp61.w3a-v1.testnet');
+    expect(signedArgs.receiverId).toBe('kerp30.w3a-v1.testnet');
     expect(Array.isArray(signedArgs.actions)).toBe(true);
     expect(signedArgs.actions.length).toBe(1);
 
@@ -243,6 +249,11 @@ test.describe('EmailRecoveryService.requestEmailRecovery (onchain-public)', () =
     expect(typeof parsedArgs.encrypted_email_blob.ephemeral_pub).toBe('string');
     expect(typeof parsedArgs.encrypted_email_blob.nonce).toBe('string');
     expect(typeof parsedArgs.encrypted_email_blob.ciphertext).toBe('string');
+
+    expect(Array.isArray(parsedArgs.expected_hashed_email)).toBe(true);
+    expect(parsedArgs.expected_hashed_email.length).toBe(32);
+    expect(typeof parsedArgs.expected_new_public_key).toBe('string');
+    expect(parsedArgs.expected_new_public_key.length).toBeGreaterThan(0);
   });
 });
 
