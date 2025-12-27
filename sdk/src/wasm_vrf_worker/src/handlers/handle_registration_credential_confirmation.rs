@@ -1,15 +1,14 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use serde_wasm_bindgen;
-use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsValue;
+use crate::await_secure_confirmation::{
+    vrf_await_secure_confirmation, Payload, RpcCall, SecureConfirmRequest, Summary,
+};
 use crate::manager::VRFKeyManager;
 use crate::types::{VrfWorkerResponse, WorkerConfirmationResponse};
-use crate::await_secure_confirmation::{
-    RpcCall, Summary, Payload, SecureConfirmRequest,
-    vrf_await_secure_confirmation,
-};
+use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen;
+use std::cell::RefCell;
+use std::rc::Rc;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsValue;
 
 /// Request payload for VRF-driven registration credential confirmation.
 /// Mirrors the parameters used by the TypeScript helper while remaining
@@ -84,7 +83,6 @@ pub async fn handle_registration_credential_confirmation(
     message_id: Option<String>,
     request: RegistrationCredentialConfirmationRequest,
 ) -> VrfWorkerResponse {
-
     let near_account_id = request.near_account_id.clone();
     let device_number = request.device_number;
     // Reuse the worker message id as requestId when available for easier tracing.
@@ -105,7 +103,7 @@ pub async fn handle_registration_credential_confirmation(
                 None
             } else {
                 Some(request.contract_id.as_str())
-            }
+            },
         },
         payload: Payload {
             nearAccountId: &near_account_id,
@@ -114,7 +112,7 @@ pub async fn handle_registration_credential_confirmation(
                 contractId: &request.contract_id,
                 nearRpcUrl: &request.near_rpc_url,
                 nearAccountId: &near_account_id,
-            }
+            },
         },
         intentDigest: Some(&intent_digest),
         confirmationConfig: request.confirmation_config.clone(),
@@ -130,11 +128,11 @@ pub async fn handle_registration_credential_confirmation(
         }
     };
 
-    let decision: WorkerConfirmationResponse =
-        match vrf_await_secure_confirmation(request_js).await {
-            Ok(res) => res,
-            Err(e) => return VrfWorkerResponse::fail(message_id, e),
-        };
+    let decision: WorkerConfirmationResponse = match vrf_await_secure_confirmation(request_js).await
+    {
+        Ok(res) => res,
+        Err(e) => return VrfWorkerResponse::fail(message_id, e),
+    };
 
     let result = RegistrationCredentialConfirmationResult {
         confirmed: decision.confirmed,

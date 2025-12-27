@@ -56,7 +56,9 @@ pub fn handle_unlock_vrf_keypair(
     let prf_key = match prf_key_b64u.as_deref() {
         Some(b64u) => match crate::utils::base64_url_decode(b64u) {
             Ok(bytes) if !bytes.is_empty() => bytes,
-            Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential"),
+            Ok(_) => {
+                return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential")
+            }
             Err(_) => {
                 return VrfWorkerResponse::fail(
                     message_id,
