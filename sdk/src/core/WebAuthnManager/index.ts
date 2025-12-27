@@ -867,6 +867,7 @@ export class WebAuthnManager {
   async storeUserData(userData: StoreUserDataInput): Promise<void> {
     await IndexedDBManager.clientDB.storeWebAuthnUserData({
       ...userData,
+      deviceNumber: userData.deviceNumber ?? 1,
       version: userData.version || 2,
     });
   }
@@ -978,10 +979,12 @@ export class WebAuthnManager {
     vrfPublicKey: string;
     deviceNumber?: number;
   }): Promise<void> {
+    const deviceNumber = Number(authenticatorData.deviceNumber);
+    const normalizedDeviceNumber = Number.isSafeInteger(deviceNumber) && deviceNumber >= 1 ? deviceNumber : 1;
     const authData = {
       ...authenticatorData,
       nearAccountId: toAccountId(authenticatorData.nearAccountId),
-      deviceNumber: authenticatorData.deviceNumber || 1 // Default to device 1 (1-indexed)
+      deviceNumber: normalizedDeviceNumber, // Default to device 1 (1-indexed)
     };
     return await IndexedDBManager.clientDB.storeAuthenticator(authData);
   }

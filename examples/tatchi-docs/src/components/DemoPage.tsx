@@ -221,10 +221,11 @@ export const DemoPage: React.FC = () => {
           }
         },
         waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
-        afterCall: (success: boolean, result?: any) => {
+        afterCall: (success: boolean, result?: ActionResult) => {
           try { toast.dismiss('greeting'); } catch {}
-          if (success && result?.transactionId) {
-            const txId = result.transactionId;
+          const txId = result?.transactionId;
+          const isSuccess = success && result?.success !== false;
+          if (isSuccess && txId) {
             const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
             toast.success('Greeting updated on-chain', {
               description: (
@@ -236,12 +237,9 @@ export const DemoPage: React.FC = () => {
             setGreetingInput('');
             // Refresh the greeting after success
             setTimeout(() => fetchGreeting(), 1000);
-          } else if (success) {
-            toast.success('Greeting updated (no TxID)');
-            setGreetingInput('');
-            setTimeout(() => fetchGreeting(), 1000);
           } else {
-            toast.error(`Greeting update failed: ${result?.error || 'Unknown error'}`);
+            const message = result?.error || (isSuccess ? 'Missing transaction ID' : 'Unknown error');
+            toast.error(`Greeting update failed: ${message}`);
           }
           setTxLoading(false);
         },

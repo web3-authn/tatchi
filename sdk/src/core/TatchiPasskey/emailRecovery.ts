@@ -11,14 +11,17 @@ import {
 } from '../types/sdkSentEvents';
 import type { TatchiConfigs } from '../types/tatchi';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
-import type {
-  EncryptedVRFKeypair,
-  ServerEncryptedVrfKeypair,
-  VRFChallenge,
+import {
+  createRandomVRFChallenge,
+  type EncryptedVRFKeypair,
+  type ServerEncryptedVrfKeypair,
+  type VRFChallenge,
 } from '../types/vrf-worker';
 import type { WebAuthnRegistrationCredential } from '../types';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
+import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
+import { getLoginSession } from './login';
 
 export type PendingEmailRecoveryStatus =
   | 'awaiting-email'
@@ -148,7 +151,7 @@ export class EmailRecoveryFlow {
 
   private async checkVerificationStatus(
     rec: PendingEmailRecovery
-  ): Promise<{ completed: boolean; success: boolean; errorMessage?: string } | null> {
+  ): Promise<{ completed: boolean; success: boolean; errorMessage?: string; transactionHash?: string } | null> {
     const { dkimVerifierAccountId, verificationViewMethod } = this.getConfig();
     if (!dkimVerifierAccountId) return null;
 
@@ -157,6 +160,7 @@ export class EmailRecoveryFlow {
         verified: boolean;
         account_id?: string;
         new_public_key?: string;
+        transaction_hash?: string;
         error_code?: string;
         error_message?: string;
       };
@@ -176,7 +180,12 @@ export class EmailRecoveryFlow {
 
       if (!result.verified) {
         const errorMessage = result.error_message || result.error_code || 'Email verification failed on relayer/contract';
-        return { completed: true, success: false, errorMessage };
+        return {
+          completed: true,
+          success: false,
+          errorMessage,
+          transactionHash: result.transaction_hash,
+        };
       }
 
       // Optional safety checks: ensure the bound account/key match expectations when available.
@@ -185,6 +194,7 @@ export class EmailRecoveryFlow {
           completed: true,
           success: false,
           errorMessage: 'Email verification account_id does not match requested account.',
+          transactionHash: result.transaction_hash,
         };
       }
       if (result.new_public_key && result.new_public_key !== rec.nearPublicKey) {
@@ -192,10 +202,15 @@ export class EmailRecoveryFlow {
           completed: true,
           success: false,
           errorMessage: 'Email verification new_public_key does not match expected recovery key.',
+          transactionHash: result.transaction_hash,
         };
       }
 
-      return { completed: true, success: true };
+      return {
+        completed: true,
+        success: true,
+        transactionHash: result.transaction_hash
+      };
     } catch (err) {
       // If the view method is not available or fails, fall back to access key polling.
       // eslint-disable-next-line no-console
@@ -674,12 +689,13 @@ export class EmailRecoveryFlow {
         phase: EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT,
         status: EmailRecoveryStatus.PROGRESS,
         message: completed && success
-          ? `Recovery email verified for request ${rec.requestId}; finalizing registration...`
-          : `Waiting for recovery email verification for request ${rec.requestId}...`,
+          ? `Email verified for request ${rec.requestId}; finalizing registration`
+          : `Waiting for email verification for request ${rec.requestId}`,
         data: {
           accountId: rec.accountId,
           requestId: rec.requestId,
           nearPublicKey: rec.nearPublicKey,
+          transactionHash: verification?.transactionHash,
           elapsedMs: elapsed,
           pollCount,
         },
@@ -763,7 +779,25 @@ export class EmailRecoveryFlow {
       try {
         // Wait for finality so subsequent contract-gated signing (verify_authentication_response)
         // can reliably see the newly registered device/passkey.
-        await this.context.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.linkDeviceRegistration);
+        const txResult = await this.context.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.linkDeviceRegistration);
+        try {
+          const txHash = (txResult as any)?.transaction?.hash || (txResult as any)?.transaction_hash;
+          if (txHash) {
+            this.emit({
+              step: 5,
+              phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
+              status: EmailRecoveryStatus.PROGRESS,
+              message: 'Registration transaction confirmed',
+              data: {
+                accountId: rec.accountId,
+                nearPublicKey: rec.nearPublicKey,
+                transactionHash: txHash,
+              },
+            });
+          }
+        } catch {
+          // best-effort; do not fail flow
+        }
       } catch (e: any) {
         const msg = String(e?.message || '');
         const err = this.emitError(
@@ -858,6 +892,10 @@ export class EmailRecoveryFlow {
 
       const { webAuthnManager } = this.context;
       const accountId = toAccountId(rec.accountId);
+      const deviceNumber = parseDeviceNumber(rec.deviceNumber, { min: 1 });
+      if (deviceNumber === null) {
+        throw new Error(`Invalid deviceNumber for auto-login: ${String(rec.deviceNumber)}`);
+      }
 
       // Try Shamir 3-pass unlock first if configured and available
       if (
@@ -874,15 +912,25 @@ export class EmailRecoveryFlow {
           });
 
           if (unlockResult.success) {
+            const vrfStatus = await webAuthnManager.checkVrfStatus();
+            const vrfActiveForAccount =
+              vrfStatus.active
+              && vrfStatus.nearAccountId
+              && String(vrfStatus.nearAccountId) === String(accountId);
+            if (!vrfActiveForAccount) {
+              throw new Error('VRF session inactive after Shamir3Pass unlock');
+            }
+
+            await webAuthnManager.setLastUser(accountId, deviceNumber);
             await webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
-            await webAuthnManager.setLastUser(accountId, rec.deviceNumber);
+            try { await getLoginSession(this.context, accountId); } catch {}
             this.emit({
               step: 5,
               phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
               status: EmailRecoveryStatus.SUCCESS,
               message: `Welcome ${accountId}`,
               data: { autoLogin: 'success' },
-            } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+            });
             return;
           }
         } catch (err) {
@@ -892,23 +940,23 @@ export class EmailRecoveryFlow {
       }
 
       // TouchID fallback unlock
-      const { txBlockHash, txBlockHeight } = await webAuthnManager
-        .getNonceManager()
-        .getNonceBlockHashAndHeight(this.context.nearClient);
+      // Use a random challenge (no VRF required) to collect PRF outputs and unlock the stored VRF keypair.
+      const authChallenge = createRandomVRFChallenge() as VRFChallenge;
 
-      const authChallenge = await webAuthnManager.generateVrfChallengeOnce({
-        userId: accountId,
-        rpId: webAuthnManager.getRpId(),
-        blockHash: txBlockHash,
-        blockHeight: txBlockHeight,
-      });
-
-      const authenticators = await webAuthnManager.getAuthenticatorsByUser(accountId);
+      const storedCredentialId = String(rec.credential?.rawId || rec.credential?.id || '').trim();
+      const credentialIds = storedCredentialId ? [storedCredentialId] : [];
+      const authenticators = credentialIds.length > 0
+        ? []
+        : await webAuthnManager.getAuthenticatorsByUser(accountId);
       const authCredential = await webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
         nearAccountId: accountId,
         challenge: authChallenge,
-        credentialIds: authenticators.map((a) => a.credentialId),
+        credentialIds: credentialIds.length > 0 ? credentialIds : authenticators.map((a) => a.credentialId),
       });
+
+      if (storedCredentialId && authCredential.rawId !== storedCredentialId) {
+        throw new Error('Wrong passkey selected during recovery auto-login; please use the newly recovered passkey.');
+      }
 
       const vrfUnlockResult = await webAuthnManager.unlockVRFKeypair({
         nearAccountId: accountId,
@@ -920,8 +968,18 @@ export class EmailRecoveryFlow {
         throw new Error(vrfUnlockResult.error || 'VRF unlock failed during auto-login');
       }
 
+      const vrfStatus = await webAuthnManager.checkVrfStatus();
+      const vrfActiveForAccount =
+        vrfStatus.active
+        && vrfStatus.nearAccountId
+        && String(vrfStatus.nearAccountId) === String(accountId);
+      if (!vrfActiveForAccount) {
+        throw new Error('VRF session inactive after TouchID unlock');
+      }
+
+      await webAuthnManager.setLastUser(accountId, deviceNumber);
       await webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
-      await webAuthnManager.setLastUser(accountId, rec.deviceNumber);
+      try { await getLoginSession(this.context, accountId); } catch {}
 
       this.emit({
         step: 5,
@@ -929,9 +987,15 @@ export class EmailRecoveryFlow {
         status: EmailRecoveryStatus.SUCCESS,
         message: `Welcome ${accountId}`,
         data: { autoLogin: 'success' },
-      } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+      });
+
     } catch (err: any) {
       console.warn('[EmailRecoveryFlow] Auto-login failed after recovery', err);
+      try {
+        // Avoid leaving a stale/incompatible VRF keypair in-memory (can surface later as
+        // "Contract verification failed" during signing). User can still log in manually.
+        await this.context.webAuthnManager.clearVrfSession();
+      } catch {}
       this.emit({
         step: 5,
         phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
