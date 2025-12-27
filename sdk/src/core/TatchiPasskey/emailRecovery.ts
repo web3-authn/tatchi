@@ -237,28 +237,28 @@ export class EmailRecoveryFlow {
     const shouldClearIndex = indexedNearPublicKey === resolvedNearPublicKey;
     if (!record) {
       if (shouldClearIndex) {
-        await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => {});
+        await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => { });
       }
       return null;
     }
 
     if (Date.now() - record.createdAt > pendingTtlMs) {
-      await IndexedDBManager.clientDB.setAppState(recordKey, undefined as any).catch(() => {});
+      await IndexedDBManager.clientDB.setAppState(recordKey, undefined as any).catch(() => { });
       if (shouldClearIndex) {
-        await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => {});
+        await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => { });
       }
       return null;
     }
 
     // Keep the per-account pointer updated so `finalizeEmailRecovery({ accountId })` can resume.
-    await IndexedDBManager.clientDB.setAppState(indexKey, record.nearPublicKey).catch(() => {});
+    await IndexedDBManager.clientDB.setAppState(indexKey, record.nearPublicKey).catch(() => { });
     return record;
   }
 
   private async savePending(rec: PendingEmailRecovery): Promise<void> {
     const key = this.getPendingRecordKey(rec.accountId, rec.nearPublicKey);
     await IndexedDBManager.clientDB.setAppState(key, rec);
-    await IndexedDBManager.clientDB.setAppState(this.getPendingIndexKey(rec.accountId), rec.nearPublicKey).catch(() => {});
+    await IndexedDBManager.clientDB.setAppState(this.getPendingIndexKey(rec.accountId), rec.nearPublicKey).catch(() => { });
     this.pending = rec;
   }
 
@@ -270,11 +270,11 @@ export class EmailRecoveryFlow {
     if (resolvedNearPublicKey) {
       await IndexedDBManager.clientDB
         .setAppState(this.getPendingRecordKey(accountId, resolvedNearPublicKey), undefined as any)
-        .catch(() => {});
+        .catch(() => { });
     }
 
     if (!nearPublicKey || idx === nearPublicKey) {
-      await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => {});
+      await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => { });
     }
 
     if (
@@ -793,7 +793,63 @@ export class EmailRecoveryFlow {
                 nearPublicKey: rec.nearPublicKey,
                 transactionHash: txHash,
               },
-            });
+            } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+
+            try {
+              // CRITICAL FIX: Update local state to match the newly recovered identity immediately.
+              //
+              // Root Issue: "Failed to collect credentials" during Export Private Key.
+              // Explanation:
+              // 1. Export flows use `ensureCurrentPasskey` which relies on `getLastUser()`.
+              // 2. If we don't store the new user record here, `getLastUser()` defaults to the *previous*
+              //    device (e.g., Device #1).
+              // 3. This causes the new credential (Device #N) to be filtered out of `allowCredentials`.
+              // 4. Result: The browser prompt fails because no valid credentials are allowed.
+              //
+              // By storing the user record and syncing authenticators now, we ensure the local DB
+              // is fully aware of the new device context before any subsequent actions occur.
+
+              // 1. Store the new user record (Device N) so that `getLastUser()` finds it
+              // and `ensureCurrentPasskey` selects the correct credential for operations.
+              await IndexedDBManager.clientDB.storeWebAuthnUserData({
+                nearAccountId: accountId,
+                deviceNumber: rec.deviceNumber,
+                clientNearPublicKey: rec.nearPublicKey,
+                passkeyCredential: {
+                  id: rec.credential.id,
+                  rawId: rec.credential.rawId,
+                },
+                encryptedVrfKeypair: rec.encryptedVrfKeypair,
+                serverEncryptedVrfKeypair: rec.serverEncryptedVrfKeypair || undefined,
+              });
+
+              // 2. Sync authenticators immediately for allowCredentials list
+              const { syncAuthenticatorsContractCall } = await import('../rpcCalls');
+              const authenticators = await syncAuthenticatorsContractCall(
+                this.context.nearClient,
+                this.context.configs.contractId,
+                accountId
+              );
+
+              // Map RPC result to DB schema
+              const mappedAuthenticators = authenticators.map(({ authenticator }) => ({
+                credentialId: authenticator.credentialId,
+                credentialPublicKey: authenticator.credentialPublicKey,
+                transports: authenticator.transports,
+                name: authenticator.name,
+                registered: authenticator.registered.toISOString(),
+                vrfPublicKey: authenticator.vrfPublicKeys?.[0] || '',
+                deviceNumber: authenticator.deviceNumber,
+              }));
+
+              await IndexedDBManager.clientDB.syncAuthenticatorsFromContract(accountId, mappedAuthenticators);
+
+              // 3. Set as active user
+              await IndexedDBManager.clientDB.setLastUser(accountId, rec.deviceNumber);
+            } catch (syncErr) {
+              console.warn('[EmailRecoveryFlow] Failed to sync authenticators after recovery:', syncErr);
+              // Non-fatal; user can still proceed but might need a refresh for some features
+            }
           }
         } catch {
           // best-effort; do not fail flow
@@ -882,13 +938,13 @@ export class EmailRecoveryFlow {
 
   private async attemptAutoLogin(rec: PendingEmailRecovery): Promise<void> {
     try {
-    this.emit({
-      step: 5,
-      phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
-      status: EmailRecoveryStatus.PROGRESS,
-      message: 'Attempting auto-login with recovered device...',
-      data: { autoLogin: 'progress' },
-    } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+      this.emit({
+        step: 5,
+        phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
+        status: EmailRecoveryStatus.PROGRESS,
+        message: 'Attempting auto-login with recovered device...',
+        data: { autoLogin: 'progress' },
+      } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
 
       const { webAuthnManager } = this.context;
       const accountId = toAccountId(rec.accountId);
@@ -923,7 +979,7 @@ export class EmailRecoveryFlow {
 
             await webAuthnManager.setLastUser(accountId, deviceNumber);
             await webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
-            try { await getLoginSession(this.context, accountId); } catch {}
+            try { await getLoginSession(this.context, accountId); } catch { }
             this.emit({
               step: 5,
               phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
@@ -979,7 +1035,7 @@ export class EmailRecoveryFlow {
 
       await webAuthnManager.setLastUser(accountId, deviceNumber);
       await webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
-      try { await getLoginSession(this.context, accountId); } catch {}
+      try { await getLoginSession(this.context, accountId); } catch { }
 
       this.emit({
         step: 5,
@@ -995,7 +1051,7 @@ export class EmailRecoveryFlow {
         // Avoid leaving a stale/incompatible VRF keypair in-memory (can surface later as
         // "Contract verification failed" during signing). User can still log in manually.
         await this.context.webAuthnManager.clearVrfSession();
-      } catch {}
+      } catch { }
       this.emit({
         step: 5,
         phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
