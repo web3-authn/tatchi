@@ -38,9 +38,12 @@ export function usePreconnectWalletAssets(config: TatchiContextProviderProps['co
       // for srcdoc iframes ONLY when wallet is cross‑origin.
       let isCrossOrigin = false;
       let walletOriginOrigin: string | undefined = undefined;
+      let walletIsHttp = false;
       try {
         if (walletOrigin) {
-          walletOriginOrigin = new URL(walletOrigin, window.location.href).origin;
+          const url = new URL(walletOrigin, window.location.href);
+          walletOriginOrigin = url.origin;
+          walletIsHttp = url.protocol === 'http:' || url.protocol === 'https:';
           const parentOrigin = window.location.origin;
           isCrossOrigin = walletOriginOrigin !== parentOrigin;
           if (isCrossOrigin) {
@@ -71,50 +74,54 @@ export function usePreconnectWalletAssets(config: TatchiContextProviderProps['co
       };
 
       if (walletOrigin) {
-        // Reduce DNS/TLS handshake and fetch delays for the wallet origin
-        ensureLink('dns-prefetch', walletOrigin);
-        ensureLink('preconnect', walletOrigin, { crossorigin: '' });
+        // Resource hints only work for network origins; skip for schemes like chrome-extension://
+        // (which can cause confusing console errors and does not benefit DNS/TLS preconnect).
+        if (walletIsHttp && walletOriginOrigin) {
+          // Reduce DNS/TLS handshake and fetch delays for the wallet origin
+          ensureLink('dns-prefetch', walletOriginOrigin);
+          ensureLink('preconnect', walletOriginOrigin, { crossorigin: '' });
 
-        // Prefetch the service HTML document only in same‑origin dev.
-        // Cross‑origin prefetch would require ACAO on the HTML, which we purposely avoid.
-        if (!isCrossOrigin) {
+          // Prefetch the service HTML document only in same‑origin dev.
+          // Cross‑origin prefetch would require ACAO on the HTML, which we purposely avoid.
+          if (!isCrossOrigin) {
+            try {
+              const serviceUrl = new URL(servicePath, walletOriginOrigin).toString();
+              ensureLink('prefetch', serviceUrl, { as: 'document' });
+            } catch {}
+          }
+
+          // Preload the wallet host script module so the iframe boots faster
+          // Ensure the base URL ends with a trailing slash; otherwise new URL('file', base)
+          // would replace the last path segment ("/sdk") and yield "/wallet-iframe-host.js".
           try {
-            const serviceUrl = new URL(servicePath, walletOrigin).toString();
-            ensureLink('prefetch', serviceUrl, { as: 'document' });
+            const sdkPath = (sdkBasePath || '/sdk') as string;
+            const withSlash = sdkPath.endsWith('/') ? sdkPath : sdkPath + '/';
+            const base = new URL(withSlash, walletOriginOrigin);
+            const hostJs = new URL('wallet-iframe-host.js', base).toString();
+            ensureLink('modulepreload', hostJs, { crossorigin: '' });
+
+            // Optionally prefetch WASM binaries to accelerate first-use while avoiding preload warnings
+            // Requires CORS + correct MIME (application/wasm) on the wallet origin
+            try {
+              const signerWasm = new URL('workers/wasm_signer_worker_bg.wasm', base).toString();
+              ensureLink('prefetch', signerWasm, { as: 'fetch', crossorigin: '', type: 'application/wasm' } as any);
+            } catch {}
+            try {
+              const vrfWasm = new URL('workers/wasm_vrf_worker_bg.wasm', base).toString();
+              ensureLink('prefetch', vrfWasm, { as: 'fetch', crossorigin: '', type: 'application/wasm' } as any);
+            } catch {}
+
+            // // Preload core CSS used by confirmer to reduce first-paint FOUC
+            // const tokensCss = new URL('w3a-components.css', base).toString();
+            // const txTreeCss = new URL('tx-tree.css', base).toString();
+            // const txConfirmerCss = new URL('tx-confirmer.css', base).toString();
+            // const drawerCss = new URL('drawer.css', base).toString();
+            // ensureLink('preload', tokensCss, { as: 'style', crossorigin: '' });
+            // ensureLink('preload', txTreeCss, { as: 'style', crossorigin: '' });
+            // ensureLink('preload', modalCss, { as: 'style', crossorigin: '' });
+            // ensureLink('preload', drawerCss, { as: 'style', crossorigin: '' });
           } catch {}
         }
-
-        // Preload the wallet host script module so the iframe boots faster
-        // Ensure the base URL ends with a trailing slash; otherwise new URL('file', base)
-        // would replace the last path segment ("/sdk") and yield "/wallet-iframe-host.js".
-        try {
-          const sdkPath = (sdkBasePath || '/sdk') as string;
-          const withSlash = sdkPath.endsWith('/') ? sdkPath : sdkPath + '/';
-          const base = new URL(withSlash, walletOrigin);
-          const hostJs = new URL('wallet-iframe-host.js', base).toString();
-          ensureLink('modulepreload', hostJs, { crossorigin: '' });
-
-          // Optionally prefetch WASM binaries to accelerate first-use while avoiding preload warnings
-          // Requires CORS + correct MIME (application/wasm) on the wallet origin
-          try {
-            const signerWasm = new URL('workers/wasm_signer_worker_bg.wasm', base).toString();
-            ensureLink('prefetch', signerWasm, { as: 'fetch', crossorigin: '', type: 'application/wasm' } as any);
-          } catch {}
-          try {
-            const vrfWasm = new URL('workers/wasm_vrf_worker_bg.wasm', base).toString();
-            ensureLink('prefetch', vrfWasm, { as: 'fetch', crossorigin: '', type: 'application/wasm' } as any);
-          } catch {}
-
-          // // Preload core CSS used by confirmer to reduce first-paint FOUC
-          // const tokensCss = new URL('w3a-components.css', base).toString();
-          // const txTreeCss = new URL('tx-tree.css', base).toString();
-          // const txConfirmerCss = new URL('tx-confirmer.css', base).toString();
-          // const drawerCss = new URL('drawer.css', base).toString();
-          // ensureLink('preload', tokensCss, { as: 'style', crossorigin: '' });
-          // ensureLink('preload', txTreeCss, { as: 'style', crossorigin: '' });
-          // ensureLink('preload', modalCss, { as: 'style', crossorigin: '' });
-          // ensureLink('preload', drawerCss, { as: 'style', crossorigin: '' });
-        } catch {}
       }
 
       if (relayerUrl) {

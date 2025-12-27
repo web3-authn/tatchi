@@ -71,6 +71,22 @@ export class IframeTransport {
       ...options,
     } as Required<IframeTransportOptions>;
 
+    // Chrome extension resources require a recognized file extension to be treated as HTML.
+    // A no-extension path like `/wallet-service` is treated as a download (or non-HTML),
+    // so we alias the default path to `/wallet-service.html` for extension origins.
+    //
+    // This keeps the *config* stable (`walletServicePath` can remain `/wallet-service`)
+    // while making the embedded service page actually load/execute in an iframe.
+    try {
+      const walletUrl = new URL(this.opts.walletOrigin);
+      if (walletUrl.protocol === 'chrome-extension:') {
+        const trimmed = (this.opts.servicePath || '/wallet-service').replace(/\/+$/, '');
+        if (trimmed === '/wallet-service') {
+          this.opts.servicePath = '/wallet-service.html';
+        }
+      }
+    } catch {}
+
     try {
       this.walletServiceUrl = new URL(this.opts.servicePath, this.opts.walletOrigin);
     } catch (err) {
