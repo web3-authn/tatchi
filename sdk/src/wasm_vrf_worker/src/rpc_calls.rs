@@ -146,7 +146,7 @@ struct RpcParams<'a> {
     request_type: &'static str,
     account_id: &'a str,
     method_name: &'static str,
-    args_base64: String,
+    args_base64: &'a str,
     finality: &'static str,
 }
 
@@ -159,10 +159,169 @@ struct RpcBody<'a> {
 }
 
 impl<'a> RpcBody<'a> {
-    fn to_js_value(&'a mut self) -> Result<JsValue, String> {
+    fn to_js_value(&self) -> Result<JsValue, String> {
         serde_wasm_bindgen::to_value(self)
             .map_err(|e| format!("Failed to serialize RPC body: {}", e))
     }
+}
+
+const VERIFY_FROM_VRF_WORKER_RPC_ID: &str = "verify_from_vrf_worker";
+const VERIFY_RPC_RETRY_DELAY_MS: i32 = 500;
+const VERIFY_RPC_ATTEMPTS_PER_FINALITY: u32 = 3;
+
+fn build_verify_rpc_body(
+    contract_id: &str,
+    args_base64: &str,
+    finality: &'static str,
+) -> Result<JsValue, String> {
+    let body = RpcBody {
+        jsonrpc: "2.0",
+        id: VERIFY_FROM_VRF_WORKER_RPC_ID,
+        method: "query",
+        params: RpcParams {
+            request_type: "call_function",
+            account_id: contract_id,
+            method_name: VERIFY_AUTHENTICATION_RESPONSE_METHOD,
+            args_base64,
+            finality,
+        },
+    };
+    body.to_js_value()
+}
+
+fn extract_u8_array(obj: &JsValue, field: &str) -> Result<Vec<u8>, String> {
+    let bytes_js = Reflect::get(obj, &JsValue::from_str(field))
+        .map_err(|e| format!("Failed to read {}: {:?}", field, e))?;
+    let bytes_arr = Array::from(&bytes_js);
+    if bytes_arr.length() == 0 {
+        return Err(format!("Missing or invalid {} array", field));
+    }
+    let mut out = Vec::with_capacity(bytes_arr.length() as usize);
+    for v in bytes_arr.iter() {
+        let byte = v
+            .as_f64()
+            .ok_or_else(|| format!("{} must be an array of numbers", field))?;
+        out.push(byte as u8);
+    }
+    Ok(out)
+}
+
+fn parse_verification_rpc_response(result: &JsValue) -> Result<ContractVerificationResult, String> {
+    if let Some(error_msg) = extract_error_message(result, "error") {
+        return Ok(ContractVerificationResult {
+            success: false,
+            verified: false,
+            error: Some(error_msg),
+            logs: vec![],
+        });
+    }
+
+    let contract_result = Reflect::get(result, &JsValue::from_str("result"))
+        .map_err(|e| format!("Failed to read result from RPC response: {:?}", e))?;
+    if contract_result.is_undefined() || contract_result.is_null() {
+        return Err("Missing result in RPC response".to_string());
+    }
+
+    if let Some(error_msg) = extract_error_message(&contract_result, "error") {
+        return Ok(ContractVerificationResult {
+            success: false,
+            verified: false,
+            error: Some(error_msg),
+            logs: vec![],
+        });
+    }
+
+    let logs = extract_string_array(&contract_result, "logs");
+    let result_u8 = extract_u8_array(&contract_result, "result")?;
+
+    let result_string = String::from_utf8(result_u8)
+        .map_err(|e| format!("Failed to decode result string: {}", e))?;
+    let contract_response = js_sys::JSON::parse(&result_string)
+        .map_err(|e| format!("Failed to parse contract response: {:?}", e))?;
+
+    let verified = Reflect::get(&contract_response, &JsValue::from_str("verified"))
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let error = if verified {
+        None
+    } else {
+        Some(
+            extract_error_message(&contract_response, "error")
+                .unwrap_or_else(|| "Contract verification failed".to_string()),
+        )
+    };
+
+    Ok(ContractVerificationResult {
+        success: true,
+        verified,
+        error,
+        logs,
+    })
+}
+
+async fn verify_with_finality(
+    contract_id: &str,
+    rpc_url: &str,
+    args_base64: &str,
+    finality: &'static str,
+) -> Result<ContractVerificationResult, String> {
+    let mut last_ok: Option<ContractVerificationResult> = None;
+    let mut last_err: Option<String> = None;
+
+    for attempt in 1..=VERIFY_RPC_ATTEMPTS_PER_FINALITY {
+        debug!(
+            "[vrf wasm]: verify_authentication_response (finality={}, attempt {}/{})",
+            finality, attempt, VERIFY_RPC_ATTEMPTS_PER_FINALITY
+        );
+
+        let rpc_body = build_verify_rpc_body(contract_id, args_base64, finality)?;
+
+        match execute_rpc_request(rpc_url, &rpc_body).await {
+            Ok(raw) => match parse_verification_rpc_response(&raw) {
+                Ok(result) => {
+                    if result.verified {
+                        debug!(
+                            "[vrf wasm] Contract verification ok (finality={}, logs={:?})",
+                            finality, result.logs
+                        );
+                        return Ok(result);
+                    }
+
+                    debug!(
+                        "[vrf wasm] Contract verification not verified (finality={}, error={:?})",
+                        finality, result.error
+                    );
+                    last_ok = Some(result);
+                }
+                Err(err) => {
+                    warn!(
+                        "[vrf wasm] Failed to parse verification RPC response (finality={}, attempt {}/{}): {}",
+                        finality, attempt, VERIFY_RPC_ATTEMPTS_PER_FINALITY, err
+                    );
+                    last_err = Some(err);
+                }
+            },
+            Err(err) => {
+                warn!(
+                    "[vrf wasm] Verification RPC request failed (finality={}, attempt {}/{}): {}",
+                    finality, attempt, VERIFY_RPC_ATTEMPTS_PER_FINALITY, err
+                );
+                last_err = Some(err);
+            }
+        }
+
+        if attempt < VERIFY_RPC_ATTEMPTS_PER_FINALITY {
+            sleep(VERIFY_RPC_RETRY_DELAY_MS).await?;
+        }
+    }
+
+    if let Some(result) = last_ok {
+        return Ok(result);
+    }
+
+    Err(last_err.unwrap_or_else(|| "Verification retries exhausted".to_string()))
 }
 
 /// Perform contract verification via NEAR RPC directly from WASM (VRF-owned)
@@ -178,129 +337,38 @@ pub async fn verify_authentication_response_rpc_call(
     }
     .to_json_bytes()?;
 
-    // Retry configuration: 3 attempts total (initial + 2 retries), 500ms delay.
-    let max_attempts = 3;
-    let retry_delay_ms = 500;
+    let args_base64 = base64_url_encode(&contract_args_bytes);
 
-    for attempt in 1..=max_attempts {
-        debug!("[vrf wasm]: Making verification RPC call to: {} (attempt {}/{})", rpc_url, attempt, max_attempts);
-        let result = execute_rpc_request(
-            rpc_url,
-            &RpcBody {
-                jsonrpc: "2.0",
-                id: "verify_from_vrf_worker",
-                method: "query",
-                params: RpcParams {
-                    request_type: "call_function",
-                    account_id: contract_id,
-                    method_name: VERIFY_AUTHENTICATION_RESPONSE_METHOD,
-                    args_base64: base64_url_encode(&contract_args_bytes),
-                    finality: "optimistic",
-                },
-            }
-            .to_js_value()?,
-        )
-        .await?;
-
-        // Top-level RPC error
-        if let Some(error_msg) = extract_error_message(&result, "error") {
-             if attempt < max_attempts {
-                warn!("[vrf wasm] RPC returned error: {}. Retrying in {}ms...", error_msg, retry_delay_ms);
-                sleep(retry_delay_ms).await?;
-                continue;
-            }
-            return Ok(ContractVerificationResult {
-                success: false,
-                verified: false,
-                error: Some(error_msg),
-                logs: vec![],
-            });
-        }
-
-        let contract_result = Reflect::get(&result, &JsValue::from_str("result"))
-            .map_err(|e| format!("Failed to read result from RPC response: {:?}", e))?;
-        if contract_result.is_undefined() || contract_result.is_null() {
-            return Err("Missing result in RPC response".to_string());
-        }
-
-        if let Some(error_msg) = extract_error_message(&contract_result, "error") {
-            warn!("[vrf wasm] Contract execution error: {}", error_msg);
-            if attempt < max_attempts {
-                warn!("[vrf wasm] Retrying in {}ms...", retry_delay_ms);
-                sleep(retry_delay_ms).await?;
-                continue;
-            }
-            return Ok(ContractVerificationResult {
-                success: false,
-                verified: false,
-                error: Some(error_msg),
-                logs: vec![],
-            });
-        }
-
-        let result_bytes_js = Reflect::get(&contract_result, &JsValue::from_str("result"))
-            .map_err(|e| format!("Failed to read result.result: {:?}", e))?;
-        let result_bytes_arr = Array::from(&result_bytes_js);
-        if result_bytes_arr.length() == 0 {
-             if attempt < max_attempts {
-                warn!("[vrf wasm] Empty result.result array. Retrying in {}ms...", retry_delay_ms);
-                sleep(retry_delay_ms).await?;
-                continue;
-            }
-            return Err("Missing or invalid result.result array".to_string());
-        }
-        let mut result_u8: Vec<u8> = Vec::with_capacity(result_bytes_arr.length() as usize);
-        for v in result_bytes_arr.iter() {
-            let byte = v
-                .as_f64()
-                .ok_or_else(|| "result.result must be an array of numbers".to_string())?;
-            result_u8.push(byte as u8);
-        }
-
-        let result_string = String::from_utf8(result_u8)
-            .map_err(|e| format!("Failed to decode result string: {}", e))?;
-
-        let contract_response = js_sys::JSON::parse(&result_string)
-            .map_err(|e| format!("Failed to parse contract response: {:?}", e))?;
-
-        let verified = Reflect::get(&contract_response, &JsValue::from_str("verified"))
-            .ok()
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
-        let logs = extract_string_array(&contract_result, "logs");
-        let contract_error = extract_error_message(&contract_response, "error");
-
-        if verified {
-            debug!(
-                "[vrf wasm] Contract verification result: verified={}, logs={:?}",
-                verified, logs
-            );
-            return Ok(ContractVerificationResult {
-                success: true,
-                verified,
-                error: None,
-                logs,
-            })
-        } else {
-             debug!(
-                "[vrf wasm] Verified=false (attempt {}/{}). Error: {:?}",
-                attempt, max_attempts, contract_error
-            );
-            if attempt < max_attempts {
-                 sleep(retry_delay_ms).await?;
-                 continue;
-            }
-             return Ok(ContractVerificationResult {
-                success: true,
-                verified: false,
-                error: Some(contract_error.unwrap_or_else(|| "Contract verification failed".to_string())),
-                logs,
-            })
-        }
+    // Prefer finalized state first, then fall back to optimistic to avoid false-negatives
+    // right after authenticator registration (finalized head can lag behind).
+    let final_result = verify_with_finality(contract_id, rpc_url, &args_base64, "final").await;
+    if matches!(final_result, Ok(ref r) if r.verified) {
+        return final_result;
     }
 
-    Err("Verification retries exhausted".to_string())
+    let optimistic_result = verify_with_finality(
+        contract_id,
+        rpc_url,
+        &args_base64,
+        "optimistic"
+    ).await;
+
+    if matches!(optimistic_result, Ok(ref r) if r.verified) {
+        return optimistic_result;
+    }
+
+    // Neither finality produced a verified result; return whichever provided a structured
+    // contract response (optimistic preferred), otherwise surface a combined RPC error.
+    match optimistic_result {
+        Ok(r) => Ok(r),
+        Err(opt_err) => match final_result {
+            Ok(r) => Ok(r),
+            Err(final_err) => Err(format!(
+                "verify_authentication_response RPC failed (final: {}; optimistic: {})",
+                final_err, opt_err
+            )),
+        },
+    }
 }
 
 #[wasm_bindgen]
