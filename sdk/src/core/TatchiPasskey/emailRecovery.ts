@@ -10,7 +10,6 @@ import {
   type AfterCall,
 } from '../types/sdkSentEvents';
 import type { TatchiConfigs } from '../types/tatchi';
-import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import {
   createRandomVRFChallenge,
   type EncryptedVRFKeypair,
@@ -22,6 +21,8 @@ import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 import { getLoginSession } from './login';
+import type { SignedTransaction } from '../NearClient';
+import { EmailRecoveryPendingStore, type PendingStore } from '../EmailRecovery';
 
 export type PendingEmailRecoveryStatus =
   | 'awaiting-email'
@@ -45,15 +46,47 @@ export type PendingEmailRecovery = {
   status: PendingEmailRecoveryStatus;
 };
 
+type PollTickResult<T> = { done: false } | { done: true; value: T };
+
+type PollUntilResult<T> =
+  | { status: 'completed'; value: T; elapsedMs: number; pollCount: number }
+  | { status: 'timedOut'; elapsedMs: number; pollCount: number }
+  | { status: 'cancelled'; elapsedMs: number; pollCount: number };
+
+type VerificationOutcome =
+  | { outcome: 'verified' }
+  | { outcome: 'failed'; errorMessage: string };
+
+type AutoLoginResult =
+  | { success: true; method: 'shamir' | 'touchid' }
+  | { success: false; reason: string };
+
+type StoreUserDataPayload = Parameters<PasskeyManagerContext['webAuthnManager']['storeUserData']>[0];
+
+type AccountViewLike = {
+  amount: bigint | string;
+  locked: bigint | string;
+  storage_usage: number | bigint;
+};
+
+type CollectedRecoveryCredential = {
+  credential: WebAuthnRegistrationCredential;
+  vrfChallenge?: VRFChallenge;
+};
+
+type DerivedRecoveryKeys = {
+  encryptedVrfKeypair: EncryptedVRFKeypair;
+  serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
+  vrfPublicKey: string;
+  nearPublicKey: string;
+};
+
 export interface EmailRecoveryFlowOptions {
   onEvent?: EventCallback<EmailRecoverySSEEvent>;
   onError?: (error: Error) => void;
   afterCall?: AfterCall<void>;
-  /**
-   * Preferred grouping for per-call confirmer copy.
-   */
+  pendingStore?: PendingStore;
   confirmerText?: { title?: string; body?: string };
-  // Per-call confirmation configuration (non-persistent)
   confirmationConfig?: Partial<ConfirmationConfig>;
 }
 
@@ -101,6 +134,7 @@ export function generateEmailRecoveryRequestId(): string {
 export class EmailRecoveryFlow {
   private context: PasskeyManagerContext;
   private options?: EmailRecoveryFlowOptions;
+  private pendingStore: PendingStore;
   private pending: PendingEmailRecovery | null = null;
   private phase: EmailRecoveryPhase = EmailRecoveryPhase.STEP_1_PREPARATION;
   private pollingTimer: any;
@@ -112,11 +146,17 @@ export class EmailRecoveryFlow {
   constructor(context: PasskeyManagerContext, options?: EmailRecoveryFlowOptions) {
     this.context = context;
     this.options = options;
+    this.pendingStore = options?.pendingStore ?? new EmailRecoveryPendingStore({
+      getPendingTtlMs: () => this.getConfig().pendingTtlMs,
+    });
   }
 
   setOptions(options?: EmailRecoveryFlowOptions) {
     if (!options) return;
     this.options = { ...(this.options || {}), ...options };
+    if (options.pendingStore) {
+      this.pendingStore = options.pendingStore;
+    }
   }
   private emit(event: EmailRecoverySSEEvent) {
     this.options?.onEvent?.(event);
@@ -137,42 +177,219 @@ export class EmailRecoveryFlow {
     return err;
   }
 
+  private async fail(step: number, message: string): Promise<never> {
+    const err = this.emitError(step, message);
+    await this.options?.afterCall?.(false);
+    throw err;
+  }
+
+  private async assertValidAccountIdOrFail(step: number, accountId: string): Promise<AccountId> {
+    const validation = validateNearAccountId(accountId as AccountId);
+    if (!validation.valid) {
+      await this.fail(step, `Invalid NEAR account ID: ${validation.error}`);
+    }
+    return toAccountId(accountId as string);
+  }
+
+  private async resolvePendingOrFail(
+    step: number,
+    args: { accountId: AccountId; nearPublicKey?: string },
+    options?: {
+      allowErrorStatus?: boolean;
+      missingMessage?: string;
+      errorStatusMessage?: string;
+    }
+  ): Promise<PendingEmailRecovery> {
+    const {
+      allowErrorStatus = true,
+      missingMessage = 'No pending email recovery record found for this account',
+      errorStatusMessage = 'Pending email recovery is in an error state; please restart the flow',
+    } = options ?? {};
+
+    let rec = this.pending;
+    if (!rec || rec.accountId !== args.accountId || (args.nearPublicKey && rec.nearPublicKey !== args.nearPublicKey)) {
+      rec = await this.loadPending(args.accountId, args.nearPublicKey);
+      this.pending = rec;
+    }
+
+    if (!rec) {
+      await this.fail(step, missingMessage);
+    }
+
+    const resolved = rec as PendingEmailRecovery;
+    if (!allowErrorStatus && resolved.status === 'error') {
+      await this.fail(step, errorStatusMessage);
+    }
+
+    return resolved;
+  }
+
   private getConfig() {
     return getEmailRecoveryConfig(this.context.configs);
   }
 
-  private getPendingIndexKey(accountId: AccountId): string {
-    return `pendingEmailRecovery:${accountId}`;
+  private toBigInt(value: bigint | number | string | null | undefined): bigint {
+    if (typeof value === 'bigint') return value;
+    if (typeof value === 'number') return BigInt(value);
+    if (typeof value === 'string' && value.length > 0) return BigInt(value);
+    return BigInt(0);
   }
 
-  private getPendingRecordKey(accountId: AccountId, nearPublicKey: string): string {
-    return `${this.getPendingIndexKey(accountId)}:${nearPublicKey}`;
+  private computeAvailableBalance(accountView: AccountViewLike): bigint {
+    const STORAGE_PRICE_PER_BYTE = BigInt('10000000000000000000'); // 1e19 yocto NEAR per byte
+    const amount = this.toBigInt(accountView.amount);
+    const locked = this.toBigInt(accountView.locked);
+    const storageUsage = this.toBigInt(accountView.storage_usage);
+    const storageCost = storageUsage * STORAGE_PRICE_PER_BYTE;
+    const rawAvailable = amount - locked - storageCost;
+    return rawAvailable > 0 ? rawAvailable : BigInt(0);
   }
 
-  private async checkVerificationStatus(
+  private async assertSufficientBalance(nearAccountId: AccountId): Promise<void> {
+    const { minBalanceYocto } = this.getConfig();
+
+    try {
+      const accountView = await this.context.nearClient.viewAccount(nearAccountId);
+      const available = this.computeAvailableBalance(accountView);
+      if (available < BigInt(minBalanceYocto)) {
+        await this.fail(
+          1,
+          `This account does not have enough NEAR to finalize recovery. Available: ${available.toString()} yocto; required: ${String(minBalanceYocto)}. Please top up and try again.`
+        );
+      }
+    } catch (e: any) {
+      await this.fail(1, e?.message || 'Failed to fetch account balance for recovery');
+    }
+  }
+
+  private async getCanonicalRecoveryEmailOrFail(recoveryEmail: string): Promise<string> {
+    const canonicalEmail = String(recoveryEmail || '').trim().toLowerCase();
+    if (!canonicalEmail) {
+      await this.fail(1, 'Recovery email is required for email-based account recovery');
+    }
+    return canonicalEmail;
+  }
+
+  private async getNextDeviceNumberFromContract(nearAccountId: AccountId): Promise<number> {
+    try {
+      const { syncAuthenticatorsContractCall } = await import('../rpcCalls');
+      const authenticators = await syncAuthenticatorsContractCall(
+        this.context.nearClient,
+        this.context.configs.contractId,
+        nearAccountId
+      );
+      const numbers = authenticators
+        .map((a: any) => a?.authenticator?.deviceNumber)
+        .filter((n: any) => typeof n === 'number' && Number.isFinite(n)) as number[];
+      const max = numbers.length > 0 ? Math.max(...numbers) : 0;
+      return max + 1;
+    } catch {
+      return 1;
+    }
+  }
+
+  private async collectRecoveryCredentialOrFail(
+    nearAccountId: AccountId,
+    deviceNumber: number
+  ): Promise<CollectedRecoveryCredential> {
+    const confirmerText = {
+      title: this.options?.confirmerText?.title ?? 'Register New Recovery Account',
+      body: this.options?.confirmerText?.body ?? 'Create a recovery account and send an encrypted email to recover your account.',
+    };
+    const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
+      nearAccountId,
+      deviceNumber,
+      confirmerText,
+      confirmationConfigOverride: this.options?.confirmationConfig,
+    });
+
+    if (!confirm.confirmed || !confirm.credential) {
+      await this.fail(2, 'User cancelled email recovery TouchID confirmation');
+    }
+
+    return {
+      credential: confirm.credential,
+      vrfChallenge: confirm.vrfChallenge || undefined,
+    };
+  }
+
+  private async deriveRecoveryKeysOrFail(
+    nearAccountId: AccountId,
+    deviceNumber: number,
+    credential: WebAuthnRegistrationCredential
+  ): Promise<DerivedRecoveryKeys> {
+    const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypair({
+      credential,
+      nearAccountId,
+    });
+
+    if (!vrfDerivationResult.success || !vrfDerivationResult.encryptedVrfKeypair) {
+      await this.fail(2, 'Failed to derive VRF keypair from PRF for email recovery');
+    }
+
+    const nearKeyResult = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
+      nearAccountId,
+      credential,
+      options: { deviceNumber },
+    });
+
+    if (!nearKeyResult.success || !nearKeyResult.publicKey) {
+      await this.fail(2, 'Failed to derive NEAR keypair for email recovery');
+    }
+
+    return {
+      encryptedVrfKeypair: vrfDerivationResult.encryptedVrfKeypair,
+      serverEncryptedVrfKeypair: vrfDerivationResult.serverEncryptedVrfKeypair || null,
+      vrfPublicKey: vrfDerivationResult.vrfPublicKey,
+      nearPublicKey: nearKeyResult.publicKey,
+    };
+  }
+
+  private emitAwaitEmail(rec: PendingEmailRecovery, mailtoUrl: string): void {
+    this.phase = EmailRecoveryPhase.STEP_3_AWAIT_EMAIL;
+    this.emit({
+      step: 3,
+      phase: EmailRecoveryPhase.STEP_3_AWAIT_EMAIL,
+      status: EmailRecoveryStatus.PROGRESS,
+      message: 'New device key created; please send the recovery email from your registered address.',
+      data: {
+        accountId: rec.accountId,
+        recoveryEmail: rec.recoveryEmail,
+        nearPublicKey: rec.nearPublicKey,
+        requestId: rec.requestId,
+        mailtoUrl,
+      },
+    } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+  }
+
+  private emitAutoLoginEvent(
+    status: EmailRecoveryStatus,
+    message: string,
+    data: Record<string, unknown>
+  ): void {
+    this.emit({
+      step: 5,
+      phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
+      status,
+      message,
+      data,
+    } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+  }
+
+  private async checkViaDkimViewMethod(
     rec: PendingEmailRecovery
   ): Promise<{ completed: boolean; success: boolean; errorMessage?: string; transactionHash?: string } | null> {
     const { dkimVerifierAccountId, verificationViewMethod } = this.getConfig();
     if (!dkimVerifierAccountId) return null;
 
     try {
-      type VerificationResult = {
-        verified: boolean;
-        account_id?: string;
-        new_public_key?: string;
-        transaction_hash?: string;
-        error_code?: string;
-        error_message?: string;
-      };
-
-      const result = await this.context.nearClient.view<
-        { request_id: string },
-        VerificationResult | null
-      >({
-        account: dkimVerifierAccountId,
-        method: verificationViewMethod,
-        args: { request_id: rec.requestId },
-      });
+      const { getEmailRecoveryVerificationResult } = await import('../rpcCalls');
+      const result = await getEmailRecoveryVerificationResult(
+        this.context.nearClient,
+        dkimVerifierAccountId,
+        verificationViewMethod,
+        rec.requestId
+      );
 
       if (!result) {
         return { completed: false, success: false };
@@ -212,70 +429,90 @@ export class EmailRecoveryFlow {
         transactionHash: result.transaction_hash
       };
     } catch (err) {
-      // If the view method is not available or fails, fall back to access key polling.
+      // Treat view errors as retryable; keep polling the view method.
       // eslint-disable-next-line no-console
-      console.warn('[EmailRecoveryFlow] get_verification_result view failed; falling back to access key polling', err);
+      console.warn('[EmailRecoveryFlow] get_verification_result view failed; will retry', err);
       return null;
     }
+  }
+
+  private buildPollingEventData(
+    rec: PendingEmailRecovery,
+    details: { transactionHash?: string; elapsedMs: number; pollCount: number }
+  ): Record<string, unknown> {
+    return {
+      accountId: rec.accountId,
+      requestId: rec.requestId,
+      nearPublicKey: rec.nearPublicKey,
+      transactionHash: details.transactionHash,
+      elapsedMs: details.elapsedMs,
+      pollCount: details.pollCount,
+    };
+  }
+
+  private async sleepForPollInterval(ms: number): Promise<void> {
+    await new Promise<void>(resolve => {
+      this.pollIntervalResolver = resolve;
+      this.pollingTimer = setTimeout(() => {
+        this.pollIntervalResolver = undefined;
+        this.pollingTimer = undefined;
+        resolve();
+      }, ms);
+    }).finally(() => {
+      this.pollIntervalResolver = undefined;
+    });
+  }
+
+  private async pollUntil<T>(args: {
+    intervalMs: number;
+    timeoutMs: number;
+    isCancelled: () => boolean;
+    tick: (ctx: { elapsedMs: number; pollCount: number }) => Promise<PollTickResult<T>>;
+    sleep?: (ms: number) => Promise<void>;
+    now?: () => number;
+  }): Promise<PollUntilResult<T>> {
+    const now = args.now ?? Date.now;
+    const sleep = args.sleep ?? this.sleepForPollInterval.bind(this);
+    const startedAt = now();
+    let pollCount = 0;
+
+    while (!args.isCancelled()) {
+      pollCount += 1;
+      const elapsedMs = now() - startedAt;
+      if (elapsedMs > args.timeoutMs) {
+        return { status: 'timedOut', elapsedMs, pollCount };
+      }
+
+      const result = await args.tick({ elapsedMs, pollCount });
+      if (result.done) {
+        return { status: 'completed', value: result.value, elapsedMs, pollCount };
+      }
+
+      if (args.isCancelled()) {
+        return { status: 'cancelled', elapsedMs, pollCount };
+      }
+
+      await sleep(args.intervalMs);
+    }
+
+    const elapsedMs = now() - startedAt;
+    return { status: 'cancelled', elapsedMs, pollCount };
   }
 
   private async loadPending(
     accountId: AccountId,
     nearPublicKey?: string
   ): Promise<PendingEmailRecovery | null> {
-    const { pendingTtlMs } = this.getConfig();
-
-    const indexKey = this.getPendingIndexKey(accountId);
-    const indexedNearPublicKey = await IndexedDBManager.clientDB.getAppState<string>(indexKey);
-    const resolvedNearPublicKey = nearPublicKey ?? indexedNearPublicKey;
-    if (!resolvedNearPublicKey) {
-      return null;
-    }
-
-    const recordKey = this.getPendingRecordKey(accountId, resolvedNearPublicKey);
-    const record = await IndexedDBManager.clientDB.getAppState<PendingEmailRecovery>(recordKey);
-    const shouldClearIndex = indexedNearPublicKey === resolvedNearPublicKey;
-    if (!record) {
-      if (shouldClearIndex) {
-        await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => { });
-      }
-      return null;
-    }
-
-    if (Date.now() - record.createdAt > pendingTtlMs) {
-      await IndexedDBManager.clientDB.setAppState(recordKey, undefined as any).catch(() => { });
-      if (shouldClearIndex) {
-        await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => { });
-      }
-      return null;
-    }
-
-    // Keep the per-account pointer updated so `finalizeEmailRecovery({ accountId })` can resume.
-    await IndexedDBManager.clientDB.setAppState(indexKey, record.nearPublicKey).catch(() => { });
-    return record;
+    return this.pendingStore.get(accountId, nearPublicKey);
   }
 
   private async savePending(rec: PendingEmailRecovery): Promise<void> {
-    const key = this.getPendingRecordKey(rec.accountId, rec.nearPublicKey);
-    await IndexedDBManager.clientDB.setAppState(key, rec);
-    await IndexedDBManager.clientDB.setAppState(this.getPendingIndexKey(rec.accountId), rec.nearPublicKey).catch(() => { });
+    await this.pendingStore.set(rec);
     this.pending = rec;
   }
 
   private async clearPending(accountId: AccountId, nearPublicKey?: string): Promise<void> {
-    const indexKey = this.getPendingIndexKey(accountId);
-    const idx = await IndexedDBManager.clientDB.getAppState<string>(indexKey).catch(() => undefined);
-
-    const resolvedNearPublicKey = nearPublicKey || idx || '';
-    if (resolvedNearPublicKey) {
-      await IndexedDBManager.clientDB
-        .setAppState(this.getPendingRecordKey(accountId, resolvedNearPublicKey), undefined as any)
-        .catch(() => { });
-    }
-
-    if (!nearPublicKey || idx === nearPublicKey) {
-      await IndexedDBManager.clientDB.setAppState(indexKey, undefined as any).catch(() => { });
-    }
+    await this.pendingStore.clear(accountId, nearPublicKey);
 
     if (
       this.pending
@@ -299,57 +536,23 @@ export class EmailRecoveryFlow {
     this.cancelled = false;
     this.error = undefined;
 
-    const validation = validateNearAccountId(accountId as AccountId);
-    if (!validation.valid) {
-      const err = this.emitError(3, `Invalid NEAR account ID: ${validation.error}`);
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
-
-    const nearAccountId = toAccountId(accountId as string);
-    let rec = this.pending;
-    if (!rec || rec.accountId !== nearAccountId || (nearPublicKey && rec.nearPublicKey !== nearPublicKey)) {
-      rec = await this.loadPending(nearAccountId, nearPublicKey);
-      this.pending = rec;
-    }
-
-    if (!rec) {
-      const err = this.emitError(3, 'No pending email recovery record found for this account');
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
-
-    if (rec.status === 'error') {
-      const err = this.emitError(3, 'Pending email recovery is in an error state; please restart the flow');
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
+    const nearAccountId = await this.assertValidAccountIdOrFail(3, accountId);
+    const rec = await this.resolvePendingOrFail(
+      3,
+      { accountId: nearAccountId, nearPublicKey },
+      { allowErrorStatus: false }
+    );
 
     if (rec.status === 'finalizing' || rec.status === 'complete') {
-      const err = this.emitError(3, 'Recovery email has already been processed on-chain for this request');
-      await this.options?.afterCall?.(false);
-      throw err;
+      await this.fail(3, 'Recovery email has already been processed on-chain for this request');
     }
 
     const mailtoUrl =
       rec.status === 'awaiting-email'
         ? await this.buildMailtoUrlAndUpdateStatus(rec)
         : this.buildMailtoUrlInternal(rec);
-    this.phase = EmailRecoveryPhase.STEP_3_AWAIT_EMAIL;
-    this.emit({
-      step: 3,
-      phase: EmailRecoveryPhase.STEP_3_AWAIT_EMAIL,
-      status: EmailRecoveryStatus.PROGRESS,
-      message: 'New device key created; please send the recovery email from your registered address.',
-      data: {
-        accountId: rec.accountId,
-        recoveryEmail: rec.recoveryEmail,
-        nearPublicKey: rec.nearPublicKey,
-        requestId: rec.requestId,
-        mailtoUrl,
-      },
-    } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
-    await this.options?.afterCall?.(true, undefined as any);
+    this.emitAwaitEmail(rec, mailtoUrl);
+    await this.options?.afterCall?.(true, undefined);
     return mailtoUrl;
   }
 
@@ -366,63 +569,12 @@ export class EmailRecoveryFlow {
       message: 'Preparing email recovery...',
     });
 
-    const validation = validateNearAccountId(accountId as AccountId);
-    if (!validation.valid) {
-      const err = this.emitError(1, `Invalid NEAR account ID: ${validation.error}`);
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
-
-    const nearAccountId = toAccountId(accountId as string);
-    const { minBalanceYocto } = this.getConfig();
-    const STORAGE_PRICE_PER_BYTE = BigInt('10000000000000000000'); // 1e19 yocto NEAR per byte
-
-    try {
-      const accountView = await this.context.nearClient.viewAccount(nearAccountId);
-      const amount = BigInt(accountView.amount || '0');
-      const locked = BigInt((accountView as any).locked || '0');
-      const storageUsage = BigInt((accountView as any).storage_usage || 0);
-      const storageCost = storageUsage * STORAGE_PRICE_PER_BYTE;
-      const rawAvailable = amount - locked - storageCost;
-      const available = rawAvailable > 0 ? rawAvailable : BigInt(0);
-      if (available < BigInt(minBalanceYocto)) {
-        const err = this.emitError(
-          1,
-          `This account does not have enough NEAR to finalize recovery. Available: ${available.toString()} yocto; required: ${String(minBalanceYocto)}. Please top up and try again.`
-        );
-        await this.options?.afterCall?.(false);
-        throw err;
-      }
-    } catch (e: any) {
-      const err = this.emitError(1, e?.message || 'Failed to fetch account balance for recovery');
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
-
-    const canonicalEmail = String(recoveryEmail || '').trim().toLowerCase();
-    if (!canonicalEmail) {
-      const err = this.emitError(1, 'Recovery email is required for email-based account recovery');
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
+    const nearAccountId = await this.assertValidAccountIdOrFail(1, accountId);
+    await this.assertSufficientBalance(nearAccountId);
+    const canonicalEmail = await this.getCanonicalRecoveryEmailOrFail(recoveryEmail);
 
     // Determine deviceNumber from on-chain authenticators
-    let deviceNumber = 1;
-    try {
-      const { syncAuthenticatorsContractCall } = await import('../rpcCalls');
-      const authenticators = await syncAuthenticatorsContractCall(
-        this.context.nearClient,
-        this.context.configs.contractId,
-        nearAccountId
-      );
-      const numbers = authenticators
-        .map((a: any) => a?.authenticator?.deviceNumber)
-        .filter((n: any) => typeof n === 'number' && Number.isFinite(n)) as number[];
-      const max = numbers.length > 0 ? Math.max(...numbers) : 0;
-      deviceNumber = max + 1;
-    } catch {
-      deviceNumber = 1;
-    }
+    const deviceNumber = await this.getNextDeviceNumberFromContract(nearAccountId);
 
     this.phase = EmailRecoveryPhase.STEP_2_TOUCH_ID_REGISTRATION;
     this.emit({
@@ -433,54 +585,18 @@ export class EmailRecoveryFlow {
     });
 
     try {
-      const confirmerText = {
-        title: this.options?.confirmerText?.title ?? 'Register New Recovery Account',
-        body: this.options?.confirmerText?.body ?? 'Create a recovery account and send an encrypted email to recover your account.',
-      };
-      const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
-        nearAccountId,
-        deviceNumber,
-        confirmerText,
-        confirmationConfigOverride: this.options?.confirmationConfig,
-      });
-      if (!confirm.confirmed || !confirm.credential) {
-        const err = this.emitError(2, 'User cancelled email recovery TouchID confirmation');
-        await this.options?.afterCall?.(false);
-        throw err;
-      }
-
-      const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypair({
-        credential: confirm.credential,
-        nearAccountId,
-      });
-
-      if (!vrfDerivationResult.success || !vrfDerivationResult.encryptedVrfKeypair) {
-        const err = this.emitError(2, 'Failed to derive VRF keypair from PRF for email recovery');
-        await this.options?.afterCall?.(false);
-        throw err;
-      }
-
-      const nearKeyResult = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
-        nearAccountId,
-        credential: confirm.credential,
-        options: { deviceNumber },
-      });
-
-      if (!nearKeyResult.success || !nearKeyResult.publicKey) {
-        const err = this.emitError(2, 'Failed to derive NEAR keypair for email recovery');
-        await this.options?.afterCall?.(false);
-        throw err;
-      }
+      const confirm = await this.collectRecoveryCredentialOrFail(nearAccountId, deviceNumber);
+      const derivedKeys = await this.deriveRecoveryKeysOrFail(nearAccountId, deviceNumber, confirm.credential);
 
       const rec: PendingEmailRecovery = {
         accountId: nearAccountId,
         recoveryEmail: canonicalEmail,
         deviceNumber,
-        nearPublicKey: nearKeyResult.publicKey,
+        nearPublicKey: derivedKeys.nearPublicKey,
         requestId: generateEmailRecoveryRequestId(),
-        encryptedVrfKeypair: vrfDerivationResult.encryptedVrfKeypair,
-        serverEncryptedVrfKeypair: vrfDerivationResult.serverEncryptedVrfKeypair || null,
-        vrfPublicKey: vrfDerivationResult.vrfPublicKey,
+        encryptedVrfKeypair: derivedKeys.encryptedVrfKeypair,
+        serverEncryptedVrfKeypair: derivedKeys.serverEncryptedVrfKeypair,
+        vrfPublicKey: derivedKeys.vrfPublicKey,
         credential: confirm.credential,
         vrfChallenge: confirm.vrfChallenge || undefined,
         createdAt: Date.now(),
@@ -489,22 +605,9 @@ export class EmailRecoveryFlow {
 
       const mailtoUrl = await this.buildMailtoUrlAndUpdateStatus(rec);
 
-      this.phase = EmailRecoveryPhase.STEP_3_AWAIT_EMAIL;
-      this.emit({
-        step: 3,
-        phase: EmailRecoveryPhase.STEP_3_AWAIT_EMAIL,
-        status: EmailRecoveryStatus.PROGRESS,
-        message: 'New device key created; please send the recovery email from your registered address.',
-        data: {
-          accountId: rec.accountId,
-          recoveryEmail: rec.recoveryEmail,
-          nearPublicKey: rec.nearPublicKey,
-          requestId: rec.requestId,
-          mailtoUrl,
-        },
-      } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+      this.emitAwaitEmail(rec, mailtoUrl);
 
-      await this.options?.afterCall?.(true, undefined as any);
+      await this.options?.afterCall?.(true, undefined);
 
       return { mailtoUrl, nearPublicKey: rec.nearPublicKey };
     } catch (e: any) {
@@ -533,31 +636,14 @@ export class EmailRecoveryFlow {
     this.cancelled = false;
     this.error = undefined;
 
-    const validation = validateNearAccountId(accountId as AccountId);
-    if (!validation.valid) {
-      const err = this.emitError(4, `Invalid NEAR account ID: ${validation.error}`);
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
-    const nearAccountId = toAccountId(accountId as string);
-
-    let rec = this.pending;
-    if (!rec || rec.accountId !== nearAccountId || (nearPublicKey && rec.nearPublicKey !== nearPublicKey)) {
-      rec = await this.loadPending(nearAccountId, nearPublicKey);
-      this.pending = rec;
-    }
-    if (!rec) {
-      const err = this.emitError(4, 'No pending email recovery record found for this account');
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
-    if (rec.status === 'error') {
-      const err = this.emitError(4, 'Pending email recovery is in an error state; please restart the flow');
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
+    const nearAccountId = await this.assertValidAccountIdOrFail(4, accountId);
+    const rec = await this.resolvePendingOrFail(
+      4,
+      { accountId: nearAccountId, nearPublicKey },
+      { allowErrorStatus: false }
+    );
     if (rec.status === 'complete' || rec.status === 'finalizing') {
-      await this.options?.afterCall?.(true, undefined as any);
+      await this.options?.afterCall?.(true, undefined);
       return;
     }
     if (rec.status === 'awaiting-email') {
@@ -565,7 +651,7 @@ export class EmailRecoveryFlow {
     }
 
     await this.pollUntilAddKey(rec);
-    await this.options?.afterCall?.(true, undefined as any);
+    await this.options?.afterCall?.(true, undefined);
   }
 
   stopPolling(): void {
@@ -609,24 +695,12 @@ export class EmailRecoveryFlow {
     this.cancelled = false;
     this.error = undefined;
 
-    const validation = validateNearAccountId(accountId as AccountId);
-    if (!validation.valid) {
-      const err = this.emitError(4, `Invalid NEAR account ID: ${validation.error}`);
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
-    const nearAccountId = toAccountId(accountId as string);
-
-    let rec = this.pending;
-    if (!rec || rec.accountId !== nearAccountId || (nearPublicKey && rec.nearPublicKey !== nearPublicKey)) {
-      rec = await this.loadPending(nearAccountId, nearPublicKey);
-      this.pending = rec;
-    }
-    if (!rec) {
-      const err = this.emitError(4, 'No pending email recovery record found for this account');
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
+    const nearAccountId = await this.assertValidAccountIdOrFail(4, accountId);
+    const rec = await this.resolvePendingOrFail(
+      4,
+      { accountId: nearAccountId, nearPublicKey },
+      { allowErrorStatus: true }
+    );
 
     this.emit({
       step: 0,
@@ -648,14 +722,14 @@ export class EmailRecoveryFlow {
         status: EmailRecoveryStatus.SUCCESS,
         message: 'Email recovery already completed for this key.',
       });
-      await this.options?.afterCall?.(true, undefined as any);
+      await this.options?.afterCall?.(true, undefined);
       return;
     }
 
     // Ensure verification has completed successfully before finalizing registration.
     await this.pollUntilAddKey(rec);
     await this.finalizeRegistration(rec);
-    await this.options?.afterCall?.(true, undefined as any);
+    await this.options?.afterCall?.(true, undefined);
   }
 
   private async pollUntilAddKey(rec: PendingEmailRecovery): Promise<void> {
@@ -667,73 +741,381 @@ export class EmailRecoveryFlow {
     }
     this.phase = EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT;
     this.pollingStartedAt = Date.now();
-    let pollCount = 0;
 
-    while (!this.cancelled) {
-      pollCount += 1;
-      const elapsed = Date.now() - (this.pollingStartedAt || 0);
-      if (elapsed > maxPollingDurationMs) {
-        const err = this.emitError(4, 'Timed out waiting for recovery email to be processed on-chain');
+    const pollResult = await this.pollUntil<VerificationOutcome>({
+      intervalMs: pollingIntervalMs,
+      timeoutMs: maxPollingDurationMs,
+      isCancelled: () => this.cancelled,
+      tick: async ({ elapsedMs, pollCount }) => {
+        const verification = await this.checkViaDkimViewMethod(rec);
+        const completed = verification?.completed === true;
+        const success = verification?.success === true;
+
+        this.emit({
+          step: 4,
+          phase: EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT,
+          status: EmailRecoveryStatus.PROGRESS,
+          message: completed && success
+            ? `Email verified for request ${rec.requestId}; finalizing registration`
+            : `Waiting for email verification for request ${rec.requestId}`,
+          data: this.buildPollingEventData(rec, {
+            transactionHash: verification?.transactionHash,
+            elapsedMs,
+            pollCount,
+          }),
+        } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+
+        if (!completed) {
+          return { done: false };
+        }
+
+        if (!success) {
+          return {
+            done: true,
+            value: {
+              outcome: 'failed',
+              errorMessage: verification?.errorMessage || 'Email verification failed',
+            },
+          };
+        }
+
+        return { done: true, value: { outcome: 'verified' } };
+      },
+    });
+
+    if (pollResult.status === 'completed') {
+      if (pollResult.value.outcome === 'failed') {
+        const err = this.emitError(4, pollResult.value.errorMessage);
         rec.status = 'error';
         await this.savePending(rec);
         await this.options?.afterCall?.(false);
         throw err;
       }
 
-      const verification = await this.checkVerificationStatus(rec);
-      const completed = verification?.completed === true;
-      const success = verification?.success === true;
+      rec.status = 'finalizing';
+      await this.savePending(rec);
+      return;
+    }
 
-      this.emit({
-        step: 4,
-        phase: EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT,
-        status: EmailRecoveryStatus.PROGRESS,
-        message: completed && success
-          ? `Email verified for request ${rec.requestId}; finalizing registration`
-          : `Waiting for email verification for request ${rec.requestId}`,
-        data: {
-          accountId: rec.accountId,
-          requestId: rec.requestId,
-          nearPublicKey: rec.nearPublicKey,
-          transactionHash: verification?.transactionHash,
-          elapsedMs: elapsed,
-          pollCount,
-        },
-      } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
-
-      if (completed) {
-        if (!success) {
-          const err = this.emitError(4, verification?.errorMessage || 'Email verification failed');
-          rec.status = 'error';
-          await this.savePending(rec);
-          await this.options?.afterCall?.(false);
-          throw err;
-        }
-
-        rec.status = 'finalizing';
-        await this.savePending(rec);
-        return;
-      }
-
-      // If cancellation happens mid-iteration (e.g. while awaiting a view call),
-      // don't wait an extra pollingIntervalMs before unwinding.
-      if (this.cancelled) break;
-
-      await new Promise<void>(resolve => {
-        this.pollIntervalResolver = resolve;
-        this.pollingTimer = setTimeout(() => {
-          this.pollIntervalResolver = undefined;
-          this.pollingTimer = undefined;
-          resolve();
-        }, pollingIntervalMs);
-      }).finally(() => {
-        this.pollIntervalResolver = undefined;
-      });
+    if (pollResult.status === 'timedOut') {
+      const err = this.emitError(4, 'Timed out waiting for recovery email to be processed on-chain');
+      rec.status = 'error';
+      await this.savePending(rec);
+      await this.options?.afterCall?.(false);
+      throw err;
     }
 
     const err = this.emitError(4, 'Email recovery polling was cancelled');
     await this.options?.afterCall?.(false);
     throw err;
+  }
+
+  private initializeNonceManager(
+    rec: PendingEmailRecovery
+  ): {
+    nonceManager: ReturnType<PasskeyManagerContext['webAuthnManager']['getNonceManager']>;
+    accountId: AccountId;
+  } {
+    const nonceManager = this.context.webAuthnManager.getNonceManager();
+    const accountId = toAccountId(rec.accountId);
+    nonceManager.initializeUser(accountId, rec.nearPublicKey);
+    return { nonceManager, accountId };
+  }
+
+  private async signRegistrationTx(rec: PendingEmailRecovery, accountId: AccountId): Promise<SignedTransaction> {
+    const vrfChallenge = rec.vrfChallenge;
+    if (!vrfChallenge) {
+      return this.fail(5, 'Missing VRF challenge for email recovery registration');
+    }
+
+    const registrationResult = await this.context.webAuthnManager.signDevice2RegistrationWithStoredKey({
+      nearAccountId: accountId,
+      credential: rec.credential,
+      vrfChallenge,
+      deterministicVrfPublicKey: rec.vrfPublicKey,
+      deviceNumber: rec.deviceNumber,
+    });
+
+    if (!registrationResult.success || !registrationResult.signedTransaction) {
+      await this.fail(5, registrationResult.error || 'Failed to sign email recovery registration transaction');
+    }
+
+    return registrationResult.signedTransaction;
+  }
+
+  private async broadcastRegistrationTxAndWaitFinal(
+    rec: PendingEmailRecovery,
+    signedTx: SignedTransaction
+  ): Promise<string | undefined> {
+    try {
+      const txResult = await this.context.nearClient.sendTransaction(
+        signedTx,
+        DEFAULT_WAIT_STATUS.linkDeviceRegistration
+      );
+
+      try {
+        const txHash = (txResult as any)?.transaction?.hash || (txResult as any)?.transaction_hash;
+        if (txHash) {
+          this.emit({
+            step: 5,
+            phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
+            status: EmailRecoveryStatus.PROGRESS,
+            message: 'Registration transaction confirmed',
+            data: {
+              accountId: rec.accountId,
+              nearPublicKey: rec.nearPublicKey,
+              transactionHash: txHash,
+            },
+          } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+        }
+        return txHash;
+      } catch {
+        // best-effort; do not fail flow
+      }
+    } catch (e: any) {
+      const msg = String(e?.message || '');
+      await this.fail(
+        5,
+        msg || 'Failed to broadcast email recovery registration transaction (insufficient funds or RPC error)'
+      );
+    }
+
+    return undefined;
+  }
+
+  private async persistRecoveredUserRecordBestEffort(
+    rec: PendingEmailRecovery,
+    accountId: AccountId
+  ): Promise<boolean> {
+    try {
+      await IndexedDBManager.clientDB.storeWebAuthnUserData({
+        nearAccountId: accountId,
+        deviceNumber: rec.deviceNumber,
+        clientNearPublicKey: rec.nearPublicKey,
+        passkeyCredential: {
+          id: rec.credential.id,
+          rawId: rec.credential.rawId,
+        },
+        encryptedVrfKeypair: rec.encryptedVrfKeypair,
+        serverEncryptedVrfKeypair: rec.serverEncryptedVrfKeypair || undefined,
+      });
+      return true;
+    } catch (err) {
+      console.warn('[EmailRecoveryFlow] Failed to store recovery user record:', err);
+      return false;
+    }
+  }
+
+  private mapAuthenticatorsFromContract(authenticators: Array<{ authenticator: any }>) {
+    return authenticators.map(({ authenticator }) => ({
+      credentialId: authenticator.credentialId,
+      credentialPublicKey: authenticator.credentialPublicKey,
+      transports: authenticator.transports,
+      name: authenticator.name,
+      registered: authenticator.registered.toISOString(),
+      vrfPublicKey: authenticator.vrfPublicKeys?.[0] || '',
+      deviceNumber: authenticator.deviceNumber,
+    }));
+  }
+
+  private async syncAuthenticatorsBestEffort(accountId: AccountId): Promise<boolean> {
+    try {
+      const { syncAuthenticatorsContractCall } = await import('../rpcCalls');
+      const authenticators = await syncAuthenticatorsContractCall(
+        this.context.nearClient,
+        this.context.configs.contractId,
+        accountId
+      );
+
+      const mappedAuthenticators = this.mapAuthenticatorsFromContract(authenticators);
+      await IndexedDBManager.clientDB.syncAuthenticatorsFromContract(accountId, mappedAuthenticators);
+      return true;
+    } catch (err) {
+      console.warn('[EmailRecoveryFlow] Failed to sync authenticators after recovery:', err);
+      return false;
+    }
+  }
+
+  private async setLastUserBestEffort(accountId: AccountId, deviceNumber: number): Promise<boolean> {
+    try {
+      await IndexedDBManager.clientDB.setLastUser(accountId, deviceNumber);
+      return true;
+    } catch (err) {
+      console.warn('[EmailRecoveryFlow] Failed to set last user after recovery:', err);
+      return false;
+    }
+  }
+
+  private async updateNonceBestEffort(
+    nonceManager: ReturnType<PasskeyManagerContext['webAuthnManager']['getNonceManager']>,
+    signedTx: SignedTransaction
+  ): Promise<void> {
+    try {
+      const txNonce = (signedTx.transaction as any)?.nonce;
+      if (txNonce != null) {
+        await nonceManager.updateNonceFromBlockchain(
+          this.context.nearClient,
+          String(txNonce)
+        );
+      }
+    } catch {
+      // best-effort; do not fail flow
+    }
+  }
+
+  private async persistRecoveredUserData(rec: PendingEmailRecovery, accountId: AccountId): Promise<void> {
+    const { webAuthnManager } = this.context;
+
+    const payload: StoreUserDataPayload = {
+      nearAccountId: accountId,
+      deviceNumber: rec.deviceNumber,
+      clientNearPublicKey: rec.nearPublicKey,
+      lastUpdated: Date.now(),
+      passkeyCredential: {
+        id: rec.credential.id,
+        rawId: rec.credential.rawId,
+      },
+      encryptedVrfKeypair: {
+        encryptedVrfDataB64u: rec.encryptedVrfKeypair.encryptedVrfDataB64u,
+        chacha20NonceB64u: rec.encryptedVrfKeypair.chacha20NonceB64u,
+      },
+      serverEncryptedVrfKeypair: rec.serverEncryptedVrfKeypair || undefined,
+    };
+
+    await webAuthnManager.storeUserData(payload);
+  }
+
+  private async persistAuthenticatorBestEffort(rec: PendingEmailRecovery, accountId: AccountId): Promise<void> {
+    try {
+      const { webAuthnManager } = this.context;
+      const attestationB64u = rec.credential.response.attestationObject;
+      const credentialPublicKey = await webAuthnManager.extractCosePublicKey(attestationB64u);
+      await webAuthnManager.storeAuthenticator({
+        nearAccountId: accountId,
+        deviceNumber: rec.deviceNumber,
+        credentialId: rec.credential.rawId,
+        credentialPublicKey,
+        transports: ['internal'],
+        name: `Device ${rec.deviceNumber} Passkey for ${rec.accountId.split('.')[0]}`,
+        registered: new Date().toISOString(),
+        syncedAt: new Date().toISOString(),
+        vrfPublicKey: rec.vrfPublicKey,
+      });
+    } catch {
+      // best-effort; do not fail flow
+    }
+  }
+
+  private async markCompleteAndClearPending(rec: PendingEmailRecovery): Promise<void> {
+    rec.status = 'complete';
+    await this.savePending(rec);
+    await this.clearPending(rec.accountId, rec.nearPublicKey);
+  }
+
+  private async assertVrfActiveForAccount(accountId: AccountId, message: string): Promise<void> {
+    const vrfStatus = await this.context.webAuthnManager.checkVrfStatus();
+    const vrfActiveForAccount =
+      vrfStatus.active
+      && vrfStatus.nearAccountId
+      && String(vrfStatus.nearAccountId) === String(accountId);
+    if (!vrfActiveForAccount) {
+      throw new Error(message);
+    }
+  }
+
+  private async finalizeLocalLoginState(accountId: AccountId, deviceNumber: number): Promise<void> {
+    const { webAuthnManager } = this.context;
+    await webAuthnManager.setLastUser(accountId, deviceNumber);
+    await webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
+    try { await getLoginSession(this.context, accountId); } catch { }
+  }
+
+  private async tryShamirUnlock(
+    rec: PendingEmailRecovery,
+    accountId: AccountId,
+    deviceNumber: number
+  ): Promise<boolean> {
+    if (
+      !rec.serverEncryptedVrfKeypair
+      || !rec.serverEncryptedVrfKeypair.serverKeyId
+      || !this.context.configs.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
+    ) {
+      return false;
+    }
+
+    try {
+      const { webAuthnManager } = this.context;
+      const unlockResult = await webAuthnManager.shamir3PassDecryptVrfKeypair({
+        nearAccountId: accountId,
+        kek_s_b64u: rec.serverEncryptedVrfKeypair.kek_s_b64u,
+        ciphertextVrfB64u: rec.serverEncryptedVrfKeypair.ciphertextVrfB64u,
+        serverKeyId: rec.serverEncryptedVrfKeypair.serverKeyId,
+      });
+
+      if (!unlockResult.success) {
+        return false;
+      }
+
+      await this.assertVrfActiveForAccount(accountId, 'VRF session inactive after Shamir3Pass unlock');
+      await this.finalizeLocalLoginState(accountId, deviceNumber);
+      return true;
+    } catch (err) {
+      console.warn('[EmailRecoveryFlow] Shamir 3-pass unlock failed, falling back to TouchID', err);
+      return false;
+    }
+  }
+
+  private async tryTouchIdUnlock(
+    rec: PendingEmailRecovery,
+    accountId: AccountId,
+    deviceNumber: number
+  ): Promise<{ success: boolean; reason?: string }> {
+    try {
+      const { webAuthnManager } = this.context;
+      const authChallenge = createRandomVRFChallenge() as VRFChallenge;
+
+      const storedCredentialId = String(rec.credential?.rawId || rec.credential?.id || '').trim();
+      const credentialIds = storedCredentialId ? [storedCredentialId] : [];
+      const authenticators = credentialIds.length > 0
+        ? []
+        : await webAuthnManager.getAuthenticatorsByUser(accountId);
+      const authCredential = await webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
+        nearAccountId: accountId,
+        challenge: authChallenge,
+        credentialIds: credentialIds.length > 0 ? credentialIds : authenticators.map((a) => a.credentialId),
+      });
+
+      if (storedCredentialId && authCredential.rawId !== storedCredentialId) {
+        return {
+          success: false,
+          reason: 'Wrong passkey selected during recovery auto-login; please use the newly recovered passkey.',
+        };
+      }
+
+      const vrfUnlockResult = await webAuthnManager.unlockVRFKeypair({
+        nearAccountId: accountId,
+        encryptedVrfKeypair: rec.encryptedVrfKeypair,
+        credential: authCredential,
+      });
+
+      if (!vrfUnlockResult.success) {
+        return { success: false, reason: vrfUnlockResult.error || 'VRF unlock failed during auto-login' };
+      }
+
+      await this.assertVrfActiveForAccount(accountId, 'VRF session inactive after TouchID unlock');
+      await this.finalizeLocalLoginState(accountId, deviceNumber);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, reason: err?.message || String(err) };
+    }
+  }
+
+  private async handleAutoLoginFailure(reason: string, err?: unknown): Promise<AutoLoginResult> {
+    console.warn('[EmailRecoveryFlow] Auto-login failed after recovery', err ?? reason);
+    try {
+      await this.context.webAuthnManager.clearVrfSession();
+    } catch { }
+    return { success: false, reason };
   }
 
   private async finalizeRegistration(rec: PendingEmailRecovery): Promise<void> {
@@ -749,163 +1131,42 @@ export class EmailRecoveryFlow {
       },
     } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
 
-    const nonceManager = this.context.webAuthnManager.getNonceManager();
-    const accountId = toAccountId(rec.accountId);
-    nonceManager.initializeUser(accountId, rec.nearPublicKey);
-
     try {
-      if (!rec.vrfChallenge) {
-        const err = this.emitError(5, 'Missing VRF challenge for email recovery registration');
-        await this.options?.afterCall?.(false);
-        throw err;
+      const { nonceManager, accountId } = this.initializeNonceManager(rec);
+      const signedTx = await this.signRegistrationTx(rec, accountId);
+      const txHash = await this.broadcastRegistrationTxAndWaitFinal(rec, signedTx);
+
+      if (txHash) {
+        const storedUser = await this.persistRecoveredUserRecordBestEffort(rec, accountId);
+        if (storedUser) {
+          const syncedAuthenticators = await this.syncAuthenticatorsBestEffort(accountId);
+          if (syncedAuthenticators) {
+            await this.setLastUserBestEffort(accountId, rec.deviceNumber);
+          }
+        }
       }
 
-      const registrationResult = await this.context.webAuthnManager.signDevice2RegistrationWithStoredKey({
-        nearAccountId: accountId,
-        credential: rec.credential,
-        vrfChallenge: rec.vrfChallenge,
-        deterministicVrfPublicKey: rec.vrfPublicKey,
-        deviceNumber: rec.deviceNumber,
+      await this.updateNonceBestEffort(nonceManager, signedTx);
+      await this.persistRecoveredUserData(rec, accountId);
+      await this.persistAuthenticatorBestEffort(rec, accountId);
+
+      this.emitAutoLoginEvent(EmailRecoveryStatus.PROGRESS, 'Attempting auto-login with recovered device...', {
+        autoLogin: 'progress',
       });
 
-      if (!registrationResult.success || !registrationResult.signedTransaction) {
-        const err = this.emitError(5, registrationResult.error || 'Failed to sign email recovery registration transaction');
-        await this.options?.afterCall?.(false);
-        throw err;
-      }
-
-      const signedTx = registrationResult.signedTransaction;
-
-      try {
-        // Wait for finality so subsequent contract-gated signing (verify_authentication_response)
-        // can reliably see the newly registered device/passkey.
-        const txResult = await this.context.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.linkDeviceRegistration);
-        try {
-          const txHash = (txResult as any)?.transaction?.hash || (txResult as any)?.transaction_hash;
-          if (txHash) {
-            this.emit({
-              step: 5,
-              phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
-              status: EmailRecoveryStatus.PROGRESS,
-              message: 'Registration transaction confirmed',
-              data: {
-                accountId: rec.accountId,
-                nearPublicKey: rec.nearPublicKey,
-                transactionHash: txHash,
-              },
-            } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
-
-            // Store the new user record here, so `getLastUser()`
-            // is aware of the new device context before any subsequent actions occur.
-            try {
-              // 1. Store the new user record (Device N) so that `getLastUser()` finds it
-              // and `ensureCurrentPasskey` selects the correct credential for operations.
-              await IndexedDBManager.clientDB.storeWebAuthnUserData({
-                nearAccountId: accountId,
-                deviceNumber: rec.deviceNumber,
-                clientNearPublicKey: rec.nearPublicKey,
-                passkeyCredential: {
-                  id: rec.credential.id,
-                  rawId: rec.credential.rawId,
-                },
-                encryptedVrfKeypair: rec.encryptedVrfKeypair,
-                serverEncryptedVrfKeypair: rec.serverEncryptedVrfKeypair || undefined,
-              });
-
-              // 2. Sync authenticators immediately for allowCredentials list
-              const { syncAuthenticatorsContractCall } = await import('../rpcCalls');
-              const authenticators = await syncAuthenticatorsContractCall(
-                this.context.nearClient,
-                this.context.configs.contractId,
-                accountId
-              );
-
-              // Map RPC result to DB schema
-              const mappedAuthenticators = authenticators.map(({ authenticator }) => ({
-                credentialId: authenticator.credentialId,
-                credentialPublicKey: authenticator.credentialPublicKey,
-                transports: authenticator.transports,
-                name: authenticator.name,
-                registered: authenticator.registered.toISOString(),
-                vrfPublicKey: authenticator.vrfPublicKeys?.[0] || '',
-                deviceNumber: authenticator.deviceNumber,
-              }));
-
-              await IndexedDBManager.clientDB.syncAuthenticatorsFromContract(accountId, mappedAuthenticators);
-
-              // 3. Set as active user
-              await IndexedDBManager.clientDB.setLastUser(accountId, rec.deviceNumber);
-            } catch (syncErr) {
-              console.warn('[EmailRecoveryFlow] Failed to sync authenticators after recovery:', syncErr);
-              // Non-fatal; user can still proceed but might need a refresh for some features
-            }
-          }
-        } catch {
-          // best-effort; do not fail flow
-        }
-      } catch (e: any) {
-        const msg = String(e?.message || '');
-        const err = this.emitError(
-          5,
-          msg || 'Failed to broadcast email recovery registration transaction (insufficient funds or RPC error)'
-        );
-        await this.options?.afterCall?.(false);
-        throw err;
-      }
-
-      try {
-        const txNonce = (signedTx.transaction as any)?.nonce;
-        if (txNonce != null) {
-          await nonceManager.updateNonceFromBlockchain(
-            this.context.nearClient,
-            String(txNonce)
-          );
-        }
-      } catch {
-        // best-effort; do not fail flow
-      }
-
-      const { webAuthnManager } = this.context;
-
-      await webAuthnManager.storeUserData({
-        nearAccountId: accountId,
-        deviceNumber: rec.deviceNumber,
-        clientNearPublicKey: rec.nearPublicKey,
-        lastUpdated: Date.now(),
-        passkeyCredential: {
-          id: rec.credential.id,
-          rawId: rec.credential.rawId,
-        },
-        encryptedVrfKeypair: {
-          encryptedVrfDataB64u: rec.encryptedVrfKeypair.encryptedVrfDataB64u,
-          chacha20NonceB64u: rec.encryptedVrfKeypair.chacha20NonceB64u,
-        },
-        serverEncryptedVrfKeypair: rec.serverEncryptedVrfKeypair || undefined,
-      } as any);
-
-      try {
-        const attestationB64u = rec.credential.response.attestationObject;
-        const credentialPublicKey = await webAuthnManager.extractCosePublicKey(attestationB64u);
-        await webAuthnManager.storeAuthenticator({
-          nearAccountId: accountId,
-          deviceNumber: rec.deviceNumber,
-          credentialId: rec.credential.rawId,
-          credentialPublicKey,
-          transports: ['internal'],
-          name: `Device ${rec.deviceNumber} Passkey for ${rec.accountId.split('.')[0]}`,
-          registered: new Date().toISOString(),
-          syncedAt: new Date().toISOString(),
-          vrfPublicKey: rec.vrfPublicKey,
+      const autoLoginResult = await this.attemptAutoLogin(rec);
+      if (autoLoginResult.success) {
+        this.emitAutoLoginEvent(EmailRecoveryStatus.SUCCESS, `Welcome ${accountId}`, {
+          autoLogin: 'success',
         });
-      } catch {
-        // best-effort; do not fail flow
+      } else {
+        this.emitAutoLoginEvent(EmailRecoveryStatus.ERROR, 'Auto-login failed; please log in manually on this device.', {
+          error: autoLoginResult.reason,
+          autoLogin: 'error',
+        });
       }
 
-      await this.attemptAutoLogin(rec);
-
-      rec.status = 'complete';
-      await this.savePending(rec);
-      await this.clearPending(rec.accountId, rec.nearPublicKey);
+      await this.markCompleteAndClearPending(rec);
 
       this.phase = EmailRecoveryPhase.STEP_6_COMPLETE;
       this.emit({
@@ -925,129 +1186,29 @@ export class EmailRecoveryFlow {
     }
   }
 
-  private async attemptAutoLogin(rec: PendingEmailRecovery): Promise<void> {
+  private async attemptAutoLogin(rec: PendingEmailRecovery): Promise<AutoLoginResult> {
     try {
-      this.emit({
-        step: 5,
-        phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
-        status: EmailRecoveryStatus.PROGRESS,
-        message: 'Attempting auto-login with recovered device...',
-        data: { autoLogin: 'progress' },
-      } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
-
-      const { webAuthnManager } = this.context;
       const accountId = toAccountId(rec.accountId);
       const deviceNumber = parseDeviceNumber(rec.deviceNumber, { min: 1 });
       if (deviceNumber === null) {
-        throw new Error(`Invalid deviceNumber for auto-login: ${String(rec.deviceNumber)}`);
+        return this.handleAutoLoginFailure(
+          `Invalid deviceNumber for auto-login: ${String(rec.deviceNumber)}`
+        );
       }
 
-      // Try Shamir 3-pass unlock first if configured and available
-      if (
-        rec.serverEncryptedVrfKeypair &&
-        rec.serverEncryptedVrfKeypair.serverKeyId &&
-        this.context.configs.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
-      ) {
-        try {
-          const unlockResult = await webAuthnManager.shamir3PassDecryptVrfKeypair({
-            nearAccountId: accountId,
-            kek_s_b64u: rec.serverEncryptedVrfKeypair.kek_s_b64u,
-            ciphertextVrfB64u: rec.serverEncryptedVrfKeypair.ciphertextVrfB64u,
-            serverKeyId: rec.serverEncryptedVrfKeypair.serverKeyId,
-          });
-
-          if (unlockResult.success) {
-            const vrfStatus = await webAuthnManager.checkVrfStatus();
-            const vrfActiveForAccount =
-              vrfStatus.active
-              && vrfStatus.nearAccountId
-              && String(vrfStatus.nearAccountId) === String(accountId);
-            if (!vrfActiveForAccount) {
-              throw new Error('VRF session inactive after Shamir3Pass unlock');
-            }
-
-            await webAuthnManager.setLastUser(accountId, deviceNumber);
-            await webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
-            try { await getLoginSession(this.context, accountId); } catch { }
-            this.emit({
-              step: 5,
-              phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
-              status: EmailRecoveryStatus.SUCCESS,
-              message: `Welcome ${accountId}`,
-              data: { autoLogin: 'success' },
-            });
-            return;
-          }
-        } catch (err) {
-          // fall through to TouchID unlock
-          console.warn('[EmailRecoveryFlow] Shamir 3-pass unlock failed, falling back to TouchID', err);
-        }
+      const shamirUnlocked = await this.tryShamirUnlock(rec, accountId, deviceNumber);
+      if (shamirUnlocked) {
+        return { success: true, method: 'shamir' };
       }
 
-      // TouchID fallback unlock
-      // Use a random challenge (no VRF required) to collect PRF outputs and unlock the stored VRF keypair.
-      const authChallenge = createRandomVRFChallenge() as VRFChallenge;
-
-      const storedCredentialId = String(rec.credential?.rawId || rec.credential?.id || '').trim();
-      const credentialIds = storedCredentialId ? [storedCredentialId] : [];
-      const authenticators = credentialIds.length > 0
-        ? []
-        : await webAuthnManager.getAuthenticatorsByUser(accountId);
-      const authCredential = await webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
-        nearAccountId: accountId,
-        challenge: authChallenge,
-        credentialIds: credentialIds.length > 0 ? credentialIds : authenticators.map((a) => a.credentialId),
-      });
-
-      if (storedCredentialId && authCredential.rawId !== storedCredentialId) {
-        throw new Error('Wrong passkey selected during recovery auto-login; please use the newly recovered passkey.');
+      const touchIdResult = await this.tryTouchIdUnlock(rec, accountId, deviceNumber);
+      if (touchIdResult.success) {
+        return { success: true, method: 'touchid' };
       }
 
-      const vrfUnlockResult = await webAuthnManager.unlockVRFKeypair({
-        nearAccountId: accountId,
-        encryptedVrfKeypair: rec.encryptedVrfKeypair,
-        credential: authCredential,
-      });
-
-      if (!vrfUnlockResult.success) {
-        throw new Error(vrfUnlockResult.error || 'VRF unlock failed during auto-login');
-      }
-
-      const vrfStatus = await webAuthnManager.checkVrfStatus();
-      const vrfActiveForAccount =
-        vrfStatus.active
-        && vrfStatus.nearAccountId
-        && String(vrfStatus.nearAccountId) === String(accountId);
-      if (!vrfActiveForAccount) {
-        throw new Error('VRF session inactive after TouchID unlock');
-      }
-
-      await webAuthnManager.setLastUser(accountId, deviceNumber);
-      await webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
-      try { await getLoginSession(this.context, accountId); } catch { }
-
-      this.emit({
-        step: 5,
-        phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
-        status: EmailRecoveryStatus.SUCCESS,
-        message: `Welcome ${accountId}`,
-        data: { autoLogin: 'success' },
-      });
-
+      return this.handleAutoLoginFailure(touchIdResult.reason || 'Auto-login failed');
     } catch (err: any) {
-      console.warn('[EmailRecoveryFlow] Auto-login failed after recovery', err);
-      try {
-        // Avoid leaving a stale/incompatible VRF keypair in-memory (can surface later as
-        // "Contract verification failed" during signing). User can still log in manually.
-        await this.context.webAuthnManager.clearVrfSession();
-      } catch { }
-      this.emit({
-        step: 5,
-        phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
-        status: EmailRecoveryStatus.ERROR,
-        message: 'Auto-login failed; please log in manually on this device.',
-        data: { error: err?.message || String(err), autoLogin: 'error' },
-      } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+      return this.handleAutoLoginFailure(err?.message || String(err), err);
     }
   }
 }

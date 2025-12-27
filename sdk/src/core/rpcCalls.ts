@@ -47,6 +47,28 @@ export interface AuthenticatorsResult {
   authenticators: Array<[string, ContractStoredAuthenticator]>;
 }
 
+export type EmailRecoveryVerificationResult = {
+  verified: boolean;
+  account_id?: string;
+  new_public_key?: string;
+  transaction_hash?: string;
+  error_code?: string;
+  error_message?: string;
+};
+
+export async function getEmailRecoveryVerificationResult(
+  nearClient: NearClient,
+  dkimVerifierAccountId: string,
+  verificationViewMethod: string,
+  requestId: string
+): Promise<EmailRecoveryVerificationResult | null> {
+  return await nearClient.view<{ request_id: string }, EmailRecoveryVerificationResult | null>({
+    account: dkimVerifierAccountId,
+    method: verificationViewMethod,
+    args: { request_id: requestId },
+  });
+}
+
 // ===========================
 // DEVICE LINKING CONTRACT CALLS
 // ===========================

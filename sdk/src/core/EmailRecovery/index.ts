@@ -1,6 +1,7 @@
 import type { AccountId } from '../types/accountIds';
 import { toAccountId } from '../types/accountIds';
 import { IndexedDBManager, type RecoveryEmailRecord } from '../IndexedDBManager';
+export { EmailRecoveryPendingStore, type PendingStore } from './emailRecoveryPendingStore';
 
 export type RecoveryEmailEntry = {
   hashHex: string;

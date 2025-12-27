@@ -1,11 +1,41 @@
 import { ActionPhase, ActionStatus, type ActionSSEEvent, type DelegateRelayHooksOptions } from '../types/sdkSentEvents';
 import type { DelegateRelayResult } from '../types/tatchi';
 import type { SignedDelegate } from '../types/delegate';
+import type { WasmSignedDelegate } from '../types/signer-worker';
 
 export interface RelayDelegateRequest {
   hash: string;
-  signedDelegate: SignedDelegate;
+  signedDelegate: SignedDelegate | WasmSignedDelegate;
 }
+
+const toNumberArray = (value: number[] | Uint8Array): number[] =>
+  Array.isArray(value) ? value : Array.from(value);
+
+const normalizeSignedDelegateForRelay = (
+  signedDelegate: SignedDelegate | WasmSignedDelegate
+): SignedDelegate => {
+  const delegateAction = signedDelegate.delegateAction as SignedDelegate['delegateAction'] & {
+    publicKey: { keyType: number; keyData: number[] | Uint8Array };
+  };
+  const signature = signedDelegate.signature as SignedDelegate['signature'] & {
+    keyType: number;
+    signatureData: number[] | Uint8Array;
+  };
+
+  return {
+    delegateAction: {
+      ...delegateAction,
+      publicKey: {
+        ...delegateAction.publicKey,
+        keyData: toNumberArray(delegateAction.publicKey.keyData),
+      },
+    },
+    signature: {
+      ...signature,
+      signatureData: toNumberArray(signature.signatureData),
+    },
+  };
+};
 
 export async function sendDelegateActionViaRelayer(args: {
   url: string;
@@ -15,6 +45,10 @@ export async function sendDelegateActionViaRelayer(args: {
 }): Promise<DelegateRelayResult> {
 
   const { url, payload, signal, options } = args;
+  const normalizedPayload: RelayDelegateRequest = {
+    ...payload,
+    signedDelegate: normalizeSignedDelegateForRelay(payload.signedDelegate),
+  };
 
   const emit = (event: ActionSSEEvent) => options?.onEvent?.(event);
   const emitError = (message: string) => {
@@ -39,7 +73,7 @@ export async function sendDelegateActionViaRelayer(args: {
     res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(normalizedPayload),
       signal,
     });
   } catch (err: unknown) {
