@@ -114,7 +114,7 @@ export async function handleLocalOnlyFlow(
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: false,
-        error: cancelled ? ERROR_MESSAGES.cancelled : ERROR_MESSAGES.collectCredentialsFailed,
+        error: cancelled ? ERROR_MESSAGES.cancelled : (errorMessage(err) || ERROR_MESSAGES.collectCredentialsFailed),
       });
     }
   }

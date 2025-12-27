@@ -7,8 +7,7 @@ import type { EmailRecoveryContracts, TatchiConfigs, TatchiConfigsInput } from '
 export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
   // You can provide a single URL or a comma-separated list for failover.
   // First URL is treated as primary, subsequent URLs are fallbacks.
-  // nearRpcUrl: 'https://rpc.testnet.near.org',
-  nearRpcUrl: 'https://test.rpc.fastnear.com',
+  nearRpcUrl: 'https://test.rpc.fastnear.com, https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',
   nearExplorerUrl: 'https://testnet.nearblocks.io',

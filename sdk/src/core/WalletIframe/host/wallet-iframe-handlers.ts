@@ -148,7 +148,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const result = await pm.linkDeviceWithScannedQRData(qrData as DeviceLinkingQRData, {
         fundingAmount: fundingAmount as string,
         onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-        confirmationConfig: options?.confirmationConfig as any,
+        confirmationConfig: options?.confirmationConfig,
         confirmerText: options?.confirmerText,
       } as ScanAndLinkDeviceOptionsDevice1);
 
@@ -166,7 +166,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         cameraId,
         options: {
           onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-          confirmationConfig: options?.confirmationConfig as any,
+          confirmationConfig: options?.confirmationConfig,
           confirmerText: options?.confirmerText,
         },
       });
@@ -232,7 +232,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         options: {
           ...(options || {}),
           onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-        } as any,
+        },
       });
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
@@ -425,8 +425,8 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         options: {
           onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
           confirmerText: options?.confirmerText,
-          confirmationConfig: options?.confirmationConfig as any,
-        } as any,
+          confirmationConfig: options?.confirmationConfig,
+        },
       });
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
@@ -440,7 +440,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         nearPublicKey,
         options: {
           onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
-        } as any,
+        },
       });
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
@@ -450,7 +450,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const pm = getTatchiPasskey();
       const { accountId, nearPublicKey } = (req.payload || {}) as PMStopEmailRecoveryPayload;
       try {
-        const maybeCancel = (pm as any)?.cancelEmailRecovery;
+        const maybeCancel = pm.cancelEmailRecovery;
         if (typeof maybeCancel === 'function') {
           await maybeCancel.call(pm, { accountId, nearPublicKey });
         }

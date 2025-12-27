@@ -88,7 +88,9 @@ pub async fn handle_derive_vrf_keypair_from_prf(
     let prf_output = match prf_second_b64u.as_deref() {
         Some(b64u) => match base64_url_decode(b64u) {
             Ok(bytes) if !bytes.is_empty() => bytes,
-            Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential"),
+            Ok(_) => {
+                return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential")
+            }
             Err(_) => {
                 return VrfWorkerResponse::fail(
                     message_id,

@@ -1,9 +1,9 @@
 // SecureConfirm response type reused from types module
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
+use crate::types::WorkerConfirmationResponse;
 use js_sys::Promise;
 use serde::Serialize;
-use crate::types::WorkerConfirmationResponse;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::JsFuture;
 
 // JS bridge exposed from web3authn-vrf.worker.ts:
 //   (globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;

@@ -49,6 +49,17 @@ export type StoreUserDataInput = Omit<ClientUserData, 'deviceNumber' | 'lastLogi
     version?: number;
   };
 
+export type StoreWebAuthnUserDataInput = {
+  nearAccountId: AccountId;
+  deviceNumber: number;
+  clientNearPublicKey: string;
+  lastUpdated?: number;
+  version?: number;
+  passkeyCredential: ClientUserData['passkeyCredential'];
+  encryptedVrfKeypair: ClientUserData['encryptedVrfKeypair'];
+  serverEncryptedVrfKeypair?: ClientUserData['serverEncryptedVrfKeypair'];
+};
+
 export interface UserPreferences {
   useRelayer: boolean;
   useNetwork: 'testnet' | 'mainnet';
@@ -452,37 +463,41 @@ export class PasskeyClientDBManager {
     authenticatorsForPrompt: ClientAuthenticatorData[];
     wrongPasskeyError?: string;
   }> {
-    let authenticatorsForPrompt = authenticators;
-    let wrongPasskeyError: string | undefined;
-
-    if (authenticators.length > 1) {
-      const accountIdNormalized = toAccountId(nearAccountId);
-      const lastUser = await this.getLastUser().catch(() => null);
-      const expectedAccountId = lastUser?.nearAccountId;
-      const expectedDeviceNumber = lastUser?.deviceNumber;
-
-      if (
-        expectedAccountId &&
-        expectedDeviceNumber &&
-        expectedAccountId === accountIdNormalized
-      ) {
-        // For the prompt, prefer authenticators that match the last-user deviceNumber.
-        const filtered = authenticators.filter(a => a.deviceNumber === expectedDeviceNumber);
-        if (filtered.length > 0) {
-          authenticatorsForPrompt = filtered;
-        }
-
-        // If a credential was already chosen, verify it matches the last-user deviceNumber.
-        if (selectedCredentialRawId) {
-          const matched = authenticators.find(a => a.credentialId === selectedCredentialRawId);
-          if (matched && matched.deviceNumber !== expectedDeviceNumber) {
-            wrongPasskeyError =
-              `You have multiple passkeys (deviceNumbers) for account ${accountIdNormalized}, ` +
-              'but used a passkey from a different device. Please use the passkey for the most recently logged-in device.';
-          }
-        }
-      }
+    if (authenticators.length <= 1) {
+      return { authenticatorsForPrompt: authenticators };
     }
+
+    const accountIdNormalized = toAccountId(nearAccountId);
+    const lastUser = await this.getLastUser().catch(() => null);
+    if (!lastUser || lastUser.nearAccountId !== accountIdNormalized) {
+      return { authenticatorsForPrompt: authenticators };
+    }
+
+    const expectedDeviceNumber = lastUser.deviceNumber;
+    const byDeviceNumber = authenticators.filter(a => a.deviceNumber === expectedDeviceNumber);
+
+    // Prefer the credentialId for the last-user deviceNumber; use the stored last-user rawId
+    // only when it matches an authenticator for that device (or when we have no device match).
+    let expectedCredentialId = lastUser.passkeyCredential.rawId;
+    if (byDeviceNumber.length > 0 && !byDeviceNumber.some(a => a.credentialId === expectedCredentialId)) {
+      expectedCredentialId = byDeviceNumber[0].credentialId;
+    }
+
+    // Preference: restrict allowCredentials to the last-user credentialId.
+    // Fallback: if the local authenticator cache is missing that entry, prefer the last-user deviceNumber.
+    const byCredentialId = authenticators.filter(a => a.credentialId === expectedCredentialId);
+    const authenticatorsForPrompt =
+      byCredentialId.length > 0
+        ? byCredentialId
+        : (byDeviceNumber.length > 0 ? byDeviceNumber : authenticators);
+
+    const wrongPasskeyError =
+      selectedCredentialRawId && selectedCredentialRawId !== expectedCredentialId
+        ? (
+          `You have multiple passkeys (deviceNumbers) for account ${accountIdNormalized}, ` +
+          'but used a different passkey than the most recently logged-in one. Please use the passkey for the most recently logged-in device.'
+        )
+        : undefined;
 
     return { authenticatorsForPrompt, wrongPasskeyError };
   }
@@ -622,43 +637,20 @@ export class PasskeyClientDBManager {
    * Store WebAuthn user data (compatibility with WebAuthnManager)
    * @param userData - User data with nearAccountId as primary identifier
    */
-  async storeWebAuthnUserData(userData: {
-    nearAccountId: AccountId;
-    deviceNumber?: number; // Device number for multi-device support (1-indexed)
-    clientNearPublicKey: string;
-    lastUpdated?: number;
-    version?: number;
-    passkeyCredential: {
-      id: string;
-      rawId: string;
-    };
-    encryptedVrfKeypair: {
-      encryptedVrfDataB64u: string;
-      chacha20NonceB64u: string;
-    };
-    serverEncryptedVrfKeypair?: {
-      ciphertextVrfB64u: string;
-      kek_s_b64u: string;
-      serverKeyId: string;
-      updatedAt?: number;
-    };
-  }): Promise<void> {
-
-    if (userData.deviceNumber === undefined) {
-      console.warn("WARNING: deviceNumber is undefined in storeWebAuthnUserData, will default to 1");
-    }
+  async storeWebAuthnUserData(userData: StoreWebAuthnUserDataInput): Promise<void> {
     const validation = this.validateNearAccountId(userData.nearAccountId);
     if (!validation.valid) {
       throw new Error(`Cannot store WebAuthn data for invalid account ID: ${validation.error}`);
     }
 
-    // Get existing user data or create new
-    let existingUser = await this.getUser(userData.nearAccountId);
-    if (!existingUser) {
-      const deviceNumberToUse = userData.deviceNumber || 1;
-      existingUser = await this.registerUser({
-        nearAccountId: userData.nearAccountId,
-        deviceNumber: deviceNumberToUse, // Use provided device number or default to 1
+    const accountId = toAccountId(userData.nearAccountId);
+    const deviceNumber = userData.deviceNumber;
+    let user = await this.getUser(accountId, deviceNumber);
+
+    if (!user) {
+      user = await this.registerUser({
+        nearAccountId: accountId,
+        deviceNumber,
         clientNearPublicKey: userData.clientNearPublicKey,
         passkeyCredential: userData.passkeyCredential,
         encryptedVrfKeypair: userData.encryptedVrfKeypair,
@@ -667,16 +659,21 @@ export class PasskeyClientDBManager {
       });
     }
 
-    // Update with WebAuthn-specific data (including VRF credentials)
-    const finalDeviceNumber = userData.deviceNumber || existingUser.deviceNumber;
-
-    await this.updateUser(userData.nearAccountId, {
+    const updatedUser: ClientUserData = {
+      ...user,
       clientNearPublicKey: userData.clientNearPublicKey,
+      passkeyCredential: userData.passkeyCredential,
       encryptedVrfKeypair: userData.encryptedVrfKeypair,
-      serverEncryptedVrfKeypair: userData.serverEncryptedVrfKeypair,
-      version: userData.version || existingUser.version,
-      deviceNumber: finalDeviceNumber, // Use provided device number or keep existing
-      lastUpdated: userData.lastUpdated || Date.now()
+      serverEncryptedVrfKeypair: userData.serverEncryptedVrfKeypair ?? user.serverEncryptedVrfKeypair,
+      version: userData.version ?? user.version,
+      lastUpdated: userData.lastUpdated ?? Date.now(),
+    };
+
+    await this.storeUser(updatedUser);
+    this.emitEvent({
+      type: 'user-updated',
+      accountId,
+      data: { updatedUser }
     });
   }
 

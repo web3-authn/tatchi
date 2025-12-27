@@ -37,6 +37,17 @@ export async function collectAuthenticationCredentialWithPRF({
     throw new Error(wrongPasskeyError);
   }
 
+  // If we know which device we're targeting (single authenticator), ensure the VRF worker
+  // challenge was generated with the same device's VRF keypair. Otherwise contract verification
+  // will deterministically fail later with "Contract verification failed".
+  if (authenticatorsForPrompt.length === 1) {
+    const expectedVrfPublicKey = authenticatorsForPrompt[0]?.vrfPublicKey;
+    // Only enforce mismatch if the challenge strictly requires a specific VRF key.
+    if (expectedVrfPublicKey && vrfChallenge.vrfPublicKey && expectedVrfPublicKey !== vrfChallenge.vrfPublicKey) {
+      throw new Error('Signing session is using a different passkey/VRF session than the current device. Please log in again and retry.');
+    }
+  }
+
   onBeforePrompt?.({ authenticators, authenticatorsForPrompt, vrfChallenge });
 
   const credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
@@ -63,4 +74,3 @@ export async function collectAuthenticationCredentialWithPRF({
 
   return serialized;
 }
-

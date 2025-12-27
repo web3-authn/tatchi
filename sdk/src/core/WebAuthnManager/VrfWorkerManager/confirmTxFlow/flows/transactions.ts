@@ -147,22 +147,12 @@ export async function handleTransactionSigningFlow(
     const serializedCredential = await adapters.webauthn.collectAuthenticationCredentialWithPRF({
       nearAccountId,
       vrfChallenge: uiVrfChallenge,
-      onBeforePrompt: ({ authenticatorsForPrompt, vrfChallenge }) => {
-        console.debug('[SigningFlow] Authenticators for transaction signing', {
-          nearAccountId,
-          authenticatorCount: authenticatorsForPrompt.length,
-          authenticators: authenticatorsForPrompt.map(a => ({
-            deviceNumber: a.deviceNumber,
-            vrfPublicKey: a.vrfPublicKey,
-            credentialId: a.credentialId,
-          })),
-          vrfChallengePublicKey: vrfChallenge.vrfPublicKey,
-        });
-      },
     });
 
     // 5c) Derive WrapKeySeed inside the VRF worker and deliver it to the signer worker via
     // the reserved WrapKeySeed MessagePort. Main thread only sees wrapKeySalt metadata.
+    let contractId: string | undefined;
+    let nearRpcUrl: string | undefined;
     try {
       // Ensure VRF session is active and bound to the same account we are signing for.
       const vrfStatus = await adapters.vrf.checkVrfStatus();
@@ -184,8 +174,6 @@ export async function handleTransactionSigningFlow(
       // Extract contract verification context when available.
       // - SIGN_TRANSACTION: use per-request rpcCall (already normalized by caller).
       // - SIGN_NEP413_MESSAGE: allow per-request override; fall back to PASSKEY_MANAGER_DEFAULT_CONFIGS.
-      let contractId: string | undefined;
-      let nearRpcUrl: string | undefined;
       if (request.type === SecureConfirmationType.SIGN_TRANSACTION) {
         const payload = getSignTransactionPayload(request);
         contractId = payload?.rpcCall?.contractId;
@@ -205,11 +193,10 @@ export async function handleTransactionSigningFlow(
         nearRpcUrl,
         credential: serializedCredential,
       });
-
-    } catch (err) {
-      console.error('[SigningFlow] WrapKeySeed derivation failed:', err);
-      throw err; // Don't silently ignore - propagate the error
-    }
+	    } catch (err) {
+	      console.error('[SigningFlow] WrapKeySeed derivation failed:', err);
+	      throw err; // Don't silently ignore - propagate the error
+	    }
 
     // 6) Respond; keep nonces reserved for worker to use
     session.confirmAndCloseModal({

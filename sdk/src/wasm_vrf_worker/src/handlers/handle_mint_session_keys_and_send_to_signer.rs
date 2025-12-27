@@ -9,21 +9,20 @@ use crate::rpc_calls::{
     verify_authentication_response_rpc_call, VrfData, WebAuthnAuthenticationCredential,
 };
 use crate::types::VrfWorkerResponse;
-use crate::utils::generate_wrap_key_salt_b64u;
 #[cfg(target_arch = "wasm32")]
 use crate::utils::base64_url_decode;
-use serde::{Serialize, Deserialize};
+use crate::utils::generate_wrap_key_salt_b64u;
+use js_sys::Reflect;
+use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsValue;
-use js_sys::Reflect;
 
 #[cfg(target_arch = "wasm32")]
 fn extract_prf_second_bytes_from_credential(
     credential: &JsValue,
 ) -> Result<Option<Vec<u8>>, String> {
-
     let Some(second_b64u) = crate::webauthn::extract_prf_second_from_credential(credential) else {
         return Ok(None);
     };
@@ -32,7 +31,13 @@ fn extract_prf_second_bytes_from_credential(
     }
     base64_url_decode(second_b64u.trim())
         .map_err(|e| format!("Failed to decode PRF.second: {}", e))
-        .map(|decoded| if decoded.is_empty() { None } else { Some(decoded) })
+        .map(|decoded| {
+            if decoded.is_empty() {
+                None
+            } else {
+                Some(decoded)
+            }
+        })
 }
 
 fn extract_prf_first_bytes_from_credential(credential: &JsValue) -> Result<Vec<u8>, String> {
@@ -98,7 +103,8 @@ pub(crate) async fn verify_authentication_if_needed(
             message_id.clone(),
             format!("Failed to interpret WebAuthn credential: {}", e),
         )
-    })? else {
+    })?
+    else {
         debug!("[VRF] Skipping contract verification for non-authentication credential");
         return Ok(());
     };
@@ -135,12 +141,9 @@ pub(crate) async fn verify_authentication_if_needed(
         }
     };
 
-    match verify_authentication_response_rpc_call(
-        contract_id,
-        rpc_url,
-        vrf_data,
-        auth_credential,
-    ).await {
+    match verify_authentication_response_rpc_call(contract_id, rpc_url, vrf_data, auth_credential)
+        .await
+    {
         Ok(result) => {
             if !result.success || !result.verified {
                 let err_msg = result
@@ -234,14 +237,19 @@ pub async fn handle_mint_session_keys_and_send_to_signer(
         &request.near_rpc_url,
         &request.session_id,
         &request.credential,
-    ) .await {
+    )
+    .await
+    {
         #[cfg(target_arch = "wasm32")]
         {
             let err = resp
                 .error
                 .clone()
                 .unwrap_or_else(|| "VRF mint session keys failed".to_string());
-            crate::wrap_key_seed_port::send_wrap_key_seed_error_to_signer(&request.session_id, &err);
+            crate::wrap_key_seed_port::send_wrap_key_seed_error_to_signer(
+                &request.session_id,
+                &err,
+            );
         }
         return resp;
     }

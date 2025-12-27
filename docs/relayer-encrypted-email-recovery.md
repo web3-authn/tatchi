@@ -11,9 +11,11 @@ contract.
 3. The relayer encrypts the email with the Outlayer X25519 public key and
    constructs an `EncryptedEmailEnvelope`.
 4. The relayer calls the per-account `EmailRecoverer` contract with:
-   - `verify_encrypted_email_and_recover(encrypted_email_blob, aead_context)`, where
-     `encrypted_email_blob = envelope` and
-     `aead_context = { account_id, network_id, payer_account_id }`.
+   - `verify_encrypted_email_and_recover(encrypted_email_blob, aead_context, expected_hashed_email, expected_new_public_key)`, where
+     `encrypted_email_blob = envelope`,
+     `aead_context = { account_id, network_id, payer_account_id }`,
+     `expected_hashed_email = sha256(canonical_from_email + "|" + lowercase(account_id))` (32 bytes), and
+     `expected_new_public_key` is parsed from the subject token `ed25519:<pk>`.
 5. The per-account `EmailRecoverer` delegates to the global
    `EmailDKIMVerifier` contract (which talks to the Outlayer worker) to perform
    DKIM verification and account recovery, and ensures a `VerificationResult`
@@ -51,7 +53,7 @@ handles plaintext and DKIM verification off-chain.
       to produce `encrypted_email_blob`.
     - Sends `verify_encrypted_email_and_recover` to the per-account
       `EmailRecoverer` contract with:
-      `{ encrypted_email_blob: envelope, aead_context: context }`.
+      `{ encrypted_email_blob: envelope, aead_context: context, expected_hashed_email, expected_new_public_key }`.
     - Returns an `EmailRecoveryResult`:
       ```ts
       {

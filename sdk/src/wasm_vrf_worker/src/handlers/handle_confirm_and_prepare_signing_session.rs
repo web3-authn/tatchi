@@ -1,13 +1,13 @@
+use crate::await_secure_confirmation::vrf_await_secure_confirmation;
 use crate::manager::VRFKeyManager;
 use crate::types::{VrfWorkerResponse, WorkerConfirmationResponse};
-use crate::await_secure_confirmation::vrf_await_secure_confirmation;
+use js_sys::{Array, Date, Reflect};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
-use js_sys::{Array, Date, Reflect};
 
 /// Request payload: kick off confirmTxFlow from VRF WASM (via awaitSecureConfirmationV2).
 ///

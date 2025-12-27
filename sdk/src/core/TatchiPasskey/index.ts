@@ -49,7 +49,7 @@ import type {
   SignTransactionHooksOptions,
 } from '../types/sdkSentEvents';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
-import { ConfirmationConfig } from '../types/signer-worker';
+import { ConfirmationConfig, type WasmSignedDelegate } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import type { DerivedAddressRecord, RecoveryEmailRecord } from '../IndexedDBManager';
@@ -250,7 +250,7 @@ export class TatchiPasskey {
 
   private ensureWalletIframePreferencesMirror(router: WalletIframeRouter): void {
     if (this.walletIframePrefsUnsubscribe) return;
-    const unsubscribe = router.onPreferencesChanged?.((payload: any) => {
+    const unsubscribe = router.onPreferencesChanged?.(payload => {
       const id = payload?.nearAccountId;
       const nearAccountId = id ? toAccountId(id) : null;
       this.userPreferences.applyWalletHostConfirmationConfig({
@@ -1023,7 +1023,7 @@ export class TatchiPasskey {
    */
   async sendDelegateActionViaRelayer(args: {
     relayerUrl: string;
-    signedDelegate: SignedDelegate;
+    signedDelegate: SignedDelegate | WasmSignedDelegate;
     hash: string;
     signal?: AbortSignal;
     options?: DelegateRelayHooksOptions;
@@ -1091,7 +1091,7 @@ export class TatchiPasskey {
       relayResult = await this.sendDelegateActionViaRelayer({
         relayerUrl,
         hash: signResult.hash,
-        signedDelegate: signResult.signedDelegate as any,
+        signedDelegate: signResult.signedDelegate,
         signal,
         options: relayOptions,
       });
@@ -1480,10 +1480,10 @@ export class TatchiPasskey {
         const res = await router.startEmailRecovery({
           accountId,
           recoveryEmail,
-          onEvent: options?.onEvent as any,
+          onEvent: options?.onEvent,
           options: Object.keys(safeOptions).length > 0 ? safeOptions : undefined,
         });
-        await options?.afterCall?.(true, undefined as any);
+        await options?.afterCall?.(true, undefined);
         return res;
       } catch (error: unknown) {
         const e = toError(error);
@@ -1508,9 +1508,9 @@ export class TatchiPasskey {
         await router.finalizeEmailRecovery({
           accountId,
           nearPublicKey,
-          onEvent: options?.onEvent as any,
+          onEvent: options?.onEvent,
         });
-        await options?.afterCall?.(true, undefined as any);
+        await options?.afterCall?.(true, undefined);
         return;
       } catch (error: unknown) {
         const e = toError(error);

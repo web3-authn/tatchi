@@ -8,14 +8,13 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 
+use crate::await_secure_confirmation::{
+    vrf_await_secure_confirmation, Payload, RpcCall, SecureConfirmRequest, Summary,
+};
 use crate::errors::HkdfError;
 use crate::manager::VRFKeyManager;
 use crate::types::{VrfWorkerResponse, WorkerConfirmationResponse};
 use crate::utils::{base64_url_decode, generate_wrap_key_salt_b64u};
-use crate::await_secure_confirmation::{
-    RpcCall, Summary, Payload, SecureConfirmRequest,
-    vrf_await_secure_confirmation,
-};
 
 /// Request payload for combined Device2 registration session.
 /// This combines registration credential collection + WrapKeySeed derivation in a single flow.
@@ -154,7 +153,7 @@ pub async fn handle_device2_registration_session(
                 contractId: &request.contract_id,
                 nearRpcUrl: &request.near_rpc_url,
                 nearAccountId: &near_account_id,
-            }
+            },
         },
         intentDigest: Some(&intent_digest),
         confirmationConfig: request.confirmation_config.clone(),
@@ -215,7 +214,10 @@ pub async fn handle_device2_registration_session(
             Ok(bytes) => bytes,
             Err(e) => {
                 let msg = format!("Failed to decode PRF.first: {}", e);
-                debug!("Failed to extract PRF.first from Device2 credential: {}", msg);
+                debug!(
+                    "Failed to extract PRF.first from Device2 credential: {}",
+                    msg
+                );
                 return VrfWorkerResponse::fail(
                     message_id,
                     format!("Device2 registration: {}", msg),
@@ -224,7 +226,10 @@ pub async fn handle_device2_registration_session(
         },
         None => {
             let msg = "PRF.first not found in registration credential".to_string();
-            debug!("[VRF] Failed to extract PRF.first from Device2 credential: {}", msg);
+            debug!(
+                "[VRF] Failed to extract PRF.first from Device2 credential: {}",
+                msg
+            );
             return VrfWorkerResponse::fail(message_id, format!("Device2 registration: {}", msg));
         }
     };
@@ -233,14 +238,23 @@ pub async fn handle_device2_registration_session(
         Some(second_b64u) => {
             if second_b64u.is_empty() {
                 let msg = "PRF.second not found in registration credential".to_string();
-                debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", msg);
-                return VrfWorkerResponse::fail(message_id, format!("Device2 registration: {}", msg));
+                debug!(
+                    "[VRF] Failed to extract PRF.second from Device2 credential: {}",
+                    msg
+                );
+                return VrfWorkerResponse::fail(
+                    message_id,
+                    format!("Device2 registration: {}", msg),
+                );
             }
             match base64_url_decode(&second_b64u) {
                 Ok(bytes) => bytes,
                 Err(e) => {
                     let msg = format!("Failed to decode PRF.second: {}", e);
-                    debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", msg);
+                    debug!(
+                        "[VRF] Failed to extract PRF.second from Device2 credential: {}",
+                        msg
+                    );
                     return VrfWorkerResponse::fail(
                         message_id,
                         format!("Device2 registration: {}", msg),
@@ -250,7 +264,10 @@ pub async fn handle_device2_registration_session(
         }
         None => {
             let msg = "PRF.second not found in registration credential".to_string();
-            debug!("[VRF] Failed to extract PRF.second from Device2 credential: {}", msg);
+            debug!(
+                "[VRF] Failed to extract PRF.second from Device2 credential: {}",
+                msg
+            );
             return VrfWorkerResponse::fail(message_id, format!("Device2 registration: {}", msg));
         }
     };
