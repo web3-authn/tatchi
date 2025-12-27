@@ -11,6 +11,9 @@ import './index.css';
 // Note: Vite requires using `import.meta.env` exactly; optional chaining breaks env injection.
 const env = import.meta.env;
 const relayerUrl = env.VITE_RELAYER_URL!;
+const walletOrigin = env.VITE_WALLET_ORIGIN;
+const walletServicePath = env.VITE_WALLET_SERVICE_PATH || '/wallet-service';
+const sdkBasePath = env.VITE_SDK_BASE_PATH || '/sdk';
 
 function App() {
   return (
@@ -20,10 +23,10 @@ function App() {
           url: relayerUrl,
         },
         iframeWallet: {
-          walletOrigin: env.VITE_WALLET_ORIGIN,
-          walletServicePath: '/wallet-service',
+          walletOrigin,
+          walletServicePath,
           rpIdOverride: env.VITE_RP_ID_BASE,
-          sdkBasePath: '/sdk',
+          sdkBasePath,
         },
       }}
     >

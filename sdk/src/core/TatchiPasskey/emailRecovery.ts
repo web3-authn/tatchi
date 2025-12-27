@@ -795,20 +795,9 @@ export class EmailRecoveryFlow {
               },
             } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
 
+            // Store the new user record here, so `getLastUser()`
+            // is aware of the new device context before any subsequent actions occur.
             try {
-              // CRITICAL FIX: Update local state to match the newly recovered identity immediately.
-              //
-              // Root Issue: "Failed to collect credentials" during Export Private Key.
-              // Explanation:
-              // 1. Export flows use `ensureCurrentPasskey` which relies on `getLastUser()`.
-              // 2. If we don't store the new user record here, `getLastUser()` defaults to the *previous*
-              //    device (e.g., Device #1).
-              // 3. This causes the new credential (Device #N) to be filtered out of `allowCredentials`.
-              // 4. Result: The browser prompt fails because no valid credentials are allowed.
-              //
-              // By storing the user record and syncing authenticators now, we ensure the local DB
-              // is fully aware of the new device context before any subsequent actions occur.
-
               // 1. Store the new user record (Device N) so that `getLastUser()` finds it
               // and `ensureCurrentPasskey` selects the correct credential for operations.
               await IndexedDBManager.clientDB.storeWebAuthnUserData({
