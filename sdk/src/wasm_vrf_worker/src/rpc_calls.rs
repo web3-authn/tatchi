@@ -166,8 +166,8 @@ impl<'a> RpcBody<'a> {
 }
 
 const VERIFY_FROM_VRF_WORKER_RPC_ID: &str = "verify_from_vrf_worker";
-const VERIFY_RPC_RETRY_DELAY_MS: i32 = 500;
-const VERIFY_RPC_ATTEMPTS_PER_FINALITY: u32 = 3;
+const VERIFY_RPC_RETRY_DELAY_MS: i32 = 1000;
+const VERIFY_RPC_ATTEMPTS_PER_FINALITY: u32 = 10;
 
 fn build_verify_rpc_body(
     contract_id: &str,

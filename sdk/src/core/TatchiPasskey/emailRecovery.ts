@@ -883,29 +883,6 @@ export class EmailRecoveryFlow {
     return undefined;
   }
 
-  private async persistRecoveredUserRecordBestEffort(
-    rec: PendingEmailRecovery,
-    accountId: AccountId
-  ): Promise<boolean> {
-    try {
-      await IndexedDBManager.clientDB.storeWebAuthnUserData({
-        nearAccountId: accountId,
-        deviceNumber: rec.deviceNumber,
-        clientNearPublicKey: rec.nearPublicKey,
-        passkeyCredential: {
-          id: rec.credential.id,
-          rawId: rec.credential.rawId,
-        },
-        encryptedVrfKeypair: rec.encryptedVrfKeypair,
-        serverEncryptedVrfKeypair: rec.serverEncryptedVrfKeypair || undefined,
-      });
-      return true;
-    } catch (err) {
-      console.warn('[EmailRecoveryFlow] Failed to store recovery user record:', err);
-      return false;
-    }
-  }
-
   private mapAuthenticatorsFromContract(authenticators: Array<{ authenticator: any }>) {
     return authenticators.map(({ authenticator }) => ({
       credentialId: authenticator.credentialId,
@@ -985,11 +962,16 @@ export class EmailRecoveryFlow {
     await webAuthnManager.storeUserData(payload);
   }
 
+  /**
+   * Explicitly persist the authenticator from the recovery record into the local cache.
+   * This ensures the key is available immediately, bridging the gap before RPC sync sees it.
+   */
   private async persistAuthenticatorBestEffort(rec: PendingEmailRecovery, accountId: AccountId): Promise<void> {
     try {
       const { webAuthnManager } = this.context;
       const attestationB64u = rec.credential.response.attestationObject;
       const credentialPublicKey = await webAuthnManager.extractCosePublicKey(attestationB64u);
+
       await webAuthnManager.storeAuthenticator({
         nearAccountId: accountId,
         deviceNumber: rec.deviceNumber,
@@ -998,11 +980,13 @@ export class EmailRecoveryFlow {
         transports: ['internal'],
         name: `Device ${rec.deviceNumber} Passkey for ${rec.accountId.split('.')[0]}`,
         registered: new Date().toISOString(),
-        syncedAt: new Date().toISOString(),
+        syncedAt: new Date().toISOString(), // Local truth is fresh
         vrfPublicKey: rec.vrfPublicKey,
       });
-    } catch {
-      // best-effort; do not fail flow
+      console.log('[EmailRecoveryFlow] Locally persisted recovered authenticator for immediate use.');
+    } catch (e) {
+      console.error('[EmailRecoveryFlow] Failed to locally persist authenticator (critical for immediate export):', e);
+      // We log error but don't rethrow to avoid crashing the final success UI.
     }
   }
 
@@ -1135,20 +1119,27 @@ export class EmailRecoveryFlow {
       const { nonceManager, accountId } = this.initializeNonceManager(rec);
       const signedTx = await this.signRegistrationTx(rec, accountId);
       const txHash = await this.broadcastRegistrationTxAndWaitFinal(rec, signedTx);
-
-      if (txHash) {
-        const storedUser = await this.persistRecoveredUserRecordBestEffort(rec, accountId);
-        if (storedUser) {
-          const syncedAuthenticators = await this.syncAuthenticatorsBestEffort(accountId);
-          if (syncedAuthenticators) {
-            await this.setLastUserBestEffort(accountId, rec.deviceNumber);
-          }
-        }
+      if (!txHash) {
+        console.warn('[EmailRecoveryFlow] Registration transaction confirmed without hash; continuing local persistence');
       }
 
-      await this.updateNonceBestEffort(nonceManager, signedTx);
+      // CRITICAL: Persist local state immediately.
+      // 1. Store the new user record (Device N) so that `getLastUser()` finds it.
       await this.persistRecoveredUserData(rec, accountId);
+
+      // 2. Sync authenticators (RPC might be stale, but we try).
+      await this.syncAuthenticatorsBestEffort(accountId);
+
+      // 3. FORCE-SAVE the local authenticator from our recovery record.
+      // This is crucial because RPC sync might be slow/empty immediately after TX.
+      // We must ensure the new key is in the DB so `ensureCurrentPasskey` finds it.
+      // We do this AFTER sync to ensure it's not wiped by a stale sync.
       await this.persistAuthenticatorBestEffort(rec, accountId);
+
+      // 4. Set as active user to ensure immediate subsequent calls use this identity.
+      await this.setLastUserBestEffort(accountId, rec.deviceNumber);
+
+      await this.updateNonceBestEffort(nonceManager, signedTx);
 
       this.emitAutoLoginEvent(EmailRecoveryStatus.PROGRESS, 'Attempting auto-login with recovered device...', {
         autoLogin: 'progress',

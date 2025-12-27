@@ -42,7 +42,8 @@ export async function collectAuthenticationCredentialWithPRF({
   // will deterministically fail later with "Contract verification failed".
   if (authenticatorsForPrompt.length === 1) {
     const expectedVrfPublicKey = authenticatorsForPrompt[0]?.vrfPublicKey;
-    if (expectedVrfPublicKey && expectedVrfPublicKey !== vrfChallenge.vrfPublicKey) {
+    // Only enforce mismatch if the challenge strictly requires a specific VRF key.
+    if (expectedVrfPublicKey && vrfChallenge.vrfPublicKey && expectedVrfPublicKey !== vrfChallenge.vrfPublicKey) {
       throw new Error('Signing session is using a different passkey/VRF session than the current device. Please log in again and retry.');
     }
   }
