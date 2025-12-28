@@ -1,6 +1,8 @@
 import type { AccountId } from '../types/accountIds';
 import { toAccountId } from '../types/accountIds';
 import { IndexedDBManager, type RecoveryEmailRecord } from '../IndexedDBManager';
+import type { FinalExecutionOutcome } from '@near-js/types';
+import { base64Decode } from '../../utils/base64';
 export { EmailRecoveryPendingStore, type PendingStore } from './emailRecoveryPendingStore';
 
 export type RecoveryEmailEntry = {
@@ -9,6 +11,41 @@ export type RecoveryEmailEntry = {
 };
 
 export { type RecoveryEmailRecord };
+
+export type LinkDeviceRegisterUserResponse = {
+  verified?: boolean;
+  registration_info?: unknown;
+  registrationInfo?: unknown;
+  error?: unknown;
+};
+
+function getTxSuccessValueBase64(outcome: FinalExecutionOutcome): string | null {
+  const status = outcome.status;
+  if (!status || typeof status !== 'object') return null;
+  if (!('SuccessValue' in status)) return null;
+  const value = status.SuccessValue;
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+export function parseLinkDeviceRegisterUserResponse(
+  outcome: FinalExecutionOutcome
+): LinkDeviceRegisterUserResponse | null {
+  try {
+    const successValueB64 = getTxSuccessValueBase64(outcome);
+    if (!successValueB64) return null;
+
+    const bytes = base64Decode(successValueB64);
+    const text = new TextDecoder().decode(bytes);
+    if (!text.trim()) return null;
+
+    const parsed = JSON.parse(text) as unknown;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const candidate = parsed as LinkDeviceRegisterUserResponse;
+    return typeof candidate.verified === 'boolean' ? candidate : null;
+  } catch {
+    return null;
+  }
+}
 
 export const canonicalizeEmail = (email: string): string => {
   const raw = String(email || '').trim();

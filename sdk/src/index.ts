@@ -92,6 +92,7 @@ export type {
 
 // === ERROR TYPES ===
 export type { PasskeyErrorDetails } from './core/types/errors';
+export { EmailRecoveryError, EmailRecoveryErrorCode } from './core/types/emailRecovery';
 
 // === CONFIRMATION TYPES ===
 export type {

@@ -1,6 +1,7 @@
 import type { PasskeyManagerContext } from './index';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { validateNearAccountId } from '../../utils/validation';
+import { errorMessage } from '../../utils/errors';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import {
   EmailRecoveryPhase,
@@ -16,13 +17,19 @@ import {
   type ServerEncryptedVrfKeypair,
   type VRFChallenge,
 } from '../types/vrf-worker';
-import type { WebAuthnRegistrationCredential } from '../types';
+import type { FinalExecutionOutcome } from '@near-js/types';
+import type { StoredAuthenticator, WebAuthnRegistrationCredential } from '../types';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 import { getLoginSession } from './login';
 import type { SignedTransaction } from '../NearClient';
-import { EmailRecoveryPendingStore, type PendingStore } from '../EmailRecovery';
+import {
+  EmailRecoveryPendingStore,
+  parseLinkDeviceRegisterUserResponse,
+  type PendingStore,
+} from '../EmailRecovery';
+import { EmailRecoveryError, EmailRecoveryErrorCode } from '../types/emailRecovery';
 
 export type PendingEmailRecoveryStatus =
   | 'awaiting-email'
@@ -137,8 +144,8 @@ export class EmailRecoveryFlow {
   private pendingStore: PendingStore;
   private pending: PendingEmailRecovery | null = null;
   private phase: EmailRecoveryPhase = EmailRecoveryPhase.STEP_1_PREPARATION;
-  private pollingTimer: any;
-  private pollIntervalResolver?: (value?: void | PromiseLike<void>) => void;
+  private pollingTimer: ReturnType<typeof setTimeout> | undefined;
+  private pollIntervalResolver?: () => void;
   private pollingStartedAt: number | null = null;
   private cancelled = false;
   private error?: Error;
@@ -162,8 +169,9 @@ export class EmailRecoveryFlow {
     this.options?.onEvent?.(event);
   }
 
-  private emitError(step: number, message: string): Error {
-    const err = new Error(message);
+  private emitError(step: number, messageOrError: string | Error): Error {
+    const err = typeof messageOrError === 'string' ? new Error(messageOrError) : messageOrError;
+    const message = err.message || (typeof messageOrError === 'string' ? messageOrError : 'Unknown error');
     this.phase = EmailRecoveryPhase.ERROR;
     this.error = err;
     this.emit({
@@ -257,8 +265,8 @@ export class EmailRecoveryFlow {
           `This account does not have enough NEAR to finalize recovery. Available: ${available.toString()} yocto; required: ${String(minBalanceYocto)}. Please top up and try again.`
         );
       }
-    } catch (e: any) {
-      await this.fail(1, e?.message || 'Failed to fetch account balance for recovery');
+    } catch (err: unknown) {
+      await this.fail(1, errorMessage(err) || 'Failed to fetch account balance for recovery');
     }
   }
 
@@ -279,8 +287,8 @@ export class EmailRecoveryFlow {
         nearAccountId
       );
       const numbers = authenticators
-        .map((a: any) => a?.authenticator?.deviceNumber)
-        .filter((n: any) => typeof n === 'number' && Number.isFinite(n)) as number[];
+        .map(({ authenticator }) => authenticator.deviceNumber)
+        .filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
       const max = numbers.length > 0 ? Math.max(...numbers) : 0;
       return max + 1;
     } catch {
@@ -610,8 +618,8 @@ export class EmailRecoveryFlow {
       await this.options?.afterCall?.(true, undefined);
 
       return { mailtoUrl, nearPublicKey: rec.nearPublicKey };
-    } catch (e: any) {
-      const err = this.emitError(2, e?.message || 'Email recovery TouchID/derivation failed');
+    } catch (e: unknown) {
+      const err = this.emitError(2, errorMessage(e) || 'Email recovery TouchID/derivation failed');
       await this.options?.afterCall?.(false);
       throw err;
     }
@@ -822,7 +830,10 @@ export class EmailRecoveryFlow {
     return { nonceManager, accountId };
   }
 
-  private async signRegistrationTx(rec: PendingEmailRecovery, accountId: AccountId): Promise<SignedTransaction> {
+  /*
+   * Signs a `link_device_register_user` contract call
+   */
+  private async signNewDevice2RegistrationTx(rec: PendingEmailRecovery, accountId: AccountId): Promise<SignedTransaction> {
     const vrfChallenge = rec.vrfChallenge;
     if (!vrfChallenge) {
       return this.fail(5, 'Missing VRF challenge for email recovery registration');
@@ -847,43 +858,86 @@ export class EmailRecoveryFlow {
     rec: PendingEmailRecovery,
     signedTx: SignedTransaction
   ): Promise<string | undefined> {
+    let txResult: FinalExecutionOutcome;
     try {
-      const txResult = await this.context.nearClient.sendTransaction(
+      txResult = await this.context.nearClient.sendTransaction(
         signedTx,
         DEFAULT_WAIT_STATUS.linkDeviceRegistration
       );
-
-      try {
-        const txHash = (txResult as any)?.transaction?.hash || (txResult as any)?.transaction_hash;
-        if (txHash) {
-          this.emit({
-            step: 5,
-            phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
-            status: EmailRecoveryStatus.PROGRESS,
-            message: 'Registration transaction confirmed',
-            data: {
-              accountId: rec.accountId,
-              nearPublicKey: rec.nearPublicKey,
-              transactionHash: txHash,
-            },
-          } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
-        }
-        return txHash;
-      } catch {
-        // best-effort; do not fail flow
-      }
-    } catch (e: any) {
-      const msg = String(e?.message || '');
-      await this.fail(
-        5,
-        msg || 'Failed to broadcast email recovery registration transaction (insufficient funds or RPC error)'
-      );
+    } catch (err: unknown) {
+      const msg = errorMessage(err) || 'Failed to broadcast email recovery registration transaction (insufficient funds or RPC error)';
+      throw new Error(msg);
     }
 
-    return undefined;
+    const txHash = this.getTxHash(txResult);
+
+    // Contract can return `{ verified: false, registration_info: null }` without failing the tx.
+    // When that happens, the authenticator was NOT registered on-chain, so we must not proceed
+    // with local persistence + auto-login.
+    const linkDeviceResult = parseLinkDeviceRegisterUserResponse(txResult);
+    if (linkDeviceResult?.verified === false) {
+      const logs = this.extractNearExecutionLogs(txResult);
+      const isStaleChallenge = logs.some((log) => /StaleChallenge|freshness validation failed/i.test(log));
+      const txHint = txHash ? ` (tx: ${txHash})` : '';
+      const code = isStaleChallenge
+        ? EmailRecoveryErrorCode.VRF_CHALLENGE_EXPIRED
+        : EmailRecoveryErrorCode.REGISTRATION_NOT_VERIFIED;
+      const message = isStaleChallenge
+        ? `Timed out finalizing registration (VRF challenge expired). Please restart email recovery and try again${txHint}.`
+        : `Registration did not verify on-chain. Please try again${txHint}.`;
+      throw new EmailRecoveryError(message, code, {
+        accountId: rec.accountId,
+        nearPublicKey: rec.nearPublicKey,
+        transactionHash: txHash,
+        logs,
+        result: linkDeviceResult,
+      });
+    }
+
+    if (txHash) {
+      this.emit({
+        step: 5,
+        phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
+        status: EmailRecoveryStatus.PROGRESS,
+        message: 'Registration transaction confirmed',
+        data: {
+          accountId: rec.accountId,
+          nearPublicKey: rec.nearPublicKey,
+          transactionHash: txHash,
+        },
+      } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
+    }
+
+    return txHash;
   }
 
-  private mapAuthenticatorsFromContract(authenticators: Array<{ authenticator: any }>) {
+  private getTxHash(outcome: FinalExecutionOutcome): string | undefined {
+    const txUnknown: unknown = outcome.transaction;
+    if (txUnknown && typeof txUnknown === 'object') {
+      const hash = (txUnknown as Record<string, unknown>).hash;
+      if (typeof hash === 'string' && hash.length > 0) return hash;
+    }
+
+    const fallback = (outcome as unknown as Record<string, unknown>).transaction_hash;
+    return typeof fallback === 'string' && fallback.length > 0 ? fallback : undefined;
+  }
+
+  private extractNearExecutionLogs(outcome: FinalExecutionOutcome): string[] {
+    const logs: string[] = [];
+    for (const entry of outcome.transaction_outcome.outcome.logs) {
+      logs.push(String(entry));
+    }
+    for (const receipt of outcome.receipts_outcome) {
+      for (const entry of receipt.outcome.logs) {
+        logs.push(String(entry));
+      }
+    }
+    return logs;
+  }
+
+  private mapAuthenticatorsFromContract(
+    authenticators: Array<{ credentialId: string; authenticator: StoredAuthenticator }>
+  ) {
     return authenticators.map(({ authenticator }) => ({
       credentialId: authenticator.credentialId,
       credentialPublicKey: authenticator.credentialPublicKey,
@@ -928,7 +982,7 @@ export class EmailRecoveryFlow {
     signedTx: SignedTransaction
   ): Promise<void> {
     try {
-      const txNonce = (signedTx.transaction as any)?.nonce;
+      const txNonce = signedTx.transaction.nonce;
       if (txNonce != null) {
         await nonceManager.updateNonceFromBlockchain(
           this.context.nearClient,
@@ -1089,8 +1143,8 @@ export class EmailRecoveryFlow {
       await this.assertVrfActiveForAccount(accountId, 'VRF session inactive after TouchID unlock');
       await this.finalizeLocalLoginState(accountId, deviceNumber);
       return { success: true };
-    } catch (err: any) {
-      return { success: false, reason: err?.message || String(err) };
+    } catch (err: unknown) {
+      return { success: false, reason: errorMessage(err) || String(err) };
     }
   }
 
@@ -1117,7 +1171,7 @@ export class EmailRecoveryFlow {
 
     try {
       const { nonceManager, accountId } = this.initializeNonceManager(rec);
-      const signedTx = await this.signRegistrationTx(rec, accountId);
+      const signedTx = await this.signNewDevice2RegistrationTx(rec, accountId);
       const txHash = await this.broadcastRegistrationTxAndWaitFinal(rec, signedTx);
       if (!txHash) {
         console.warn('[EmailRecoveryFlow] Registration transaction confirmed without hash; continuing local persistence');
@@ -1170,8 +1224,13 @@ export class EmailRecoveryFlow {
           nearPublicKey: rec.nearPublicKey,
         },
       } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
-    } catch (e: any) {
-      const err = this.emitError(5, e?.message || 'Email recovery finalization failed');
+    } catch (e: unknown) {
+      rec.status = 'error';
+      await this.savePending(rec).catch(() => { });
+      const original = e instanceof Error
+        ? e
+        : new Error(errorMessage(e) || 'Email recovery finalization failed');
+      const err = this.emitError(5, original);
       await this.options?.afterCall?.(false);
       throw err;
     }
@@ -1198,8 +1257,8 @@ export class EmailRecoveryFlow {
       }
 
       return this.handleAutoLoginFailure(touchIdResult.reason || 'Auto-login failed');
-    } catch (err: any) {
-      return this.handleAutoLoginFailure(err?.message || String(err), err);
+    } catch (err: unknown) {
+      return this.handleAutoLoginFailure(errorMessage(err) || String(err), err);
     }
   }
 }

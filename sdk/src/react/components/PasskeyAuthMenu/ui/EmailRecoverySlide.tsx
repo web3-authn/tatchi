@@ -476,7 +476,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     <div className="w3a-email-recovery-slide">
       <div className="w3a-email-recovery-title">Recover Account with Email</div>
       <div className="w3a-email-recovery-help">
-        Send a special recovery email from your recovery email address.
+        Send a recovery email from your registered email address.
         Your account will be recovered with a new key once the email is verified.
       </div>
 
@@ -585,7 +585,6 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
           )}
           {explorerToast && (
             <>
-              <br />
               <a className="w3a-email-recovery-link" href={explorerToast.url} target="_blank" rel="noopener noreferrer">
                 View on explorer
               </a>
