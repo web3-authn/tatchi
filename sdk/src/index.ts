@@ -8,6 +8,7 @@ export {
   encodeSignedTransactionBase64
 } from './core/NearClient';
 export { verifyAuthenticationResponse } from './core/rpcCalls';
+export { EmailRecoveryPendingStore, type PendingStore } from './core/EmailRecovery';
 
 export * from './config';
 export { base64UrlEncode, base64UrlDecode } from './utils/encoders';
@@ -91,6 +92,7 @@ export type {
 
 // === ERROR TYPES ===
 export type { PasskeyErrorDetails } from './core/types/errors';
+export { EmailRecoveryError, EmailRecoveryErrorCode } from './core/types/emailRecovery';
 
 // === CONFIRMATION TYPES ===
 export type {

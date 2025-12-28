@@ -392,8 +392,7 @@ fn test_configuration_constants() {
         "HKDF VRF info should not be empty"
     );
     assert_eq!(
-        HKDF_VRF_KEYPAIR_INFO,
-        b"tatchi:v1:vrf-sk",
+        HKDF_VRF_KEYPAIR_INFO, b"tatchi:v1:vrf-sk",
         "HKDF VRF info must match spec"
     );
     assert_ne!(

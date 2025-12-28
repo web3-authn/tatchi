@@ -33,8 +33,8 @@ This is meant to be “progressive security hardening”: users can start with t
 - If extension installed and user opts in: SDK routes wallet operations to the extension wallet.
 - If extension not installed: SDK stays on wallet‑iframe and can optionally show a “Get the extension for improved security” CTA.
 - Extension UX is minimalistic and embedded:
-  - Clicking the extension icon opens the **Side Panel** (not a popup).
-  - No `default_popup`; the Side Panel hosts the wallet UI for confirmations, status, and settings.
+  - **Signing and registration stay embedded in the app** (same wallet‑iframe overlay/modal UX).
+  - Clicking the extension icon opens the **Side Panel** (not a popup), but the Side Panel is optional (settings/status only).
 
 ### Technical deliverables
 
@@ -59,24 +59,40 @@ This is meant to be “progressive security hardening”: users can start with t
 
 #### Phase 0 — Feasibility spike
 
-- [ ] Confirm `navigator.credentials.create/get()` works from the intended extension surface(s) (tab / popup / side panel) on Chrome stable
+- [ ] Confirm WebAuthn works from an **embedded `chrome-extension://…` iframe** on Chrome stable
 - [ ] Confirm PRF extension works end-to-end in that context (request → `getClientExtensionResults().prf` shape → deterministic outputs)
-- [ ] Confirm Side Panel is viable as the only “action click” UI:
+- [ ] Confirm Side Panel is viable as an optional settings/status UI (not required for signing):
   - [ ] `chrome.sidePanel` API availability in target Chrome versions
   - [ ] `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` works (no popup)
-- [ ] Prototype web ↔ extension RPC (choose one):
-  - [ ] `externally_connectable` handshake (origin allowlist + version exchange)
-  - [ ] content-script bridge (page `postMessage` ↔ content script ↔ `chrome.runtime`), with strict origin binding
-- [ ] Decide whether embedding `chrome-extension://…` in an iframe is viable without app-side `Permissions-Policy` coupling
-- [ ] Pick Architecture A or B and record constraints + UX impact
+- [ ] Confirm embedding viability for Architecture A:
+  - [ ] Extension exposes `wallet-service.html` + assets via `web_accessible_resources`, restricted to app origins
+  - [ ] App can `postMessage` a transferable `MessagePort` and receive `READY` (CONNECT → READY)
+  - [ ] App `Permissions-Policy` can delegate `publickey-credentials-*` to `chrome-extension://<extension_id>`
+  - [ ] App COEP (`require-corp`) does not break embedding (or document that app must set `coepMode: 'off'`)
+- [ ] Add extension presence detection (non-signing-critical):
+  - [ ] `externally_connectable` ping/pong for “installed?” + version
+  - [ ] (Optional) content-script bridge if external messaging is insufficient for some deployments
+- [ ] Record final constraints + go/no-go for Architecture A
+
+Phase 0 dev harness (in-repo)
+- Extension wallet-service stub: `apps/tatchi-wallet-extension/wallet-service.html`
+- App embed + MessagePort handshake harness: `examples/vite/public/phase0-extension.html`
+  - Run `pnpm -C examples/vite dev` (HTTPS via Caddy) and open `https://example.localhost/phase0-extension.html`
+  - Set `VITE_WALLET_ORIGIN=chrome-extension://<extension_id>` so the dev server emits `Permissions-Policy` for the extension origin
+  - Extension exposes `wallet-service.html` via `web_accessible_resources`
+  - SDK aliases the default `/wallet-service` path to `/wallet-service.html` for `chrome-extension://…` wallet origins
+  - If embedding fails under app COEP, set `VITE_COEP_MODE=off` for the app pages
 
 #### Phase 1 — Extension wallet runtime
 
 - [ ] Create `apps/tatchi-wallet-extension/` (MV3) with `manifest.json`, build, and dev-load instructions
-- [ ] Implement Side Panel UI as the primary surface:
+- [ ] Implement Side Panel UI (optional; settings/status only):
   - [ ] `manifest.json`: set `"side_panel": { "default_path": "sidepanel.html" }`
   - [ ] `manifest.json`: omit `"action": { "default_popup": ... }` (icon click should not open a popup)
   - [ ] Service worker: call `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })`
+- [ ] Implement embedded wallet service page (Architecture A):
+  - [ ] Add a `wallet-service.html` equivalent inside the extension and ensure it boots the wallet host runtime (CONNECT/READY + `PM_*` handlers)
+  - [ ] Add `web_accessible_resources` entries for `wallet-service.html` (and any necessary subresources), restricted to an allowlist of app origins
 - [ ] Package the wallet host runtime into the extension (equivalent of today’s wallet service host + handlers)
 - [ ] Ensure workers/WASM load correctly under extension URLs (no remote code, no eval)
 - [ ] Implement extension-side persistent storage under extension origin (same encrypted-at-rest guarantees)
@@ -108,28 +124,34 @@ This is meant to be “progressive security hardening”: users can start with t
 
 We need to validate browser constraints before committing to an architecture:
 
-- WebAuthn + PRF support in extension contexts:
-  - `navigator.credentials.create/get()` from extension UI surfaces (popup, tab, side panel, extension page).
-  - PRF extension availability and result shape.
-- Can a normal web page call into an installed extension without requiring site-specific host permissions?
-  - Option A: `externally_connectable` (web page ↔ extension messaging directly).
-  - Option B: content-script bridge (page `postMessage` ↔ content script ↔ extension runtime).
-- Can we embed an extension page as an iframe and still run WebAuthn there (user activation, Permissions-Policy interactions)?
-  - If this is blocked by Permissions-Policy on the app origin, we must not rely on iframe-embedding the extension for core flows.
+- WebAuthn + PRF inside an embedded `chrome-extension://…` iframe page:
+  - `navigator.credentials.create/get()` is allowed and user-activation behaves as expected.
+  - PRF extension results are present and stable (`getClientExtensionResults().prf.results.{first,second}`).
+- Embed + handshake viability:
+  - Extension page can be embedded via `web_accessible_resources` (tight allowlist).
+  - Existing MessageChannel handshake works: parent posts CONNECT with a transferred MessagePort and receives READY.
+- Header viability:
+  - App can delegate WebAuthn via `Permissions-Policy` to `chrome-extension://<extension_id>`.
+  - App COEP (`require-corp`) does not block extension embedding (or must be disabled on app pages).
 
-**Exit criteria**: pick one of the two architectures below (A or B) and document the hard constraints.
+**Exit criteria**: validate Architecture A feasibility and document the hard constraints (or explicitly fall back to Architecture B).
 
 ### Phase 1 — Choose an architecture
 
-#### Architecture A (preferred if possible): reuse wallet-iframe router with an extension-hosted “wallet service page”
+#### Architecture A (primary): reuse wallet-iframe router with an extension-hosted “wallet service page”
 
 Goal: keep the existing `WalletIframeRouter` + message protocol unchanged, but swap the wallet service origin from `https://wallet.example.com` to `chrome-extension://<id>`.
 
 - Package the existing wallet host page + bundles (workers/WASM/Lit UI) into the extension.
-- Configure `iframeWallet.walletOrigin = chrome.runtime.getURL('/')` and `walletServicePath` to the extension wallet service page.
+- Configure `iframeWallet.walletOrigin = "chrome-extension://<extension_id>"` and `walletServicePath` to the extension wallet service page (`/wallet-service.html`).
 - Keep the same overlay + progress-bus mechanics for user activation.
 
-Key risk: this may be blocked by app-side Permissions-Policy requirements for `publickey-credentials-*` in cross-origin iframes (and apps cannot dynamically emit policies per-user/extension-id).
+Key requirements/risks:
+
+- **`web_accessible_resources`**: the extension must explicitly expose the wallet service page (and its static assets) to be iframe-embedded. Lock this down to an allowlist of app origins.
+- **Permissions-Policy**: the app origin must delegate `publickey-credentials-*` to the extension origin so the embedded extension frame can call WebAuthn.
+- **COEP on app pages**: if the app uses COEP `require-corp`, it may block embedding extension pages. If so, app pages must set `coepMode: 'off'` (wallet isolation still comes from the extension origin).
+- **No Safari fallback**: the Safari “bridge to top-level” path does not apply for an extension-scoped `rpId`.
 
 #### Architecture B (fallback): extension-native transport + extension-controlled UI
 
@@ -206,7 +228,8 @@ Plan:
 
 ## Open questions (to resolve in Phase 0)
 
-- Does Chromium allow WebAuthn PRF from the chosen extension UI surface reliably?
-- Can websites communicate with the extension without host permissions (via `externally_connectable`)?
-- Can WebAuthn run in an extension page embedded as a cross-origin iframe without app-side Permissions-Policy coupling?
-- What is the best user-activation UX that still “feels” like the current wallet-iframe modal?
+- Does Chromium allow WebAuthn PRF from an embedded `chrome-extension://…` iframe page reliably?
+- Does `Permissions-Policy` accept `chrome-extension://<id>` origins for `publickey-credentials-*` delegation across Chrome versions?
+- Does app-page COEP `require-corp` block embedding extension pages (and if so, must the app set `coepMode: 'off'`)?
+- What is the minimal `web_accessible_resources` surface area we can expose while keeping the embedded UX?
+- What is the best embedded user-activation UX that still “feels” like the current wallet-iframe modal?

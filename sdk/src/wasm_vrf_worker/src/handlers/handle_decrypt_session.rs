@@ -1,9 +1,9 @@
+use crate::await_secure_confirmation::{
+    vrf_await_secure_confirmation, DecryptPrivateKeyWithPrfPayload, ExportSummary,
+    SecureConfirmRequest,
+};
 use crate::manager::VRFKeyManager;
 use crate::types::{EncryptedVRFKeypair, VrfWorkerResponse, WorkerConfirmationResponse};
-use crate::await_secure_confirmation::{
-    DecryptPrivateKeyWithPrfPayload, ExportSummary, SecureConfirmRequest,
-    vrf_await_secure_confirmation,
-};
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen;
 use std::cell::RefCell;
@@ -104,11 +104,11 @@ pub async fn handle_decrypt_session(
         Err(e) => return VrfWorkerResponse::fail(message_id, e.to_string()),
     };
 
-    let decision: WorkerConfirmationResponse =
-        match vrf_await_secure_confirmation(request_js).await {
-            Ok(res) => res,
-            Err(e) => return VrfWorkerResponse::fail(message_id, e),
-        };
+    let decision: WorkerConfirmationResponse = match vrf_await_secure_confirmation(request_js).await
+    {
+        Ok(res) => res,
+        Err(e) => return VrfWorkerResponse::fail(message_id, e),
+    };
 
     if !decision.confirmed {
         return VrfWorkerResponse::fail(
@@ -149,11 +149,17 @@ pub async fn handle_decrypt_session(
 
             // Offline/local decrypt flows must include PRF.second so VRF can be recovered
             // without any prior in-memory session state.
-            let prf_second_bytes = match extract_prf_second_bytes_from_credential(&decision.credential) {
-                Ok(bytes) if !bytes.is_empty() => bytes,
-                Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF.second in credential".to_string()),
-                Err(e) => return VrfWorkerResponse::fail(message_id, e),
-            };
+            let prf_second_bytes =
+                match extract_prf_second_bytes_from_credential(&decision.credential) {
+                    Ok(bytes) if !bytes.is_empty() => bytes,
+                    Ok(_) => {
+                        return VrfWorkerResponse::fail(
+                            message_id,
+                            "Missing PRF.second in credential".to_string(),
+                        )
+                    }
+                    Err(e) => return VrfWorkerResponse::fail(message_id, e),
+                };
 
             // 1) Preferred: unlock the locally stored encrypted VRF keypair (if provided),
             // using PRF.second as the decryption key (spec-aligned).
@@ -163,7 +169,11 @@ pub async fn handle_decrypt_session(
 
                 {
                     let mut mgr = manager.borrow_mut();
-                    match mgr.unlock_vrf_keypair(near_account_id.clone(), enc, prf_second_bytes.clone()) {
+                    match mgr.unlock_vrf_keypair(
+                        near_account_id.clone(),
+                        enc,
+                        prf_second_bytes.clone(),
+                    ) {
                         Ok(_) => unlocked = true,
                         Err(e) => last_err = Some(e.to_string()),
                     }
@@ -198,18 +208,20 @@ pub async fn handle_decrypt_session(
                 !mgr.session_active || mgr.vrf_keypair.is_none()
             };
             if still_missing {
-                let deterministic_vrf_keypair = match manager
-                    .borrow()
-                    .generate_vrf_keypair_from_seed(&prf_second_bytes, &near_account_id)
-                {
-                    Ok(kp) => kp,
-                    Err(e) => {
-                        return VrfWorkerResponse::fail(
+                let deterministic_vrf_keypair =
+                    match manager
+                        .borrow()
+                        .generate_vrf_keypair_from_seed(&prf_second_bytes, &near_account_id)
+                    {
+                        Ok(kp) => kp,
+                        Err(e) => return VrfWorkerResponse::fail(
                             message_id,
-                            format!("Failed to derive deterministic VRF keypair from PRF.second: {}", e),
-                        )
-                    }
-                };
+                            format!(
+                                "Failed to derive deterministic VRF keypair from PRF.second: {}",
+                                e
+                            ),
+                        ),
+                    };
 
                 if let Some(expected) = expected_vrf_public_key.as_deref() {
                     let pk_bytes = match bincode::serialize(&deterministic_vrf_keypair.pk) {
@@ -230,9 +242,10 @@ pub async fn handle_decrypt_session(
                     }
                 }
 
-                manager
-                    .borrow_mut()
-                    .store_vrf_keypair_in_memory(deterministic_vrf_keypair, near_account_id.clone());
+                manager.borrow_mut().store_vrf_keypair_in_memory(
+                    deterministic_vrf_keypair,
+                    near_account_id.clone(),
+                );
             }
         }
         #[cfg(not(target_arch = "wasm32"))]

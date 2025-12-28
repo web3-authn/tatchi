@@ -27,5 +27,6 @@ export * from './accountIds'
 export * from './sdkSentEvents'
 export * from './tatchi'
 export * from './delegate'
+export * from './emailRecovery'
 
 export type { ClientUserData } from '../IndexedDBManager/passkeyClientDB';

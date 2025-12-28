@@ -9,9 +9,21 @@ export async function maybeRefreshVrfChallenge(
   request: SecureConfirmRequest,
   nearAccountId: string,
 ): Promise<{ vrfChallenge: VRFChallenge; transactionContext: TransactionContext }> {
+
   const rpId = ctx.touchIdPrompt.getRpId();
   const vrfWorkerManager = ctx.vrfWorkerManager;
-  if (!vrfWorkerManager) throw new Error('VrfWorkerManager not available');
+  if (!vrfWorkerManager) {
+    throw new Error('VrfWorkerManager not available');
+  }
+  // Only attempt a JIT refresh when NonceManager is initialized for this account.
+  // Pre-login/registration flows should just skip (callers already treat this as best-effort).
+  if (
+    !ctx.nonceManager.nearAccountId ||
+    !ctx.nonceManager.nearPublicKeyStr ||
+    String(ctx.nonceManager.nearAccountId) !== String(nearAccountId)
+  ) {
+    throw new Error('NonceManager not initialized with user data');
+  }
 
   const attempts = 3;
   return await retryWithBackoff(async (attempt) => {
@@ -38,7 +50,11 @@ export async function maybeRefreshVrfChallenge(
           request.requestId,
         );
 
-    return { vrfChallenge, transactionContext: latestCtx };
+    return {
+      vrfChallenge,
+      transactionContext: latestCtx
+    };
+
   }, {
     attempts,
     baseDelayMs: 150,
@@ -81,4 +97,3 @@ async function retryWithBackoff<T>(fn: (attempt: number) => Promise<T>, options:
 
   throw errorFactory ? errorFactory() : toError(lastError ?? new Error('Retry exhausted'));
 }
-

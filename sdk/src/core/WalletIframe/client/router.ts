@@ -76,6 +76,7 @@ import type {
   AccountRecoverySSEEvent,
   DelegateActionSSEEvent,
   DeviceLinkingSSEEvent,
+  EmailRecoverySSEEvent,
   LoginSSEvent,
   RegistrationSSEEvent,
   SendTransactionHooksOptions,
@@ -87,6 +88,7 @@ import {
   ActionPhase,
   DeviceLinkingPhase,
   AccountRecoveryPhase,
+  EmailRecoveryPhase,
 } from '../../types/sdkSentEvents';
 import type {
   ActionResult,
@@ -1022,7 +1024,7 @@ export class WalletIframeRouter {
   async startEmailRecovery(payload: {
     accountId: string;
     recoveryEmail: string;
-    onEvent?: (ev: ProgressPayload) => void;
+    onEvent?: (ev: EmailRecoverySSEEvent) => void;
     options?: {
       confirmerText?: { title?: string; body?: string };
       confirmationConfig?: Partial<ConfirmationConfig>;
@@ -1044,7 +1046,7 @@ export class WalletIframeRouter {
         options: safeOptions && Object.keys(safeOptions).length > 0 ? safeOptions : undefined
       },
       options: {
-        onProgress: payload.onEvent
+        onProgress: this.wrapOnEvent(payload.onEvent, isEmailRecoverySSEEvent)
       }
     });
     return res.result;
@@ -1053,13 +1055,13 @@ export class WalletIframeRouter {
   async finalizeEmailRecovery(payload: {
     accountId: string;
     nearPublicKey?: string;
-    onEvent?: (ev: ProgressPayload) => void
+    onEvent?: (ev: EmailRecoverySSEEvent) => void
   }): Promise<void> {
     await this.post<void>({
       type: 'PM_FINALIZE_EMAIL_RECOVERY',
       payload: { accountId: payload.accountId, nearPublicKey: payload.nearPublicKey },
       options: {
-        onProgress: payload.onEvent
+        onProgress: this.wrapOnEvent(payload.onEvent, isEmailRecoverySSEEvent)
       }
     });
   }
@@ -1495,6 +1497,7 @@ const LOGIN_PHASES = new Set<string>(Object.values(LoginPhase) as string[]);
 const ACTION_PHASES = new Set<string>(Object.values(ActionPhase) as string[]);
 const DEVICE_LINKING_PHASES = new Set<string>(Object.values(DeviceLinkingPhase) as string[]);
 const ACCOUNT_RECOVERY_PHASES = new Set<string>(Object.values(AccountRecoveryPhase) as string[]);
+const EMAIL_RECOVERY_PHASES = new Set<string>(Object.values(EmailRecoveryPhase) as string[]);
 
 function phaseOf(progress: ProgressPayload): string {
   return String((progress as { phase?: unknown })?.phase ?? '');
@@ -1524,6 +1527,10 @@ function isDeviceLinkingSSEEvent(p: ProgressPayload): p is DeviceLinkingSSEEvent
 
 function isAccountRecoverySSEEvent(p: ProgressPayload): p is AccountRecoverySSEEvent {
   return ACCOUNT_RECOVERY_PHASES.has(phaseOf(p));
+}
+
+function isEmailRecoverySSEEvent(p: ProgressPayload): p is EmailRecoverySSEEvent {
+  return EMAIL_RECOVERY_PHASES.has(phaseOf(p));
 }
 
 /**
