@@ -5,6 +5,45 @@ import { hashRecoveryEmailForAccount, type EmailEncryptionContext } from './emai
 import { parseHeaderValue, parseRecoverSubjectBindings } from './emailParsers';
 import type { EmailRecoveryResult, EmailRecoveryServiceDeps, EmailRecoveryRequest } from './types';
 
+function normalizeSingleLine(input: string): string {
+  return String(input || '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatEmailRecoveryTxError(error: unknown, receiverId: string): string {
+  const kind = typeof (error as any)?.kind === 'string' ? String((error as any).kind) : '';
+  const short = typeof (error as any)?.short === 'string' ? String((error as any).short) : '';
+  const msg = normalizeSingleLine((error as any)?.message || String(error || ''));
+
+  // Non-existent target account (common when the Subject includes a typo / unknown account).
+  if (
+    kind === 'AccountDoesNotExist' ||
+    /AccountDoesNotExist/i.test(short) ||
+    /AccountDoesNotExist/i.test(msg) ||
+    /account does not exist/i.test(msg)
+  ) {
+    return `Account "${receiverId}" does not exist`;
+  }
+
+  // Invalid / malformed account id.
+  if (
+    /Invalid(Account|Receiver)Id/i.test(kind) ||
+    /Invalid(Account|Receiver)Id/i.test(short) ||
+    /Invalid(Account|Receiver)Id/i.test(msg)
+  ) {
+    return `Invalid NEAR account ID "${receiverId}"`;
+  }
+
+  // Prefer concise NearRpcError "short" where available.
+  if (short && short !== 'TxExecutionError' && short !== 'RPC error') {
+    return `Transaction failed (${short})`;
+  }
+
+  return msg || 'Unknown email recovery error';
+}
+
 export async function getOutlayerEncryptionPublicKey(
   deps: Pick<EmailRecoveryServiceDeps, 'nearClient' | 'emailDkimVerifierContract'>,
 ): Promise<Uint8Array> {
@@ -215,7 +254,7 @@ export async function sendEmailRecoveryTransaction(
         message: label,
       };
     } catch (error: any) {
-      const msg = error?.message || 'Unknown email recovery error';
+      const msg = formatEmailRecoveryTxError(error, receiverId);
       return {
         success: false,
         error: msg,

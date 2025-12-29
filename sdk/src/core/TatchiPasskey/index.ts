@@ -1464,13 +1464,17 @@ export class TatchiPasskey {
 
   async startEmailRecovery(args: {
     accountId: string;
-    recoveryEmail: string;
+    recoveryEmail?: string;
     options?: EmailRecoveryFlowOptions;
   }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
     const { accountId, recoveryEmail, options } = args;
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter();
+        const normalizedRecoveryEmail =
+          typeof recoveryEmail === 'string' && recoveryEmail.trim().length > 0
+            ? recoveryEmail.trim()
+            : undefined;
         const confirmerText = options?.confirmerText;
         const confirmationConfig = options?.confirmationConfig;
         const safeOptions = {
@@ -1479,7 +1483,7 @@ export class TatchiPasskey {
         };
         const res = await router.startEmailRecovery({
           accountId,
-          recoveryEmail,
+          recoveryEmail: normalizedRecoveryEmail,
           onEvent: options?.onEvent,
           options: Object.keys(safeOptions).length > 0 ? safeOptions : undefined,
         });

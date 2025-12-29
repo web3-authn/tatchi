@@ -848,6 +848,19 @@
   color: color-mix(in srgb, var(--w3a-colors-error), var(--w3a-colors-textPrimary) 30%);
 }
 
+.w3a-email-recovery-from-warning {
+  margin-top: 1rem;
+  font-weight: 600;
+}
+
+[data-w3a-theme="light"] .w3a-email-recovery-from-warning {
+  color: #d80;
+}
+
+[data-w3a-theme="dark"] .w3a-email-recovery-from-warning {
+  color: #ea5;
+}
+
 .w3a-email-recovery-link {
   font-size: 0.875rem;
   color: var(--w3a-colors-primary, #3b82f6);
@@ -864,9 +877,9 @@
   padding: 0.75rem 0.875rem;
   border-radius: 1rem;
   border: 1px solid var(--w3a-colors-borderPrimary);
-  background: var(--w3a-colors-surface);
+  background: var(--w3a-colors-surface2);
   color: var(--w3a-colors-textPrimary);
-  margin-bottom: 0.5rem;
+  margin-bottom: 4px;
 }
 
 .w3a-email-recovery-status.is-error {
@@ -897,6 +910,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.w3a-email-recovery-email-chip-static {
+  cursor: default;
 }
 
 .w3a-email-recovery-email-chip:hover:not(:disabled) {

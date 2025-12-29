@@ -154,6 +154,13 @@ function normalizeEmailAddress(input: string): string {
   return trimmed.toLowerCase();
 }
 
+function normalizeRejectReason(input: unknown): string {
+  return String(input || '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function toLowercaseHeaderRecord(input: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (!input) return out;
@@ -262,7 +269,7 @@ export function createCloudflareEmailHandler(service: AuthService, opts: Cloudfl
 
       if (!service.emailRecovery) {
         logger.warn('[email] rejecting: EmailRecoveryService not configured');
-        message.setReject('Recovery relayer rejected email: email recovery service unavailable');
+        message.setReject('Email recovery relayer rejected email: email recovery service unavailable');
         return;
       }
 
@@ -273,8 +280,13 @@ export function createCloudflareEmailHandler(service: AuthService, opts: Cloudfl
       });
 
       if (!result?.success) {
-        logger.warn('[email] recovery failed', { accountId: parsed.accountId, error: result?.error || 'unknown' });
-        message.setReject(`Email recovery relayer rejected email: ${result?.error || 'recovery failed'}`);
+        logger.warn('[email] recovery failed', {
+          accountId: parsed.accountId,
+          error: result?.error || 'unknown',
+          message: result?.message,
+        });
+        const reason = normalizeRejectReason(result?.message || result?.error || 'recovery failed');
+        message.setReject(`Email recovery relayer rejected email: ${reason}`);
         return;
       }
 

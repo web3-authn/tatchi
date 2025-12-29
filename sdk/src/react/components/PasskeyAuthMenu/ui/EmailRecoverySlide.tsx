@@ -2,8 +2,6 @@ import React from 'react';
 
 import type { EmailRecoverySSEEvent } from '@/core/types/sdkSentEvents';
 import type { TatchiPasskey } from '@/core/TatchiPasskey';
-import { IndexedDBManager } from '@/core/IndexedDBManager';
-import { toAccountId } from '@/core/types/accountIds';
 import { EmailRecoveryErrorCode } from '@/core/types/emailRecovery';
 
 export interface EmailRecoverySlideProps {
@@ -81,7 +79,6 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
 
   const [isBusy, setIsBusy] = React.useState(false);
   const [accountIdInput, setAccountIdInput] = React.useState('');
-  const [recoveryEmailInput, setRecoveryEmailInput] = React.useState('');
   const [pendingMailtoUrl, setPendingMailtoUrl] = React.useState<string | null>(null);
   const [pendingNearPublicKey, setPendingNearPublicKey] = React.useState<string | null>(null);
   const [mailtoUiState, setMailtoUiState] = React.useState<MailtoUiState>('ready');
@@ -96,7 +93,6 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
   const [explorerToast, setExplorerToast] = React.useState<{ url: string; accountId?: string; transactionHash?: string } | null>(null);
 
   const lastPrefilledAccountIdRef = React.useRef<string>('');
-  const lastPrefilledRecoveryEmailRef = React.useRef<string>('');
 
   React.useEffect(() => {
     const next = (accountId || '').trim();
@@ -277,47 +273,6 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     };
   }, [mailtoUiState, safeSetMailtoUiState]);
 
-  const fetchLocalRecoveryEmailsFromIndexedDB = React.useCallback(
-    async (rawAccountId: string): Promise<string[]> => {
-      const normalized = (rawAccountId || '').trim();
-      if (!normalized) {
-        console.log('[EmailRecoverySlide] fetchLocalRecoveryEmails: empty accountId');
-        return [];
-      }
-
-      try {
-        console.log('[EmailRecoverySlide] fetchLocalRecoveryEmails: loading from IndexedDB', { accountId: normalized });
-        const records = await IndexedDBManager.getRecoveryEmails(toAccountId(normalized));
-        console.log('[EmailRecoverySlide] fetchLocalRecoveryEmails: raw IndexedDB records', {
-          accountId: normalized,
-          count: Array.isArray(records) ? records.length : 0,
-          records,
-        });
-        if (!Array.isArray(records) || records.length === 0) return [];
-
-        const sorted = [...records].sort((a, b) => (b?.addedAt || 0) - (a?.addedAt || 0));
-        const emails = sorted
-          .map(r => String(r?.email || '').trim().toLowerCase())
-          .filter(e => !!e && e.includes('@'));
-
-        const uniq = Array.from(new Set(emails));
-        console.log('[EmailRecoverySlide] fetchLocalRecoveryEmails: parsed emails', {
-          accountId: normalized,
-          emails: uniq,
-        });
-        return uniq;
-      } catch (err) {
-        // best-effort; treat as no saved emails (e.g., IndexedDB unavailable)
-        console.log('[EmailRecoverySlide] fetchLocalRecoveryEmails: failed to read IndexedDB', {
-          accountId: normalized,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return [];
-      }
-    },
-    [],
-  );
-
   const deriveEmailsFromRecoveryRecords = React.useCallback((records: unknown): string[] => {
     if (!Array.isArray(records) || records.length === 0) return [];
     const emails = records
@@ -330,11 +285,11 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     const normalized = (accountIdInput || '').trim();
     if (!normalized) {
       setAccountInfo(null);
-    setAccountInfoError(null);
-    setAccountInfoLoading(false);
-    safeSetLocalRecoveryEmails([]);
-    return;
-  }
+      setAccountInfoError(null);
+      setAccountInfoLoading(false);
+      safeSetLocalRecoveryEmails([]);
+      return;
+    }
 
     let cancelled = false;
     // Show loading state immediately (don't wait for debounce).
@@ -343,33 +298,11 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     const handle = window.setTimeout(() => {
       void (async () => {
         try {
-          const isWalletIframeMode = !!tatchiPasskey.configs?.iframeWallet?.walletOrigin;
-
-          // Legacy mode: suggest recovery emails from local IndexedDB mapping (best-effort).
-          let localEmails: string[] = [];
-          if (!isWalletIframeMode) {
-            localEmails = await fetchLocalRecoveryEmailsFromIndexedDB(normalized);
-            if (!cancelled) {
-              console.log('[EmailRecoverySlide] local saved emails (IndexedDB)', { accountId: normalized, localEmails });
-            }
-          }
-
           const records = await tatchiPasskey.getRecoveryEmails(normalized);
-          const resolvedEmails = isWalletIframeMode
-            ? deriveEmailsFromRecoveryRecords(records)
-            : localEmails;
+          const resolvedEmails = deriveEmailsFromRecoveryRecords(records);
 
           if (!cancelled) {
             safeSetLocalRecoveryEmails(resolvedEmails);
-            console.log('[EmailRecoverySlide] recovery email suggestions (state)', { accountId: normalized, emails: resolvedEmails });
-
-            if (
-              resolvedEmails.length === 1 &&
-              (recoveryEmailInput.trim() === '' || recoveryEmailInput === lastPrefilledRecoveryEmailRef.current)
-            ) {
-              lastPrefilledRecoveryEmailRef.current = resolvedEmails[0];
-              setRecoveryEmailInput(resolvedEmails[0]);
-            }
           }
 
           const info: EmailRecoveryAccountInfo | null = records
@@ -381,6 +314,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
           if (cancelled) return;
           safeSetAccountInfo(null);
           safeSetAccountInfoError(err?.message || 'Failed to load email recovery settings for this account');
+          safeSetLocalRecoveryEmails([]);
         } finally {
           if (!cancelled) safeSetAccountInfoLoading(false);
         }
@@ -394,8 +328,6 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
   }, [
     accountIdInput,
     deriveEmailsFromRecoveryRecords,
-    fetchLocalRecoveryEmailsFromIndexedDB,
-    recoveryEmailInput,
     safeSetAccountInfo,
     safeSetAccountInfoError,
     safeSetAccountInfoLoading,
@@ -407,12 +339,6 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     const normalizedAccountId = (accountIdInput || '').trim();
     if (!normalizedAccountId) {
       safeSetErrorText('Enter an account ID.');
-      return;
-    }
-
-    const emailCandidate = (recoveryEmailInput || '').trim().toLowerCase();
-    if (!emailCandidate) {
-      safeSetErrorText('Enter the recovery email to send from.');
       return;
     }
 
@@ -430,7 +356,6 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     try {
       const result = await tatchiPasskey.startEmailRecovery({
         accountId: normalizedAccountId,
-        recoveryEmail: emailCandidate,
         options: {
           onEvent,
           onError: (err: Error) => {
@@ -520,7 +445,6 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
   }, [
     accountIdInput,
     emailRecoveryOptions,
-    recoveryEmailInput,
     onEvent,
     refreshLoginState,
     showExplorerToast,
@@ -584,11 +508,11 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     <div className="w3a-email-recovery-slide">
       <div className="w3a-email-recovery-title">Recover Account with Email</div>
       <div className="w3a-email-recovery-help">
-        Send a recovery email from your registered email address.
-        Your account will be recovered with a new key once the email is verified.
+        Send a special email to recover your account.
+        This email must be sent from the designated email recovery address.
       </div>
 
-      <div className="w3a-email-recovery-field">
+      <div>
         <div className="w3a-input-pill w3a-email-recovery-input-pill">
           <div className="w3a-input-wrap">
             <input
@@ -609,54 +533,21 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
 
       <div className="w3a-email-recovery-summary" aria-live="polite">
         <div>{summaryLine}</div>
-      </div>
-
-      <div className="w3a-email-recovery-field">
-        <div className="w3a-input-pill w3a-email-recovery-input-pill">
-          <div className="w3a-input-wrap">
-            <input
-              type="email"
-              value={recoveryEmailInput}
-              onChange={(e) => setRecoveryEmailInput(e.target.value)}
-              placeholder="Recovery email to send from"
-              className="w3a-input"
-              list={localRecoveryEmails.length > 0 ? 'w3a-email-recovery-saved-emails' : undefined}
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              inputMode="email"
-              disabled={isBusy || noRecoveryEmailsConfigured}
-            />
-          </div>
-        </div>
-      </div>
-
-      {localRecoveryEmails.length > 0 && (
-        <div className="w3a-email-recovery-summary" aria-live="polite">
-          <div>Saved on this device:</div>
-          <div className="w3a-email-recovery-saved-emails">
+        {localRecoveryEmails.length > 0 && (
+          <div className="w3a-email-recovery-saved-emails" role="list" aria-label="Recovery emails">
             {localRecoveryEmails.map((email) => (
-              <button
-                key={email}
-                type="button"
-                className="w3a-email-recovery-email-chip"
-                onClick={() => setRecoveryEmailInput(email)}
-                disabled={isBusy}
-              >
+              <span key={email} className="w3a-email-recovery-email-chip w3a-email-recovery-email-chip-static" role="listitem">
                 {email}
-              </button>
+              </span>
             ))}
           </div>
-        </div>
-      )}
-
-      {localRecoveryEmails.length > 0 && (
-        <datalist id="w3a-email-recovery-saved-emails">
-          {localRecoveryEmails.map((email) => (
-            <option key={email} value={email} />
-          ))}
-        </datalist>
-      )}
+        )}
+        {!!accountIdInput.trim() && !noRecoveryEmailsConfigured && (
+          <div className="w3a-email-recovery-from-warning">
+            Check that you are sending the recovery email from your designated recovery email.
+          </div>
+        )}
+      </div>
 
       <div className="w3a-email-recovery-actions">
         {(!pendingMailtoUrl || !isBusy) && (

@@ -17,6 +17,74 @@ test.describe('EmailRecoveryService.verifyEncryptedEmailAndRecover', () => {
     await injectImportMap(page);
   });
 
+  test('returns a friendly error when the target account does not exist', async ({ page }) => {
+    const res = await page.evaluate(async ({ paths, emailBlob }) => {
+      try {
+        const { EmailRecoveryService } = await import(paths.server);
+
+        const createMockDeps = () => {
+          const nearClient = {
+            async view(_params: any): Promise<any> {
+              const bytes = new Uint8Array(32);
+              for (let i = 0; i < 32; i++) bytes[i] = i + 1;
+              let bin = '';
+              for (const b of bytes) bin += String.fromCharCode(b);
+              return btoa(bin);
+            },
+            async sendTransaction(_signedTx: any): Promise<any> {
+              throw {
+                kind: 'AccountDoesNotExist',
+                short: 'ActionError: AccountDoesNotExist',
+                message: 'Send Transaction failed at action 0 (ActionError: AccountDoesNotExist)',
+              };
+            },
+          };
+
+          return {
+            relayerAccountId: 'w3a-relayer.testnet',
+            relayerPrivateKey: 'ed25519:dummy',
+            networkId: 'testnet',
+            emailDkimVerifierContract: 'email-dkim-verifier-v1.testnet',
+            nearClient,
+            ensureSignerAndRelayerAccount: async () => { },
+            queueTransaction: async <T>(fn: () => Promise<T>, _label: string): Promise<T> => fn(),
+            fetchTxContext: async () => ({ nextNonce: '1', blockHash: 'block-hash' }),
+            signWithPrivateKey: async (input: any) => {
+              return { transaction: { dummy: true }, signature: {}, borsh_bytes: [], actions: input.actions };
+            },
+            getRelayerPublicKey: () => 'relayer-public-key',
+          };
+        };
+
+        const deps = createMockDeps();
+        const service = new EmailRecoveryService(deps);
+
+        const result = await service.verifyEncryptedEmailAndRecover({
+          accountId: 'kerp30.w3a-v1.testnet',
+          emailBlob,
+        });
+
+        return { success: true, result };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error?.message || String(error),
+        };
+      }
+    }, { paths: IMPORT_PATHS, emailBlob: GMAIL_RESET_EMAIL_BLOB });
+
+    if (!res.success) {
+      console.error('EmailRecoveryService AccountDoesNotExist test error:', res.error);
+      expect(res.success).toBe(true);
+      return;
+    }
+
+    const { result } = res as { result: any };
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Account "kerp30.w3a-v1.testnet" does not exist');
+    expect(result.message).toBe('Account "kerp30.w3a-v1.testnet" does not exist');
+  });
+
   test('successfully builds and sends encrypted email verification tx', async ({ page }) => {
     const res = await page.evaluate(async ({ paths, emailBlob }) => {
       try {

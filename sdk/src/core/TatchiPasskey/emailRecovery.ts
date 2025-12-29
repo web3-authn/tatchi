@@ -40,7 +40,7 @@ export type PendingEmailRecoveryStatus =
 
 export type PendingEmailRecovery = {
   accountId: AccountId;
-  recoveryEmail: string;
+  recoveryEmail?: string;
   deviceNumber: number;
   nearPublicKey: string;
   requestId: string;
@@ -270,12 +270,9 @@ export class EmailRecoveryFlow {
     }
   }
 
-  private async getCanonicalRecoveryEmailOrFail(recoveryEmail: string): Promise<string> {
+  private getCanonicalRecoveryEmail(recoveryEmail?: string): string | undefined {
     const canonicalEmail = String(recoveryEmail || '').trim().toLowerCase();
-    if (!canonicalEmail) {
-      await this.fail(1, 'Recovery email is required for email-based account recovery');
-    }
-    return canonicalEmail;
+    return canonicalEmail || undefined;
   }
 
   private async getNextDeviceNumberFromContract(nearAccountId: AccountId): Promise<number> {
@@ -362,7 +359,7 @@ export class EmailRecoveryFlow {
       message: 'New device key created; please send the recovery email from your registered address.',
       data: {
         accountId: rec.accountId,
-        recoveryEmail: rec.recoveryEmail,
+        ...(rec.recoveryEmail ? { recoveryEmail: rec.recoveryEmail } : {}),
         nearPublicKey: rec.nearPublicKey,
         requestId: rec.requestId,
         mailtoUrl,
@@ -564,7 +561,7 @@ export class EmailRecoveryFlow {
     return mailtoUrl;
   }
 
-  async start(args: { accountId: string; recoveryEmail: string }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
+  async start(args: { accountId: string; recoveryEmail?: string }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
     const { accountId, recoveryEmail } = args;
     this.cancelled = false;
     this.error = undefined;
@@ -579,7 +576,7 @@ export class EmailRecoveryFlow {
 
     const nearAccountId = await this.assertValidAccountIdOrFail(1, accountId);
     await this.assertSufficientBalance(nearAccountId);
-    const canonicalEmail = await this.getCanonicalRecoveryEmailOrFail(recoveryEmail);
+    const canonicalEmail = this.getCanonicalRecoveryEmail(recoveryEmail);
 
     // Determine deviceNumber from on-chain authenticators
     const deviceNumber = await this.getNextDeviceNumberFromContract(nearAccountId);
