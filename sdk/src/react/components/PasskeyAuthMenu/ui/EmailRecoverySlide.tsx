@@ -8,6 +8,7 @@ import {
 import type { TatchiPasskey } from '@/core/TatchiPasskey';
 import { EmailRecoveryErrorCode } from '@/core/types/emailRecovery';
 import type { EmailRecoveryFlowOptions } from '@/core/TatchiPasskey/emailRecovery';
+import { bytesToHex, canonicalizeEmail } from '@/core/EmailRecovery';
 
 export interface EmailRecoverySlideProps {
   tatchiPasskey: TatchiPasskey;
@@ -27,6 +28,23 @@ type MailtoUiState = 'ready' | 'opening';
 
 type RecoveryEmailRecord = Awaited<ReturnType<TatchiPasskey['getRecoveryEmails']>>[number];
 
+type RecoveryEmailMatchStatus = 'empty' | 'checking' | 'match' | 'mismatch' | 'invalid';
+
+async function hashRecoveryEmailForAccountHex(args: { recoveryEmail: string; accountId: string }): Promise<string | null> {
+  const salt = String(args.accountId || '').trim().toLowerCase();
+  if (!salt) return null;
+
+  const canonical = canonicalizeEmail(String(args.recoveryEmail || ''));
+  if (!canonical || !canonical.includes('@')) return null;
+
+  if (typeof crypto === 'undefined' || !crypto.subtle) return null;
+
+  const input = `${canonical}|${salt}`;
+  const bytes = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return bytesToHex(new Uint8Array(digest));
+}
+
 function getEmailRecoveryErrorCode(err: unknown): EmailRecoveryErrorCode | null {
   const code = (err as { code?: unknown } | null)?.code;
   if (typeof code !== 'string') return null;
@@ -37,6 +55,15 @@ function getEmailRecoveryErrorCode(err: unknown): EmailRecoveryErrorCode | null 
 
 function getEmailRecoveryUiError(err: unknown): { message: string; canRestart: boolean } {
   const fallback = err instanceof Error ? err.message : String(err || '');
+  const normalizedFallback = fallback.trim().toLowerCase();
+  if (normalizedFallback.includes('recovery email is required')) {
+    return {
+      message:
+        fallback ||
+        'Recovery email is required for email-based account recovery. Make sure you send the email from your configured recovery email address.',
+      canRestart: true,
+    };
+  }
   const code = getEmailRecoveryErrorCode(err);
   switch (code) {
     case EmailRecoveryErrorCode.VRF_CHALLENGE_EXPIRED:
@@ -97,6 +124,9 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
   const [accountInfoLoading, setAccountInfoLoading] = React.useState(false);
   const [accountInfoError, setAccountInfoError] = React.useState<string | null>(null);
   const [localRecoveryEmails, setLocalRecoveryEmails] = React.useState<string[]>([]);
+  const [recoveryEmailRecords, setRecoveryEmailRecords] = React.useState<RecoveryEmailRecord[]>([]);
+  const [recoveryEmailInput, setRecoveryEmailInput] = React.useState('');
+  const [recoveryEmailMatchStatus, setRecoveryEmailMatchStatus] = React.useState<RecoveryEmailMatchStatus>('empty');
   const [explorerToast, setExplorerToast] = React.useState<{ url: string; accountId?: string; transactionHash?: string } | null>(null);
 
   const lastPrefilledAccountIdRef = React.useRef<string>('');
@@ -123,6 +153,9 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     setAccountInfo(null);
     setAccountInfoError(null);
     setLocalRecoveryEmails([]);
+    setRecoveryEmailRecords([]);
+    setRecoveryEmailInput('');
+    setRecoveryEmailMatchStatus('empty');
     setExplorerToast(null);
     if (mailtoAttemptTimerRef.current != null) {
       window.clearTimeout(mailtoAttemptTimerRef.current);
@@ -148,6 +181,8 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
   const safeSetAccountInfoLoading = React.useMemo(() => safeSet(setAccountInfoLoading), []);
   const safeSetAccountInfoError = React.useMemo(() => safeSet(setAccountInfoError), []);
   const safeSetLocalRecoveryEmails = React.useMemo(() => safeSet(setLocalRecoveryEmails), []);
+  const safeSetRecoveryEmailRecords = React.useMemo(() => safeSet(setRecoveryEmailRecords), []);
+  const safeSetRecoveryEmailMatchStatus = React.useMemo(() => safeSet(setRecoveryEmailMatchStatus), []);
   const safeSetExplorerToast = React.useMemo(() => safeSet(setExplorerToast), []);
   const safeSetMailtoUiState = React.useMemo(() => safeSet(setMailtoUiState), []);
 
@@ -310,6 +345,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
 
           if (!cancelled) {
             safeSetLocalRecoveryEmails(resolvedEmails);
+            safeSetRecoveryEmailRecords(records);
           }
 
           const info: EmailRecoveryAccountInfo | null = records
@@ -323,6 +359,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
           const msg = err instanceof Error ? err.message : '';
           safeSetAccountInfoError(msg || 'Failed to load email recovery settings for this account');
           safeSetLocalRecoveryEmails([]);
+          safeSetRecoveryEmailRecords([]);
         } finally {
           if (!cancelled) safeSetAccountInfoLoading(false);
         }
@@ -340,7 +377,65 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     safeSetAccountInfoError,
     safeSetAccountInfoLoading,
     safeSetLocalRecoveryEmails,
+    safeSetRecoveryEmailRecords,
     tatchiPasskey,
+  ]);
+
+  const recoveryEmailConfirmationRequired =
+    !accountInfoLoading &&
+    !accountInfoError &&
+    !!accountInfo &&
+    accountInfo.emailsCount > 0 &&
+    localRecoveryEmails.length === 0;
+
+  React.useEffect(() => {
+    const normalizedAccountId = (accountIdInput || '').trim();
+    const rawEmail = (recoveryEmailInput || '').trim();
+
+    if (!rawEmail || !normalizedAccountId) {
+      safeSetRecoveryEmailMatchStatus('empty');
+      return;
+    }
+
+    if (!Array.isArray(recoveryEmailRecords) || recoveryEmailRecords.length === 0) {
+      safeSetRecoveryEmailMatchStatus('checking');
+      return;
+    }
+
+    let cancelled = false;
+    safeSetRecoveryEmailMatchStatus('checking');
+
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const hashHex = await hashRecoveryEmailForAccountHex({
+            recoveryEmail: rawEmail,
+            accountId: normalizedAccountId,
+          });
+          if (cancelled) return;
+          if (!hashHex) {
+            safeSetRecoveryEmailMatchStatus('invalid');
+            return;
+          }
+
+          const normalizedHashHex = hashHex.toLowerCase();
+          const matches = recoveryEmailRecords.some((rec) => String(rec.hashHex || '').toLowerCase() === normalizedHashHex);
+          safeSetRecoveryEmailMatchStatus(matches ? 'match' : 'mismatch');
+        } catch {
+          if (!cancelled) safeSetRecoveryEmailMatchStatus('invalid');
+        }
+      })();
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [
+    accountIdInput,
+    recoveryEmailInput,
+    recoveryEmailRecords,
+    safeSetRecoveryEmailMatchStatus,
   ]);
 
   const handleStart = React.useCallback(async () => {
@@ -348,6 +443,51 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     if (!normalizedAccountId) {
       safeSetErrorText('Enter an account ID.');
       return;
+    }
+
+    if (accountInfoLoading) {
+      safeSetErrorText('Checking recovery email settings…');
+      return;
+    }
+
+    if (accountInfoError) {
+      safeSetErrorText(accountInfoError);
+      return;
+    }
+
+    if (!accountInfo) {
+      safeSetErrorText('Failed to load email recovery settings for this account.');
+      return;
+    }
+
+    if (accountInfo.emailsCount === 0) {
+      safeSetErrorText('No recovery emails are configured for this account.');
+      return;
+    }
+
+    const recoveryEmail = recoveryEmailInput.trim();
+    if (recoveryEmailConfirmationRequired) {
+      if (!recoveryEmail) {
+        safeSetErrorText('Enter the recovery email address you will send from.');
+        return;
+      }
+
+      const hashHex = await hashRecoveryEmailForAccountHex({
+        recoveryEmail,
+        accountId: normalizedAccountId,
+      }).catch(() => null);
+
+      if (!hashHex) {
+        safeSetErrorText('Enter a valid recovery email address.');
+        return;
+      }
+
+      const normalizedHashHex = hashHex.toLowerCase();
+      const matches = recoveryEmailRecords.some((rec) => String(rec.hashHex || '').toLowerCase() === normalizedHashHex);
+      if (!matches) {
+        safeSetErrorText('That email is not configured for recovery on this account. Please use your configured recovery email address.');
+        return;
+      }
     }
 
     safeSetIsBusy(true);
@@ -364,6 +504,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     try {
       const result = await tatchiPasskey.startEmailRecovery({
         accountId: normalizedAccountId,
+        ...(recoveryEmail ? { recoveryEmail } : {}),
         options: {
           onEvent,
           onError: (err: Error) => {
@@ -453,6 +594,12 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     emailRecoveryOptions,
     onEvent,
     refreshLoginState,
+    accountInfo,
+    accountInfoError,
+    accountInfoLoading,
+    recoveryEmailConfirmationRequired,
+    recoveryEmailInput,
+    recoveryEmailRecords,
     showExplorerToast,
     safeSetErrorText,
     safeSetIsBusy,
@@ -519,6 +666,12 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
   const noRecoveryEmailsConfigured =
     !accountInfoLoading && !accountInfoError && !!accountInfo && accountInfo.emailsCount === 0;
 
+  const disableStartForRecoveryEmailMismatch =
+    recoveryEmailConfirmationRequired &&
+    (recoveryEmailMatchStatus === 'empty' || recoveryEmailMatchStatus === 'checking' || recoveryEmailMatchStatus === 'invalid' || recoveryEmailMatchStatus === 'mismatch');
+
+  const startDisabled = isBusy || accountInfoLoading || !!accountInfoError || !accountInfo || noRecoveryEmailsConfigured || disableStartForRecoveryEmailMismatch;
+
   return (
     <div className="w3a-email-recovery-slide">
       <div className="w3a-email-recovery-title">Recover Account with Email</div>
@@ -548,6 +701,9 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
 
       <div className="w3a-email-recovery-summary" aria-live="polite">
         <div>{summaryLine}</div>
+        {!!accountInfoError && (
+          <div className="w3a-email-recovery-warning">{accountInfoError}</div>
+        )}
         {localRecoveryEmails.length > 0 && (
           <div className="w3a-email-recovery-saved-emails" role="list" aria-label="Recovery emails">
             {localRecoveryEmails.map((email) => (
@@ -557,9 +713,46 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
             ))}
           </div>
         )}
+        {recoveryEmailConfirmationRequired && (
+          <>
+            <div className="w3a-email-recovery-warning">
+              This device can’t display your configured recovery email address. Enter the email you will send from to confirm it matches what’s configured for this account.
+            </div>
+            <div className="w3a-input-pill w3a-email-recovery-input-pill">
+              <div className="w3a-input-wrap">
+                <input
+                  type="email"
+                  value={recoveryEmailInput}
+                  onChange={(e) => setRecoveryEmailInput(e.target.value)}
+                  placeholder="Recovery email address (sender)"
+                  className="w3a-input"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  inputMode="email"
+                  disabled={isBusy}
+                />
+              </div>
+            </div>
+            {recoveryEmailMatchStatus === 'checking' && (
+              <div>Checking recovery email…</div>
+            )}
+            {recoveryEmailMatchStatus === 'invalid' && (
+              <div className="w3a-email-recovery-warning">Enter a valid email address.</div>
+            )}
+            {recoveryEmailMatchStatus === 'mismatch' && (
+              <div className="w3a-email-recovery-warning">That email is not configured for recovery on this account.</div>
+            )}
+            {recoveryEmailMatchStatus === 'match' && (
+              <div>Recovery email verified for this account.</div>
+            )}
+          </>
+        )}
         {!!accountIdInput.trim() && !noRecoveryEmailsConfigured && (
           <div className="w3a-email-recovery-from-warning">
-            Check that you are sending the recovery email from your designated recovery email.
+            {recoveryEmailInput.trim()
+              ? `Check that you are sending the recovery email from ${recoveryEmailInput.trim()}.`
+              : 'Check that you are sending the recovery email from your designated recovery email.'}
           </div>
         )}
       </div>
@@ -569,9 +762,15 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
           <button
             onClick={handleStart}
             className="w3a-link-device-btn w3a-link-device-btn-primary"
-            disabled={isBusy || noRecoveryEmailsConfigured}
+            disabled={startDisabled}
           >
-            {noRecoveryEmailsConfigured ? 'No recovery emails configured' : (isBusy ? 'Working…' : 'Start Email Recovery')}
+            {accountInfoLoading
+              ? 'Checking recovery emails…'
+              : noRecoveryEmailsConfigured
+                ? 'No recovery emails configured'
+                : disableStartForRecoveryEmailMismatch
+                  ? 'Confirm recovery email'
+                  : (isBusy ? 'Working…' : 'Start Email Recovery')}
           </button>
         )}
 
