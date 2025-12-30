@@ -5,6 +5,45 @@ import { hashRecoveryEmailForAccount, type EmailEncryptionContext } from './emai
 import { parseHeaderValue, parseRecoverSubjectBindings } from './emailParsers';
 import type { EmailRecoveryResult, EmailRecoveryServiceDeps, EmailRecoveryRequest } from './types';
 
+function normalizeSingleLine(input: string): string {
+  return String(input || '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatEmailRecoveryTxError(error: unknown, receiverId: string): string {
+  const kind = typeof (error as any)?.kind === 'string' ? String((error as any).kind) : '';
+  const short = typeof (error as any)?.short === 'string' ? String((error as any).short) : '';
+  const msg = normalizeSingleLine((error as any)?.message || String(error || ''));
+
+  // Non-existent target account (common when the Subject includes a typo / unknown account).
+  if (
+    kind === 'AccountDoesNotExist' ||
+    /AccountDoesNotExist/i.test(short) ||
+    /AccountDoesNotExist/i.test(msg) ||
+    /account does not exist/i.test(msg)
+  ) {
+    return `Account "${receiverId}" does not exist`;
+  }
+
+  // Invalid / malformed account id.
+  if (
+    /Invalid(Account|Receiver)Id/i.test(kind) ||
+    /Invalid(Account|Receiver)Id/i.test(short) ||
+    /Invalid(Account|Receiver)Id/i.test(msg)
+  ) {
+    return `Invalid NEAR account ID "${receiverId}"`;
+  }
+
+  // Prefer concise NearRpcError "short" where available.
+  if (short && short !== 'TxExecutionError' && short !== 'RPC error') {
+    return `Transaction failed (${short})`;
+  }
+
+  return msg || 'Unknown email recovery error';
+}
+
 export async function getOutlayerEncryptionPublicKey(
   deps: Pick<EmailRecoveryServiceDeps, 'nearClient' | 'emailDkimVerifierContract'>,
 ): Promise<Uint8Array> {
@@ -87,6 +126,7 @@ export async function buildEncryptedEmailRecoveryActions(
     aead_context: aeadContext,
     expected_hashed_email: expectedHashedEmail,
     expected_new_public_key: bindings.newPublicKey,
+    request_id: bindings.requestId,
   };
 
   const actions: ActionArgsWasm[] = [
@@ -115,6 +155,7 @@ export async function buildZkEmailRecoveryActions(
       public_inputs: string[];
       account_id: string;
       new_public_key: string;
+      request_id: string;
       from_email: string;
       timestamp: string;
     };
@@ -145,12 +186,21 @@ export async function buildOnchainEmailRecoveryActions(
 ): Promise<{ actions: ActionArgsWasm[]; receiverId: string }> {
   const { accountId, emailBlob } = input;
 
+  const bindings = parseRecoverSubjectBindings(emailBlob);
+  if (!bindings) {
+    throw new Error('On-chain email recovery requires Subject: recover-<request_id> <accountId> ed25519:<new_public_key>');
+  }
+  if (bindings.accountId !== accountId) {
+    throw new Error(`On-chain email recovery subject accountId mismatch (expected "${accountId}", got "${bindings.accountId}")`);
+  }
+
   const actions: ActionArgsWasm[] = [
     {
       action_type: ActionType.FunctionCall,
       method_name: 'verify_email_onchain_and_recover',
       args: JSON.stringify({
         email_blob: emailBlob,
+        request_id: bindings.requestId,
       }),
       gas: '300000000000000',
       deposit: '10000000000000000000000',
@@ -215,7 +265,7 @@ export async function sendEmailRecoveryTransaction(
         message: label,
       };
     } catch (error: any) {
-      const msg = error?.message || 'Unknown email recovery error';
+      const msg = formatEmailRecoveryTxError(error, receiverId);
       return {
         success: false,
         error: msg,

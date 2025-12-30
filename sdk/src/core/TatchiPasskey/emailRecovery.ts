@@ -30,6 +30,7 @@ import {
   type PendingStore,
 } from '../EmailRecovery';
 import { EmailRecoveryError, EmailRecoveryErrorCode } from '../types/emailRecovery';
+import { getEmailRecoveryAttempt } from '../rpcCalls';
 
 export type PendingEmailRecoveryStatus =
   | 'awaiting-email'
@@ -40,7 +41,7 @@ export type PendingEmailRecoveryStatus =
 
 export type PendingEmailRecovery = {
   accountId: AccountId;
-  recoveryEmail: string;
+  recoveryEmail?: string;
   deviceNumber: number;
   nearPublicKey: string;
   requestId: string;
@@ -103,8 +104,6 @@ function getEmailRecoveryConfig(configs: TatchiConfigs): {
   maxPollingDurationMs: number;
   pendingTtlMs: number;
   mailtoAddress: string;
-  dkimVerifierAccountId: string;
-  verificationViewMethod: string;
 } {
   const relayerEmailCfg = configs.relayer.emailRecovery;
   const minBalanceYocto = String(relayerEmailCfg.minBalanceYocto);
@@ -112,16 +111,12 @@ function getEmailRecoveryConfig(configs: TatchiConfigs): {
   const maxPollingDurationMs = Number(relayerEmailCfg.maxPollingDurationMs);
   const pendingTtlMs = Number(relayerEmailCfg.pendingTtlMs);
   const mailtoAddress = String(relayerEmailCfg.mailtoAddress);
-  const dkimVerifierAccountId = String(relayerEmailCfg.dkimVerifierAccountId);
-  const verificationViewMethod = String(relayerEmailCfg.verificationViewMethod);
   return {
     minBalanceYocto,
     pollingIntervalMs,
     maxPollingDurationMs,
     pendingTtlMs,
     mailtoAddress,
-    dkimVerifierAccountId,
-    verificationViewMethod,
   };
 }
 
@@ -270,12 +265,9 @@ export class EmailRecoveryFlow {
     }
   }
 
-  private async getCanonicalRecoveryEmailOrFail(recoveryEmail: string): Promise<string> {
+  private getCanonicalRecoveryEmail(recoveryEmail?: string): string | undefined {
     const canonicalEmail = String(recoveryEmail || '').trim().toLowerCase();
-    if (!canonicalEmail) {
-      await this.fail(1, 'Recovery email is required for email-based account recovery');
-    }
-    return canonicalEmail;
+    return canonicalEmail || undefined;
   }
 
   private async getNextDeviceNumberFromContract(nearAccountId: AccountId): Promise<number> {
@@ -362,7 +354,7 @@ export class EmailRecoveryFlow {
       message: 'New device key created; please send the recovery email from your registered address.',
       data: {
         accountId: rec.accountId,
-        recoveryEmail: rec.recoveryEmail,
+        ...(rec.recoveryEmail ? { recoveryEmail: rec.recoveryEmail } : {}),
         nearPublicKey: rec.nearPublicKey,
         requestId: rec.requestId,
         mailtoUrl,
@@ -384,62 +376,86 @@ export class EmailRecoveryFlow {
     } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
   }
 
-  private async checkViaDkimViewMethod(
+  private async checkViaEmailRecovererAttempt(
     rec: PendingEmailRecovery
-  ): Promise<{ completed: boolean; success: boolean; errorMessage?: string; transactionHash?: string } | null> {
-    const { dkimVerifierAccountId, verificationViewMethod } = this.getConfig();
-    if (!dkimVerifierAccountId) return null;
-
+  ): Promise<{ completed: boolean; success: boolean; missing?: boolean; errorMessage?: string; } | null> {
     try {
-      const { getEmailRecoveryVerificationResult } = await import('../rpcCalls');
-      const result = await getEmailRecoveryVerificationResult(
+      const attempt = await getEmailRecoveryAttempt(
         this.context.nearClient,
-        dkimVerifierAccountId,
-        verificationViewMethod,
+        rec.accountId,
         rec.requestId
       );
 
-      if (!result) {
-        return { completed: false, success: false };
+      if (!attempt) {
+        return { completed: false, success: false, missing: true };
       }
 
-      if (!result.verified) {
-        const errorMessage = result.error_message || result.error_code || 'Email verification failed on relayer/contract';
+      // Optional safety checks: ensure the bound request/key match expectations when available.
+      if (attempt.request_id && attempt.request_id !== rec.requestId) {
         return {
           completed: true,
           success: false,
-          errorMessage,
-          transactionHash: result.transaction_hash,
+          errorMessage: 'Email recovery attempt request_id does not match requested requestId.',
         };
       }
 
-      // Optional safety checks: ensure the bound account/key match expectations when available.
-      if (result.account_id && result.account_id !== rec.accountId) {
+      if (attempt.new_public_key && attempt.new_public_key !== rec.nearPublicKey) {
         return {
           completed: true,
           success: false,
-          errorMessage: 'Email verification account_id does not match requested account.',
-          transactionHash: result.transaction_hash,
+          errorMessage: 'Email recovery new_public_key does not match expected recovery key.',
         };
       }
-      if (result.new_public_key && result.new_public_key !== rec.nearPublicKey) {
+
+      const normalized = attempt.status.toLowerCase();
+
+      if (normalized === 'complete' || normalized === 'completed') {
+        return {
+          completed: true,
+          success: true,
+        };
+      }
+
+      if (normalized.includes('failed')) {
         return {
           completed: true,
           success: false,
-          errorMessage: 'Email verification new_public_key does not match expected recovery key.',
-          transactionHash: result.transaction_hash,
+          errorMessage: attempt.error || `Email recovery failed (${attempt.status || 'unknown status'})`,
         };
       }
 
       return {
-        completed: true,
-        success: true,
-        transactionHash: result.transaction_hash
+        completed: false,
+        success: false,
       };
     } catch (err) {
       // Treat view errors as retryable; keep polling the view method.
       // eslint-disable-next-line no-console
-      console.warn('[EmailRecoveryFlow] get_verification_result view failed; will retry', err);
+      console.warn('[EmailRecoveryFlow] get_recovery_attempt view failed; will retry', err);
+      return null;
+    }
+  }
+
+  private async isRecoveryAccessKeyPresent(rec: PendingEmailRecovery): Promise<boolean | null> {
+    try {
+      await this.context.nearClient.viewAccessKey(rec.accountId, rec.nearPublicKey);
+      return true;
+    } catch (err: any) {
+      const kind = typeof err?.kind === 'string' ? String(err.kind) : '';
+      const short = typeof err?.short === 'string' ? String(err.short) : '';
+      const msg = typeof err?.message === 'string' ? String(err.message) : '';
+
+      if (
+        /AccessKeyDoesNotExist/i.test(kind) ||
+        /AccessKeyDoesNotExist/i.test(short) ||
+        /access key does not exist/i.test(msg)
+      ) {
+        return false;
+      }
+
+      // Unexpected view error: retryable; treat as unknown to avoid failing the flow.
+      // eslint-disable-next-line no-console
+      console.warn('[EmailRecoveryFlow] view_access_key failed while checking recovery key; will retry', err);
       return null;
     }
   }
@@ -564,7 +580,7 @@ export class EmailRecoveryFlow {
     return mailtoUrl;
   }
 
-  async start(args: { accountId: string; recoveryEmail: string }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
+  async start(args: { accountId: string; recoveryEmail?: string }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
     const { accountId, recoveryEmail } = args;
     this.cancelled = false;
     this.error = undefined;
@@ -579,7 +595,7 @@ export class EmailRecoveryFlow {
 
     const nearAccountId = await this.assertValidAccountIdOrFail(1, accountId);
     await this.assertSufficientBalance(nearAccountId);
-    const canonicalEmail = await this.getCanonicalRecoveryEmailOrFail(recoveryEmail);
+    const canonicalEmail = this.getCanonicalRecoveryEmail(recoveryEmail);
 
     // Determine deviceNumber from on-chain authenticators
     const deviceNumber = await this.getNextDeviceNumberFromContract(nearAccountId);
@@ -741,33 +757,51 @@ export class EmailRecoveryFlow {
   }
 
   private async pollUntilAddKey(rec: PendingEmailRecovery): Promise<void> {
-    const { pollingIntervalMs, maxPollingDurationMs, dkimVerifierAccountId } = this.getConfig();
-    if (!dkimVerifierAccountId) {
-      const err = this.emitError(4, 'Email recovery verification contract (dkimVerifierAccountId) is not configured');
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
+    const { pollingIntervalMs, maxPollingDurationMs } = this.getConfig();
     this.phase = EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT;
     this.pollingStartedAt = Date.now();
+    let sawAttempt = false;
 
     const pollResult = await this.pollUntil<VerificationOutcome>({
       intervalMs: pollingIntervalMs,
       timeoutMs: maxPollingDurationMs,
       isCancelled: () => this.cancelled,
       tick: async ({ elapsedMs, pollCount }) => {
-        const verification = await this.checkViaDkimViewMethod(rec);
-        const completed = verification?.completed === true;
-        const success = verification?.success === true;
+        const verification = await this.checkViaEmailRecovererAttempt(rec);
+        if (verification && !verification.missing) {
+          sawAttempt = true;
+        }
+
+        let completed = verification?.completed === true;
+        let success = verification?.success === true;
+        let errorMessage = verification?.errorMessage;
+        let transactionHash: string | undefined;
+
+        if (verification?.missing) {
+          const hasKey = await this.isRecoveryAccessKeyPresent(rec);
+          if (hasKey === true) {
+            completed = true;
+            success = true;
+          } else if (hasKey === false && sawAttempt) {
+            completed = true;
+            success = false;
+            errorMessage =
+              'Email recovery attempt was cleared on-chain before completion. Please resend the recovery email or restart the flow.';
+          } else if (hasKey === null) {
+            // Retry on unexpected view errors while checking access key presence.
+            return { done: false };
+          }
+        }
 
         this.emit({
           step: 4,
           phase: EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT,
           status: EmailRecoveryStatus.PROGRESS,
           message: completed && success
-            ? `Email verified for request ${rec.requestId}; finalizing registration`
-            : `Waiting for email verification for request ${rec.requestId}`,
+            ? `Email recovery completed for request ${rec.requestId}; finalizing registration`
+            : `Waiting for email recovery for request ${rec.requestId}`,
           data: this.buildPollingEventData(rec, {
-            transactionHash: verification?.transactionHash,
+            transactionHash,
             elapsedMs,
             pollCount,
           }),
@@ -782,7 +816,7 @@ export class EmailRecoveryFlow {
             done: true,
             value: {
               outcome: 'failed',
-              errorMessage: verification?.errorMessage || 'Email verification failed',
+              errorMessage: errorMessage || 'Email recovery failed',
             },
           };
         }

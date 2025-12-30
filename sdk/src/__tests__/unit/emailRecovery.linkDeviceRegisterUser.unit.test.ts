@@ -15,8 +15,6 @@ const CONFIG = {
       maxPollingDurationMs: 1000,
       pendingTtlMs: 60_000,
       mailtoAddress: 'recovery@example.com',
-      dkimVerifierAccountId: 'dkim.testnet',
-      verificationViewMethod: 'get_verification_result',
     },
   },
   contractId: 'contract.testnet',

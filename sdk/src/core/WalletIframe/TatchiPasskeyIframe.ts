@@ -407,7 +407,7 @@ export class TatchiPasskeyIframe {
 
   async startEmailRecovery(args: {
     accountId: string;
-    recoveryEmail: string;
+    recoveryEmail?: string;
     options?: EmailRecoveryFlowOptions;
   }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
     try {

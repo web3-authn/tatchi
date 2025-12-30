@@ -3,6 +3,8 @@ import React from 'react';
 export interface ContentSwitcherProps {
   waiting: boolean;
   waitingText?: string;
+  waitingSubtext?: string;
+  waitingSDKEventsText?: string;
   showScanDevice?: boolean;
   showQRCodeElement?: React.ReactNode;
   showEmailRecovery?: boolean;
@@ -14,6 +16,8 @@ export interface ContentSwitcherProps {
 export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
   waiting,
   waitingText = 'Waiting for Passkey…',
+  waitingSubtext = '',
+  waitingSDKEventsText = '',
   showScanDevice = false,
   showQRCodeElement,
   showEmailRecovery = false,
@@ -70,7 +74,7 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
     ro.observe(sizer);
 
     // Re-sync after fonts load (text metrics can change)
-    const fonts: any = (document as any)?.fonts;
+    const fonts = document?.fonts;
     if (fonts?.ready) {
       fonts.ready.then(() => syncHeight()).catch(() => {});
     }
@@ -95,7 +99,15 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
         <div ref={sizerRef} className="w3a-content-sizer">
           {waiting && (
             <div className="w3a-waiting">
-              <div className="w3a-waiting-text">{waitingText}</div>
+              <div className="w3a-waiting-message">
+                <div className="w3a-waiting-text">{waitingText}</div>
+                {waitingSubtext.trim().length > 0 && (
+                  <div className="w3a-waiting-subtext">{waitingSubtext}</div>
+                )}
+                {waitingSDKEventsText.trim().length > 0 && (
+                  <div className="w3a-waiting-sdk-events">{waitingSDKEventsText}</div>
+                )}
+              </div>
               <div aria-label="Loading" className="w3a-spinner" />
             </div>
           )}

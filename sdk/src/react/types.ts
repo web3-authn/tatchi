@@ -104,9 +104,49 @@ export interface UseAccountInputReturn extends AccountInputState {
   refreshAccountData: () => Promise<void>;
 }
 
+export type SDKFlowKind = 'login' | 'register' | 'recover' | null;
+export type SDKFlowStatus = 'idle' | 'in-progress' | 'success' | 'error';
+
+export type SDKFlowState = {
+  seq: number;
+  kind: SDKFlowKind;
+  status: SDKFlowStatus;
+  eventsText: string;
+  accountId?: string;
+  error?: string;
+};
+
+export type SDKFlowRuntime = SDKFlowState & {
+  /**
+   * Resolves when the flow `seq` completes successfully; rejects on error/timeout.
+   */
+  awaitCompletion: (seq: number, timeoutMs: number) => Promise<SDKFlowState>;
+  /**
+   * Resolves with the next started flow sequence number (or null if it doesn't start in time).
+   */
+  awaitNextStart: (kind: Exclude<SDKFlowKind, null>, seqAfter: number, timeoutMs: number) => Promise<number | null>;
+  /**
+   * Waits for the next started flow (after `seqAfter`) and then for its completion.
+   * If no flow starts in `startTimeoutMs`, it returns without error.
+   */
+  awaitNextCompletion: (
+    kind: Exclude<SDKFlowKind, null>,
+    seqAfter: number,
+    startTimeoutMs: number,
+    completionTimeoutMs: number,
+  ) => Promise<void>;
+};
+
 export interface TatchiContextType {
   // Core TatchiPasskey instance - provides all user-facing functionality
   tatchi: TatchiPasskey;
+
+  /**
+   * SDK progress state for the most recent flow (login/registration/recovery).
+   * Used by UI components (e.g., PasskeyAuthMenu) to keep waiting screens visible
+   * even when integrators do not return a Promise from their handlers.
+   */
+  sdkFlow: SDKFlowRuntime;
 
   ////////////////////////////
   // TatchiPasskey functions

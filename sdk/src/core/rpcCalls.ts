@@ -47,26 +47,59 @@ export interface AuthenticatorsResult {
   authenticators: Array<[string, ContractStoredAuthenticator]>;
 }
 
-export type EmailRecoveryVerificationResult = {
-  verified: boolean;
-  account_id?: string;
-  new_public_key?: string;
-  transaction_hash?: string;
-  error_code?: string;
-  error_message?: string;
+export type RecoveryAttemptStatus =
+  | "Started"
+  | "VerifyingDkim"
+  | "VerifyingZkEmail"
+  | "DkimFailed"
+  | "ZkEmailFailed"
+  | "PolicyFailed"
+  | "Recovering"
+  | "AwaitingMoreEmails"
+  | "Complete"
+  | "Failed";
+
+export type RecoveryAttempt = {
+  request_id: string;
+  status: RecoveryAttemptStatus | string;
+  created_at_ms: number;
+  updated_at_ms: number;
+  error?: string | null;
+  from_address?: string | null;
+  email_timestamp_ms?: number | null;
+  new_public_key?: string | null;
 };
 
-export async function getEmailRecoveryVerificationResult(
+export async function getEmailRecoveryAttempt(
   nearClient: NearClient,
-  dkimVerifierAccountId: string,
-  verificationViewMethod: string,
+  accountId: string,
   requestId: string
-): Promise<EmailRecoveryVerificationResult | null> {
-  return await nearClient.view<{ request_id: string }, EmailRecoveryVerificationResult | null>({
-    account: dkimVerifierAccountId,
-    method: verificationViewMethod,
+): Promise<RecoveryAttempt | null> {
+  const raw = await nearClient.view<{ request_id: string }, Omit<RecoveryAttempt, 'status'> & { status: any } | null>({
+    account: accountId,
+    method: 'get_recovery_attempt',
     args: { request_id: requestId },
   });
+
+  if (!raw) return null;
+
+  // Normalization logic for status (string or object enum)
+  const statusRaw = raw.status;
+  const status = (() => {
+    if (typeof statusRaw === 'string') return statusRaw.trim();
+    if (statusRaw && typeof statusRaw === 'object') {
+      const keys = Object.keys(statusRaw as Record<string, unknown>);
+      if (keys.length === 1) {
+        return String(keys[0] || '').trim();
+      }
+    }
+    return '';
+  })();
+
+  return {
+    ...raw,
+    status: status as RecoveryAttemptStatus,
+  };
 }
 
 // ===========================
@@ -414,6 +447,17 @@ export async function syncAuthenticatorsContractCall(
 // RECOVERY EMAIL CONTRACT CALLS
 // ===========================
 
+const EMPTY_NEAR_CODE_HASH = '11111111111111111111111111111111';
+
+async function hasDeployedContractCode(nearClient: NearClient, accountId: AccountId): Promise<boolean> {
+  try {
+    const account = await nearClient.viewAccount(accountId);
+    return account.code_hash !== EMPTY_NEAR_CODE_HASH;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Fetch on-chain recovery email hashes from the per-account contract.
  * Returns [] when no contract is deployed or on failure.
@@ -423,8 +467,10 @@ export async function getRecoveryEmailHashesContractCall(
   accountId: AccountId
 ): Promise<number[][]> {
   try {
-    const code = await nearClient.viewCode(accountId);
-    const hasContract = !!code && code.byteLength > 0;
+    // Prefer `view_account.code_hash` over `view_code`:
+    // - `view_code` is expected to fail for non-contract accounts and is noisy.
+    // - `view_account` is lightweight and returns a sentinel code hash when no contract is deployed.
+    const hasContract = await hasDeployedContractCode(nearClient, accountId);
     if (!hasContract) return [];
 
     const hashes = await nearClient.view<Record<string, never>, number[][]>({
@@ -435,7 +481,6 @@ export async function getRecoveryEmailHashesContractCall(
 
     return Array.isArray(hashes) ? (hashes as number[][]) : [];
   } catch (error) {
-    console.error('[rpcCalls] Failed to fetch recovery email hashes', error);
     return [];
   }
 }
@@ -450,13 +495,7 @@ export async function buildSetRecoveryEmailsActions(
   recoveryEmailHashes: number[][],
   contracts: EmailRecoveryContracts = DEFAULT_EMAIL_RECOVERY_CONTRACTS
 ): Promise<ActionArgs[]> {
-  let hasContract = false;
-  try {
-    const code = await nearClient.viewCode(accountId);
-    hasContract = !!code && code.byteLength > 0;
-  } catch {
-    hasContract = false;
-  }
+  const hasContract = await hasDeployedContractCode(nearClient, accountId);
 
   const {
     emailRecovererGlobalContract,

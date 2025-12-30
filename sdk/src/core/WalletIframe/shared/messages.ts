@@ -189,7 +189,7 @@ export interface PMDeleteDeviceKeyPayload { accountId: string; publicKeyToDelete
 
 export interface PMStartEmailRecoveryPayload {
   accountId: string;
-  recoveryEmail: string;
+  recoveryEmail?: string;
   options?: {
     confirmerText?: { title?: string; body?: string };
     confirmationConfig?: Record<string, unknown>;

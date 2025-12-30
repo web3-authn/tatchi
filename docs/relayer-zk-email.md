@@ -38,7 +38,7 @@ Before calling `/prove-email`, the SDK performs a short `/healthz` check to fail
     - Calls `POST {baseUrl}/prove-email` with `{ rawEmail: payload.raw }`.
     - Returns `{ proof, publicInputs }` (public inputs mirror `publicSignals`).
   - `extractZkEmailBindingsFromPayload(payload)`:
-    - Extracts `{ accountId, newPublicKey, fromEmail, timestamp }` from:
+    - Extracts `{ accountId, newPublicKey, fromEmail, timestamp, requestId }` from:
       - `Subject: recover-<request_id> <accountId> ed25519:<new_public_key>`
       - `From:` and `Date:` headers.
 
@@ -53,7 +53,7 @@ Before calling `/prove-email`, the SDK performs a short `/healthz` check to fail
     - Normalizes `emailBlob`, parses bindings via `extractZkEmailBindingsFromPayload`.
     - Calls `generateZkEmailProofFromPayload` to get `{ proof, publicInputs }`.
     - Sends `verify_zkemail_and_recover` with:
-      `{ proof, public_inputs, account_id, new_public_key, from_email, timestamp }`.
+      `{ proof, public_inputs, account_id, new_public_key, request_id, from_email, timestamp }`.
 
 ## Wiring into AuthService / HTTP routes
 

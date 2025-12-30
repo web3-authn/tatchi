@@ -154,8 +154,6 @@ export interface TatchiConfigsInput {
       maxPollingDurationMs?: number;
       pendingTtlMs?: number;
       mailtoAddress?: string;
-      dkimVerifierAccountId?: string;
-      verificationViewMethod?: string;
     };
   }
   // authenticator options for registrations
@@ -203,8 +201,6 @@ export interface TatchiConfigs {
       maxPollingDurationMs: number;
       pendingTtlMs: number;
       mailtoAddress: string;
-      dkimVerifierAccountId: string;
-      verificationViewMethod: string;
     };
   };
   authenticatorOptions?: AuthenticatorOptions;

@@ -16,7 +16,7 @@ This guide documents the SDK surface (`startEmailRecovery` / `finalizeEmailRecov
 
 - The account already has a recovery email registered (the address the user must send from).
 - The account has enough NEAR to pay for the finalization transaction (`minBalanceYocto` is checked before prompting).
-- Your chain setup includes an email verification contract that exposes a `get_verification_result(request_id)`-style view.
+- Your per-account `EmailRecoverer` contract exposes `get_recovery_attempt(request_id)` for polling recovery status.
 
 ## Configure Email Recovery
 
@@ -37,10 +37,6 @@ export function AppShell() {
             ...PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.emailRecovery,
             // Inbox that receives recovery emails (mailto "to")
             mailtoAddress: 'recover@yourdomain.com',
-            // Contract that stores verification results keyed by request_id
-            dkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
-            // Optional: defaults to 'get_verification_result'
-            // verificationViewMethod: 'get_verification_result',
           },
         },
       }}
@@ -59,7 +55,7 @@ The relayer exposes `POST /recover-email` (see [Relay Server Deployment](./relay
 
 Encrypted email recovery lets the relayer submit DKIM verification without putting plaintext email on-chain. The relayer encrypts the raw RFC822 email to the Outlayer TEE public key and calls the per-account `EmailRecoverer` contract.
 
-The verification contract stores a `VerificationResult` keyed by `request_id`, which the frontend polls via `get_verification_result(request_id)`.
+The per-account `EmailRecoverer` contract stores a recovery attempt keyed by `request_id`, which the frontend polls via `get_recovery_attempt(request_id)`.
 
 Route usage:
 

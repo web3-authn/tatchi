@@ -30,8 +30,8 @@ export * from './types';
  * - Encrypting raw RFC822 emails with encryptEmailForOutlayer, binding an AEAD context
  *   `{ account_id, network_id, payer_account_id }`,
  * - Calling the per-account EmailRecoverer contract with:
- *   - `verify_encrypted_email_and_recover(encrypted_email_blob, aead_context, expected_hashed_email, expected_new_public_key)` for DKIM/TEE,
- *   - `verify_zkemail_and_recover` for zk-email recovery,
+ *   - `verify_encrypted_email_and_recover(encrypted_email_blob, aead_context, expected_hashed_email, expected_new_public_key, request_id)` for DKIM/TEE,
+ *   - `verify_zkemail_and_recover(..., request_id)` for zk-email recovery,
  * - Performing legacy plaintext on-chain verification via `verify_email_onchain_and_recover`
  *   for backwards compatibility only.
  */
@@ -191,10 +191,9 @@ export class EmailRecoveryService {
    * - Calls the per-account EmailRecoverer contract's
    *   `verify_encrypted_email_and_recover` entrypoint on the user's account.
    *
-   * The per-account EmailRecoverer then delegates to the global
-   * EmailDKIMVerifier (TEE path), which stores a VerificationResult keyed by
-   * request_id. The frontend polls EmailDKIMVerifier::get_verification_result(request_id)
-   * to observe success/failure.
+   * The per-account EmailRecoverer records a pollable attempt keyed by
+   * `request_id` (parsed from the email Subject) so the frontend can observe
+   * success/failure by polling `EmailRecoverer.get_recovery_attempt(request_id)`.
    */
 	  async verifyEncryptedEmailAndRecover(request: EmailRecoveryRequest): Promise<EmailRecoveryResult> {
 	    const accountId = (request.accountId || '').trim();
@@ -369,14 +368,15 @@ export class EmailRecoveryService {
 	      const proverClient = this.getZkEmailProverClient(zkEmailProver);
 	      const proofResult = await generateZkEmailProofFromPayload(payload, proverClient);
 
-	      const contractArgs = {
-	        proof: proofResult.proof,
-	        public_inputs: proofResult.publicInputs,
-	        account_id: bindings.accountId,
-	        new_public_key: bindings.newPublicKey,
-	        from_email: bindings.fromEmail,
-	        timestamp: bindings.timestamp,
-	      };
+		      const contractArgs = {
+		        proof: proofResult.proof,
+		        public_inputs: proofResult.publicInputs,
+		        account_id: bindings.accountId,
+		        new_public_key: bindings.newPublicKey,
+		        request_id: bindings.requestId,
+		        from_email: bindings.fromEmail,
+		        timestamp: bindings.timestamp,
+		      };
 
 	      const { actions, receiverId } = await buildZkEmailRecoveryActions(this.deps, {
 	        accountId,

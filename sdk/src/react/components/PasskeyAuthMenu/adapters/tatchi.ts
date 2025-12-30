@@ -1,5 +1,6 @@
 import { useTatchi } from '../../../context';
 import type { TatchiPasskey } from '@/core/TatchiPasskey';
+import { type SDKFlowRuntime } from '../../../types';
 
 export interface PasskeyAuthMenuRuntime {
   tatchiPasskey: TatchiPasskey;
@@ -8,6 +9,7 @@ export interface PasskeyAuthMenuRuntime {
   targetAccountId: string;
   setInputUsername: (v: string) => void;
   refreshLoginState: (nearAccountId?: string) => Promise<void>;
+  sdkFlow: SDKFlowRuntime;
   displayPostfix?: string;
   isUsingExistingAccount?: boolean;
   stopDevice2LinkingFlow?: () => Promise<void>;
@@ -23,6 +25,7 @@ export function usePasskeyAuthMenuRuntime(): PasskeyAuthMenuRuntime {
     targetAccountId: ctx.accountInputState?.targetAccountId ?? '',
     setInputUsername: ctx.setInputUsername,
     refreshLoginState: ctx.refreshLoginState,
+    sdkFlow: ctx.sdkFlow,
     displayPostfix: ctx.accountInputState?.displayPostfix,
     isUsingExistingAccount: ctx.accountInputState?.isUsingExistingAccount,
     stopDevice2LinkingFlow: ctx.stopDevice2LinkingFlow,

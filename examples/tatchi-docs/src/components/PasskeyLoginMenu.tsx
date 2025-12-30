@@ -253,14 +253,15 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
         // remounting the menu (which causes input focus + content flashes).
         key={`pam2-${authMenuControl.defaultModeOverride ?? 'auto'}-${authMenuControl.remountKey}`}
         defaultMode={authMenuControl.defaultModeOverride ?? (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)}
-        onLogin={onLogin}
-        loadingScreenDelayMs={0}
+        showSDKEvents={true}
+        loadingScreenDelayMs={100}
         headings={{
           registration: {
             title: 'Register Account',
             subtitle: 'Demo: Create a wallet with Passkey',
           },
         }}
+        onLogin={onLogin}
         onRegister={onRegister}
         onRecoverAccount={onRecover}
         linkDeviceOptions={{
