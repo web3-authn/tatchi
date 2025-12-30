@@ -11,16 +11,17 @@ contract.
 3. The relayer encrypts the email with the Outlayer X25519 public key and
    constructs an `EncryptedEmailEnvelope`.
 4. The relayer calls the per-account `EmailRecoverer` contract with:
-   - `verify_encrypted_email_and_recover(encrypted_email_blob, aead_context, expected_hashed_email, expected_new_public_key)`, where
+   - `verify_encrypted_email_and_recover(encrypted_email_blob, aead_context, expected_hashed_email, expected_new_public_key, request_id)`, where
      `encrypted_email_blob = envelope`,
      `aead_context = { account_id, network_id, payer_account_id }`,
      `expected_hashed_email = sha256(canonical_from_email + "|" + lowercase(account_id))` (32 bytes), and
-     `expected_new_public_key` is parsed from the subject token `ed25519:<pk>`.
+     `expected_new_public_key` is parsed from the subject token `ed25519:<pk>`, and
+     `request_id` is parsed from the subject token `recover-<request_id>`.
 5. The per-account `EmailRecoverer` delegates to the global
    `EmailDKIMVerifier` contract (which talks to the Outlayer worker) to perform
-   DKIM verification and account recovery, and ensures a `VerificationResult`
-   is stored keyed by `request_id` for the frontend to poll via
-   `get_verification_result(request_id)`.
+   DKIM verification and account recovery, and ensures a pollable recovery
+   attempt is stored keyed by `request_id` so the frontend can poll
+   `EmailRecoverer.get_recovery_attempt(request_id)` for success/failure.
 
 The goal is that validators and indexers only see ciphertext; the TEE worker
 handles plaintext and DKIM verification off-chain.
@@ -51,13 +52,13 @@ handles plaintext and DKIM verification off-chain.
     - Calls `encryptEmailForOutlayer` with AEAD context
       `{ account_id: accountId, network_id: networkId, payer_account_id: relayerAccountId }`
       to produce `encrypted_email_blob`.
-    - Sends `verify_encrypted_email_and_recover` to the per-account
-      `EmailRecoverer` contract with:
-      `{ encrypted_email_blob: envelope, aead_context: context, expected_hashed_email, expected_new_public_key }`.
-    - Returns an `EmailRecoveryResult`:
-      ```ts
-      {
-        success: boolean;
+	    - Sends `verify_encrypted_email_and_recover` to the per-account
+	      `EmailRecoverer` contract with:
+	      `{ encrypted_email_blob: envelope, aead_context: context, expected_hashed_email, expected_new_public_key, request_id }`.
+	    - Returns an `EmailRecoveryResult`:
+	      ```ts
+	      {
+	        success: boolean;
         transactionHash?: string;
         message?: string;
         error?: string;

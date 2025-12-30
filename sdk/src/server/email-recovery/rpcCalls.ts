@@ -126,6 +126,7 @@ export async function buildEncryptedEmailRecoveryActions(
     aead_context: aeadContext,
     expected_hashed_email: expectedHashedEmail,
     expected_new_public_key: bindings.newPublicKey,
+    request_id: bindings.requestId,
   };
 
   const actions: ActionArgsWasm[] = [
@@ -154,6 +155,7 @@ export async function buildZkEmailRecoveryActions(
       public_inputs: string[];
       account_id: string;
       new_public_key: string;
+      request_id: string;
       from_email: string;
       timestamp: string;
     };
@@ -184,12 +186,21 @@ export async function buildOnchainEmailRecoveryActions(
 ): Promise<{ actions: ActionArgsWasm[]; receiverId: string }> {
   const { accountId, emailBlob } = input;
 
+  const bindings = parseRecoverSubjectBindings(emailBlob);
+  if (!bindings) {
+    throw new Error('On-chain email recovery requires Subject: recover-<request_id> <accountId> ed25519:<new_public_key>');
+  }
+  if (bindings.accountId !== accountId) {
+    throw new Error(`On-chain email recovery subject accountId mismatch (expected "${accountId}", got "${bindings.accountId}")`);
+  }
+
   const actions: ActionArgsWasm[] = [
     {
       action_type: ActionType.FunctionCall,
       method_name: 'verify_email_onchain_and_recover',
       args: JSON.stringify({
         email_blob: emailBlob,
+        request_id: bindings.requestId,
       }),
       gas: '300000000000000',
       deposit: '10000000000000000000000',

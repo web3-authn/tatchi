@@ -34,10 +34,6 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
       pendingTtlMs: 30 * 60 * 1000,
       // Default recovery mailbox for examples / docs.
       mailtoAddress: 'recover@web3authn.org',
-      // EmailDKIMVerifier contract that stores verification results.
-      dkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
-      // View method used to fetch VerificationResult by request_id.
-      verificationViewMethod: 'get_verification_result',
     },
   },
   vrfWorkerConfigs: {
@@ -107,10 +103,6 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
           ?? defaults.relayer?.emailRecovery?.pendingTtlMs,
         mailtoAddress: overrides.relayer?.emailRecovery?.mailtoAddress
           ?? defaults.relayer?.emailRecovery?.mailtoAddress,
-        dkimVerifierAccountId: overrides.relayer?.emailRecovery?.dkimVerifierAccountId
-          ?? defaults.relayer?.emailRecovery?.dkimVerifierAccountId,
-        verificationViewMethod: overrides.relayer?.emailRecovery?.verificationViewMethod
-          ?? defaults.relayer?.emailRecovery?.verificationViewMethod,
       },
     },
     authenticatorOptions: overrides.authenticatorOptions ?? defaults.authenticatorOptions,

@@ -47,26 +47,59 @@ export interface AuthenticatorsResult {
   authenticators: Array<[string, ContractStoredAuthenticator]>;
 }
 
-export type EmailRecoveryVerificationResult = {
-  verified: boolean;
-  account_id?: string;
-  new_public_key?: string;
-  transaction_hash?: string;
-  error_code?: string;
-  error_message?: string;
+export type RecoveryAttemptStatus =
+  | "Started"
+  | "VerifyingDkim"
+  | "VerifyingZkEmail"
+  | "DkimFailed"
+  | "ZkEmailFailed"
+  | "PolicyFailed"
+  | "Recovering"
+  | "AwaitingMoreEmails"
+  | "Complete"
+  | "Failed";
+
+export type RecoveryAttempt = {
+  request_id: string;
+  status: RecoveryAttemptStatus | string;
+  created_at_ms: number;
+  updated_at_ms: number;
+  error?: string | null;
+  from_address?: string | null;
+  email_timestamp_ms?: number | null;
+  new_public_key?: string | null;
 };
 
-export async function getEmailRecoveryVerificationResult(
+export async function getEmailRecoveryAttempt(
   nearClient: NearClient,
-  dkimVerifierAccountId: string,
-  verificationViewMethod: string,
+  accountId: string,
   requestId: string
-): Promise<EmailRecoveryVerificationResult | null> {
-  return await nearClient.view<{ request_id: string }, EmailRecoveryVerificationResult | null>({
-    account: dkimVerifierAccountId,
-    method: verificationViewMethod,
+): Promise<RecoveryAttempt | null> {
+  const raw = await nearClient.view<{ request_id: string }, Omit<RecoveryAttempt, 'status'> & { status: any } | null>({
+    account: accountId,
+    method: 'get_recovery_attempt',
     args: { request_id: requestId },
   });
+
+  if (!raw) return null;
+
+  // Normalization logic for status (string or object enum)
+  const statusRaw = raw.status;
+  const status = (() => {
+    if (typeof statusRaw === 'string') return statusRaw.trim();
+    if (statusRaw && typeof statusRaw === 'object') {
+      const keys = Object.keys(statusRaw as Record<string, unknown>);
+      if (keys.length === 1) {
+        return String(keys[0] || '').trim();
+      }
+    }
+    return '';
+  })();
+
+  return {
+    ...raw,
+    status: status as RecoveryAttemptStatus,
+  };
 }
 
 // ===========================

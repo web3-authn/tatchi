@@ -205,6 +205,7 @@ test.describe('EmailRecoveryService.verifyEncryptedEmailAndRecover', () => {
     expect(parsedArgs.expected_hashed_email.length).toBe(32);
     expect(typeof parsedArgs.expected_new_public_key).toBe('string');
     expect(parsedArgs.expected_new_public_key.length).toBeGreaterThan(0);
+    expect(parsedArgs.request_id).toBe('123abc');
   });
 });
 
@@ -322,6 +323,7 @@ test.describe('EmailRecoveryService.requestEmailRecovery (onchain-public)', () =
     expect(parsedArgs.expected_hashed_email.length).toBe(32);
     expect(typeof parsedArgs.expected_new_public_key).toBe('string');
     expect(parsedArgs.expected_new_public_key.length).toBeGreaterThan(0);
+    expect(parsedArgs.request_id).toBe('123abc');
   });
 });
 
@@ -476,6 +478,7 @@ test.describe('EmailRecoveryService.requestEmailRecovery (zk-email)', () => {
     expect(parsedArgs.public_inputs).toEqual(['10', '20', '30']);
     expect(parsedArgs.account_id).toBe('berp61.w3a-v1.testnet');
     expect(parsedArgs.new_public_key).toBe('edpkDummyKey');
+    expect(parsedArgs.request_id).toBe('ABC123');
     expect(parsedArgs.from_email).toBe('alice@example.com');
     expect(parsedArgs.timestamp).toBe('Tue, 01 Jan 2024 00:00:00 GMT');
   });
