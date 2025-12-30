@@ -1,6 +1,10 @@
 import { useCallback, useMemo } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { DeviceLinkingPhase } from '@/core/types/sdkSentEvents';
+import {
+  DeviceLinkingPhase,
+  LoginPhase,
+  LoginStatus,
+} from '@/core/types/sdkSentEvents';
 import type {
   AccountInputState,
   DeviceLinkingSSEEvent,
@@ -8,6 +12,8 @@ import type {
   RegistrationResult,
   TatchiContextType,
 } from '../types';
+import { useSDKFlowRuntime } from './useSDKFlowRuntime';
+import { useTatchiWithSdkFlow } from './useTatchiWithSdkFlow';
 
 export function useTatchiContextValue(args: {
   tatchi: TatchiContextType['tatchi'];
@@ -30,6 +36,9 @@ export function useTatchiContextValue(args: {
     refreshAccountData,
   } = args;
 
+  const { sdkFlow, beginSdkFlow, appendSdkEventMessage, endSdkFlow } = useSDKFlowRuntime();
+  const tatchiWithSdkFlow = useTatchiWithSdkFlow({ tatchi, beginSdkFlow, appendSdkEventMessage, endSdkFlow });
+
   const logout: TatchiContextType['logout'] = useCallback(() => {
     try {
       void tatchi.logoutAndClearSession().catch((error) => {
@@ -48,10 +57,10 @@ export function useTatchiContextValue(args: {
   }, [setLoginState, tatchi]);
 
   const loginAndCreateSession: TatchiContextType['loginAndCreateSession'] = useCallback(async (nearAccountId, options) => {
-    return tatchi.loginAndCreateSession(nearAccountId, {
+    return tatchiWithSdkFlow.loginAndCreateSession(nearAccountId, {
       ...options,
       onEvent: async (event) => {
-        if (event.phase === 'login-complete' && event.status === 'success') {
+        if (event.phase === LoginPhase.STEP_4_LOGIN_COMPLETE && event.status === LoginStatus.SUCCESS) {
           const { login } = await tatchi.getLoginSession(nearAccountId);
           const isVRFLoggedIn = login.vrfActive;
           setLoginState(prevState => ({
@@ -61,24 +70,21 @@ export function useTatchiContextValue(args: {
             nearPublicKey: event.clientNearPublicKey || null,
           }));
         }
-        options?.onEvent?.(event);
+        return options?.onEvent?.(event);
       },
       onError: (error) => {
         logout();
-        options?.onError?.(error);
+        return options?.onError?.(error);
       }
     });
-  }, [logout, setLoginState, tatchi]);
+  }, [logout, setLoginState, tatchi, tatchiWithSdkFlow]);
 
   const registerPasskey: TatchiContextType['registerPasskey'] = useCallback(async (nearAccountId, options) => {
-    const result: RegistrationResult = await tatchi.registerPasskey(nearAccountId, {
+    const result: RegistrationResult = await tatchiWithSdkFlow.registerPasskey(nearAccountId, {
       ...options,
-      onEvent: async (event) => {
-        options?.onEvent?.(event);
-      },
       onError: (error) => {
         logout();
-        options?.onError?.(error);
+        return options?.onError?.(error);
       }
     });
 
@@ -86,11 +92,11 @@ export function useTatchiContextValue(args: {
       await refreshLoginState(nearAccountId);
     }
     return result;
-  }, [logout, refreshLoginState, tatchi]);
+  }, [logout, refreshLoginState, tatchiWithSdkFlow]);
 
   const recoverAccount: TatchiContextType['recoverAccount'] = useCallback((args) => {
-    return tatchi.recoverAccountFlow(args);
-  }, [tatchi]);
+    return tatchiWithSdkFlow.recoverAccountFlow(args);
+  }, [tatchiWithSdkFlow]);
 
   const startDevice2LinkingFlow: TatchiContextType['startDevice2LinkingFlow'] = useCallback(async (args) => {
     const base = args ?? {};
@@ -150,7 +156,8 @@ export function useTatchiContextValue(args: {
   }, [tatchi]);
 
   return useMemo(() => ({
-    tatchi,
+    tatchi: tatchiWithSdkFlow,
+    sdkFlow,
     registerPasskey,
     loginAndCreateSession,
     logout,
@@ -173,7 +180,8 @@ export function useTatchiContextValue(args: {
     getConfirmationConfig,
     viewAccessKeyList,
   }), [
-    tatchi,
+    tatchiWithSdkFlow,
+    sdkFlow,
     registerPasskey,
     loginAndCreateSession,
     logout,

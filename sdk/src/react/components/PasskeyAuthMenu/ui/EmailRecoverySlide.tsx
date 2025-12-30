@@ -1,8 +1,13 @@
 import React from 'react';
 
-import type { EmailRecoverySSEEvent } from '@/core/types/sdkSentEvents';
+import {
+  EmailRecoveryPhase,
+  EmailRecoveryStatus,
+  type EmailRecoverySSEEvent,
+} from '@/core/types/sdkSentEvents';
 import type { TatchiPasskey } from '@/core/TatchiPasskey';
 import { EmailRecoveryErrorCode } from '@/core/types/emailRecovery';
+import type { EmailRecoveryFlowOptions } from '@/core/TatchiPasskey/emailRecovery';
 
 export interface EmailRecoverySlideProps {
   tatchiPasskey: TatchiPasskey;
@@ -14,16 +19,13 @@ export interface EmailRecoverySlideProps {
   };
 }
 
-type EmailRecoveryPolicy = {
-  minRequiredEmails?: number;
-  maxAgeMs?: number;
-};
-
 type EmailRecoveryAccountInfo = {
   emailsCount: number;
 };
 
 type MailtoUiState = 'ready' | 'opening';
+
+type RecoveryEmailRecord = Awaited<ReturnType<TatchiPasskey['getRecoveryEmails']>>[number];
 
 function getEmailRecoveryErrorCode(err: unknown): EmailRecoveryErrorCode | null {
   const code = (err as { code?: unknown } | null)?.code;
@@ -60,6 +62,11 @@ function getEmailRecoveryErrorTxHash(err: unknown): string | null {
   if (!source) return null;
   const txHash = (source as { transactionHash?: unknown }).transactionHash;
   return typeof txHash === 'string' && txHash.trim().length > 0 ? txHash.trim() : null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') return null;
+  return value as Record<string, unknown>;
 }
 
 export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPasskey, accountId, refreshLoginState, emailRecoveryOptions }) => {
@@ -150,8 +157,8 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
       safeSetStatusText(ev?.message || null);
       emailRecoveryOptions?.onEvent?.(ev);
 
-      const data = (ev as any)?.data || {};
-      const rawTxHash = data?.transactionHash ?? data?.transaction_hash;
+      const data = 'data' in ev ? asRecord(ev.data) : null;
+      const rawTxHash = data?.['transactionHash'] ?? data?.['transaction_hash'];
       const txHash = typeof rawTxHash === 'string' ? rawTxHash.trim() : '';
       if (txHash) {
         const base = String(tatchiPasskey.configs?.nearExplorerUrl || 'https://testnet.nearblocks.io').replace(/\/$/, '');
@@ -160,14 +167,14 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
           : `${base}/transactions/${txHash}`;
         safeSetExplorerToast({ url, transactionHash: txHash });
       }
-      const elapsedRaw = data?.elapsedMs ?? data?.elapsed_ms;
+      const elapsedRaw = data?.['elapsedMs'] ?? data?.['elapsed_ms'];
       if (elapsedRaw == null) safeSetPollingElapsedMs(null);
       const elapsed = elapsedRaw == null ? Number.NaN : Number(elapsedRaw);
       if (!Number.isNaN(elapsed)) safeSetPollingElapsedMs(elapsed);
 
-      if (ev?.phase === 'email-recovery-error' || (ev as any)?.status === 'error') {
-        const raw = (ev as any)?.error || ev?.message || 'Email recovery failed';
-        safeSetErrorText(String(raw));
+      if (ev.phase === EmailRecoveryPhase.ERROR || ev.status === EmailRecoveryStatus.ERROR) {
+        const raw = 'error' in ev ? ev.error : ev.message;
+        safeSetErrorText(raw || 'Email recovery failed');
         safeSetCanRestart(false);
       }
     },
@@ -273,11 +280,11 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     };
   }, [mailtoUiState, safeSetMailtoUiState]);
 
-  const deriveEmailsFromRecoveryRecords = React.useCallback((records: unknown): string[] => {
-    if (!Array.isArray(records) || records.length === 0) return [];
+  const deriveEmailsFromRecoveryRecords = React.useCallback((records: RecoveryEmailRecord[]): string[] => {
+    if (records.length === 0) return [];
     const emails = records
-      .map((r: any) => String(r?.email || '').trim().toLowerCase())
-      .filter((e: string) => !!e && e.includes('@'));
+      .map((r) => r.email.trim().toLowerCase())
+      .filter((e) => e.length > 0 && e.includes('@'));
     return Array.from(new Set(emails));
   }, []);
 
@@ -310,10 +317,11 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
             : null;
           if (cancelled) return;
           safeSetAccountInfo(info);
-        } catch (err: any) {
+        } catch (err: unknown) {
           if (cancelled) return;
           safeSetAccountInfo(null);
-          safeSetAccountInfoError(err?.message || 'Failed to load email recovery settings for this account');
+          const msg = err instanceof Error ? err.message : '';
+          safeSetAccountInfoError(msg || 'Failed to load email recovery settings for this account');
           safeSetLocalRecoveryEmails([]);
         } finally {
           if (!cancelled) safeSetAccountInfoLoading(false);
@@ -364,8 +372,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
             didForwardError = true;
             emailRecoveryOptions?.onError?.(err);
           },
-          afterCall: async () => {},
-        } as any,
+        } satisfies EmailRecoveryFlowOptions,
       });
 
       safeSetPendingMailtoUrl(result.mailtoUrl);
@@ -391,8 +398,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
             didForwardError = true;
             emailRecoveryOptions?.onError?.(err);
           },
-          afterCall: async () => {},
-        } as any,
+        } satisfies EmailRecoveryFlowOptions,
       });
 
       showExplorerToast(normalizedAccountId);
@@ -420,7 +426,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
       safeSetPendingMailtoUrl(null);
       safeSetMailtoUiState('ready');
       safeSetPollingElapsedMs(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (cancelRequestedRef.current) {
         safeSetErrorText('Email recovery cancelled. Please try again.');
         safeSetStatusText(null);
@@ -495,8 +501,17 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     tatchiPasskey,
   ]);
 
-  const summaryLine = accountInfoLoading
-    ? 'Checking if account has recovery emails configured...'
+  const summaryLine: React.ReactNode = accountInfoLoading
+    ? (
+      <>
+        Checking if account has recovery emails configured
+        <span className="w3a-ellipsis" aria-hidden="true">
+          <span className="w3a-ellipsis-dot">.</span>
+          <span className="w3a-ellipsis-dot">.</span>
+          <span className="w3a-ellipsis-dot">.</span>
+        </span>
+      </>
+    )
     : accountInfo && !accountInfoError
       ? `Recovery emails configured: ${accountInfo.emailsCount}`
       : '\u00A0';
@@ -595,6 +610,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
           )}
           {explorerToast && (
             <>
+              <br/>
               <a className="w3a-email-recovery-link" href={explorerToast.url} target="_blank" rel="noopener noreferrer">
                 View on explorer
               </a>

@@ -9,6 +9,11 @@ import { AuthMenuMode, type PasskeyAuthMenuProps } from './types';
 import './PasskeyAuthMenu.css';
 import { usePasskeyAuthMenuRuntime } from './adapters/tatchi';
 import { usePasskeyAuthMenuController } from './controller/usePasskeyAuthMenuController';
+import { useSDKEvents } from './controller/useSDKEvents';
+
+type CSSVarStyle = React.CSSProperties & {
+  [key: `--${string}`]: string | number | undefined;
+};
 
 const LazyShowQRCode = React.lazy(() =>
   import('../ShowQRCode').then((m) => ({ default: m.ShowQRCode })),
@@ -29,13 +34,29 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
   socialLogin,
   loadingScreenDelayMs,
   headings,
+  showSDKEvents = false,
 }) => {
   const runtime = usePasskeyAuthMenuRuntime();
+  const { withSdkEventsHandler } = useSDKEvents({ sdkFlow: runtime.sdkFlow });
+
+  const onLoginWithSDKEvents = React.useMemo(
+    () => withSdkEventsHandler('login', onLogin, 60_000),
+    [onLogin, withSdkEventsHandler],
+  );
+  const onRegisterWithSDKEvents = React.useMemo(
+    () => withSdkEventsHandler('register', onRegister, 90_000),
+    [onRegister, withSdkEventsHandler],
+  );
+  const onRecoverWithSDKEvents = React.useMemo(
+    () => withSdkEventsHandler('recover', onRecoverAccount, 120_000),
+    [onRecoverAccount, withSdkEventsHandler],
+  );
+
   const controller = usePasskeyAuthMenuController(
     {
-      onLogin,
-      onRegister,
-      onRecoverAccount,
+      onLogin: onLoginWithSDKEvents,
+      onRegister: onRegisterWithSDKEvents,
+      onRecoverAccount: onRecoverWithSDKEvents,
       defaultMode,
       headings,
       linkDeviceOptions,
@@ -49,6 +70,31 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
 
   const segActiveBg = 'var(--w3a-passkey-auth-menu2-seg-active-bg)';
 
+  const rootStyle = React.useMemo<CSSVarStyle>(
+    () => ({
+      ...style,
+      ...(loadingScreenDelayMs != null ? { '--w3a-waiting-delay': `${loadingScreenDelayMs}ms` } : null),
+    }),
+    [loadingScreenDelayMs, style],
+  );
+
+  const waitingSDKEventsText = React.useMemo(() => {
+    if (!showSDKEvents) return '';
+    if (
+      controller.mode !== AuthMenuMode.Register &&
+      controller.mode !== AuthMenuMode.Login &&
+      controller.mode !== AuthMenuMode.Recover
+    ) {
+      return '';
+    }
+    const text = runtime.sdkFlow.eventsText?.trim() ?? '';
+    if (text.length > 0) {
+      const lastLine = text.split('\n').filter(Boolean).slice(-1)[0] ?? '';
+      return lastLine;
+    }
+    return controller.waiting ? 'Awaiting SDK events…' : '';
+  }, [controller.mode, controller.waiting, runtime.sdkFlow.eventsText, showSDKEvents]);
+
   return (
     <div
       className={`w3a-signup-menu-root${className ? ` ${className}` : ''}`}
@@ -56,11 +102,7 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
       data-waiting={controller.waiting}
       data-scan-device={controller.showScanDevice}
       data-email-recovery={controller.showEmailRecovery}
-      style={{
-        ...style,
-        ['--w3a-waiting-delay' as any]:
-          loadingScreenDelayMs != null ? `${loadingScreenDelayMs}ms` : undefined,
-      }}
+      style={rootStyle}
     >
       <ContentSwitcher
         waiting={controller.waiting}
@@ -69,6 +111,7 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
             ? 'Registering passkey…'
             : 'Waiting for Passkey…'
         }
+        waitingSDKEventsText={waitingSDKEventsText}
         backButton={
           <button
             aria-label="Back"

@@ -548,7 +548,26 @@
   animation-delay: var(--w3a-waiting-delay, 0ms);
   animation-fill-mode: both;
 }
+.w3a-waiting-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
 .w3a-waiting-text { font-size: 18px; font-weight: 600; }
+.w3a-waiting-subtext {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--w3a-colors-textSecondary), var(--w3a-colors-textPrimary) 25%);
+}
+.w3a-waiting-sdk-events {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  color: color-mix(in srgb, var(--w3a-colors-textSecondary), var(--w3a-colors-textPrimary) 15%);
+}
 .w3a-spinner {
   width: 36px;
   height: 36px;
@@ -682,6 +701,24 @@
   to { transform: rotate(360deg); }
 }
 
+@keyframes w3a-ellipsis-dot {
+  0%, 80%, 100% { opacity: 0; }
+  40% { opacity: 1; }
+}
+
+.w3a-ellipsis {
+  display: inline-block;
+}
+
+.w3a-ellipsis-dot {
+  display: inline-block;
+  opacity: 0;
+  animation: w3a-ellipsis-dot 1.2s infinite;
+}
+
+.w3a-ellipsis-dot:nth-child(2) { animation-delay: 0.15s; }
+.w3a-ellipsis-dot:nth-child(3) { animation-delay: 0.3s; }
+
 /* Pop/bounce-in animation (kept for legacy classes) */
 @keyframes w3a-input-msg-pop {
   0% { opacity: 0; transform: translateY(8px) scale(0.98); }
@@ -691,6 +728,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .w3a-input-msg.is-error { animation: none; }
+  .w3a-ellipsis-dot { animation: none; opacity: 1; }
 }
 
 /* Button System */
@@ -865,7 +903,7 @@
   font-size: 0.875rem;
   color: var(--w3a-colors-primary, #3b82f6);
   text-decoration: none;
-  padding: 0 0.25rem;
+  padding: 0;
 }
 
 .w3a-email-recovery-link:hover {

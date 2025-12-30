@@ -7,9 +7,14 @@ export { AuthMenuMode, AuthMenuModeMap };
 export type { AuthMenuModeLabel, AuthMenuHeadings };
 
 export interface PasskeyAuthMenuProps {
-  onLogin?: () => void;
-  onRegister?: () => void;
-  onRecoverAccount?: () => void;
+  /** Return a Promise to keep the waiting screen visible until the flow completes. */
+  onLogin?: () => void | Promise<unknown>;
+  /** Return a Promise to keep the waiting screen visible until the flow completes. */
+  onRegister?: () => void | Promise<unknown>;
+  /** Return a Promise to keep the waiting screen visible until the flow completes. */
+  onRecoverAccount?: () => void | Promise<unknown>;
+  /** Display SDK progress event messages under the waiting screen. */
+  showSDKEvents?: boolean;
   /**
    * Optional delay (in ms) before the waiting screen animation starts.
    * Useful to hold the loading view briefly to avoid jarring flashes
