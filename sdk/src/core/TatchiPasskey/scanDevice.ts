@@ -11,6 +11,7 @@ import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents'
 import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
 import { DEVICE_LINKING_CONFIG } from '../../config.js';
 import { executeDeviceLinkingContractCalls } from '../rpcCalls';
+import { ensureEd25519Prefix } from '../nearCrypto';
 
 /**
  * Device1 (original device): Link device using pre-scanned QR data
@@ -46,8 +47,8 @@ export async function linkDeviceWithScannedQRData(
     const fundingAmount = options.fundingAmount;
 
     // Parse the device public key for AddKey action
-    const device2PublicKey = qrData.device2PublicKey;
-    if (!device2PublicKey.startsWith('ed25519:')) {
+    const device2PublicKey = ensureEd25519Prefix(qrData.device2PublicKey);
+    if (!device2PublicKey || !/^ed25519:/i.test(device2PublicKey)) {
       throw new Error('Invalid device public key format');
     }
 
@@ -110,7 +111,7 @@ export async function linkDeviceWithScannedQRData(
 
     const result = {
       success: true,
-      device2PublicKey: qrData.device2PublicKey,
+      device2PublicKey,
       transactionId: addKeyTxResult?.transaction?.hash
         || storeDeviceLinkingTxResult?.transaction?.hash
         || 'unknown',

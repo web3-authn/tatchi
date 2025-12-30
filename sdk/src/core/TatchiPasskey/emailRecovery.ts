@@ -31,6 +31,7 @@ import {
 } from '../EmailRecovery';
 import { EmailRecoveryError, EmailRecoveryErrorCode } from '../types/emailRecovery';
 import { getEmailRecoveryAttempt } from '../rpcCalls';
+import { ensureEd25519Prefix } from '../nearCrypto';
 
 export type PendingEmailRecoveryStatus =
   | 'awaiting-email'
@@ -400,11 +401,24 @@ export class EmailRecoveryFlow {
       }
 
       if (attempt.new_public_key && attempt.new_public_key !== rec.nearPublicKey) {
-        return {
-          completed: true,
-          success: false,
-          errorMessage: 'Email recovery new_public_key does not match expected recovery key.',
-        };
+        const expected = ensureEd25519Prefix(rec.nearPublicKey);
+        const actual = ensureEd25519Prefix(attempt.new_public_key);
+
+        // The relayer/prover often forwards only the base58 part while the SDK
+        // persists `ed25519:<base58>`. Compare normalized forms to avoid false
+        // mismatches from prefix formatting differences.
+        if (actual === expected) {
+          // no-op; treat as matching
+        } else {
+          return {
+            completed: true,
+            success: false,
+            errorMessage:
+              `Email recovery new_public_key mismatch for request ${rec.requestId}. ` +
+              `Expected ${expected}; got ${actual}. ` +
+              'This usually means the recovery email you sent was generated for a different device/attempt.',
+          };
+        }
       }
 
       const normalized = attempt.status.toLowerCase();
@@ -448,7 +462,8 @@ export class EmailRecoveryFlow {
       if (
         /AccessKeyDoesNotExist/i.test(kind) ||
         /AccessKeyDoesNotExist/i.test(short) ||
-        /access key does not exist/i.test(msg)
+        /access key does not exist/i.test(msg) ||
+        /access key .*does not exist/i.test(msg)
       ) {
         return false;
       }
