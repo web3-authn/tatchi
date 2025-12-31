@@ -407,14 +407,12 @@ export class TatchiPasskeyIframe {
 
   async startEmailRecovery(args: {
     accountId: string;
-    recoveryEmail?: string;
     options?: EmailRecoveryFlowOptions;
   }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
     try {
       await this.requireRouterReady();
       const res = await this.router.startEmailRecovery({
         accountId: args.accountId,
-        recoveryEmail: args.recoveryEmail,
         onEvent: args.options?.onEvent as any,
         options: (() => {
           const safeOptions = {

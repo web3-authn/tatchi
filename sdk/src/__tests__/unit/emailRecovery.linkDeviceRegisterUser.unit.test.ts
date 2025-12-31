@@ -137,13 +137,12 @@ test.describe('EmailRecovery: verified:false yields typed error codes', () => {
         { pendingStore, onError: (e: any) => onError.push({ name: e?.name, code: e?.code }) }
       );
 
-      const rec = {
-        accountId: 'bob.testnet',
-        recoveryEmail: 'bob@example.com',
-        deviceNumber: 2,
-        nearPublicKey: 'ed25519:bob',
-        requestId: 'REQ1',
-        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
+	      const rec = {
+	        accountId: 'bob.testnet',
+	        deviceNumber: 2,
+	        nearPublicKey: 'ed25519:bob',
+	        requestId: 'REQ1',
+	        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
         serverEncryptedVrfKeypair: null,
         vrfPublicKey: 'vrf',
         credential: {

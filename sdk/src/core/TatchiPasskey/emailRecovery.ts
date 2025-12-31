@@ -42,7 +42,6 @@ export type PendingEmailRecoveryStatus =
 
 export type PendingEmailRecovery = {
   accountId: AccountId;
-  recoveryEmail?: string;
   deviceNumber: number;
   nearPublicKey: string;
   requestId: string;
@@ -266,11 +265,6 @@ export class EmailRecoveryFlow {
     }
   }
 
-  private getCanonicalRecoveryEmail(recoveryEmail?: string): string | undefined {
-    const canonicalEmail = String(recoveryEmail || '').trim().toLowerCase();
-    return canonicalEmail || undefined;
-  }
-
   private async getNextDeviceNumberFromContract(nearAccountId: AccountId): Promise<number> {
     try {
       const { syncAuthenticatorsContractCall } = await import('../rpcCalls');
@@ -355,7 +349,6 @@ export class EmailRecoveryFlow {
       message: 'New device key created; please send the recovery email from your registered address.',
       data: {
         accountId: rec.accountId,
-        ...(rec.recoveryEmail ? { recoveryEmail: rec.recoveryEmail } : {}),
         nearPublicKey: rec.nearPublicKey,
         requestId: rec.requestId,
         mailtoUrl,
@@ -595,8 +588,8 @@ export class EmailRecoveryFlow {
     return mailtoUrl;
   }
 
-  async start(args: { accountId: string; recoveryEmail?: string }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
-    const { accountId, recoveryEmail } = args;
+  async start(args: { accountId: string }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
+    const { accountId } = args;
     this.cancelled = false;
     this.error = undefined;
     this.phase = EmailRecoveryPhase.STEP_1_PREPARATION;
@@ -610,7 +603,6 @@ export class EmailRecoveryFlow {
 
     const nearAccountId = await this.assertValidAccountIdOrFail(1, accountId);
     await this.assertSufficientBalance(nearAccountId);
-    const canonicalEmail = this.getCanonicalRecoveryEmail(recoveryEmail);
 
     // Determine deviceNumber from on-chain authenticators
     const deviceNumber = await this.getNextDeviceNumberFromContract(nearAccountId);
@@ -629,7 +621,6 @@ export class EmailRecoveryFlow {
 
       const rec: PendingEmailRecovery = {
         accountId: nearAccountId,
-        recoveryEmail: canonicalEmail,
         deviceNumber,
         nearPublicKey: derivedKeys.nearPublicKey,
         requestId: generateEmailRecoveryRequestId(),

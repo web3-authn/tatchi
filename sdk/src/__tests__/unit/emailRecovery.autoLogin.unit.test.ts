@@ -66,13 +66,12 @@ test.describe('EmailRecoveryFlow attemptAutoLogin strategies', () => {
         webAuthnManager,
       });
 
-      const rec = {
-        accountId,
-        recoveryEmail: 'alice@example.com',
-        deviceNumber: 1,
-        nearPublicKey: 'ed25519:alice',
-        requestId: 'REQ123',
-        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
+	      const rec = {
+	        accountId,
+	        deviceNumber: 1,
+	        nearPublicKey: 'ed25519:alice',
+	        requestId: 'REQ123',
+	        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
         serverEncryptedVrfKeypair: {
           ciphertextVrfB64u: 'cipher',
           kek_s_b64u: 'kek',
@@ -138,13 +137,12 @@ test.describe('EmailRecoveryFlow attemptAutoLogin strategies', () => {
         webAuthnManager,
       });
 
-      const rec = {
-        accountId,
-        recoveryEmail: 'bob@example.com',
-        deviceNumber: 1,
-        nearPublicKey: 'ed25519:bob',
-        requestId: 'REQ999',
-        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
+	      const rec = {
+	        accountId,
+	        deviceNumber: 1,
+	        nearPublicKey: 'ed25519:bob',
+	        requestId: 'REQ999',
+	        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
         serverEncryptedVrfKeypair: null,
         vrfPublicKey: 'vrf',
         credential: {
@@ -206,13 +204,12 @@ test.describe('EmailRecoveryFlow attemptAutoLogin strategies', () => {
         webAuthnManager,
       });
 
-      const rec = {
-        accountId,
-        recoveryEmail: 'carol@example.com',
-        deviceNumber: 1,
-        nearPublicKey: 'ed25519:carol',
-        requestId: 'REQ777',
-        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
+	      const rec = {
+	        accountId,
+	        deviceNumber: 1,
+	        nearPublicKey: 'ed25519:carol',
+	        requestId: 'REQ777',
+	        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
         serverEncryptedVrfKeypair: null,
         vrfPublicKey: 'vrf',
         credential: {
