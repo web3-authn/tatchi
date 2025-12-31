@@ -1,0 +1,12 @@
+{
+  "name": "@tatchi-xyz/wallet-extension",
+  "private": true,
+  "version": "0.13.0",
+  "type": "module",
+  "description": "MV3 side panel extension scaffold for the Tatchi wallet security upgrade.",
+  "scripts": {
+    "lint": "echo \"(no lint configured for extension scaffold yet)\"",
+    "build": "echo \"(no build step yet; load unpacked from apps/tatchi-wallet-extension)\""
+  }
+}
+

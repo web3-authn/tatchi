@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tatchi Wallet Service (Extension)</title>
+    <style>
+      :root { color-scheme: light dark; }
+      html, body { margin: 0; padding: 0; font: 13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      header { padding: 10px 12px 8px; border-bottom: 1px solid color-mix(in oklab, CanvasText 15%, transparent); }
+      h1 { margin: 0; font-size: 13px; font-weight: 600; }
+      main { padding: 12px; display: grid; gap: 10px; }
+      .card { border: 1px solid color-mix(in oklab, CanvasText 15%, transparent); border-radius: 10px; padding: 10px; }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      label { display: grid; gap: 4px; }
+      input { border-radius: 8px; border: 1px solid color-mix(in oklab, CanvasText 18%, transparent); padding: 6px 10px; background: Canvas; color: CanvasText; min-width: 220px; }
+      button { cursor: pointer; border-radius: 8px; border: 1px solid color-mix(in oklab, CanvasText 18%, transparent); background: Canvas; color: CanvasText; padding: 6px 10px; }
+      pre { margin: 0; padding: 8px; border-radius: 8px; background: color-mix(in oklab, CanvasText 6%, transparent); overflow: auto; max-height: 240px; }
+      .muted { opacity: 0.75; }
+      .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Tatchi Wallet Service (Extension) — Phase 0</h1>
+    </header>
+    <main>
+      <div class="card">
+        <div class="kv">
+          <div class="muted">Origin</div>
+          <div><code id="origin"></code></div>
+          <div class="muted">rpId</div>
+          <div><code id="rpid"></code></div>
+          <div class="muted">MessagePort</div>
+          <div><code id="portStatus">disconnected</code></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between;">
+          <div>
+            <div style="font-weight: 600; margin-bottom: 2px;">WebAuthn PRF smoke test</div>
+            <div class="muted">Run inside this embedded extension iframe to validate PRF + user activation.</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top: 10px;">
+          <label>
+            <span class="muted">accountId (salt input)</span>
+            <input id="accountId" value="phase0@example" />
+          </label>
+        </div>
+        <div class="row" style="margin-top: 6px;">
+          <button id="btnCreate" type="button">Create passkey (PRF)</button>
+          <button id="btnGet" type="button">Get passkey (PRF)</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="muted" style="margin-bottom: 6px;">Logs</div>
+        <pre id="log"></pre>
+      </div>
+    </main>
+    <script type="module" src="wallet-service.js"></script>
+  </body>
+</html>
+

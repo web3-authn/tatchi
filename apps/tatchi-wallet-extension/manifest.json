@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Tatchi Wallet (Dev)",
+  "version": "0.0.0",
+  "description": "Dev scaffold for the Tatchi wallet extension security upgrade (Side Panel only).",
+  "minimum_chrome_version": "116",
+  "permissions": ["sidePanel"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Tatchi Wallet"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "wallet-service.html",
+        "wallet-service.js"
+      ],
+      "matches": [
+        "https://example.localhost/*",
+        "https://*.example.localhost/*",
+        "https://hosted.tatchi.xyz/*",
+        "https://*.tatchi.xyz/*",
+        "https://web3authn.org/*",
+        "https://*.web3authn.org/*"
+      ]
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://example.localhost/*",
+      "https://*.example.localhost/*",
+      "https://hosted.tatchi.xyz/*",
+      "https://*.tatchi.xyz/*",
+      "https://web3authn.org/*",
+      "https://*.web3authn.org/*"
+    ]
+  }
+}

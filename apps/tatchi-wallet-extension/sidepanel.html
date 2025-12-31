@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tatchi Wallet</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { margin: 0; font: 13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      header { padding: 12px 12px 8px; border-bottom: 1px solid color-mix(in oklab, CanvasText 15%, transparent); }
+      h1 { margin: 0; font-size: 13px; font-weight: 600; }
+      main { padding: 12px; display: grid; gap: 10px; }
+      .card { border: 1px solid color-mix(in oklab, CanvasText 15%, transparent); border-radius: 10px; padding: 10px; }
+      .row { display: flex; gap: 8px; align-items: center; }
+      button { cursor: pointer; border-radius: 8px; border: 1px solid color-mix(in oklab, CanvasText 18%, transparent); background: Canvas; color: CanvasText; padding: 6px 10px; }
+      pre { margin: 0; padding: 8px; border-radius: 8px; background: color-mix(in oklab, CanvasText 6%, transparent); overflow: auto; }
+      .muted { opacity: 0.75; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Tatchi Wallet (Dev)</h1>
+    </header>
+    <main>
+      <div class="card">
+        <div class="row">
+          <button id="btnPing" type="button">Ping service worker</button>
+          <span class="muted" id="status">idle</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="muted" style="margin-bottom: 6px;">Logs</div>
+        <pre id="log"></pre>
+      </div>
+    </main>
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>
+
