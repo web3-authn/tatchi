@@ -16,7 +16,7 @@ export interface EmailRecoverySlideProps {
   emailRecoveryOptions?: {
     onEvent?: (event: EmailRecoverySSEEvent) => void;
     onError?: (error: Error) => void;
-  };
+};
 }
 
 type EmailRecoveryAccountInfo = {
@@ -26,6 +26,26 @@ type EmailRecoveryAccountInfo = {
 type MailtoUiState = 'ready' | 'opening';
 
 type RecoveryEmailRecord = Awaited<ReturnType<TatchiPasskey['getRecoveryEmails']>>[number];
+
+type ExplorerToast = { url: string; accountId?: string; transactionHash?: string };
+
+const DEFAULT_NEAR_EXPLORER_URL = 'https://testnet.nearblocks.io';
+const ACCOUNT_INFO_DEBOUNCE_MS = 350;
+const MAILTO_REENABLE_MS = 2_000;
+
+function getExplorerBaseUrl(tatchiPasskey: TatchiPasskey): string {
+  return String(tatchiPasskey.configs?.nearExplorerUrl || DEFAULT_NEAR_EXPLORER_URL).replace(/\/$/, '');
+}
+
+function getExplorerAccountUrl(args: { base: string; accountId: string }): string {
+  const { base, accountId } = args;
+  return base.includes('nearblocks.io') ? `${base}/address/${accountId}` : `${base}/accounts/${accountId}`;
+}
+
+function getExplorerTxUrl(args: { base: string; txHash: string }): string {
+  const { base, txHash } = args;
+  return base.includes('nearblocks.io') ? `${base}/txns/${txHash}` : `${base}/transactions/${txHash}`;
+}
 
 function getEmailRecoveryErrorCode(err: unknown): EmailRecoveryErrorCode | null {
   const code = (err as { code?: unknown } | null)?.code;
@@ -37,6 +57,15 @@ function getEmailRecoveryErrorCode(err: unknown): EmailRecoveryErrorCode | null 
 
 function getEmailRecoveryUiError(err: unknown): { message: string; canRestart: boolean } {
   const fallback = err instanceof Error ? err.message : String(err || '');
+  const normalizedFallback = fallback.trim().toLowerCase();
+  if (normalizedFallback.includes('recovery email is required')) {
+    return {
+      message:
+        fallback ||
+        'Recovery email is required for email-based account recovery. Make sure you send the email from your configured recovery email address.',
+      canRestart: true,
+    };
+  }
   const code = getEmailRecoveryErrorCode(err);
   switch (code) {
     case EmailRecoveryErrorCode.VRF_CHALLENGE_EXPIRED:
@@ -69,10 +98,210 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPasskey, accountId, refreshLoginState, emailRecoveryOptions }) => {
+function extractTxHashFromEmailRecoveryEvent(ev: EmailRecoverySSEEvent): string | null {
+  const data = 'data' in ev ? asRecord(ev.data) : null;
+  const rawTxHash = data?.['transactionHash'] ?? data?.['transaction_hash'];
+  const txHash = typeof rawTxHash === 'string' ? rawTxHash.trim() : '';
+  return txHash || null;
+}
+
+function extractElapsedMsFromEmailRecoveryEvent(ev: EmailRecoverySSEEvent): number | null | undefined {
+  const data = 'data' in ev ? asRecord(ev.data) : null;
+  const elapsedRaw = data?.['elapsedMs'] ?? data?.['elapsed_ms'];
+  if (elapsedRaw == null) return null;
+  const elapsed = Number(elapsedRaw);
+  return Number.isNaN(elapsed) ? undefined : elapsed;
+}
+
+function deriveEmailsFromRecoveryRecords(records: RecoveryEmailRecord[]): string[] {
+  if (records.length === 0) return [];
+  const emails = records
+    .map((r) => r.email.trim().toLowerCase())
+    .filter((e) => e.length > 0 && e.includes('@'));
+  return Array.from(new Set(emails));
+}
+
+function EmailRecoveryHeader() {
+  return (
+    <>
+      <div className="w3a-email-recovery-title">Recover Account with Email</div>
+      <div className="w3a-email-recovery-help">
+        Send a special email to recover your account.
+        This email must be sent from the designated email recovery address.
+      </div>
+    </>
+  );
+}
+
+function AccountIdInputRow(props: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+}) {
+  const { value, onChange, disabled } = props;
+  return (
+    <div>
+      <div className="w3a-input-pill w3a-email-recovery-input-pill">
+        <div className="w3a-input-wrap">
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="NEAR account ID (e.g. alice.testnet)"
+            className="w3a-input"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode="text"
+            disabled={disabled}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecoveryEmailsSummary(props: {
+  summaryLine: React.ReactNode;
+  accountInfoError: string | null;
+  localRecoveryEmails: string[];
+  showFromWarning: boolean;
+}) {
+  const { summaryLine, accountInfoError, localRecoveryEmails, showFromWarning } = props;
+  return (
+    <div className="w3a-email-recovery-summary" aria-live="polite">
+      <div>{summaryLine}</div>
+      {!!accountInfoError && (
+        <div className="w3a-email-recovery-warning">{accountInfoError}</div>
+      )}
+      {localRecoveryEmails.length > 0 && (
+        <div className="w3a-email-recovery-saved-emails" role="list" aria-label="Recovery emails">
+          {localRecoveryEmails.map((email) => (
+            <span key={email} className="w3a-email-recovery-email-chip w3a-email-recovery-email-chip-static" role="listitem">
+              {email}
+            </span>
+          ))}
+        </div>
+      )}
+      {showFromWarning && (
+        <div className="w3a-email-recovery-from-warning">
+          {localRecoveryEmails.length === 1
+            ? `Check that you are sending the recovery email from ${localRecoveryEmails[0]}.`
+            : 'Check that you are sending the recovery email from your designated recovery email.'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmailRecoveryActions(props: {
+  isBusy: boolean;
+  pendingMailtoUrl: string | null;
+  mailtoUiState: MailtoUiState;
+  startDisabled: boolean;
+  accountInfoLoading: boolean;
+  noRecoveryEmailsConfigured: boolean;
+  showRestart: boolean;
+  onStart: () => void;
+  onOpenDraft: (mailtoUrl: string) => void;
+  onRestart: () => void;
+}) {
+  const {
+    isBusy,
+    pendingMailtoUrl,
+    mailtoUiState,
+    startDisabled,
+    accountInfoLoading,
+    noRecoveryEmailsConfigured,
+    showRestart,
+    onStart,
+    onOpenDraft,
+    onRestart,
+  } = props;
+
+  return (
+    <div className="w3a-email-recovery-actions">
+      {(!pendingMailtoUrl || !isBusy) && (
+        <button
+          onClick={onStart}
+          className="w3a-link-device-btn w3a-link-device-btn-primary"
+          disabled={startDisabled}
+        >
+          {accountInfoLoading
+            ? 'Checking recovery emails…'
+            : noRecoveryEmailsConfigured
+              ? 'No recovery emails configured'
+              : (isBusy ? 'Working…' : 'Start Email Recovery')}
+        </button>
+      )}
+
+      {pendingMailtoUrl && (
+        <button
+          type="button"
+          onClick={() => onOpenDraft(pendingMailtoUrl)}
+          className="w3a-link-device-btn w3a-link-device-btn-primary"
+          disabled={mailtoUiState === 'opening'}
+          aria-busy={mailtoUiState === 'opening'}
+        >
+          {mailtoUiState === 'opening' && <span className="w3a-spinner" aria-hidden="true" />}
+          {mailtoUiState === 'opening' ? 'Opening email…' : 'Open recovery email draft'}
+        </button>
+      )}
+
+      {showRestart && (
+        <button
+          type="button"
+          onClick={onRestart}
+          className="w3a-link-device-btn"
+          disabled={isBusy}
+        >
+          Restart email recovery
+        </button>
+      )}
+    </div>
+  );
+}
+
+function EmailRecoveryStatusPanel(props: {
+  errorText: string | null;
+  statusText: string | null;
+  pollingElapsedMs: number | null;
+  explorerToast: ExplorerToast | null;
+}) {
+  const { errorText, statusText, pollingElapsedMs, explorerToast } = props;
+  if (!errorText && !statusText && !explorerToast) return null;
+
+  return (
+    <div className={`w3a-email-recovery-status${errorText ? ' is-error' : ''}`}>
+      {errorText ? errorText : statusText}
+      {pollingElapsedMs != null && !Number.isNaN(pollingElapsedMs) && pollingElapsedMs > 0 && (
+        <span className="w3a-email-recovery-elapsed">
+          (~{Math.round(pollingElapsedMs / 1000)}s).
+        </span>
+      )}
+      {explorerToast && (
+        <>
+          <br />
+          <a className="w3a-email-recovery-link" href={explorerToast.url} target="_blank" rel="noopener noreferrer">
+            View on explorer
+          </a>
+        </>
+      )}
+    </div>
+  );
+}
+
+export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
+  tatchiPasskey,
+  accountId,
+  refreshLoginState,
+  emailRecoveryOptions
+}) => {
+
   const mountedRef = React.useRef(true);
   const mailtoAttemptTimerRef = React.useRef<number | null>(null);
   const cancelRequestedRef = React.useRef(false);
+
   React.useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -82,6 +311,15 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
         mailtoAttemptTimerRef.current = null;
       }
     };
+  }, []);
+
+  type NoInferType<T> = [T][T extends any ? 0 : never];
+  const safeSet = React.useCallback(<T,>(
+    setter: React.Dispatch<React.SetStateAction<T>>,
+    value: React.SetStateAction<NoInferType<T>>,
+  ) => {
+    if (!mountedRef.current) return;
+    setter(value);
   }, []);
 
   const [isBusy, setIsBusy] = React.useState(false);
@@ -97,7 +335,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
   const [accountInfoLoading, setAccountInfoLoading] = React.useState(false);
   const [accountInfoError, setAccountInfoError] = React.useState<string | null>(null);
   const [localRecoveryEmails, setLocalRecoveryEmails] = React.useState<string[]>([]);
-  const [explorerToast, setExplorerToast] = React.useState<{ url: string; accountId?: string; transactionHash?: string } | null>(null);
+  const [explorerToast, setExplorerToast] = React.useState<ExplorerToast | null>(null);
 
   const lastPrefilledAccountIdRef = React.useRef<string>('');
 
@@ -130,82 +368,48 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     }
   }, [accountId]);
 
-  const safeSet = <T,>(setter: React.Dispatch<React.SetStateAction<T>>) => {
-    return (value: React.SetStateAction<T>) => {
-      if (!mountedRef.current) return;
-      setter(value);
-    };
-  };
-
-  const safeSetPendingMailtoUrl = React.useMemo(() => safeSet(setPendingMailtoUrl), []);
-  const safeSetPendingNearPublicKey = React.useMemo(() => safeSet(setPendingNearPublicKey), []);
-  const safeSetStatusText = React.useMemo(() => safeSet(setStatusText), []);
-  const safeSetPollingElapsedMs = React.useMemo(() => safeSet(setPollingElapsedMs), []);
-  const safeSetErrorText = React.useMemo(() => safeSet(setErrorText), []);
-  const safeSetIsBusy = React.useMemo(() => safeSet(setIsBusy), []);
-  const safeSetCanRestart = React.useMemo(() => safeSet(setCanRestart), []);
-  const safeSetAccountInfo = React.useMemo(() => safeSet(setAccountInfo), []);
-  const safeSetAccountInfoLoading = React.useMemo(() => safeSet(setAccountInfoLoading), []);
-  const safeSetAccountInfoError = React.useMemo(() => safeSet(setAccountInfoError), []);
-  const safeSetLocalRecoveryEmails = React.useMemo(() => safeSet(setLocalRecoveryEmails), []);
-  const safeSetExplorerToast = React.useMemo(() => safeSet(setExplorerToast), []);
-  const safeSetMailtoUiState = React.useMemo(() => safeSet(setMailtoUiState), []);
-
   const onEvent = React.useCallback(
     (ev: EmailRecoverySSEEvent) => {
       if (cancelRequestedRef.current) return;
-      safeSetStatusText(ev?.message || null);
+      safeSet(setStatusText, ev?.message || null);
       emailRecoveryOptions?.onEvent?.(ev);
 
-      const data = 'data' in ev ? asRecord(ev.data) : null;
-      const rawTxHash = data?.['transactionHash'] ?? data?.['transaction_hash'];
-      const txHash = typeof rawTxHash === 'string' ? rawTxHash.trim() : '';
+      const txHash = extractTxHashFromEmailRecoveryEvent(ev);
       if (txHash) {
-        const base = String(tatchiPasskey.configs?.nearExplorerUrl || 'https://testnet.nearblocks.io').replace(/\/$/, '');
-        const url = base.includes('nearblocks.io')
-          ? `${base}/txns/${txHash}`
-          : `${base}/transactions/${txHash}`;
-        safeSetExplorerToast({ url, transactionHash: txHash });
+        const base = getExplorerBaseUrl(tatchiPasskey);
+        safeSet(setExplorerToast, { url: getExplorerTxUrl({ base, txHash }), transactionHash: txHash });
       }
-      const elapsedRaw = data?.['elapsedMs'] ?? data?.['elapsed_ms'];
-      if (elapsedRaw == null) safeSetPollingElapsedMs(null);
-      const elapsed = elapsedRaw == null ? Number.NaN : Number(elapsedRaw);
-      if (!Number.isNaN(elapsed)) safeSetPollingElapsedMs(elapsed);
+      const elapsed = extractElapsedMsFromEmailRecoveryEvent(ev);
+      if (elapsed === null) safeSet(setPollingElapsedMs, null);
+      else if (elapsed != null) safeSet(setPollingElapsedMs, elapsed);
 
       if (ev.phase === EmailRecoveryPhase.ERROR || ev.status === EmailRecoveryStatus.ERROR) {
         const raw = 'error' in ev ? ev.error : ev.message;
-        safeSetErrorText(raw || 'Email recovery failed');
-        safeSetCanRestart(false);
+        safeSet(setErrorText, raw || 'Email recovery failed');
+        safeSet(setCanRestart, false);
       }
     },
-    [emailRecoveryOptions, safeSetCanRestart, safeSetErrorText, safeSetExplorerToast, safeSetPollingElapsedMs, safeSetStatusText, tatchiPasskey],
+    [emailRecoveryOptions, safeSet, tatchiPasskey],
   );
 
   const showExplorerToast = React.useCallback(
     (rawAccountId: string) => {
       const normalized = (rawAccountId || '').trim();
       if (!normalized) return;
-      const base = String(tatchiPasskey.configs?.nearExplorerUrl || 'https://testnet.nearblocks.io').replace(/\/$/, '');
-      const url = base.includes('nearblocks.io')
-        ? `${base}/address/${normalized}`
-        : `${base}/accounts/${normalized}`;
-
-      safeSetExplorerToast({ url, accountId: normalized });
+      const base = getExplorerBaseUrl(tatchiPasskey);
+      safeSet(setExplorerToast, { url: getExplorerAccountUrl({ base, accountId: normalized }), accountId: normalized });
     },
-    [safeSetExplorerToast, tatchiPasskey],
+    [safeSet, tatchiPasskey],
   );
 
   const showExplorerTxToast = React.useCallback(
     (txHash: string) => {
       const normalized = (txHash || '').trim();
       if (!normalized) return;
-      const base = String(tatchiPasskey.configs?.nearExplorerUrl || 'https://testnet.nearblocks.io').replace(/\/$/, '');
-      const url = base.includes('nearblocks.io')
-        ? `${base}/txns/${normalized}`
-        : `${base}/transactions/${normalized}`;
-      safeSetExplorerToast({ url, transactionHash: normalized });
+      const base = getExplorerBaseUrl(tatchiPasskey);
+      safeSet(setExplorerToast, { url: getExplorerTxUrl({ base, txHash: normalized }), transactionHash: normalized });
     },
-    [safeSetExplorerToast, tatchiPasskey],
+    [safeSet, tatchiPasskey],
   );
 
   const launchMailto = React.useCallback((rawMailtoUrl: string) => {
@@ -224,7 +428,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
       const url = String(rawMailtoUrl || '').trim();
       if (!url) return;
 
-      safeSetMailtoUiState('opening');
+      safeSet(setMailtoUiState, 'opening');
 
       if (mailtoAttemptTimerRef.current != null) {
         window.clearTimeout(mailtoAttemptTimerRef.current);
@@ -232,13 +436,13 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
 
       // If the browser never blurs/hides (i.e. mailto blocked or cancelled), re-enable so users can retry.
       mailtoAttemptTimerRef.current = window.setTimeout(() => {
-        safeSetMailtoUiState(prev => (prev === 'opening' ? 'ready' : prev));
+        safeSet(setMailtoUiState, prev => (prev === 'opening' ? 'ready' : prev));
         mailtoAttemptTimerRef.current = null;
-      }, 2_000);
+      }, MAILTO_REENABLE_MS);
 
       launchMailto(url);
     },
-    [launchMailto, safeSetMailtoUiState],
+    [launchMailto, safeSet],
   );
 
   const attemptOpenMailtoAuto = React.useCallback(
@@ -258,7 +462,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     // Heuristic signals that the mail client likely opened. Treat as a hint only:
     // re-enable immediately so the CTA remains retryable even if this is a false-positive.
     const markMaybeOpened = () => {
-      safeSetMailtoUiState('ready');
+      safeSet(setMailtoUiState, 'ready');
       if (mailtoAttemptTimerRef.current != null) {
         window.clearTimeout(mailtoAttemptTimerRef.current);
         mailtoAttemptTimerRef.current = null;
@@ -278,15 +482,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
       window.removeEventListener('pagehide', markMaybeOpened);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [mailtoUiState, safeSetMailtoUiState]);
-
-  const deriveEmailsFromRecoveryRecords = React.useCallback((records: RecoveryEmailRecord[]): string[] => {
-    if (records.length === 0) return [];
-    const emails = records
-      .map((r) => r.email.trim().toLowerCase())
-      .filter((e) => e.length > 0 && e.includes('@'));
-    return Array.from(new Set(emails));
-  }, []);
+  }, [mailtoUiState, safeSet]);
 
   React.useEffect(() => {
     const normalized = (accountIdInput || '').trim();
@@ -294,14 +490,14 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
       setAccountInfo(null);
       setAccountInfoError(null);
       setAccountInfoLoading(false);
-      safeSetLocalRecoveryEmails([]);
+      safeSet(setLocalRecoveryEmails, []);
       return;
     }
 
     let cancelled = false;
     // Show loading state immediately (don't wait for debounce).
-    safeSetAccountInfoLoading(true);
-    safeSetAccountInfoError(null);
+    safeSet(setAccountInfoLoading, true);
+    safeSet(setAccountInfoError, null);
     const handle = window.setTimeout(() => {
       void (async () => {
         try {
@@ -309,56 +505,68 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
           const resolvedEmails = deriveEmailsFromRecoveryRecords(records);
 
           if (!cancelled) {
-            safeSetLocalRecoveryEmails(resolvedEmails);
+            safeSet(setLocalRecoveryEmails, resolvedEmails);
           }
 
           const info: EmailRecoveryAccountInfo | null = records
             ? { emailsCount: Array.isArray(records) ? records.length : 0 }
             : null;
           if (cancelled) return;
-          safeSetAccountInfo(info);
+          safeSet(setAccountInfo, info);
         } catch (err: unknown) {
           if (cancelled) return;
-          safeSetAccountInfo(null);
+          safeSet(setAccountInfo, null);
           const msg = err instanceof Error ? err.message : '';
-          safeSetAccountInfoError(msg || 'Failed to load email recovery settings for this account');
-          safeSetLocalRecoveryEmails([]);
+          safeSet(setAccountInfoError, msg || 'Failed to load email recovery settings for this account');
+          safeSet(setLocalRecoveryEmails, []);
         } finally {
-          if (!cancelled) safeSetAccountInfoLoading(false);
+          if (!cancelled) safeSet(setAccountInfoLoading, false);
         }
       })();
-    }, 350);
+    }, ACCOUNT_INFO_DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [
-    accountIdInput,
-    deriveEmailsFromRecoveryRecords,
-    safeSetAccountInfo,
-    safeSetAccountInfoError,
-    safeSetAccountInfoLoading,
-    safeSetLocalRecoveryEmails,
-    tatchiPasskey,
-  ]);
+  }, [accountIdInput, safeSet, tatchiPasskey]);
 
   const handleStart = React.useCallback(async () => {
     const normalizedAccountId = (accountIdInput || '').trim();
     if (!normalizedAccountId) {
-      safeSetErrorText('Enter an account ID.');
+      safeSet(setErrorText, 'Enter an account ID.');
       return;
     }
 
-    safeSetIsBusy(true);
+    if (accountInfoLoading) {
+      safeSet(setErrorText, 'Checking recovery email settings…');
+      return;
+    }
+
+    if (accountInfoError) {
+      safeSet(setErrorText, accountInfoError);
+      return;
+    }
+
+    if (!accountInfo) {
+      safeSet(setErrorText, 'Failed to load email recovery settings for this account.');
+      return;
+    }
+
+    if (accountInfo.emailsCount === 0) {
+      safeSet(setErrorText, 'No recovery emails are configured for this account.');
+      return;
+    }
+
+    safeSet(setIsBusy, true);
     cancelRequestedRef.current = false;
-    safeSetErrorText(null);
-    safeSetCanRestart(false);
-    safeSetStatusText(null);
-    safeSetPollingElapsedMs(null);
-    safeSetPendingMailtoUrl(null);
-    safeSetPendingNearPublicKey(null);
-    safeSetMailtoUiState('ready');
+    safeSet(setErrorText, null);
+    safeSet(setCanRestart, false);
+    safeSet(setStatusText, null);
+    safeSet(setPollingElapsedMs, null);
+    safeSet(setPendingMailtoUrl, null);
+    safeSet(setPendingNearPublicKey, null);
+    safeSet(setMailtoUiState, 'ready');
 
     let didForwardError = false;
     try {
@@ -368,16 +576,19 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
           onEvent,
           onError: (err: Error) => {
             if (cancelRequestedRef.current) return;
-            safeSetErrorText(err?.message || 'Failed to start email recovery');
+            safeSet(setErrorText, err?.message || 'Failed to start email recovery');
             didForwardError = true;
             emailRecoveryOptions?.onError?.(err);
           },
         } satisfies EmailRecoveryFlowOptions,
       });
 
-      safeSetPendingMailtoUrl(result.mailtoUrl);
-      safeSetPendingNearPublicKey(result.nearPublicKey);
-      safeSetStatusText('Recovery email draft ready. If it didn’t open automatically, click “Open recovery email draft”. Waiting for verification…');
+      safeSet(setPendingMailtoUrl, result.mailtoUrl);
+      safeSet(setPendingNearPublicKey, result.nearPublicKey);
+      safeSet(
+        setStatusText,
+        'Recovery email draft ready. If it didn’t open automatically, click “Open recovery email draft”. Waiting for verification…'
+      );
 
       // Best-effort open. If blocked/cancelled, the CTA remains immediately clickable for a user-gesture retry.
       attemptOpenMailtoAuto(result.mailtoUrl);
@@ -391,8 +602,8 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
           onError: (err: Error) => {
             if (cancelRequestedRef.current) return;
             const uiError = getEmailRecoveryUiError(err);
-            safeSetErrorText(uiError.message || 'Failed to finalize email recovery');
-            safeSetCanRestart(uiError.canRestart);
+            safeSet(setErrorText, uiError.message || 'Failed to finalize email recovery');
+            safeSet(setCanRestart, uiError.canRestart);
             const txHash = getEmailRecoveryErrorTxHash(err);
             if (txHash) showExplorerTxToast(txHash);
             didForwardError = true;
@@ -412,8 +623,9 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
       if (session?.login?.isLoggedIn) {
         loginOk = true;
       } else {
-        safeSetStatusText('Email recovery completed. Logging you in…');
-        loginOk = await tatchiPasskey.loginAndCreateSession(normalizedAccountId)
+        safeSet(setStatusText, 'Email recovery completed. Logging you in…');
+        loginOk = await tatchiPasskey
+          .loginAndCreateSession(normalizedAccountId)
           .then(() => true)
           .catch(() => false);
       }
@@ -422,45 +634,46 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
         await refreshLoginState(normalizedAccountId).catch(() => {});
       }
 
-      safeSetStatusText(loginOk ? 'Email recovery completed on this device.' : 'Email recovery completed. Please log in on this device.');
-      safeSetPendingMailtoUrl(null);
-      safeSetMailtoUiState('ready');
-      safeSetPollingElapsedMs(null);
+      safeSet(
+        setStatusText,
+        loginOk ? 'Email recovery completed on this device.' : 'Email recovery completed. Please log in on this device.'
+      );
+      safeSet(setPendingMailtoUrl, null);
+      safeSet(setMailtoUiState, 'ready');
+      safeSet(setPollingElapsedMs, null);
     } catch (err: unknown) {
       if (cancelRequestedRef.current) {
-        safeSetErrorText('Email recovery cancelled. Please try again.');
-        safeSetStatusText(null);
-        safeSetPollingElapsedMs(null);
-        safeSetPendingMailtoUrl(null);
-        safeSetPendingNearPublicKey(null);
-        safeSetMailtoUiState('ready');
-        safeSetCanRestart(false);
+        safeSet(setErrorText, 'Email recovery cancelled. Please try again.');
+        safeSet(setStatusText, null);
+        safeSet(setPollingElapsedMs, null);
+        safeSet(setPendingMailtoUrl, null);
+        safeSet(setPendingNearPublicKey, null);
+        safeSet(setMailtoUiState, 'ready');
+        safeSet(setCanRestart, false);
         return;
       }
       const uiError = getEmailRecoveryUiError(err);
-      safeSetErrorText(uiError.message || 'Failed to start email recovery');
-      safeSetCanRestart(uiError.canRestart);
+      safeSet(setErrorText, uiError.message || 'Failed to start email recovery');
+      safeSet(setCanRestart, uiError.canRestart);
       const txHash = getEmailRecoveryErrorTxHash(err);
       if (txHash) showExplorerTxToast(txHash);
       if (!didForwardError && err instanceof Error) {
         emailRecoveryOptions?.onError?.(err);
       }
     } finally {
-      safeSetIsBusy(false);
+      safeSet(setIsBusy, false);
     }
   }, [
     accountIdInput,
+    accountInfo,
+    accountInfoError,
+    accountInfoLoading,
+    attemptOpenMailtoAuto,
     emailRecoveryOptions,
     onEvent,
     refreshLoginState,
+    safeSet,
     showExplorerToast,
-    safeSetErrorText,
-    safeSetIsBusy,
-    safeSetPendingMailtoUrl,
-    safeSetPollingElapsedMs,
-    safeSetStatusText,
-    safeSetMailtoUiState,
-    attemptOpenMailtoAuto,
     showExplorerTxToast,
     tatchiPasskey,
   ]);
@@ -469,37 +682,27 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
     const normalizedAccountId = (accountIdInput || '').trim();
     if (!normalizedAccountId) return;
 
-    safeSetIsBusy(true);
+    safeSet(setIsBusy, true);
     try {
       cancelRequestedRef.current = true;
-      await tatchiPasskey.cancelEmailRecovery({
-        accountId: normalizedAccountId,
-        nearPublicKey: pendingNearPublicKey || undefined,
-      }).catch(() => {});
-      safeSetErrorText(null);
-      safeSetStatusText(null);
-      safeSetPollingElapsedMs(null);
-      safeSetPendingMailtoUrl(null);
-      safeSetPendingNearPublicKey(null);
-      safeSetMailtoUiState('ready');
-      safeSetCanRestart(false);
+      await tatchiPasskey
+        .cancelEmailRecovery({
+          accountId: normalizedAccountId,
+          nearPublicKey: pendingNearPublicKey || undefined,
+        })
+        .catch(() => {});
+      safeSet(setErrorText, null);
+      safeSet(setStatusText, null);
+      safeSet(setPollingElapsedMs, null);
+      safeSet(setPendingMailtoUrl, null);
+      safeSet(setPendingNearPublicKey, null);
+      safeSet(setMailtoUiState, 'ready');
+      safeSet(setCanRestart, false);
     } finally {
       cancelRequestedRef.current = false;
-      safeSetIsBusy(false);
+      safeSet(setIsBusy, false);
     }
-  }, [
-    accountIdInput,
-    pendingNearPublicKey,
-    safeSetCanRestart,
-    safeSetErrorText,
-    safeSetIsBusy,
-    safeSetMailtoUiState,
-    safeSetPendingMailtoUrl,
-    safeSetPendingNearPublicKey,
-    safeSetPollingElapsedMs,
-    safeSetStatusText,
-    tatchiPasskey,
-  ]);
+  }, [accountIdInput, pendingNearPublicKey, safeSet, tatchiPasskey]);
 
   const summaryLine: React.ReactNode = accountInfoLoading
     ? (
@@ -518,106 +721,38 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({ tatchiPa
 
   const noRecoveryEmailsConfigured =
     !accountInfoLoading && !accountInfoError && !!accountInfo && accountInfo.emailsCount === 0;
+  const startDisabled = isBusy || accountInfoLoading || !!accountInfoError || !accountInfo || noRecoveryEmailsConfigured;
+  const showFromWarning = !!accountIdInput.trim() && !noRecoveryEmailsConfigured;
+  const showRestart = !!errorText && canRestart;
 
   return (
     <div className="w3a-email-recovery-slide">
-      <div className="w3a-email-recovery-title">Recover Account with Email</div>
-      <div className="w3a-email-recovery-help">
-        Send a special email to recover your account.
-        This email must be sent from the designated email recovery address.
-      </div>
-
-      <div>
-        <div className="w3a-input-pill w3a-email-recovery-input-pill">
-          <div className="w3a-input-wrap">
-            <input
-              type="text"
-              value={accountIdInput}
-              onChange={(e) => setAccountIdInput(e.target.value)}
-              placeholder="NEAR account ID (e.g. alice.testnet)"
-              className="w3a-input"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              inputMode="text"
-              disabled={isBusy}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="w3a-email-recovery-summary" aria-live="polite">
-        <div>{summaryLine}</div>
-        {localRecoveryEmails.length > 0 && (
-          <div className="w3a-email-recovery-saved-emails" role="list" aria-label="Recovery emails">
-            {localRecoveryEmails.map((email) => (
-              <span key={email} className="w3a-email-recovery-email-chip w3a-email-recovery-email-chip-static" role="listitem">
-                {email}
-              </span>
-            ))}
-          </div>
-        )}
-        {!!accountIdInput.trim() && !noRecoveryEmailsConfigured && (
-          <div className="w3a-email-recovery-from-warning">
-            Check that you are sending the recovery email from your designated recovery email.
-          </div>
-        )}
-      </div>
-
-      <div className="w3a-email-recovery-actions">
-        {(!pendingMailtoUrl || !isBusy) && (
-          <button
-            onClick={handleStart}
-            className="w3a-link-device-btn w3a-link-device-btn-primary"
-            disabled={isBusy || noRecoveryEmailsConfigured}
-          >
-            {noRecoveryEmailsConfigured ? 'No recovery emails configured' : (isBusy ? 'Working…' : 'Start Email Recovery')}
-          </button>
-        )}
-
-        {pendingMailtoUrl && (
-          <button
-            type="button"
-            onClick={() => attemptOpenMailtoFromUserGesture(pendingMailtoUrl)}
-            className="w3a-link-device-btn w3a-link-device-btn-primary"
-            disabled={mailtoUiState === 'opening'}
-            aria-busy={mailtoUiState === 'opening'}
-          >
-            {mailtoUiState === 'opening' && <span className="w3a-spinner" aria-hidden="true" />}
-            {mailtoUiState === 'opening' ? 'Opening email…' : 'Open recovery email draft'}
-          </button>
-        )}
-
-        {errorText && canRestart && (
-          <button
-            type="button"
-            onClick={handleRestart}
-            className="w3a-link-device-btn"
-            disabled={isBusy}
-          >
-            Restart email recovery
-          </button>
-        )}
-      </div>
-
-      {(errorText || statusText || explorerToast) && (
-        <div className={`w3a-email-recovery-status${errorText ? ' is-error' : ''}`}>
-          {errorText ? errorText : statusText}
-          {pollingElapsedMs != null && !Number.isNaN(pollingElapsedMs) && pollingElapsedMs > 0 && (
-            <span className="w3a-email-recovery-elapsed">
-              (~{Math.round(pollingElapsedMs / 1000)}s).
-            </span>
-          )}
-          {explorerToast && (
-            <>
-              <br/>
-              <a className="w3a-email-recovery-link" href={explorerToast.url} target="_blank" rel="noopener noreferrer">
-                View on explorer
-              </a>
-            </>
-          )}
-        </div>
-      )}
+      <EmailRecoveryHeader />
+      <AccountIdInputRow value={accountIdInput} onChange={setAccountIdInput} disabled={isBusy} />
+      <RecoveryEmailsSummary
+        summaryLine={summaryLine}
+        accountInfoError={accountInfoError}
+        localRecoveryEmails={localRecoveryEmails}
+        showFromWarning={showFromWarning}
+      />
+      <EmailRecoveryActions
+        isBusy={isBusy}
+        pendingMailtoUrl={pendingMailtoUrl}
+        mailtoUiState={mailtoUiState}
+        startDisabled={startDisabled}
+        accountInfoLoading={accountInfoLoading}
+        noRecoveryEmailsConfigured={noRecoveryEmailsConfigured}
+        showRestart={showRestart}
+        onStart={handleStart}
+        onOpenDraft={attemptOpenMailtoFromUserGesture}
+        onRestart={handleRestart}
+      />
+      <EmailRecoveryStatusPanel
+        errorText={errorText}
+        statusText={statusText}
+        pollingElapsedMs={pollingElapsedMs}
+        explorerToast={explorerToast}
+      />
     </div>
   );
 };

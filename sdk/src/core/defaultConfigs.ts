@@ -62,7 +62,7 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
 };
 
 export const DEFAULT_EMAIL_RECOVERY_CONTRACTS: EmailRecoveryContracts = {
-  emailRecovererGlobalContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailDkimVerifierContract,
+  emailRecovererGlobalContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailRecovererGlobalContract,
   zkEmailVerifierContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.zkEmailVerifierContract,
   emailDkimVerifierContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailDkimVerifierContract,
 };

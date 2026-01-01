@@ -65,10 +65,39 @@ export type RecoveryAttempt = {
   created_at_ms: number;
   updated_at_ms: number;
   error?: string | null;
+  /**
+   * 32-byte SHA-256 hash of "<canonical_from>|<account_id_lower>".
+   * Returned by newer EmailRecoverer contracts (replaces `from_address`).
+   */
+  from_address_hash?: number[] | null;
+  /** Legacy field (string email address). */
   from_address?: string | null;
   email_timestamp_ms?: number | null;
   new_public_key?: string | null;
 };
+
+function normalizeByteArray(input: unknown): number[] | null | undefined {
+  if (input == null) return input as null | undefined;
+
+  if (Array.isArray(input)) {
+    return input.map((v) => Number(v)).filter((v) => Number.isFinite(v));
+  }
+
+  if (typeof input === 'string' && input) {
+    try {
+      const bytes =
+        typeof Buffer !== 'undefined'
+          ? Buffer.from(input, 'base64')
+          : Uint8Array.from(atob(input), (c) => c.charCodeAt(0));
+      const arr = bytes instanceof Uint8Array ? Array.from(bytes) : Array.from(new Uint8Array(bytes));
+      return arr;
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
+}
 
 export async function getEmailRecoveryAttempt(
   nearClient: NearClient,
@@ -98,6 +127,7 @@ export async function getEmailRecoveryAttempt(
 
   return {
     ...raw,
+    from_address_hash: normalizeByteArray((raw as any).from_address_hash) ?? (raw as any).from_address_hash,
     status: status as RecoveryAttemptStatus,
   };
 }
@@ -452,7 +482,16 @@ const EMPTY_NEAR_CODE_HASH = '11111111111111111111111111111111';
 async function hasDeployedContractCode(nearClient: NearClient, accountId: AccountId): Promise<boolean> {
   try {
     const account = await nearClient.viewAccount(accountId);
-    return account.code_hash !== EMPTY_NEAR_CODE_HASH;
+    const codeHash = (account as { code_hash?: unknown } | null)?.code_hash;
+    const globalContractHash = (account as { global_contract_hash?: unknown } | null)?.global_contract_hash;
+    const globalContractAccountId = (account as { global_contract_account_id?: unknown } | null)?.global_contract_account_id;
+
+    const hasLocalCode = typeof codeHash === 'string' && codeHash !== EMPTY_NEAR_CODE_HASH;
+    const hasGlobalCode =
+      (typeof globalContractHash === 'string' && globalContractHash.trim().length > 0) ||
+      (typeof globalContractAccountId === 'string' && globalContractAccountId.trim().length > 0);
+
+    return hasLocalCode || hasGlobalCode;
   } catch {
     return false;
   }
@@ -467,9 +506,10 @@ export async function getRecoveryEmailHashesContractCall(
   accountId: AccountId
 ): Promise<number[][]> {
   try {
-    // Prefer `view_account.code_hash` over `view_code`:
+    // Prefer `view_account` over `view_code`:
     // - `view_code` is expected to fail for non-contract accounts and is noisy.
-    // - `view_account` is lightweight and returns a sentinel code hash when no contract is deployed.
+    // - `view_account` is lightweight and tells us whether the account uses local contract code
+    //   or a NEAR "global contract" (via `global_contract_*` fields).
     const hasContract = await hasDeployedContractCode(nearClient, accountId);
     if (!hasContract) return [];
 
@@ -503,27 +543,43 @@ export async function buildSetRecoveryEmailsActions(
     emailDkimVerifierContract,
   } = contracts;
 
-  return hasContract
+  // If the account already has a contract (local or global), it still might not be a readable
+  // EmailRecoverer instance (e.g. stale state after upgrades). In that case, `set_recovery_emails`
+  // would fail while `init_email_recovery` (#[init(ignore_state)]) can safely re-initialize.
+  //
+  // We keep this as a best-effort probe to avoid wiping state on transient RPC issues.
+  let shouldInit = !hasContract;
+  if (!shouldInit) {
+    try {
+      await nearClient.view<Record<string, never>, unknown>({
+        account: accountId,
+        method: 'get_recovery_emails',
+        args: {} as Record<string, never>,
+      });
+    } catch (err: unknown) {
+      const msg = errorMessage(err);
+      // Common/expected cases where we should fall back to init:
+      // - account has a global contract pointer but no EmailRecoverer-compatible state yet
+      // - account has stale/incompatible state after a contract upgrade
+      // - account has some other contract (method missing)
+      if (/Cannot deserialize the contract state/i.test(msg)
+        || /CodeDoesNotExist/i.test(msg)
+        || /MethodNotFound/i.test(msg)) {
+        shouldInit = true;
+      }
+    }
+  }
+
+  const base: ActionArgs[] = [
+    {
+      type: ActionType.UseGlobalContract,
+      accountId: emailRecovererGlobalContract,
+    },
+  ];
+
+  return shouldInit
     ? [
-        {
-          type: ActionType.UseGlobalContract,
-          accountId: emailRecovererGlobalContract,
-        },
-        {
-          type: ActionType.FunctionCall,
-          methodName: 'set_recovery_emails',
-          args: {
-            recovery_emails: recoveryEmailHashes,
-          },
-          gas: '80000000000000',
-          deposit: '0',
-        },
-      ]
-    : [
-        {
-          type: ActionType.UseGlobalContract,
-          accountId: emailRecovererGlobalContract,
-        },
+        ...base,
         {
           type: ActionType.FunctionCall,
           methodName: 'init_email_recovery',
@@ -531,6 +587,18 @@ export async function buildSetRecoveryEmailsActions(
             zk_email_verifier: zkEmailVerifierContract,
             email_dkim_verifier: emailDkimVerifierContract,
             policy: null,
+            recovery_emails: recoveryEmailHashes,
+          },
+          gas: '80000000000000',
+          deposit: '0',
+        },
+      ]
+    : [
+        ...base,
+        {
+          type: ActionType.FunctionCall,
+          methodName: 'set_recovery_emails',
+          args: {
             recovery_emails: recoveryEmailHashes,
           },
           gas: '80000000000000',

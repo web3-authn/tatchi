@@ -66,6 +66,11 @@ if (env.VITE_ROR_METHOD) process.env.VITE_ROR_METHOD = env.VITE_ROR_METHOD
 // Ensure rpId base is visible to Node-side SDK dev plugins (offline-export HTML)
 if (env.VITE_RP_ID_BASE) process.env.VITE_RP_ID_BASE = env.VITE_RP_ID_BASE
 
+// When bundling workspace packages (like `sdk/dist/*`) from outside the docs tree,
+// Vite's resolver may not look inside `examples/tatchi-docs/node_modules` for
+// subpath imports. Explicit aliases keep polyfill shim imports resolvable.
+const polyfillShim = (p: string) => fileURLToPath(new URL(`../../node_modules/vite-plugin-node-polyfills/shims/${p}/dist/index.js`, import.meta.url))
+
 export default defineConfig({
   // Hosted at the site root
   base: '/',
@@ -306,6 +311,9 @@ export default defineConfig({
       alias: {
         '@app': appSrc,
         '@': appSrc,
+        'vite-plugin-node-polyfills/shims/buffer': polyfillShim('buffer'),
+        'vite-plugin-node-polyfills/shims/process': polyfillShim('process'),
+        'vite-plugin-node-polyfills/shims/global': polyfillShim('global'),
         process: 'process/browser',
         stream: 'stream-browserify',
         crypto: 'crypto-browserify',

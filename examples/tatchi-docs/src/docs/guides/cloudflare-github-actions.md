@@ -1,3 +1,7 @@
+---
+title: Cloudflare + GitHub Actions
+---
+
 # Cloudflare & GitHub Actions Setup Guide
 
 This guide walks you through setting up Cloudflare and GitHub Actions for the Web3Authn Passkey SDK deployment pipeline.
@@ -8,8 +12,8 @@ The `deploy-cloudflare` workflow:
 - Builds the SDK with deterministic bundles
 - Publishes bundles to Cloudflare R2 storage
 - Deploys the relay server as a Cloudflare Worker
-- Deploys the `examples/vite-secure` site to Cloudflare Pages
-- Deploys the wallet host example to Cloudflare Pages (wallet origin). The SDK's Vite build plugin now emits `dist/wallet-service/index.html` and `_headers` automatically when missing.
+- Deploys the docs site (`examples/tatchi-docs`) to Cloudflare Pages
+- Deploys the wallet host example (`examples/vite`) to Cloudflare Pages (wallet origin). The SDK's Vite build plugin can emit `dist/wallet-service/index.html` and `_headers` automatically when missing.
 
 ## What Gets Deployed
 
@@ -20,12 +24,12 @@ The `deploy-cloudflare` workflow:
 
 ### Cloudflare Pages
 - **examples/tatchi-docs** → CF Pages (primary site)
-- **wallet host example** (`examples/vite-secure/dist`) → CF Pages (wallet origin)
+- **wallet host example** (`examples/vite/dist`) → CF Pages (wallet origin)
 
 Note: `examples/vite` is for local testing only and is not deployed.
 
 ### R2 Storage
-- **Path**: `passkey-sdk/dist/**` + `manifest.json` + `manifest.sig`
+- **Path**: `sdk/dist/**` + `manifest.json` + `manifest.sig`
 - **Structure**:
   - `releases/<git-sha>/...` (commit-specific)
   - `releases/<tag>/...` (tagged releases)
@@ -174,7 +178,7 @@ CF_PAGES_PROJECT_WALLET=tatchi-wallet-iframe
 
 ## Automated npm publish flow (optional)
 
-When enabled (by adding `NPM_TOKEN`), the workflow will also publish the SDK to npm after a successful production deploy.
+The repo contains an optional (currently commented out) npm publish job. If you enable it and add `NPM_TOKEN`, the workflow can publish the SDK to npm after a successful production deploy.
 
 - Job name: `Publish SDK to npm`
 - Location: `.github/workflows/deploy-cloudflare.yml`
@@ -182,7 +186,7 @@ When enabled (by adding `NPM_TOKEN`), the workflow will also publish the SDK to 
 - Package: `@tatchi-xyz/sdk` (subpaths `react`, `server`)
 
 How to cut a release:
-1) Bump the version in `passkey-sdk/package.json` (e.g., 0.1.1)
+1) Bump the version in `sdk/package.json` (e.g., 0.22.1)
 2) Create and push a matching tag on the same commit:
 
 ```bash

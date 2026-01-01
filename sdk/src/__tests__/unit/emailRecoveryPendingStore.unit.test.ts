@@ -25,14 +25,13 @@ test.describe('EmailRecoveryPendingStore', () => {
       IndexedDBManager.clientDB.setDbName(`PasskeyClientDB-emailRecoveryPendingStore-${suffix}`);
 
       let now = 1000;
-      const store = new EmailRecoveryPendingStore({ getPendingTtlMs: () => 60_000, now: () => now });
-      const record = {
-        accountId: 'alice.testnet',
-        recoveryEmail: 'alice@example.com',
-        deviceNumber: 1,
-        nearPublicKey: 'ed25519:alice',
-        requestId: 'REQ123',
-        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
+	      const store = new EmailRecoveryPendingStore({ getPendingTtlMs: () => 60_000, now: () => now });
+	      const record = {
+	        accountId: 'alice.testnet',
+	        deviceNumber: 1,
+	        nearPublicKey: 'ed25519:alice',
+	        requestId: 'REQ123',
+	        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
         serverEncryptedVrfKeypair: null,
         vrfPublicKey: 'vrf',
         credential: {
@@ -78,15 +77,14 @@ test.describe('EmailRecoveryPendingStore', () => {
       IndexedDBManager.clientDB.setDbName(`PasskeyClientDB-emailRecoveryPendingStore-${suffix}`);
 
       let now = 1000;
-      const ttlMs = 500;
-      const store = new EmailRecoveryPendingStore({ getPendingTtlMs: () => ttlMs, now: () => now });
-      const record = {
-        accountId: 'bob.testnet',
-        recoveryEmail: 'bob@example.com',
-        deviceNumber: 2,
-        nearPublicKey: 'ed25519:bob',
-        requestId: 'REQ999',
-        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
+	      const ttlMs = 500;
+	      const store = new EmailRecoveryPendingStore({ getPendingTtlMs: () => ttlMs, now: () => now });
+	      const record = {
+	        accountId: 'bob.testnet',
+	        deviceNumber: 2,
+	        nearPublicKey: 'ed25519:bob',
+	        requestId: 'REQ999',
+	        encryptedVrfKeypair: { encryptedVrfDataB64u: 'enc', chacha20NonceB64u: 'nonce' },
         serverEncryptedVrfKeypair: null,
         vrfPublicKey: 'vrf',
         credential: {

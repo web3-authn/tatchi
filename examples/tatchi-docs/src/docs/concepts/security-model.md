@@ -14,6 +14,27 @@ The wallet's security model rests on the following:
 4. **User presence guarantees** - Ensure TouchID approvals have user presence
 5. **VRF binding in Webauthn** - Ensures against replay attacks, and ensures each transaction signing attempt is fresh with user presence.
 
+This design makes an explicit tradeoff:
+
+- **Default mode:** best UX, low friction, embedded wallet (no extension install required; no popups), and **self-custody** (secrets never leave the device; relayers are optional and non-custodial).
+- **Cost:** you still depend on the integrity of the wallet runtime environment (wallet-origin code + the user’s browser/OS).
+- **Progressive hardening:** users who want stronger protection against hostile browser extensions can opt into an extension-based wallet runtime (see `docs/chrome-extension-upgrade.md`).
+
+## Threat model (what this protects vs what it doesn’t)
+
+**This model is designed to protect against:**
+
+- A compromised **app origin** (XSS, malicious npm deps, compromised app hosting) — wallet secrets stay in the wallet origin and in workers.
+- Network attackers who can observe traffic but cannot break TLS — secrets are never transmitted; contract verification provides cryptographic checks.
+- Accidental exposure in app code — APIs and guardrails avoid putting PRF/keys into app-visible payloads.
+
+**This model is not designed to fully protect against:**
+
+- **Wallet-origin code execution** (e.g., hostile browser extensions that can run on the wallet origin, or a compromised wallet-origin deployment/supply chain).
+- **Endpoint compromise** (malware, browser 0-days, OS-level compromise).
+- **User-consented malicious actions** (phishing / deceptive transaction intent) — mitigated by strong confirmation UX, but still a real risk.
+
+If wallet-origin code execution is in-scope for your deployment, consider the optional extension upgrade path to reduce the “hostile extension injecting into `https://wallet.…`” class of risk, at the cost of an extra installation/migration step.
 
 ## 1. Origin isolation & credential scope
 
@@ -180,13 +201,19 @@ During flows that require user presence:
 Your app receives progress events but cannot bypass or fake the confirmation:
 
 ```ts
-passkeyManager.signTransaction(tx, {
-  onProgress: (step) => {
-    if (step === 'STEP_2_USER_CONFIRMATION') {
-      console.log('Waiting for user to click Confirm in wallet UI')
-      // You cannot programmatically skip this step
-    }
-  }
+import { ActionPhase } from '@tatchi-xyz/sdk/react'
+
+await tatchi.executeAction({
+  nearAccountId: 'alice.testnet',
+  receiverId: 'contract.testnet',
+  actionArgs: [/* ... */],
+  options: {
+    onEvent: (event) => {
+      if (event.phase === ActionPhase.STEP_2_USER_CONFIRMATION) {
+        console.log('Waiting for user to click Confirm in wallet UI')
+      }
+    },
+  },
 })
 ```
 

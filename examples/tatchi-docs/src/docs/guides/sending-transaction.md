@@ -10,29 +10,35 @@ Use the passkey wallet to sign and send NEAR transactions with iframe‑hosted c
 
 ## 1. APIs for sending transactions
 
-The main helpers exposed via `usePasskeyManager`:
+The main helpers are exposed on `tatchi` (from `useTatchi()`):
 
 - `executeAction` – sign and send a single transaction (most common).
 - `signAndSendTransactions` – sign and send multiple transactions.
 - `signTransactionsWithActions` – sign only (no broadcast).
 
 ```tsx
-import { usePasskeyManager } from '@tatchi-xyz/sdk/react'
 import { ActionType } from '@tatchi-xyz/sdk'
+import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 function SendGreeting() {
-  const passkeyManager = usePasskeyManager()
+  const { tatchi } = useTatchi()
 
   const handleClick = async () => {
-    await passkeyManager.executeAction('alice.testnet', {
-      type: ActionType.FunctionCall,
+    await tatchi.executeAction({
+      nearAccountId: 'alice.testnet',
       receiverId: 'contract.testnet',
-      methodName: 'set_greeting',
-      args: { message: 'hello' },
-      gas: '50000000000000',
-      deposit: '0',
-    }, {
-      // hooks & options go here
+      actionArgs: [
+        {
+          type: ActionType.FunctionCall,
+          methodName: 'set_greeting',
+          args: { message: 'hello' },
+          gas: '50000000000000',
+          deposit: '0',
+        },
+      ],
+      options: {
+        // hooks & options go here
+      },
     })
   }
 
@@ -52,10 +58,15 @@ Confirmation behavior is controlled by `ConfirmationConfig`. You can:
 ### Per‑call override
 
 ```ts
-await passkeyManager.executeAction('alice.testnet', action, {
-  confirmationConfig: {
-    uiMode: 'drawer',          // 'modal' | 'drawer'
-    behavior: 'requireClick',  // 'requireClick' | 'autoProceed'
+await tatchi.executeAction({
+  nearAccountId: 'alice.testnet',
+  receiverId: 'contract.testnet',
+  actionArgs: [action],
+  options: {
+    confirmationConfig: {
+      uiMode: 'drawer',          // 'modal' | 'drawer'
+      behavior: 'requireClick',  // 'requireClick' | 'autoProceed'
+    },
   },
 })
 ```
@@ -130,10 +141,13 @@ const options = {
 Control how long to wait for chain execution:
 
 ```ts
-import { TxExecutionStatus } from '@near-js/types'
+import { TxExecutionStatus } from '@tatchi-xyz/sdk/react'
 
-await passkeyManager.executeAction('alice.testnet', action, {
-  waitUntil: TxExecutionStatus.FINAL,   // default: wait for FINAL
+await tatchi.executeAction({
+  nearAccountId: 'alice.testnet',
+  receiverId: 'contract.testnet',
+  actionArgs: [action],
+  options: { waitUntil: TxExecutionStatus.FINAL }, // default: FINAL
 })
 ```
 
@@ -146,9 +160,9 @@ For multi‑transaction flows, use `executionWait` with `signAndSendTransactions
 Use `signAndSendTransactions` to sign and broadcast multiple transactions, with control over sequencing:
 
 ```ts
-await passkeyManager.signAndSendTransactions({
+await tatchi.signAndSendTransactions({
   nearAccountId: 'alice.testnet',
-  transactionInputs: [
+  transactions: [
     { receiverId: 'staking.testnet', actions: [stakeAction] },
     { receiverId: 'usdc.testnet', actions: [transferAction] },
   ],
@@ -173,9 +187,9 @@ await passkeyManager.signAndSendTransactions({
 If you need to sign transactions and broadcast them yourself, use `signTransactionsWithActions`:
 
 ```ts
-const signed = await passkeyManager.signTransactionsWithActions({
+const signed = await tatchi.signTransactionsWithActions({
   nearAccountId: 'alice.testnet',
-  transactionInputs: [{ receiverId, actions }],
+  transactions: [{ receiverId, actions }],
 }, {
   onEvent: (event) => console.log('[signOnly]', event),
 })

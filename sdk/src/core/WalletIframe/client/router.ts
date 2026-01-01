@@ -1023,7 +1023,6 @@ export class WalletIframeRouter {
   // ===== Email Recovery (wallet-hosted) =====
   async startEmailRecovery(payload: {
     accountId: string;
-    recoveryEmail?: string;
     onEvent?: (ev: EmailRecoverySSEEvent) => void;
     options?: {
       confirmerText?: { title?: string; body?: string };
@@ -1042,7 +1041,6 @@ export class WalletIframeRouter {
       type: 'PM_START_EMAIL_RECOVERY',
       payload: {
         accountId: payload.accountId,
-        ...(payload.recoveryEmail ? { recoveryEmail: payload.recoveryEmail } : {}),
         options: safeOptions && Object.keys(safeOptions).length > 0 ? safeOptions : undefined
       },
       options: {

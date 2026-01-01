@@ -67,7 +67,6 @@ Add an IndexedDB record (either in `IndexedDBManager` or a small dedicated helpe
 ```ts
 type PendingEmailRecovery = {
   accountId: string;
-  recoveryEmail: string;          // canonicalized (lowercase, trimmed)
   deviceNumber: number;           // new device index for this account
   nearPublicKey: string;          // new_public_key (deterministic NEAR key)
   encryptedVrfKeypair: EncryptedVRFKeypair;
@@ -173,7 +172,6 @@ Reuse the same deterministic derivation as LinkDevice:
 ```ts
 await savePendingEmailRecovery({
   accountId,
-  recoveryEmail: canonicalEmail,
   deviceNumber: nextDeviceNumber,
   nearPublicKey: publicKey, // new_public_key
   encryptedVrfKeypair,
@@ -197,7 +195,7 @@ await savePendingEmailRecovery({
 From `PendingEmailRecovery`:
 
 1. Build the `mailto:` URL:
-   - `to`: `recoveryEmail` stored in the record.
+   - `to`: relayer inbox (`TatchiConfigs.relayer.emailRecovery.mailtoAddress`).
    - `subject`: `recover-${requestId} ${accountId} ed25519:${nearPublicKey}`.
    - `body`:
      - optional explanation on subsequent lines, e.g. “I am requesting to recover my Web3Authn account <accountId> with a new passkey.”
@@ -413,7 +411,7 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
     - `EmailRecoverySSEEvent` type (mirroring `DeviceLinkingSSEEvent` / `AccountRecoverySSEEvent`).
     - Extend any relevant hook options (`SignNEP413HooksOptions` etc.) so `onEvent` can accept `EmailRecoverySSEEvent`.
   - Define public methods:
-    - `start(input: { accountId: string; recoveryEmail: string }): Promise<void>` – kicks off Phase A.
+    - `start(input: { accountId: string }): Promise<void>` – kicks off Phase A.
     - `buildMailtoUrl(accountId: string): Promise<string>` – returns `mailto:` URL for Phase B.
     - `startPolling(): void` / `stopPolling(): void` – manage Phase C timers.
     - `finalize(): Promise<void>` – runs Phase D (registration + local storage + auto‑login).
@@ -435,8 +433,7 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
 - [x] Validate inputs:
   - Use `validateNearAccountId(accountId)` to reject invalid IDs early.
   - Call `nearClient.viewAccount(accountId)` and enforce a configurable minimum balance (e.g. enough to cover `verify_and_register_user_for_account`); fail fast with a UX‑friendly error if there isn’t enough NEAR.
-  - Canonicalize email (lowercase, trimmed).
-  - Optionally verify that the email hash matches on‑chain recovery hashes (if the contract exposes them).
+  - No recovery email input is collected; the relayer validates the sender (`From`) against on-chain recovery email hashes.
 - [x] Determine `deviceNumber`:
   - Call `syncAuthenticatorsContractCall(nearClient, configs.contractId, accountId)` to fetch existing authenticators.
   - Compute `nextDeviceNumber = (max(deviceNumber) ?? 0) + 1`.
@@ -458,7 +455,7 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
 - [x] In `sdk/src/core/TatchiPasskey/emailRecovery.ts`:
   - Implement `buildMailtoUrl(accountId)` that:
     - Loads `PendingEmailRecovery` by accountId.
-    - Assembles `mailto:${recoveryEmail}?subject=${encodeURIComponent('recover ' + accountId + ' ed25519:' + nearPublicKey)}` (body optional).
+    - Assembles `mailto:${mailtoAddress}?subject=${encodeURIComponent('recover ' + accountId + ' ed25519:' + nearPublicKey)}` (body optional).
   - Update `PendingEmailRecovery.status` to `'awaiting-add-key'` when this is called.
 - [ ] The React/UI layer (e.g. a “Recover account with email” page/component) will:
   - Call `buildMailtoUrl` and then set `window.location.href = url` or use a link.
@@ -517,7 +514,7 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
 - [x] In `sdk/src/core/TatchiPasskey/index.ts`:
   - Import `EmailRecoveryFlow`.
   - Add helper methods:
-    - `startEmailRecovery(accountId: string, recoveryEmail: string, options?: EmailRecoveryFlowOptions): Promise<void>`
+    - `startEmailRecovery(args: { accountId: string; options?: EmailRecoveryFlowOptions }): Promise<{ mailtoUrl: string; nearPublicKey: string }>`
     - `finalizeEmailRecovery(accountId: string, nearPublicKey?: string, options?: EmailRecoveryFlowOptions): Promise<void>`
   - These methods should internally create/reuse a single `EmailRecoveryFlow` and are what the iframe RPC layer will call (wallet host and parent app both rely on this surface).
 - [x] In the React layer:
@@ -525,10 +522,10 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
     - `sdk/src/react/components/PasskeyAuthMenu/client.tsx` (link device & recovery entrypoints).
     - `sdk/src/react/components/AccountMenuButton/LinkedDevicesModal.tsx` (device list + access keys).
   - Implement a simple “Recover account with email” flow component/hook that:
-    - Collects `accountId` and `recoveryEmail`.
+    - Collects `accountId`.
     - Calls `tatchi.startEmailRecovery`, then uses the returned/derived `mailto:` URL, then starts polling.
     - On reload or account switch, can call `tatchi.finalizeEmailRecovery` directly when on-chain state already contains `nearPublicKey` from a pending record.
-  - UX: clearly display **which email must send the message** (e.g. “Send this email from `<recoveryEmail>`”), and consider a short helper text that explains recovery will fail if sent from a different address.
+  - UX: clearly display **which email must send the message** (e.g. “Send this email from your designated recovery email”), and consider a short helper text that explains recovery will fail if sent from a different address.
     - Subscribes to `onEvent` to drive UI (steps/progress, error states).
   - Optionally surface recovery status in `LinkedDevicesModal` (e.g. highlight the newly recovered device / key).
 

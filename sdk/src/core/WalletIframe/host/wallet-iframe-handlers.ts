@@ -417,11 +417,10 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     },
     PM_START_EMAIL_RECOVERY: async (req: Req<'PM_START_EMAIL_RECOVERY'>) => {
       const pm = getTatchiPasskey();
-      const { accountId, recoveryEmail, options } = (req.payload as PMStartEmailRecoveryPayload);
+      const { accountId, options } = (req.payload as PMStartEmailRecoveryPayload);
       if (respondIfCancelled(req.requestId)) return;
       const result = await pm.startEmailRecovery({
         accountId,
-        recoveryEmail,
         options: {
           onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
           confirmerText: options?.confirmerText,

@@ -6,5 +6,32 @@ title: Client
 
 Client-level helpers and utilities for interacting with the SDK.
 
-Coming soon: typed method docs and examples.
+## Main entrypoint: `TatchiPasskey`
 
+The core (non-React) SDK entrypoint is `TatchiPasskey`:
+
+```ts
+import { TatchiPasskey, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk'
+
+const tatchi = new TatchiPasskey({
+  ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
+  iframeWallet: {
+    walletOrigin: 'https://wallet.tatchi.xyz',
+  },
+  relayer: {
+    url: 'https://relay.example.com',
+  },
+})
+
+await tatchi.initWalletIframe()
+```
+
+From there you can use high-level flows like:
+
+- `registerPasskey(accountId, options?)`
+- `loginAndCreateSession(accountId, options?)`
+- `executeAction({ nearAccountId, receiverId, actionArgs, options? })`
+- `recoverAccountFlow({ accountId?, options? })`
+- Email recovery: `setRecoveryEmails`, `getRecoveryEmails`, `startEmailRecovery`, `finalizeEmailRecovery`
+
+For the full set of methods and common call patterns, see [Passkey Manager](./passkey-manager.md).

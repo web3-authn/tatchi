@@ -1,5 +1,6 @@
 import type { EmailRecoveryMode } from './types';
 import { normalizeForwardableEmailPayload, parseAccountIdFromSubject } from './zkEmail';
+import { ensureEd25519Prefix } from '../../core/nearCrypto';
 
 export enum EmailRecoveryModeHint {
   ZkEmail = 'zk-email',
@@ -181,5 +182,5 @@ export function parseRecoverSubjectBindings(
   if (!match) return null;
 
   const [, requestId, accountId, newPublicKey] = match;
-  return { requestId, accountId, newPublicKey };
+  return { requestId, accountId, newPublicKey: ensureEd25519Prefix(newPublicKey) };
 }

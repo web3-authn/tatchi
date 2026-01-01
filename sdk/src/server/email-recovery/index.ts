@@ -3,7 +3,7 @@ import { ActionType, validateActionArgsWasm } from '../../core/types/actions';
 import { parseContractExecutionError } from '../core/errors';
 import { generateZkEmailProofFromPayload, type ZkEmailProverClientOptions } from './zkEmail';
 import { extractRecoveryModeFromBody, normalizeRecoveryMode } from './emailParsers';
-import { encryptEmailForOutlayer } from './emailEncryptor';
+import { encryptEmailForOutlayer, hashRecoveryEmailForAccount } from './emailEncryptor';
 import { buildEncryptedEmailRecoveryActions, buildOnchainEmailRecoveryActions, buildZkEmailRecoveryActions, sendEmailRecoveryTransaction, getOutlayerEncryptionPublicKey } from './rpcCalls';
 import { ZkEmailProverClient } from './zkEmail/proverClient';
 import { mapZkEmailRecoveryError, prepareZkEmailRecovery } from './zkEmail/recovery';
@@ -299,7 +299,7 @@ export class EmailRecoveryService {
   /**
    * Helper for zk-email recovery:
    * - Calls external zk-email prover with the raw email blob to obtain (proof, publicInputs).
-   * - Extracts subject/header bindings (account_id, new_public_key, from_email, timestamp).
+   * - Extracts subject/header bindings (account_id, new_public_key, from_email, timestamp) and derives `from_address_hash`.
    * - Calls the per-account EmailRecoverer contract with verify_zkemail_and_recover.
    */
 	  async verifyZkemailAndRecover(request: EmailRecoveryRequest): Promise<EmailRecoveryResult> {
@@ -368,13 +368,22 @@ export class EmailRecoveryService {
 	      const proverClient = this.getZkEmailProverClient(zkEmailProver);
 	      const proofResult = await generateZkEmailProofFromPayload(payload, proverClient);
 
+        const fromAddressHash = hashRecoveryEmailForAccount({
+          recoveryEmail: bindings.fromEmail,
+          accountId: bindings.accountId,
+        });
+
+        if (fromAddressHash.length !== 32) {
+          throw new Error(`from_address_hash must be 32 bytes, got ${fromAddressHash.length}`);
+        }
+
 		      const contractArgs = {
 		        proof: proofResult.proof,
 		        public_inputs: proofResult.publicInputs,
 		        account_id: bindings.accountId,
 		        new_public_key: bindings.newPublicKey,
 		        request_id: bindings.requestId,
-		        from_email: bindings.fromEmail,
+		        from_address_hash: fromAddressHash,
 		        timestamp: bindings.timestamp,
 		      };
 

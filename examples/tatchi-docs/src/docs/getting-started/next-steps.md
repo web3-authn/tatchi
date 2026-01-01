@@ -22,7 +22,7 @@ export default function App() {
 }
 
 function Registration() {
-  const { registerPasskey } = useTatchi()
+  const { registerPasskey, tatchi } = useTatchi()
   return (
     <button onClick={() => {
       const id = Date.now();

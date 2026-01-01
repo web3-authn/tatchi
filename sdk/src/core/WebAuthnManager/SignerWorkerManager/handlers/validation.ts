@@ -5,6 +5,7 @@ import type { TransactionContext } from '../../../types/rpc';
 import { isObject, assertString } from '../../../WalletIframe/validation';
 import { DelegateActionInput } from '../../../types/delegate';
 import { base58Encode } from '../../../../utils/base58';
+import { ensureEd25519Prefix } from '../../../nearCrypto';
 
 // Strongly typed payload expected from the WASM → JS boundary
 export interface RegistrationCredentialConfirmationPayload {
@@ -191,9 +192,7 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
   };
 }
 
-export const ensureEd25519Prefix = (value: string) => {
-  return value.startsWith('ed25519:') ? value : `ed25519:${value}`
-}
+export { ensureEd25519Prefix };
 
 export const toPublicKeyString = (pk: DelegateActionInput['publicKey']): string => {
   if (typeof pk === 'string') {

@@ -81,23 +81,20 @@ VITE_WALLET_SERVICE_PATH=/wallet-service
 Use the SDK’s Vite plugins to serve wallet assets in dev and inject security headers in production:
 
 ```ts
-import { defineConfig } from 'vite'
-import { tatchiDev, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+import { defineConfig, loadEnv } from 'vite'
+import { tatchiApp } from '@tatchi-xyz/sdk/plugins/vite'
 
-export default defineConfig({
-  plugins: [
-    // Development: serves wallet assets and wallet-service locally
-    tatchiDev({
-      sdkBasePath: '/sdk',
-      walletServicePath: '/wallet-service',
-      walletOrigin: process.env.VITE_WALLET_ORIGIN,
-    }),
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const walletOrigin = env.VITE_WALLET_ORIGIN
 
-    // Production: sets Permissions-Policy headers so the iframe can call WebAuthn
-    tatchiBuildHeaders({
-      walletOrigin: process.env.VITE_WALLET_ORIGIN,
-    }),
-  ],
+  return {
+    plugins: [
+      // Dev: serve wallet assets + wallet-service routes
+      // Build: emit `_headers` for COOP/COEP/CORP + Permissions-Policy
+      tatchiApp({ walletOrigin, emitHeaders: true }),
+    ],
+  }
 })
 ```
 
@@ -156,24 +153,32 @@ export function RegisterButton({ accountId }: { accountId: string }) {
 All operations route through the wallet origin when configured:
 
 ```tsx
-import { usePasskeyManager } from '@tatchi-xyz/sdk/react'
 import { ActionType } from '@tatchi-xyz/sdk'
+import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 function TransferButton() {
-  const passkeyManager = usePasskeyManager()
+  const { tatchi, loginState } = useTatchi()
 
   const handleTransfer = async () => {
     try {
-      const result = await passkeyManager.executeAction('alice.testnet', {
-        type: ActionType.FunctionCall,
+      if (!loginState.nearAccountId) return
+
+      const result = await tatchi.executeAction({
+        nearAccountId: loginState.nearAccountId,
         receiverId: 'usdc.testnet',
-        methodName: 'ft_transfer',
-        args: { receiver_id: 'bob.testnet', amount: '1000000' },
-        gas: '50000000000000',
-        deposit: '1',
-      }, {
-        // Optional: observe tx progress
-        // onEvent: (event) => console.log('[executeAction]', event),
+        actionArgs: [
+          {
+            type: ActionType.FunctionCall,
+            methodName: 'ft_transfer',
+            args: { receiver_id: 'bob.testnet', amount: '1000000' },
+            gas: '50000000000000',
+            deposit: '1',
+          },
+        ],
+        options: {
+          // Optional: observe tx progress
+          // onEvent: (event) => console.log('[executeAction]', event),
+        },
       })
 
       console.log('Transaction result:', result)

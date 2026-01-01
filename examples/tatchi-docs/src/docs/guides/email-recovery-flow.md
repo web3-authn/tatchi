@@ -10,13 +10,13 @@ Email recovery lets a user recover an existing NEAR account by:
 2. Sending a recovery email that your email recovery pipeline verifies.
 3. Finalizing on-chain registration and storing the new device locally.
 
-This guide documents the SDK surface (`startEmailRecovery` / `finalizeEmailRecovery`) and required configuration.
+This guide documents the SDK surface (`setRecoveryEmails`, `getRecoveryEmails`, `startEmailRecovery`, `finalizeEmailRecovery`) and required configuration.
 
 ## Prerequisites
 
-- The account already has a recovery email registered (the address the user must send from).
+- The account already has at least one recovery email configured on-chain (the email address the user must send from).
 - The account has enough NEAR to pay for the finalization transaction (`minBalanceYocto` is checked before prompting).
-- Your per-account `EmailRecoverer` contract exposes `get_recovery_attempt(request_id)` for polling recovery status.
+- Your account is using the EmailRecoverer contract (local or global) and exposes `get_recovery_attempt(request_id)` for polling recovery status (the SDK can attach it automatically when setting recovery emails).
 
 ## Configure Email Recovery
 
@@ -45,6 +45,24 @@ export function AppShell() {
     </TatchiPasskeyProvider>
   )
 }
+```
+
+## Configure Recovery Emails (One-time Setup)
+
+Email recovery requires the account to have a recovery email list on-chain. You typically do this while the user is already logged in on an existing device.
+
+```ts
+// Adds/updates the recovery email list on-chain (and stores a local mapping in IndexedDB).
+await tatchi.setRecoveryEmails('alice.testnet', ['alice@gmail.com'], {
+  onEvent: (ev) => console.log('setRecoveryEmails', ev),
+});
+```
+
+You can display the currently configured recovery emails (best-effort: known emails are shown when this device has the local mapping; otherwise the hash is shown):
+
+```ts
+const recoveryEmails = await tatchi.getRecoveryEmails('alice.testnet');
+console.log(recoveryEmails); // [{ hashHex, email }]
 ```
 
 ## Relayer Integration
@@ -120,7 +138,6 @@ Async mode (avoid prover timeouts):
 ```ts
 const { mailtoUrl, nearPublicKey } = await tatchi.startEmailRecovery({
   accountId: 'alice.testnet',
-  recoveryEmail: 'alice@gmail.com', // the address the user will send FROM
   options: { onEvent: (ev) => console.log(ev) },
 })
 
@@ -131,6 +148,35 @@ await tatchi.finalizeEmailRecovery({
   nearPublicKey, // optional if you are resuming from pending state
   options: { onEvent: (ev) => console.log(ev) },
 })
+```
+
+The user must send the email **from** one of the recovery emails configured on-chain (via `setRecoveryEmails`). If they send from a different address, DKIM/policy verification will fail and you should restart the flow.
+
+### Customizing the confirmation prompt
+
+Email recovery runs inside the same wallet confirmation system as other sensitive flows. You can override the confirmer copy and confirmation UX:
+
+```ts
+await tatchi.startEmailRecovery({
+  accountId: 'alice.testnet',
+  options: {
+    confirmerText: {
+      title: 'Recover account',
+      body: 'Approve to create a new device key and start email recovery.',
+    },
+    confirmationConfig: {
+      behavior: 'requireClick',
+    },
+  },
+});
+```
+
+### Cancelling / restarting
+
+If the user backs out after opening the mail client (or you want a “Start over” button), you can cancel the in-flight flow:
+
+```ts
+await tatchi.cancelEmailRecovery({ accountId: 'alice.testnet' });
 ```
 
 ### Email Subject Format
@@ -155,7 +201,6 @@ The SDK generates a short `requestId` and embeds it in the email subject. It is 
 ```ts
 await tatchi.startEmailRecovery({
   accountId,
-  recoveryEmail,
   options: {
     onEvent: (ev) => {
       if (ev?.data && 'requestId' in ev.data) {
