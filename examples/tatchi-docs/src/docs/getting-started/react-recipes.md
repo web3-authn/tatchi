@@ -85,6 +85,10 @@ export function PasskeySection() {
       onLogin={onLogin}
       onRegister={onRegister}
       onRecoverAccount={onRecoverAccount}
+      emailRecoveryOptions={{
+        onEvent: (event) => console.log('email-recovery event', event),
+        onError: (error) => console.error('email-recovery error', error),
+      }}
       linkDeviceOptions={{
         onEvent: onLinkDeviceEvent,
         onError: (error) => console.error('link-device error', error),
@@ -93,6 +97,8 @@ export function PasskeySection() {
   )
 }
 ```
+
+`onRecoverAccount` covers passkey-based recovery (e.g. iCloud/Google Password Manager sync). Email-based recovery is built in to the menu via “Recover Account with Email” and emits events through `emailRecoveryOptions`.
 
 ## AccountMenuButton – account menu + device linking
 

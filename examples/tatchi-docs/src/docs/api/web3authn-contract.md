@@ -1,3 +1,7 @@
+---
+title: Web3Authn Contract
+---
+
 # Web3Authn Contract
 
 The Web3Authn contract implements verifiable random function (VRF) based WebAuthn authentication on NEAR blockchain, enabling serverless passkey wallets with onchain authenticator storage.
@@ -65,9 +69,9 @@ These WebAuthn credentials are signed with a challenge: we use verifiable random
 
 | Field | Purpose | Source |
 |-------|---------|--------|
-| `domain_separator` | Prevents cross-protocol collisions | Fixed constant (`"web3_authn_challenge_v3"`) |
+| `domain_separator` | Prevents cross-protocol collisions | Fixed constant (`"web3_authn_vrf_challenge_v1"`) |
 | `user_id` | Binds challenge to user identity | Client session |
-| `relying_party_id` | Binds to origin (e.g., `"example.com"`) | Client config |
+| `rp_id` | Binds to origin (e.g., `"example.com"`) | Client config |
 | `block_height` | Ensures freshness and replay protection | NEAR RPC |
 | `block_hash` | Prevents reuse across forks/reorgs | NEAR RPC |
 
@@ -77,7 +81,7 @@ Additionally, the contract enforces an **account binding** between the NEAR acco
 
 ```rust
 assert!(
-    account_id.as_str() != vrf_data.user_id,
+    account_id.as_str() == vrf_data.user_id,
     "account_id must equal vrf_data.user_id"
 );
 ```

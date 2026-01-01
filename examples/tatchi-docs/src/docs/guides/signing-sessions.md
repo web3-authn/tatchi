@@ -40,24 +40,56 @@ const result = await passkeyManager.loginAndCreateSession('alice.testnet', {
 
 **Express:**
 ```ts
-import { SessionService } from '@tatchi-xyz/sdk/server'
+import express from 'express'
+import jwt from 'jsonwebtoken'
+import { AuthService, SessionService } from '@tatchi-xyz/sdk/server'
+import { createRelayRouter } from '@tatchi-xyz/sdk/server/router/express'
 
-const sessionService = new SessionService({
-  jwt: {
-    signToken: async (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' }),
-    verifyToken: async (token) => jwt.verify(token, JWT_SECRET)
-  }
+const service = new AuthService({
+  relayerAccountId: process.env.RELAYER_ACCOUNT_ID!,
+  relayerPrivateKey: process.env.RELAYER_PRIVATE_KEY!,
+  webAuthnContractId: process.env.WEBAUTHN_CONTRACT_ID || 'w3a-v1.testnet',
+  nearRpcUrl: process.env.NEAR_RPC_URL || 'https://rpc.testnet.near.org',
+  networkId: process.env.NETWORK_ID || 'testnet',
 })
 
-app.use('/', createRelayRouter(authService, {
-  sessionService,
-  healthz: true
-}))
+const session = new SessionService({
+  jwt: {
+    signToken: ({ payload }) =>
+      jwt.sign(payload as any, process.env.JWT_SECRET || 'dev-insecure', {
+        algorithm: 'HS256',
+        expiresIn: '24h',
+      }),
+    verifyToken: async (token) => {
+      try {
+        const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-insecure')
+        return { valid: true, payload }
+      } catch {
+        return { valid: false }
+      }
+    },
+  },
+})
+
+const app = express()
+app.use(express.json())
+app.use('/', createRelayRouter(service, { healthz: true, session }))
 ```
 
 **Cloudflare Workers:**
 ```ts
-const sessionService = new SessionService({
+import { AuthService, SessionService } from '@tatchi-xyz/sdk/server'
+import { createCloudflareRouter } from '@tatchi-xyz/sdk/server/router/cloudflare'
+
+const service = new AuthService({
+  relayerAccountId: env.RELAYER_ACCOUNT_ID,
+  relayerPrivateKey: env.RELAYER_PRIVATE_KEY,
+  webAuthnContractId: env.WEBAUTHN_CONTRACT_ID,
+  nearRpcUrl: env.NEAR_RPC_URL,
+  networkId: env.NETWORK_ID || 'testnet',
+})
+
+const session = new SessionService({
   jwt: {
     signToken: async (payload) => /* use Workers crypto or KV */,
     verifyToken: async (token) => /* verify with Workers crypto */
@@ -66,9 +98,9 @@ const sessionService = new SessionService({
 
 export default {
   async fetch(request, env, ctx) {
-    return createCloudflareRouter(authService, {
-      sessionService,
-      expectedOrigins: env.EXPECTED_ORIGIN?.split(',')
+    return createCloudflareRouter(service, {
+      session,
+      corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN].filter(Boolean),
     })(request, env, ctx)
   }
 }
@@ -76,7 +108,7 @@ export default {
 
 ### How It Works
 
-**With Shamir 3-Pass (No Prompt)**
+**With Shamir 3-Pass (Single Prompt)**
 
 When Shamir auto-unlock succeeds:
 1. SDK unlocks VRF keypair using cached server-encrypted data
@@ -119,7 +151,7 @@ await apiCall3()  // No prompt, uses session
 
 ### Security Notes
 
-- **VRF freshness**: Challenges include recent block height/hash. Contract VIEW rejects stale inputs (e.g., >10 blocks old).
+- **VRF freshness**: Challenges include recent block height/hash. The contract verifies challenges are within its freshness window.
 - **rpId binding**: VRF inputs include the rpId used at registration. Contract verifies it matches allowed origins.
 - **Session expiry**: Set short TTLs (1-24 hours). Rotate JWT signing keys regularly.
 
@@ -144,7 +176,7 @@ cookie: {
 await passkeyManager.loginAndCreateSession('alice.testnet', { session: { kind: 'jwt', relayUrl } })
 
 // SDK stores token internally
-// Subsequent signing operations include it automatically
+// Subsequent API calls can use the issued JWT/cookie until expiry
 
 // Logout clears session
 await passkeyManager.logoutAndClearSession()

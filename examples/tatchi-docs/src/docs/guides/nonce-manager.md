@@ -81,41 +81,14 @@ Most developers never call the Nonce Manager directly. All high-level signing AP
 
 ```javascript
 // The SDK handles nonces for you
-const result = await client.signTransactions({
+const signed = await tatchi.signTransactionsWithActions({
   nearAccountId: 'user.near',
-  transactions: [tx1, tx2, tx3]
-});
+  transactions: [tx1, tx2, tx3],
+})
 // Nonces are assigned correctly, even for concurrent calls
 ```
 
-## Manual Usage
-
-For advanced use cases, you can drive the Nonce Manager explicitly:
-
-```typescript
-const nm = passkeyManager.webAuthnManager.getNonceManager();
-
-// 1. Prefetch blockchain metadata
-await nm.prefetchBlockheight(nearClient);
-
-// 2. Get context for building transactions
-const { blockHeight, blockHash } = await nm.getNonceBlockHashAndHeight(nearClient);
-const nonce = nm.getNextNonce(); // Single transaction
-
-// Or reserve multiple nonces for a batch
-const [nonce1, nonce2, nonce3] = nm.reserveNonces(3);
-
-// 3. Build and submit your transactions
-const tx = buildTransaction({
-  nonce,
-  blockHash,
-  // ... other fields
-});
-await nearClient.sendTransaction(tx);
-
-// 4. Synchronize with the blockchain
-await nm.updateNonceFromBlockchain(nearClient, nonce);
-```
+The Nonce Manager is an internal component of the signing flow; the public API is intentionally higher-level (sign/send helpers).
 
 ## Lifecycle Management
 
@@ -138,4 +111,3 @@ The Nonce Manager handles all of this automatically, letting you focus on buildi
 ---
 
 **Next**: Learn about the [Security Model](../concepts/security-model.md) that protects your users' keys and credentials.
-

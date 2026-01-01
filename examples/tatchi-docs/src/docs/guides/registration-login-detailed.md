@@ -78,7 +78,7 @@ Key options:
 
 ## 3. Registration phases (what each step does)
 
-Registration progress events use `RegistrationPhase` and `RegistrationStatus` enums (see `passkeyManager.ts`):
+Registration progress events use `RegistrationPhase` and `RegistrationStatus` enums (exported from `@tatchi-xyz/sdk/react`):
 
 - `STEP_1_WEBAUTHN_VERIFICATION` -> WebAuthn ceremony / PRF output.
 - `STEP_2_KEY_GENERATION` -> deterministic NEAR + VRF key derivation from PRF.
@@ -165,4 +165,3 @@ For more details on the contract side, see:
 - For deployment and credential scope considerations, see:
   - [Passkey Scope](/docs/concepts/passkey-scope)
   - [Security Model](/docs/concepts/security-model)
-

@@ -2,9 +2,9 @@
 title: Quickstart
 ---
 
-# Installation
+# Quickstart
 
-Install the SDK and configure the wallet iframe (origin, service path, headers) so sensitive flows run in an isolated wallet origin.
+Install the SDK and configure the wallet iframe (origin, service path, headers) so sensitive flows run in an isolated wallet origin. For a more detailed walkthrough, see [Installation](./installation.md).
 
 ## 1. Install the SDK
 

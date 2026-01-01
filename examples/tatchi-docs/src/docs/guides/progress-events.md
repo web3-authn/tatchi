@@ -69,11 +69,12 @@ You can also combine registration events with transaction/login events using a s
 
 All of these flows share a common shape:
 
-- `registerPasskey` / `registerPasskeyWithConfig`
+- `registerPasskey`
 - `loginAndCreateSession`
 - `executeAction`
 - `signAndSendTransactions`
 - `signTransactionsWithActions`
+- `startEmailRecovery` / `finalizeEmailRecovery`
 - Device linking flows (`linkDeviceWithScannedQRData`, `useDeviceLinking`, `PasskeyAuthMenu` `linkDeviceOptions`, etc.)
 
 Each accepts an `onEvent` callback that receives an event discriminated by `step`, `phase`, and `status`.
@@ -84,6 +85,7 @@ import {
   LoginPhase,
   ActionPhase,
   DeviceLinkingPhase,
+  EmailRecoveryPhase,
 } from '@tatchi-xyz/sdk/react'
 
 type BaseEvent = {
@@ -93,6 +95,7 @@ type BaseEvent = {
     | LoginPhase
     | ActionPhase
     | DeviceLinkingPhase
+    | EmailRecoveryPhase
   status: 'progress' | 'success' | 'error'
   message: string
 }
@@ -164,22 +167,29 @@ loginAndCreateSession(accountId, {
 ## Transactions (`executeAction`, `signAndSendTransactions`, `signTransactionsWithActions`)
 
 ```ts
+import { ActionType } from '@tatchi-xyz/sdk/react'
 import type { ActionSSEEvent } from '@tatchi-xyz/sdk/react'
 ```
 
 All transaction helpers accept `onEvent` in their options:
 
 ```ts
-await passkeyManager.executeAction('alice.testnet', {
-  type: 'FunctionCall',
+await tatchi.executeAction({
+  nearAccountId: 'alice.testnet',
   receiverId: 'contract.testnet',
-  methodName: 'set_greeting',
-  args: { message: 'hi' },
-  gas: '50000000000000',
-  deposit: '0',
-}, {
-  onEvent: (event: ActionSSEEvent) => {
-    console.log(event.step, event.phase, event.status, event.message)
+  actionArgs: [
+    {
+      type: ActionType.FunctionCall,
+      methodName: 'set_greeting',
+      args: { message: 'hi' },
+      gas: '50000000000000',
+      deposit: '0',
+    },
+  ],
+  options: {
+    onEvent: (event: ActionSSEEvent) => {
+      console.log(event.step, event.phase, event.status, event.message)
+    },
   },
 })
 ```
@@ -187,9 +197,9 @@ await passkeyManager.executeAction('alice.testnet', {
 or:
 
 ```ts
-await passkeyManager.signAndSendTransactions({
+await tatchi.signAndSendTransactions({
   nearAccountId: 'alice.testnet',
-  transactionInputs: [{ receiverId, actions }],
+  transactions: [{ receiverId, actions }],
 }, {
   onEvent: (event: ActionSSEEvent) => { /* … */ },
 })
@@ -262,6 +272,28 @@ const onLinkDeviceEvent = (event: DeviceLinkingSSEEvent) => {
 
 
 
+## Email Recovery (`startEmailRecovery`, `finalizeEmailRecovery`)
+
+```ts
+import type { EmailRecoverySSEEvent } from '@tatchi-xyz/sdk/react'
+```
+
+Email recovery events are emitted when you call:
+
+- `tatchi.startEmailRecovery({ accountId, options: { onEvent } })`
+- `tatchi.finalizeEmailRecovery({ accountId, nearPublicKey?, options: { onEvent } })`
+
+### Timeline (step → phase)
+
+- `STEP_1_PREPARATION` -> pre-checks and local setup.
+- `STEP_2_TOUCH_ID_REGISTRATION` -> WebAuthn ceremony to derive the new device key.
+- `STEP_3_AWAIT_EMAIL` -> waiting for the user to send the recovery email.
+- `STEP_4_POLLING_VERIFICATION_RESULT` -> polling the EmailRecoverer attempt / access key status.
+- `STEP_5_FINALIZING_REGISTRATION` -> submitting and finalizing the on-chain registration.
+- `STEP_6_COMPLETE` -> email recovery complete (new device saved locally).
+- `RESUMED_FROM_PENDING` (step `0`) -> `finalizeEmailRecovery()` resumed after a refresh/reload.
+- `ERROR` (step `0`) -> terminal failure (restart the flow).
+
 ## End‑to‑end example
 
 ```tsx
@@ -270,6 +302,7 @@ import type {
   LoginSSEvent,
   ActionSSEEvent,
   DeviceLinkingSSEEvent,
+  EmailRecoverySSEEvent,
 } from '@tatchi-xyz/sdk/react'
 
 type AnyEvent =
@@ -277,6 +310,7 @@ type AnyEvent =
   | LoginSSEvent
   | ActionSSEEvent
   | DeviceLinkingSSEEvent
+  | EmailRecoverySSEEvent
 
 function useProgressToasts() {
   const handleEvent = (event: AnyEvent) => {
@@ -307,7 +341,10 @@ loginAndCreateSession(accountId, {
   onEvent: (e) => handleEvent(e),
 })
 
-passkeyManager.executeAction(accountId, action, {
-  onEvent: (e) => handleEvent(e),
+await tatchi.executeAction({
+  nearAccountId: accountId,
+  receiverId,
+  actionArgs,
+  options: { onEvent: (e) => handleEvent(e) },
 })
 ```

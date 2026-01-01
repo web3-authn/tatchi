@@ -58,6 +58,44 @@ Running a full VRF challenge + WebAuthn assertion for every local signing reques
 3. Main thread sends the signing request; signer waits internally for the seed if needed, then signs and terminates.
 4. If the session is missing/expired/exhausted, fall back to the cold path to re‑mint.
 
+## Enabling warm signing sessions
+
+Warm signing sessions are **opt-in** and controlled by `signingSessionDefaults` (global) or `signingSession` (per login call).
+
+- When `ttlMs: 0` or `remainingUses: 0`, warm signing is effectively disabled (a TouchID/WebAuthn prompt is required for each signing operation).
+- Warm sessions are **in-memory only** (cleared on page refresh/close).
+
+### Configure defaults
+
+```ts
+import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk/react';
+
+const config = {
+  ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
+  signingSessionDefaults: {
+    ttlMs: 5 * 60 * 1000,
+    remainingUses: 3,
+  },
+};
+```
+
+### Override per login
+
+```ts
+await tatchi.loginAndCreateSession('alice.testnet', {
+  signingSession: { ttlMs: 10 * 60 * 1000, remainingUses: 10 },
+});
+```
+
+### Inspect session status
+
+`loginAndCreateSession()` returns a `signingSession` status object when available:
+
+```ts
+const login = await tatchi.loginAndCreateSession('alice.testnet');
+console.log(login.signingSession); // { status: 'active' | 'expired' | ... }
+```
+
 
 ## Session handshake diagram
 
@@ -109,10 +147,3 @@ sequenceDiagram
 - VRF worker never handles `near_sk` or vault material; only `{WrapKeySeed, wrapKeySalt}` crosses workers.
 - PRF outputs and session secrets never touch the main thread or dApp payloads.
 - All prompts originate from the VRF worker flows; signer worker never calls SecureConfirm.
-
-## Open items
-
-- Define defaults for TTL and usage caps, and how local maxima override server-provided policies.
-- Finalize the freshness window rules for block height/hash checks.
-- Ensure session material is zeroized on blur/close/crash and when TTL/usage is exhausted.
-- Clarify when per-transaction VRF is required versus warm session reuse.

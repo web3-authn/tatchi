@@ -140,24 +140,18 @@ ROTATE_EVERY=60
 
 ### Key Rotation
 
-Add rotation logic with a timer:
+Add rotation logic with the built-in cron helper (Express):
 
 ```typescript
-// Rotate every hour, keep last 5 keys in grace period
-setInterval(async () => {
-  const result = await service.rotateShamirServerKeypair({
-    keepCurrentInGrace: true
-  })
+import { startKeyRotationCronjob } from '@tatchi-xyz/sdk/server/router/express'
 
-  console.log('Rotated to new key:', result.newKeyId)
-  console.log('Grace keys:', result.graceKeyIds)
-
-  // Persist new keypair to your secret store
-  await saveToSecretStore({
-    e_s_b64u: result.newKeypair.e_s_b64u,
-    d_s_b64u: result.newKeypair.d_s_b64u
-  })
-}, 60 * 60 * 1000)
+// Rotates in memory and maintains grace keys (optionally persisted to disk if configured).
+// You are responsible for persisting the *current* Shamir keypair (e_s/d_s) to your secret store.
+startKeyRotationCronjob(service, {
+  enabled: true,
+  intervalMinutes: 60,
+  maxGraceKeys: 5,
+})
 ```
 
 ### Running Locally
@@ -207,38 +201,46 @@ import {
 import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer'
 import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf'
 
+function buildService(env: any) {
+  return new AuthService({
+    relayerAccountId: env.RELAYER_ACCOUNT_ID,
+    relayerPrivateKey: env.RELAYER_PRIVATE_KEY,
+    webAuthnContractId: env.WEBAUTHN_CONTRACT_ID,
+    nearRpcUrl: env.NEAR_RPC_URL,
+    networkId: env.NETWORK_ID || 'testnet',
+    accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE,
+    createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS,
+
+    // Pass WASM modules directly
+    signerWasm: { moduleOrPath: signerWasmModule },
+    shamir: {
+      moduleOrPath: shamirWasmModule,
+      shamir_p_b64u: env.SHAMIR_P_B64U,
+      shamir_e_s_b64u: env.SHAMIR_E_S_B64U,
+      shamir_d_s_b64u: env.SHAMIR_D_S_B64U,
+    },
+  })
+}
+
 export default {
   async fetch(request, env, ctx) {
-    const service = new AuthService({
-      relayerAccountId: env.RELAYER_ACCOUNT_ID,
-      relayerPrivateKey: env.RELAYER_PRIVATE_KEY,
-      webAuthnContractId: env.WEBAUTHN_CONTRACT_ID,
-      nearRpcUrl: env.NEAR_RPC_URL,
-      networkId: env.NETWORK_ID || 'testnet',
-      accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE,
-      createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS,
-
-      // Pass WASM modules directly
-      signerWasm: { moduleOrPath: signerWasmModule },
-      shamir: {
-        moduleOrPath: shamirWasmModule,
-        shamir_p_b64u: env.SHAMIR_P_B64U,
-        shamir_e_s_b64u: env.SHAMIR_E_S_B64U,
-        shamir_d_s_b64u: env.SHAMIR_D_S_B64U,
-      },
+    const service = buildService(env)
+    const router = createCloudflareRouter(service, {
+      corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN].filter(Boolean),
+      healthz: true,
+      readyz: true,
     })
-
-    return createCloudflareRouter(service, {
-      expectedOrigins: env.EXPECTED_ORIGIN?.split(','),
-      expectedWalletOrigins: env.EXPECTED_WALLET_ORIGIN?.split(','),
-    })(request, env, ctx)
+    return router(request, env, ctx)
   },
 
   // Optional: Enable automatic key rotation via cron
   async scheduled(event, env, ctx) {
     if (env.ENABLE_ROTATION !== '1') return
 
-    return createCloudflareCron(env)(event, env, ctx)
+    // Note: rotation in Workers is ephemeral unless you persist keys externally.
+    const service = buildService(env)
+    const cron = createCloudflareCron(service, { enabled: true, rotate: true })
+    return cron(event, env, ctx)
   }
 }
 ```
