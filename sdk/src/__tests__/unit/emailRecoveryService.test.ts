@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { injectImportMap } from '../setup/bootstrap';
 import { readFileSync } from 'node:fs';
+import { sha256 } from '@noble/hashes/sha2.js';
 
 const IMPORT_PATHS = {
   server: '/sdk/esm/server/index.js',
@@ -479,7 +480,10 @@ test.describe('EmailRecoveryService.requestEmailRecovery (zk-email)', () => {
     expect(parsedArgs.account_id).toBe('berp61.w3a-v1.testnet');
     expect(parsedArgs.new_public_key).toBe('edpkDummyKey');
     expect(parsedArgs.request_id).toBe('ABC123');
-    expect(parsedArgs.from_email).toBe('alice@example.com');
+    const expectedHash = Array.from(
+      sha256(new TextEncoder().encode('alice@example.com|berp61.w3a-v1.testnet'))
+    );
+    expect(parsedArgs.from_address_hash).toEqual(expectedHash);
     expect(parsedArgs.timestamp).toBe('Tue, 01 Jan 2024 00:00:00 GMT');
   });
 });

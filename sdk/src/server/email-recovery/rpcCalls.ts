@@ -156,7 +156,7 @@ export async function buildZkEmailRecoveryActions(
       account_id: string;
       new_public_key: string;
       request_id: string;
-      from_email: string;
+      from_address_hash: number[];
       timestamp: string;
     };
   },

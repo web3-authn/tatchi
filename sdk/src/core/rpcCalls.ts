@@ -65,10 +65,39 @@ export type RecoveryAttempt = {
   created_at_ms: number;
   updated_at_ms: number;
   error?: string | null;
+  /**
+   * 32-byte SHA-256 hash of "<canonical_from>|<account_id_lower>".
+   * Returned by newer EmailRecoverer contracts (replaces `from_address`).
+   */
+  from_address_hash?: number[] | null;
+  /** Legacy field (string email address). */
   from_address?: string | null;
   email_timestamp_ms?: number | null;
   new_public_key?: string | null;
 };
+
+function normalizeByteArray(input: unknown): number[] | null | undefined {
+  if (input == null) return input as null | undefined;
+
+  if (Array.isArray(input)) {
+    return input.map((v) => Number(v)).filter((v) => Number.isFinite(v));
+  }
+
+  if (typeof input === 'string' && input) {
+    try {
+      const bytes =
+        typeof Buffer !== 'undefined'
+          ? Buffer.from(input, 'base64')
+          : Uint8Array.from(atob(input), (c) => c.charCodeAt(0));
+      const arr = bytes instanceof Uint8Array ? Array.from(bytes) : Array.from(new Uint8Array(bytes));
+      return arr;
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
+}
 
 export async function getEmailRecoveryAttempt(
   nearClient: NearClient,
@@ -98,6 +127,7 @@ export async function getEmailRecoveryAttempt(
 
   return {
     ...raw,
+    from_address_hash: normalizeByteArray((raw as any).from_address_hash) ?? (raw as any).from_address_hash,
     status: status as RecoveryAttemptStatus,
   };
 }
