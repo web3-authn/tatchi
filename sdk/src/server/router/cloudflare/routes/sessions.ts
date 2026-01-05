@@ -1,4 +1,4 @@
-import { parseSessionKind } from '../../sessionKind';
+import { parseSessionKind } from '../../relay';
 import type { CloudflareRelayContext } from '../createCloudflareRouter';
 import { headersToRecord, json, readJson } from '../http';
 

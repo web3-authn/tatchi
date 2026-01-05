@@ -1,4 +1,8 @@
-export type { RelayRouterOptions } from './relayTypes';
+export type {
+  RelayRouterOptions,
+  ThresholdSigningAdapter,
+  ThresholdEd25519RegistrationKeygenResult,
+} from './relay';
 
 export type {
   CfEnv,

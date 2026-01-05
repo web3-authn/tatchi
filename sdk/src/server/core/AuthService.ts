@@ -1,5 +1,5 @@
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
-import { MinimalNearClient, SignedTransaction } from '../../core/NearClient';
+import { MinimalNearClient, SignedTransaction, type AccessKeyList } from '../../core/NearClient';
 import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
 import { createAuthServiceConfig } from './config';
 import { formatGasToTGas, formatYoctoToNear } from './utils';
@@ -125,6 +125,11 @@ export class AuthService {
         : '• shamir: not configured'
     }
     ${
+      this.config.thresholdEd25519KeyStore
+        ? `• ${this.config.thresholdEd25519KeyStore}...\n`
+        : '• Threshold ed25519 signer: not configured'
+    }
+    ${
       this.config.zkEmailProver?.baseUrl
         ? `• zkEmailProver: ${this.config.zkEmailProver.baseUrl}`
         : `• zkEmailProver: not configured`
@@ -138,6 +143,11 @@ export class AuthService {
       accountId: this.config.relayerAccountId,
       publicKey: this.relayerPublicKey
     };
+  }
+
+  async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
+    await this._ensureSignerAndRelayerAccount();
+    return this.nearClient.viewAccessKeyList(accountId);
   }
 
   /**
@@ -457,6 +467,16 @@ export class AuthService {
   ): Promise<VerifyAuthenticationResponse> {
     try {
       await this._ensureSignerAndRelayerAccount();
+
+      const intentDigest32 = request?.vrf_data?.intent_digest_32;
+      if (!Array.isArray(intentDigest32) || intentDigest32.length !== 32) {
+        return {
+          success: false,
+          verified: false,
+          code: 'invalid_intent_digest',
+          message: 'Missing or invalid vrf_data.intent_digest_32 (expected 32 bytes)',
+        };
+      }
 
       const args = {
         vrf_data: request.vrf_data,

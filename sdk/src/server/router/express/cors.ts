@@ -1,6 +1,6 @@
 import type { Request, Response, Router as ExpressRouter } from 'express';
 import { buildCorsOrigins } from '../../core/SessionService';
-import type { RelayRouterOptions } from '../relayTypes';
+import type { RelayRouterOptions } from '../relay';
 
 function withCors(res: Response, opts?: RelayRouterOptions, req?: Request): void {
   if (!opts?.corsOrigins) return;
@@ -40,4 +40,3 @@ export function installCors(router: ExpressRouter, opts: RelayRouterOptions): vo
     next();
   });
 }
-

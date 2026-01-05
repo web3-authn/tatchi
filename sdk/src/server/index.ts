@@ -19,6 +19,20 @@ export {
 } from './core/shamirWorker';
 export { ShamirService } from './core/ShamirService';
 export {
+  ThresholdEd25519Service,
+  createThresholdEd25519ServiceFromAuthService,
+  createThresholdEd25519KeyStore,
+  createThresholdEd25519SessionStore,
+} from './core/ThresholdService';
+export type {
+  ThresholdEd25519KeyStore,
+  ThresholdEd25519KeyRecord,
+  ThresholdEd25519SessionStore,
+  ThresholdEd25519MpcSessionRecord,
+  ThresholdEd25519SigningSessionRecord,
+  ThresholdEd25519Commitments,
+} from './core/ThresholdService';
+export {
   handleApplyServerLock,
   handleRemoveServerLock,
   handleGetShamirKeyInfo,

@@ -122,6 +122,7 @@ export function createAuthServiceConfig(input: AuthServiceConfigInput): AuthServ
       || AUTH_SERVICE_CONFIG_DEFAULTS.createAccountAndRegisterGas,
     shamir: normalizeShamirConfig(input.shamir),
     signerWasm: input.signerWasm,
+    thresholdEd25519KeyStore: input.thresholdEd25519KeyStore,
     logger: input.logger,
     zkEmailProver: normalizeZkEmailProverConfig(input.zkEmailProver),
   };

@@ -11,6 +11,7 @@ export async function handleHealth(ctx: CloudflareRelayContext): Promise<Respons
   const corsAllowed = allowed === '*' ? '*' : allowed;
   const shamir = ctx.service.shamirService;
   const shamirConfigured = Boolean(shamir && shamir.hasShamir());
+  const thresholdConfigured = Boolean(ctx.opts.threshold);
   let currentKeyId: string | null = null;
   if (shamirConfigured && shamir) {
     try {
@@ -28,6 +29,7 @@ export async function handleHealth(ctx: CloudflareRelayContext): Promise<Respons
     currentKeyId,
     shamir: { configured: shamirConfigured, currentKeyId },
     zkEmail: { configured: zkEmailConfigured, proverBaseUrl },
+    thresholdEd25519: { configured: thresholdConfigured },
     cors: { allowedOrigins: corsAllowed },
   }, { status: 200 });
 }
@@ -40,6 +42,7 @@ export async function handleReady(ctx: CloudflareRelayContext): Promise<Response
 
   const shamir = ctx.service.shamirService;
   const shamirConfigured = Boolean(shamir && shamir.hasShamir());
+  const thresholdConfigured = Boolean(ctx.opts.threshold);
 
   let shamirReady: boolean | null = null;
   let shamirCurrentKeyId: string | null = null;
@@ -72,6 +75,7 @@ export async function handleReady(ctx: CloudflareRelayContext): Promise<Response
       currentKeyId: shamirCurrentKeyId,
       error: shamirError,
     },
+    thresholdEd25519: { configured: thresholdConfigured },
     zkEmail: zk,
     cors: { allowedOrigins: corsAllowed },
   }, { status: ok ? 200 : 503 });

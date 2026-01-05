@@ -1,5 +1,5 @@
 import type { Router as ExpressRouter } from 'express';
-import { parseSessionKind } from '../../sessionKind';
+import { parseSessionKind } from '../../relay';
 import type { ExpressRelayContext } from '../createRelayRouter';
 
 export function registerSessionRoutes(router: ExpressRouter, ctx: ExpressRelayContext): void {

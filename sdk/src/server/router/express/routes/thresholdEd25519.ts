@@ -1,0 +1,146 @@
+import type { Request, Response, Router as ExpressRouter } from 'express';
+import type { ExpressRelayContext } from '../createRelayRouter';
+import type {
+  ThresholdEd25519AuthorizeRequest,
+  ThresholdEd25519KeygenRequest,
+  ThresholdEd25519SignFinalizeRequest,
+  ThresholdEd25519SignInitRequest,
+} from '../../../core/types';
+import { thresholdEd25519StatusCode } from '../../../threshold/statusCodes';
+
+function errMessage(e: unknown): string {
+  if (e && typeof e === 'object' && 'message' in e) return String((e as { message?: unknown }).message || 'Internal error');
+  return String(e || 'Internal error');
+}
+
+function isObject(input: unknown): input is Record<string, unknown> {
+  return !!input && typeof input === 'object' && !Array.isArray(input);
+}
+
+function summarizeVrfData(input: unknown): Record<string, unknown> | undefined {
+  if (!isObject(input)) return undefined;
+  const user_id = typeof input.user_id === 'string' ? input.user_id : undefined;
+  const rp_id = typeof input.rp_id === 'string' ? input.rp_id : undefined;
+  const block_height = typeof input.block_height === 'number' ? input.block_height : undefined;
+  const has_intent_digest_32 = Array.isArray(input.intent_digest_32) ? true : undefined;
+  const intent_digest_32_len = Array.isArray(input.intent_digest_32) ? input.intent_digest_32.length : undefined;
+  return {
+    ...(user_id ? { user_id } : {}),
+    ...(rp_id ? { rp_id } : {}),
+    ...(block_height != null ? { block_height } : {}),
+    ...(has_intent_digest_32 != null ? { has_intent_digest_32 } : {}),
+    ...(intent_digest_32_len != null ? { intent_digest_32_len } : {}),
+  };
+}
+
+async function handle<T extends { ok: boolean; code?: string; message?: string }>(
+  ctx: ExpressRelayContext,
+  req: Request,
+  res: Response,
+  route: string,
+  requestMeta: Record<string, unknown>,
+  fn: () => Promise<T>
+): Promise<void> {
+  try {
+    ctx.logger.info('[threshold-ed25519] request', {
+      route,
+      method: req.method,
+      ...(requestMeta || {}),
+    });
+    const result = await fn();
+    const status = thresholdEd25519StatusCode(result);
+    ctx.logger.info('[threshold-ed25519] response', {
+      route,
+      status,
+      ok: result.ok,
+      ...(result.code ? { code: result.code } : {}),
+    });
+    res.status(status).json(result);
+  } catch (e: unknown) {
+    ctx.logger.error('[threshold-ed25519] error', {
+      route,
+      message: errMessage(e),
+      ...(requestMeta || {}),
+    });
+    res.status(500).json({ ok: false, code: 'internal', message: errMessage(e) });
+  }
+}
+
+export function registerThresholdEd25519Routes(router: ExpressRouter, ctx: ExpressRelayContext): void {
+  // Threshold Ed25519 (2-party) routes (scaffolding).
+  // These routes establish the relayer as a co-signer and will eventually run a 2-round FROST flow.
+  router.get('/threshold-ed25519/healthz', async (_req: Request, res: Response) => {
+    const threshold = ctx.opts.threshold;
+    if (!threshold) {
+      res.status(503).json({
+        ok: false,
+        configured: false,
+        code: 'threshold_disabled',
+        message: 'Threshold signing is not configured on this server',
+      });
+      return;
+    }
+    res.status(200).json({ ok: true, configured: true });
+  });
+
+  router.post('/threshold-ed25519/keygen', async (req: Request, res: Response) => {
+    const body = (req.body || {}) as ThresholdEd25519KeygenRequest;
+    await handle(ctx, req, res, '/threshold-ed25519/keygen', {
+      nearAccountId: typeof body.nearAccountId === 'string' ? body.nearAccountId : undefined,
+      clientVerifyingShareB64u_len: typeof body.clientVerifyingShareB64u === 'string' ? body.clientVerifyingShareB64u.length : undefined,
+      vrf_data: summarizeVrfData((body as unknown as { vrf_data?: unknown }).vrf_data),
+    }, async () => {
+      const threshold = ctx.opts.threshold;
+      if (!threshold) {
+        return { ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' };
+      }
+      return threshold.thresholdEd25519Keygen(body);
+    });
+  });
+
+  router.post('/threshold-ed25519/authorize', async (req: Request, res: Response) => {
+    const body = (req.body || {}) as ThresholdEd25519AuthorizeRequest;
+    await handle(ctx, req, res, '/threshold-ed25519/authorize', {
+      relayerKeyId: typeof body.relayerKeyId === 'string' ? body.relayerKeyId : undefined,
+      purpose: typeof body.purpose === 'string' ? body.purpose : undefined,
+      signing_digest_32_len: Array.isArray(body.signing_digest_32) ? body.signing_digest_32.length : undefined,
+      vrf_data: summarizeVrfData((body as unknown as { vrf_data?: unknown }).vrf_data),
+    }, async () => {
+      const threshold = ctx.opts.threshold;
+      if (!threshold) {
+        return { ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' };
+      }
+      return threshold.authorizeThresholdEd25519(body);
+    });
+  });
+
+  router.post('/threshold-ed25519/sign/init', async (req: Request, res: Response) => {
+    const body = (req.body || {}) as ThresholdEd25519SignInitRequest;
+    await handle(ctx, req, res, '/threshold-ed25519/sign/init', {
+      mpcSessionId: typeof body.mpcSessionId === 'string' ? body.mpcSessionId : undefined,
+      relayerKeyId: typeof body.relayerKeyId === 'string' ? body.relayerKeyId : undefined,
+      nearAccountId: typeof body.nearAccountId === 'string' ? body.nearAccountId : undefined,
+      signingDigestB64u_len: typeof body.signingDigestB64u === 'string' ? body.signingDigestB64u.length : undefined,
+    }, async () => {
+      const threshold = ctx.opts.threshold;
+      if (!threshold) {
+        return { ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' };
+      }
+      return threshold.thresholdEd25519SignInit(body);
+    });
+  });
+
+  router.post('/threshold-ed25519/sign/finalize', async (req: Request, res: Response) => {
+    const body = (req.body || {}) as ThresholdEd25519SignFinalizeRequest;
+    await handle(ctx, req, res, '/threshold-ed25519/sign/finalize', {
+      signingSessionId: typeof body.signingSessionId === 'string' ? body.signingSessionId : undefined,
+      clientSignatureShareB64u_len: typeof body.clientSignatureShareB64u === 'string' ? body.clientSignatureShareB64u.length : undefined,
+    }, async () => {
+      const threshold = ctx.opts.threshold;
+      if (!threshold) {
+        return { ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' };
+      }
+      return threshold.thresholdEd25519SignFinalize(body);
+    });
+  });
+}

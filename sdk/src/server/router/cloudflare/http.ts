@@ -1,11 +1,11 @@
 import { buildCorsOrigins } from '../../core/SessionService';
-import type { RelayRouterOptions } from '../relayTypes';
+import type { RelayRouterOptions } from '../relay';
 
 export function json(body: unknown, init?: ResponseInit, extraHeaders?: Record<string, string>): Response {
   const headers = new Headers({ 'Content-Type': 'application/json; charset=utf-8' });
 
   // Merge init.headers into our base headers (ResponseInit headers are otherwise overwritten).
-  const initHeaders = (init as any)?.headers as HeadersInit | undefined;
+  const initHeaders = init?.headers;
   if (initHeaders) {
     try {
       new Headers(initHeaders).forEach((v, k) => headers.set(k, v));

@@ -7,6 +7,7 @@ export function registerHealthRoutes(router: ExpressRouter, ctx: ExpressRelayCon
     router.get('/healthz', async (_req: Request, res: Response) => {
       const shamir = ctx.service.shamirService;
       const shamirConfigured = Boolean(shamir && shamir.hasShamir());
+      const thresholdConfigured = Boolean(ctx.opts.threshold);
       let currentKeyId: string | null = null;
       if (shamirConfigured && shamir) {
         try {
@@ -24,6 +25,7 @@ export function registerHealthRoutes(router: ExpressRouter, ctx: ExpressRelayCon
         currentKeyId,
         shamir: { configured: shamirConfigured, currentKeyId },
         zkEmail: { configured: zkEmailConfigured, proverBaseUrl },
+        thresholdEd25519: { configured: thresholdConfigured },
       });
     });
   }
@@ -32,6 +34,7 @@ export function registerHealthRoutes(router: ExpressRouter, ctx: ExpressRelayCon
     router.get('/readyz', async (_req: Request, res: Response) => {
       const shamir = ctx.service.shamirService;
       const shamirConfigured = Boolean(shamir && shamir.hasShamir());
+      const thresholdConfigured = Boolean(ctx.opts.threshold);
 
       let shamirReady: boolean | null = null;
       let shamirCurrentKeyId: string | null = null;
@@ -64,6 +67,7 @@ export function registerHealthRoutes(router: ExpressRouter, ctx: ExpressRelayCon
           currentKeyId: shamirCurrentKeyId,
           error: shamirError,
         },
+        thresholdEd25519: { configured: thresholdConfigured },
         zkEmail: zk,
       });
     });
