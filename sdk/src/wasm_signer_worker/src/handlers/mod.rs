@@ -6,7 +6,9 @@ pub mod handle_register_device2_with_derived_key;
 pub mod handle_sign_delegate_action;
 pub mod handle_sign_nep413_message;
 pub mod handle_sign_transaction_with_keypair;
+pub mod handle_sign_add_key_threshold_public_key_no_prompt;
 pub mod handle_sign_transactions_with_actions;
+pub mod handle_threshold_ed25519_derive_client_verifying_share;
 
 // Handler functions
 pub use handle_decrypt_private_key_with_prf::handle_decrypt_private_key_with_prf;
@@ -17,7 +19,9 @@ pub use handle_register_device2_with_derived_key::handle_register_device2_with_d
 pub use handle_sign_delegate_action::handle_sign_delegate_action;
 pub use handle_sign_nep413_message::handle_sign_nep413_message;
 pub use handle_sign_transaction_with_keypair::handle_sign_transaction_with_keypair;
+pub use handle_sign_add_key_threshold_public_key_no_prompt::handle_sign_add_key_threshold_public_key_no_prompt;
 pub use handle_sign_transactions_with_actions::handle_sign_transactions_with_actions;
+pub use handle_threshold_ed25519_derive_client_verifying_share::handle_threshold_ed25519_derive_client_verifying_share;
 
 // Request/Result types
 pub use handle_extract_cose_public_key::{CoseExtractionResult, ExtractCoseRequest};
@@ -30,6 +34,10 @@ pub use handle_sign_delegate_action::{
 };
 pub use handle_sign_nep413_message::{SignNep413Request, SignNep413Result};
 pub use handle_sign_transaction_with_keypair::SignTransactionWithKeyPairRequest;
+pub use handle_sign_add_key_threshold_public_key_no_prompt::SignAddKeyThresholdPublicKeyNoPromptRequest;
 pub use handle_sign_transactions_with_actions::{
     KeyActionResult, SignTransactionsWithActionsRequest, TransactionPayload,
+};
+pub use handle_threshold_ed25519_derive_client_verifying_share::{
+    DeriveThresholdEd25519ClientVerifyingShareRequest,
 };

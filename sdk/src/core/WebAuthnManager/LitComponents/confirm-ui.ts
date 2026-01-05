@@ -8,7 +8,7 @@ import { W3A_TX_CONFIRMER_ID, CONFIRM_UI_ELEMENT_SELECTORS, W3A_CONFIRM_PORTAL_I
 import type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode, ThemeName } from './confirm-ui-types';
 export type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode } from './confirm-ui-types';
 import { validateTheme } from './confirm-ui-types';
-import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../txDigest';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../digests/intentDigest';
 // Ensure the wrapper element is registered when this module loads.
 // Note: this must be a value import (not side-effect-only) so bundlers don't
 // tree-shake it away under `sideEffects: false`.

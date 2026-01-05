@@ -20,7 +20,7 @@ pub const LOG_INCLUDE_LEVEL: bool = true;
 
 /// Domain separator for VRF challenge generation
 /// Used to ensure VRF challenges are domain-specific and cannot be replayed across different contexts
-pub const VRF_DOMAIN_SEPARATOR: &[u8] = b"web3_authn_vrf_challenge_v1";
+pub const VRF_DOMAIN_SEPARATOR: &[u8] = b"web3_authn_challenge_v3";
 
 /// HKDF info string for ChaCha20 key derivation from PRF output
 /// Used for both VRF keypair encryption and general ChaCha20 operations

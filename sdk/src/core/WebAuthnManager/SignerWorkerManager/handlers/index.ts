@@ -9,3 +9,4 @@ export * from './signTransactionWithKeyPair';
 export * from './signNep413Message';
 export * from './registerDevice2WithDerivedKey';
 export * from './exportNearKeypairUi';
+export * from './deriveThresholdEd25519ClientVerifyingShare';

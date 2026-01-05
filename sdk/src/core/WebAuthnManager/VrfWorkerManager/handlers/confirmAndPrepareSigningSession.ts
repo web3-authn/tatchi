@@ -2,7 +2,7 @@ import type { TransactionInputWasm } from '../../../types/actions';
 import { ActionType } from '../../../types/actions';
 import type { RpcCallPayload, ConfirmationConfig } from '../../../types/signer-worker';
 import type { TransactionContext } from '../../../types/rpc';
-import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../txDigest';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../../digests/intentDigest';
 import {
   SecureConfirmationType,
   type SecureConfirmRequest,
@@ -13,7 +13,7 @@ import {
 import type { SignNep413Payload } from '../confirmTxFlow/types';
 import type { VrfWorkerManagerContext } from '..';
 import type { VrfWorkerManagerHandlerContext } from './types';
-import type { VRFWorkerMessage, WasmConfirmAndPrepareSigningSessionRequest } from '../../../types/vrf-worker';
+import type { VRFChallenge, VRFWorkerMessage, WasmConfirmAndPrepareSigningSessionRequest } from '../../../types/vrf-worker';
 
 export interface ConfirmAndPrepareSigningSessionBaseParams {
   ctx: VrfWorkerManagerContext;
@@ -65,6 +65,7 @@ export interface ConfirmAndPrepareSigningSessionResult {
   transactionContext: TransactionContext;
   intentDigest: string;
   credential?: SerializableCredential;
+  vrfChallenge?: VRFChallenge;
 }
 
 /**
@@ -214,6 +215,7 @@ export async function confirmAndPrepareSigningSession(
     intent_digest?: string;
     transaction_context?: TransactionContext;
     credential?: SerializableCredential;
+    vrf_challenge?: VRFChallenge;
   };
 
   if (!decision?.confirmed) {
@@ -228,6 +230,7 @@ export async function confirmAndPrepareSigningSession(
     transactionContext: decision.transaction_context,
     intentDigest: decision.intent_digest || intentDigest,
     credential: decision.credential,
+    vrfChallenge: decision.vrf_challenge,
   };
 }
 

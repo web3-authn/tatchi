@@ -176,7 +176,7 @@ export class IframeButtonHost extends LitElementWithProps {
     };
     this.txTreeTheme = 'dark';
     this.showLoading = false;
-    this.options = {};
+    this.options = { signerMode: { mode: 'local-signer' } };
     this.externalConfirm = undefined;
   }
 
@@ -910,6 +910,7 @@ export class IframeButtonHost extends LitElementWithProps {
           nearAccountId: this.nearAccountId,
           txSigningRequests: this.txSigningRequests,
           options: {
+            signerMode: this.options.signerMode,
             onEvent: this.options?.onEvent,
             onError: this.options?.onError,
             waitUntil: this.options?.waitUntil,

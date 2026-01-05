@@ -1,5 +1,6 @@
 use crate::actions::ActionParams;
 use crate::encoders::hash_delegate_action;
+use crate::threshold::signer_backend::Ed25519SignerBackend;
 use crate::transaction::build_actions_from_params;
 use crate::types::progress::{
     send_completion_message, send_progress_message, ProgressData, ProgressMessageType, ProgressStep,
@@ -7,11 +8,11 @@ use crate::types::progress::{
 use crate::types::{
     handlers::{ConfirmationConfig, RpcCallPayload},
     wasm_to_json::WasmSignedDelegate,
-    AccountId, DecryptionPayload, DelegateAction, PublicKey, Signature, SignedDelegate,
+    AccountId, DecryptionPayload, DelegateAction, PublicKey, Signature, SignedDelegate, SignerMode,
+    ThresholdSignerConfig,
 };
 use crate::WrapKey;
 use bs58;
-use ed25519_dalek::Signer;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -30,14 +31,20 @@ pub struct DelegatePayload {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignDelegateActionRequest {
+    pub signer_mode: SignerMode,
     pub rpc_call: RpcCallPayload,
     pub session_id: String,
     pub created_at: Option<f64>,
     pub decryption: DecryptionPayload,
+    /// Threshold signer config (required when `signer_mode == threshold-signer`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<ThresholdSignerConfig>,
     pub delegate: DelegatePayload,
     pub confirmation_config: Option<ConfirmationConfig>,
     pub intent_digest: Option<String>,
     pub transaction_context: Option<crate::types::handlers::TransactionContext>,
+    /// VRF challenge data required for relayer authorization in threshold mode.
+    pub vrf_challenge: Option<crate::types::VrfChallenge>,
     pub credential: Option<String>,
 }
 
@@ -235,33 +242,70 @@ pub async fn handle_sign_delegate_action(
         Some(&ProgressData::new(3, 4).with_context("delegate")),
     );
 
-    let kek = wrap_key.derive_kek()?;
-    let decrypted_private_key_str = crate::crypto::decrypt_data_chacha20(
-        &request.decryption.encrypted_private_key_data,
-        &request.decryption.encrypted_private_key_chacha20_nonce_b64u,
-        &kek,
-    )
-    .map_err(|e| format!("Decryption failed: {}", e))?;
+    let signer = match request.signer_mode {
+        SignerMode::LocalSigner => Ed25519SignerBackend::from_encrypted_near_private_key(
+            SignerMode::LocalSigner,
+            &wrap_key,
+            &request.decryption.encrypted_private_key_data,
+            &request.decryption.encrypted_private_key_chacha20_nonce_b64u,
+        )?,
+        SignerMode::ThresholdSigner => {
+            let cfg = request
+                .threshold
+                .as_ref()
+                .ok_or_else(|| "Missing threshold signer config".to_string())?;
 
-    let normalized_private_key = decrypted_private_key_str
-        .strip_prefix("ed25519:")
-        .unwrap_or(&decrypted_private_key_str)
-        .to_string();
+            #[derive(Debug, Clone, Serialize)]
+            #[serde(rename_all = "camelCase")]
+            struct DelegateAuthorizeSigningPayload<'a> {
+                kind: &'a str,
+                delegate: DelegateAuthorizeDelegate<'a>,
+            }
 
-    let decoded_pk = bs58::decode(&normalized_private_key)
-        .into_vec()
-        .map_err(|e| format!("Invalid private key base58: {}", e))?;
+            #[derive(Debug, Clone, Serialize)]
+            #[serde(rename_all = "camelCase")]
+            struct DelegateAuthorizeDelegate<'a> {
+                sender_id: &'a str,
+                receiver_id: &'a str,
+                actions: &'a Vec<ActionParams>,
+                nonce: String,
+                max_block_height: String,
+                public_key: &'a str,
+            }
 
-    if decoded_pk.len() < 32 {
-        return Err("Decoded private key too short".to_string());
-    }
+            let signing_payload_json = {
+                let js_val = serde_wasm_bindgen::to_value(&DelegateAuthorizeSigningPayload {
+                    kind: "nep461_delegate",
+                    delegate: DelegateAuthorizeDelegate {
+                        sender_id: sender_id.0.as_str(),
+                        receiver_id: receiver_id.0.as_str(),
+                        actions: &request.delegate.actions,
+                        nonce: nonce.to_string(),
+                        max_block_height: max_block_height.to_string(),
+                        public_key: transaction_context.near_public_key_str.as_str(),
+                    },
+                })
+                .map_err(|e| format!("Failed to serialize signingPayload: {e}"))?;
+                js_sys::JSON::stringify(&js_val)
+                    .map_err(|e| format!("JSON.stringify signingPayload failed: {:?}", e))?
+                    .as_string()
+                    .ok_or_else(|| "JSON.stringify signingPayload did not return a string".to_string())?
+            };
 
-    let secret_bytes: [u8; 32] = decoded_pk[0..32]
-        .try_into()
-        .map_err(|_| "Invalid secret key length".to_string())?;
+            Ed25519SignerBackend::from_threshold_signer_config(
+                &wrap_key,
+                &request.rpc_call.near_account_id,
+                &transaction_context.near_public_key_str,
+                "nep461_delegate",
+                request.vrf_challenge.clone(),
+                request.credential.clone(),
+                Some(signing_payload_json),
+                cfg,
+            )?
+        }
+    };
 
-    let signing_key = ed25519_dalek::SigningKey::from_bytes(&secret_bytes);
-    let verifying_key_bytes = signing_key.verifying_key().to_bytes();
+    let verifying_key_bytes = signer.public_key_bytes()?;
     let device_public_key_b58 = bs58::encode(verifying_key_bytes).into_string();
 
     let normalized_delegate_pk = request
@@ -292,9 +336,7 @@ pub async fn handle_sign_delegate_action(
         return Ok(DelegateSignResult::failed(logs, error_msg));
     }
 
-    let mut public_key_array = [0u8; 32];
-    public_key_array.copy_from_slice(&verifying_key_bytes);
-    let public_key = PublicKey::from_ed25519_bytes(&public_key_array);
+    let public_key = PublicKey::from_ed25519_bytes(&verifying_key_bytes);
 
     let delegate_action = DelegateAction {
         sender_id,
@@ -311,8 +353,8 @@ pub async fn handle_sign_delegate_action(
         .map(|b| format!("{:02x}", b))
         .collect();
 
-    let signature_bytes = signing_key.sign(&delegate_hash_bytes);
-    let signature = Signature::from_ed25519_bytes(&signature_bytes.to_bytes());
+    let signature_bytes = signer.sign(&delegate_hash_bytes).await?;
+    let signature = Signature::from_ed25519_bytes(&signature_bytes);
 
     let signed_delegate = SignedDelegate {
         delegate_action,

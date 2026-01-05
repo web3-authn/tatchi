@@ -2,34 +2,53 @@ import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_CONFIG: PasskeyNearKeysDBConfig = {
   dbName: 'PasskeyNearKeys',
-  dbVersion: 2,
-  storeName: 'encryptedKeys',
-  keyPath: ['nearAccountId', 'deviceNumber']
+  // v4: allow storing multiple key materials per device (keyed by kind)
+  dbVersion: 4,
+  storeName: 'keyMaterial',
+  keyPath: ['nearAccountId', 'deviceNumber', 'kind']
 } as const;
 
-export interface EncryptedKeyData {
+export type ClientShareDerivation = 'prf_first_v1';
+
+export type PasskeyNearKeyMaterialKind =
+  | 'local_near_sk_v3'
+  | 'threshold_ed25519_2p_v1';
+
+export interface BasePasskeyNearKeyMaterial {
   nearAccountId: string;
   deviceNumber: number; // 1-indexed device number
-  encryptedData: string;
-  /**
-   * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for `encryptedData`.
-   */
-  chacha20NonceB64u: string;
-  /**
-   * HKDF salt used alongside WrapKeySeed for KEK derivation.
-   * Required for v2+ vaults; entries missing `wrapKeySalt` are considered invalid
-   * and require re-registration to upgrade the vault format.
-   */
-  wrapKeySalt?: string;
-  version?: number;
+  kind: PasskeyNearKeyMaterialKind;
+  /** NEAR ed25519 public key (e.g. `ed25519:...`) */
+  publicKey: string;
+  /** HKDF salt used alongside WrapKeySeed for KEK derivation */
+  wrapKeySalt: string;
   timestamp: number;
 }
+
+export interface LocalNearSkV3Material extends BasePasskeyNearKeyMaterial {
+  kind: 'local_near_sk_v3';
+  encryptedSk: string;
+  /**
+   * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for `encryptedSk`.
+   */
+  chacha20NonceB64u: string;
+}
+
+export interface ThresholdEd25519_2p_V1Material extends BasePasskeyNearKeyMaterial {
+  kind: 'threshold_ed25519_2p_v1';
+  relayerKeyId: string;
+  clientShareDerivation: ClientShareDerivation;
+}
+
+export type PasskeyNearKeyMaterial =
+  | LocalNearSkV3Material
+  | ThresholdEd25519_2p_V1Material;
 
 interface PasskeyNearKeysDBConfig {
   dbName: string;
   dbVersion: number;
   storeName: string;
-  keyPath: string | [string, string];
+  keyPath: string | [string, string] | [string, string, string];
 }
 
 export class PasskeyNearKeysDBManager {
@@ -80,10 +99,14 @@ export class PasskeyNearKeysDBManager {
 
     this.db = await openDB(this.config.dbName, this.config.dbVersion, {
       upgrade(db): void {
-        // Always recreate store with composite key; no migration
-        try { if (db.objectStoreNames.contains(DB_CONFIG.storeName)) db.deleteObjectStore(DB_CONFIG.storeName); } catch {}
+        // Always recreate store with composite key; no migration.
+        for (const name of ['encryptedKeys', DB_CONFIG.storeName]) {
+          try { if (db.objectStoreNames.contains(name)) db.deleteObjectStore(name); } catch {}
+        }
         const store = db.createObjectStore(DB_CONFIG.storeName, { keyPath: DB_CONFIG.keyPath });
         try { store.createIndex('nearAccountId', 'nearAccountId', { unique: false }); } catch {}
+        try { store.createIndex('publicKey', 'publicKey', { unique: false }); } catch {}
+        try { store.createIndex('kind', 'kind', { unique: false }); } catch {}
       },
       blocked() {
         console.warn('PasskeyNearKeysDB connection is blocked.');
@@ -103,10 +126,29 @@ export class PasskeyNearKeysDBManager {
   /**
    * Store encrypted key data
    */
-  async storeEncryptedKey(data: EncryptedKeyData): Promise<void> {
+  async storeKeyMaterial(data: PasskeyNearKeyMaterial): Promise<void> {
     const db = await this.getDB();
-    if (!data.chacha20NonceB64u) {
-      throw new Error('PasskeyNearKeysDB: Missing chacha20NonceB64u');
+    if (!data.wrapKeySalt) {
+      throw new Error('PasskeyNearKeysDB: Missing wrapKeySalt');
+    }
+    if (!data.publicKey) {
+      throw new Error('PasskeyNearKeysDB: Missing publicKey');
+    }
+
+    if (data.kind === 'local_near_sk_v3') {
+      if (!data.encryptedSk) {
+        throw new Error('PasskeyNearKeysDB: Missing encryptedSk for local_near_sk_v3');
+      }
+      if (!data.chacha20NonceB64u) {
+        throw new Error('PasskeyNearKeysDB: Missing chacha20NonceB64u for local_near_sk_v3');
+      }
+    } else if (data.kind === 'threshold_ed25519_2p_v1') {
+      if (!data.relayerKeyId) {
+        throw new Error('PasskeyNearKeysDB: Missing relayerKeyId for threshold_ed25519_2p_v1');
+      }
+      if (!data.clientShareDerivation) {
+        throw new Error('PasskeyNearKeysDB: Missing clientShareDerivation for threshold_ed25519_2p_v1');
+      }
     }
     await db.put(this.config.storeName, data);
   }
@@ -114,68 +156,104 @@ export class PasskeyNearKeysDBManager {
   /**
    * Retrieve encrypted key data
    */
-  async getEncryptedKey(nearAccountId: string, deviceNumber: number): Promise<EncryptedKeyData | null> {
+  async getKeyMaterial(
+    nearAccountId: string,
+    deviceNumber: number,
+    kind: PasskeyNearKeyMaterialKind,
+  ): Promise<PasskeyNearKeyMaterial | null> {
     const db = await this.getDB();
-    const sanitize = (rec: any): EncryptedKeyData | null => {
-      if (!rec?.encryptedData || !rec?.chacha20NonceB64u) return null;
-      return {
-        nearAccountId: rec.nearAccountId,
-        deviceNumber: rec.deviceNumber,
-        encryptedData: rec.encryptedData,
-        chacha20NonceB64u: rec.chacha20NonceB64u,
-        wrapKeySalt: rec.wrapKeySalt,
-        version: rec.version,
-        timestamp: rec.timestamp,
-      };
+    if (!kind) {
+      throw new Error('PasskeyNearKeysDB: kind is required (no fallback lookup is allowed)');
+    }
+    const sanitize = (rec: any): PasskeyNearKeyMaterial | null => {
+      const kind = rec?.kind as PasskeyNearKeyMaterialKind | undefined;
+      if (!rec?.nearAccountId || typeof rec?.deviceNumber !== 'number') return null;
+      if (!kind) return null;
+      if (!rec?.publicKey || !rec?.wrapKeySalt || typeof rec?.timestamp !== 'number') return null;
+
+      if (kind === 'local_near_sk_v3') {
+        if (!rec?.encryptedSk || !rec?.chacha20NonceB64u) return null;
+        return {
+          nearAccountId: rec.nearAccountId,
+          deviceNumber: rec.deviceNumber,
+          kind,
+          publicKey: rec.publicKey,
+          wrapKeySalt: rec.wrapKeySalt,
+          encryptedSk: rec.encryptedSk,
+          chacha20NonceB64u: rec.chacha20NonceB64u,
+          timestamp: rec.timestamp,
+        };
+      }
+
+      if (kind === 'threshold_ed25519_2p_v1') {
+        if (!rec?.relayerKeyId || !rec?.clientShareDerivation) return null;
+        return {
+          nearAccountId: rec.nearAccountId,
+          deviceNumber: rec.deviceNumber,
+          kind,
+          publicKey: rec.publicKey,
+          wrapKeySalt: rec.wrapKeySalt,
+          relayerKeyId: rec.relayerKeyId,
+          clientShareDerivation: rec.clientShareDerivation,
+          timestamp: rec.timestamp,
+        };
+      }
+
+      return null;
     };
 
-    if (typeof deviceNumber === 'number') {
-      const res = await db.get(this.config.storeName, [nearAccountId, deviceNumber]);
-      const direct = sanitize(res);
-      if (direct) return direct;
-      // Fallback: if specific device key missing, return the most recent key for the account
-      if (nearAccountId !== '_init_check') {
-        console.warn('PasskeyNearKeysDB: getEncryptedKey - No result for device', deviceNumber, '→ falling back to any key for account');
-      }
-      try {
-        const idx = db.transaction(this.config.storeName).store.index('nearAccountId');
-        const all = await idx.getAll(nearAccountId);
-        if (Array.isArray(all) && all.length > 0) {
-          // Choose the most recently stored entry by timestamp
-          const latest = (all as any[]).reduce((a, b) => (a.timestamp >= b.timestamp ? a : b));
-          return sanitize(latest);
-        }
-      } catch {}
-      return null;
-    }
-    // Fallback: pick the first entry for this account (non-deterministic order)
-    try {
-      const idx = db.transaction(this.config.storeName).store.index('nearAccountId');
-      // Prefer all+latest even in generic path for consistency
-      const all = await idx.getAll(nearAccountId);
-      if (Array.isArray(all) && all.length > 0) {
-        const latest = (all as any[]).reduce((a, b) => (a.timestamp >= b.timestamp ? a : b));
-        return sanitize(latest);
-      }
-    } catch {}
-    return null;
+    const res = await db.get(this.config.storeName, [nearAccountId, deviceNumber, kind]);
+    return sanitize(res);
+  }
+
+  async getLocalKeyMaterial(
+    nearAccountId: string,
+    deviceNumber: number
+  ): Promise<LocalNearSkV3Material | null> {
+    const rec = await this.getKeyMaterial(nearAccountId, deviceNumber, 'local_near_sk_v3');
+    return rec?.kind === 'local_near_sk_v3' ? rec : null;
+  }
+
+  async getThresholdKeyMaterial(
+    nearAccountId: string,
+    deviceNumber: number
+  ): Promise<ThresholdEd25519_2p_V1Material | null> {
+    const rec = await this.getKeyMaterial(nearAccountId, deviceNumber, 'threshold_ed25519_2p_v1');
+    return rec?.kind === 'threshold_ed25519_2p_v1' ? rec : null;
   }
 
   /**
    * Verify key storage by attempting retrieval
    */
-  async verifyKeyStorage(nearAccountId: string, deviceNumber: number): Promise<boolean> {
-    const retrievedKey = await this.getEncryptedKey(nearAccountId, deviceNumber);
+  async verifyKeyStorage(
+    nearAccountId: string,
+    deviceNumber: number,
+    kind: PasskeyNearKeyMaterialKind
+  ): Promise<boolean> {
+    const retrievedKey = await this.getKeyMaterial(nearAccountId, deviceNumber, kind);
     return !!retrievedKey;
   }
 
   /**
    * Delete encrypted key data for a specific account
    */
-  async deleteEncryptedKey(nearAccountId: string, deviceNumber?: number): Promise<void> {
+  async deleteKeyMaterial(nearAccountId: string, deviceNumber?: number, kind?: PasskeyNearKeyMaterialKind): Promise<void> {
     const db = await this.getDB();
-    if (typeof deviceNumber === 'number') {
-      await db.delete(this.config.storeName, [nearAccountId, deviceNumber]);
+    if (typeof deviceNumber === 'number' && kind) {
+      await db.delete(this.config.storeName, [nearAccountId, deviceNumber, kind]);
+    } else if (typeof deviceNumber === 'number') {
+      // Delete all kinds for this deviceNumber
+      const tx = db.transaction(this.config.storeName, 'readwrite');
+      const idx = tx.store.index('nearAccountId');
+      let cursor = await idx.openCursor(IDBKeyRange.only(nearAccountId));
+      while (cursor) {
+        const value: any = cursor.value;
+        if (value?.deviceNumber === deviceNumber) {
+          await tx.store.delete(cursor.primaryKey);
+        }
+        cursor = await cursor.continue();
+      }
+      await tx.done;
     } else {
       // Delete all keys for this account if device unspecified
       const tx = db.transaction(this.config.storeName, 'readwrite');
@@ -187,36 +265,62 @@ export class PasskeyNearKeysDBManager {
       }
       await tx.done;
     }
-    console.debug('PasskeyNearKeysDB: deleteEncryptedKey - Successfully deleted');
+    console.debug('PasskeyNearKeysDB: deleteKeyMaterial - Successfully deleted');
   }
 
   /**
    * Get all encrypted keys (for migration or debugging purposes)
    */
-  async getAllEncryptedKeys(): Promise<EncryptedKeyData[]> {
+  async getAllKeyMaterial(): Promise<PasskeyNearKeyMaterial[]> {
     const db = await this.getDB();
     const all = await db.getAll(this.config.storeName);
     return (all as any[])
       .map((rec) => {
-        if (!rec?.encryptedData || !rec?.chacha20NonceB64u) return null;
-        return {
-          nearAccountId: rec.nearAccountId,
-          deviceNumber: rec.deviceNumber,
-          encryptedData: rec.encryptedData,
-          chacha20NonceB64u: rec.chacha20NonceB64u,
-          wrapKeySalt: rec.wrapKeySalt,
-          version: rec.version,
-          timestamp: rec.timestamp,
-        } as EncryptedKeyData;
+        const kind = rec?.kind as PasskeyNearKeyMaterialKind | undefined;
+        if (!kind) return null;
+
+        if (kind === 'local_near_sk_v3') {
+          if (!rec?.encryptedSk || !rec?.chacha20NonceB64u) return null;
+          return {
+            nearAccountId: rec.nearAccountId,
+            deviceNumber: rec.deviceNumber,
+            kind,
+            publicKey: rec.publicKey,
+            wrapKeySalt: rec.wrapKeySalt,
+            encryptedSk: rec.encryptedSk,
+            chacha20NonceB64u: rec.chacha20NonceB64u,
+            timestamp: rec.timestamp,
+          } as LocalNearSkV3Material;
+        }
+
+        if (kind === 'threshold_ed25519_2p_v1') {
+          if (!rec?.relayerKeyId || !rec?.clientShareDerivation) return null;
+          return {
+            nearAccountId: rec.nearAccountId,
+            deviceNumber: rec.deviceNumber,
+            kind,
+            publicKey: rec.publicKey,
+            wrapKeySalt: rec.wrapKeySalt,
+            relayerKeyId: rec.relayerKeyId,
+            clientShareDerivation: rec.clientShareDerivation,
+            timestamp: rec.timestamp,
+          } as ThresholdEd25519_2p_V1Material;
+        }
+
+        return null;
       })
-      .filter((rec): rec is EncryptedKeyData => rec !== null);
+      .filter((rec): rec is PasskeyNearKeyMaterial => rec !== null);
   }
 
   /**
    * Check if a key exists for the given account
    */
-  async hasEncryptedKey(nearAccountId: string, deviceNumber: number): Promise<boolean> {
-    const keyData = await this.getEncryptedKey(nearAccountId, deviceNumber);
+  async hasKeyMaterial(
+    nearAccountId: string,
+    deviceNumber: number,
+    kind: PasskeyNearKeyMaterialKind
+  ): Promise<boolean> {
+    const keyData = await this.getKeyMaterial(nearAccountId, deviceNumber, kind);
     return !!keyData;
   }
 }

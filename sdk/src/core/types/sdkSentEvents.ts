@@ -1,5 +1,5 @@
 import type { TxExecutionStatus } from '@near-js/types';
-import type { ConfirmationConfig } from './signer-worker';
+import type { ConfirmationConfig, SignerMode, ThresholdBehavior } from './signer-worker';
 import type {
   ActionResult,
   DelegateRelayResult,
@@ -587,6 +587,15 @@ export interface RegistrationHooksOptions {
   onError?: (error: Error) => void;
   afterCall?: AfterCall<RegistrationResult>;
   /**
+   * Optional: registration signing policy.
+   * - `{ mode: 'local-signer' }`: derive and store an encrypted local NEAR secret key (v3 vault).
+   * - `{ mode: 'threshold-signer' }`: derive the local key AND enroll a threshold Ed25519 (2-of-2) access key
+   *   during registration (relay adds the threshold public key on-chain and returns relayerKeyId).
+   *
+   * Defaults to `{ mode: 'local-signer' }` for backwards compatibility in public APIs.
+   */
+  signerMode?: SignerMode;
+  /**
    * Preferred grouping for per-call confirmer copy.
    */
   confirmerText?: { title?: string; body?: string };
@@ -625,6 +634,12 @@ export interface ActionHooksOptions {
   waitUntil?: TxExecutionStatus;
   afterCall?: AfterCall<ActionResult>;
   /**
+   * Signing policy:
+   * { mode: 'local-signer' }
+   * { mode: 'threshold-signer'; behavior?: ThresholdBehavior };
+   */
+  signerMode?: SignerMode;
+  /**
    * Preferred grouping for per-call confirmer copy.
    */
   confirmerText?: { title?: string; body?: string };
@@ -642,9 +657,17 @@ export interface SignAndSendTransactionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
   waitUntil?: TxExecutionStatus;
-  // Execution control for multi-transaction broadcasts:
-  // - { mode: 'sequential', waitUntil?: TxExecutionStatus }
-  // - { mode: 'parallelStaggered', staggerMs: number }
+  /**
+   * Signing policy:
+   * { mode: 'local-signer' }
+   * { mode: 'threshold-signer'; behavior?: ThresholdBehavior };
+   */
+  signerMode?: SignerMode;
+  /**
+   * Execution control for multi-transaction broadcasts:
+   * - { mode: 'sequential', waitUntil?: TxExecutionStatus }
+   * - { mode: 'parallelStaggered', staggerMs: number }
+   */
   executionWait?: ExecutionWaitOption;
   /**
    * Preferred grouping for per-call confirmer copy.
@@ -664,6 +687,12 @@ export interface SignTransactionHooksOptions {
 
   afterCall?: AfterCall<SignTransactionResult[]>;
   waitUntil?: TxExecutionStatus;
+  /**
+   * Signing policy:
+   * { mode: 'local-signer' }
+   * { mode: 'threshold-signer'; behavior?: ThresholdBehavior };
+   */
+  signerMode?: SignerMode;
   /**
    * Preferred grouping for per-call confirmer copy.
    */
@@ -686,6 +715,12 @@ export interface DelegateActionHooksOptions {
   onError?: (error: Error) => void;
   waitUntil?: TxExecutionStatus;
   afterCall?: AfterCall<SignDelegateActionResult>;
+  /**
+   * Signing policy:
+   * { mode: 'local-signer' }
+   * { mode: 'threshold-signer'; behavior?: ThresholdBehavior };
+   */
+  signerMode?: SignerMode;
   /**
    * Preferred grouping for per-call confirmer copy.
    */
@@ -717,6 +752,12 @@ export interface SignNEP413HooksOptions {
   onError?: (error: Error) => void;
 
   afterCall?: AfterCall<SignNEP413MessageResult>;
+  /**
+   * Signing policy:
+   * { mode: 'local-signer' }
+   * { mode: 'threshold-signer'; behavior?: ThresholdBehavior };
+   */
+  signerMode?: SignerMode;
   /**
    * Preferred grouping for per-call confirmer copy.
    */

@@ -21,6 +21,7 @@ import { toError } from '../../../../../utils/errors';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../../defaultConfigs';
 import { createConfirmSession } from '../adapters/session';
 import { createConfirmTxFlowAdapters } from '../adapters/createAdapters';
+import { computeUiIntentDigestFromNep413 } from '../../../../digests/intentDigest';
 
 function getSigningAuthMode(request: SigningSecureConfirmRequest): SigningAuthMode {
   if (request.type === SecureConfirmationType.SIGN_TRANSACTION) {
@@ -51,6 +52,15 @@ export async function handleTransactionSigningFlow(
   const nearAccountId = getNearAccountId(request);
   const signingAuthMode = getSigningAuthMode(request);
   const usesNeeded = getTxCount(request);
+  const vrfIntentDigestB64u = request.type === SecureConfirmationType.SIGN_TRANSACTION
+    ? getIntentDigest(request)
+    : request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE
+      ? await computeUiIntentDigestFromNep413({
+        nearAccountId,
+        recipient: (request.payload as any)?.recipient ?? '',
+        message: (request.payload as any)?.message ?? '',
+      })
+      : undefined;
 
   // 1) NEAR context + nonce reservation
   const nearRpc = await adapters.near.fetchNearContext({ nearAccountId, txCount: usesNeeded, reserveNonces: true });
@@ -89,6 +99,7 @@ export async function handleTransactionSigningFlow(
         rpId,
         blockHeight: transactionContext.txBlockHeight,
         blockHash: transactionContext.txBlockHash,
+        ...(vrfIntentDigestB64u ? { intentDigest: vrfIntentDigestB64u } : {}),
       },
       request.requestId,
     );
@@ -164,9 +175,11 @@ export async function handleTransactionSigningFlow(
       }
 
       const deviceNumber = await getLastLoggedInDeviceNumber(toAccountId(nearAccountId), ctx.indexedDB.clientDB);
-      const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
-      // For v2+ vaults, wrapKeySalt is the canonical salt.
-      const wrapKeySalt = encryptedKeyData?.wrapKeySalt || '';
+      const keyMaterial = await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber);
+      if (!keyMaterial) {
+        throw new Error(`No key material found for account ${nearAccountId} device ${deviceNumber}`);
+      }
+      const wrapKeySalt = keyMaterial.wrapKeySalt;
       if (!wrapKeySalt) {
         throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
       }
@@ -228,7 +241,7 @@ export async function handleTransactionSigningFlow(
       confirmed: false,
       error: cancelled
         ? ERROR_MESSAGES.cancelled
-        : (isWrongPasskeyError ? msg : ERROR_MESSAGES.collectCredentialsFailed),
+        : (isWrongPasskeyError ? msg : (msg || ERROR_MESSAGES.collectCredentialsFailed)),
     });
   }
 }

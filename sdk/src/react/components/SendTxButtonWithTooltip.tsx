@@ -118,7 +118,12 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = (
       return await tatchi.signAndSendTransactions({
         nearAccountId,
         transactions: txSigningRequests,
-        options,
+        options: {
+          ...(options || {}),
+          signerMode: (options as { signerMode?: unknown })?.signerMode === 'local-signer'
+            ? 'local-signer'
+            : 'threshold-signer',
+        },
       });
     };
   }, [tatchi]);
@@ -197,6 +202,7 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = (
       txSigningRequests={txSigningRequests}
       // hooks
       options={{
+        signerMode: options?.signerMode ?? tatchi.configs.signerMode,
         afterCall: options?.afterCall,
         onError: options?.onError,
         // Prefer explicit onEvent prop if provided, else fall back to options.onEvent

@@ -195,8 +195,11 @@ pub async fn handle_register_device2_with_derived_key(
     debug!("[rust wasm signer]: Built Device2 registration transaction for contract {}", request.contract_id);
 
     // === STEP 5: Sign transaction with derived NEAR keypair ===
-    let signed_tx_bytes = crate::transaction::sign_transaction(registration_tx, &signing_key)
-        .map_err(|e| format!("Failed to sign Device2 registration transaction: {}", e))?;
+    use ed25519_dalek::Signer;
+    let (tx_hash_to_sign, _size) = registration_tx.get_hash_and_size();
+    let signature_bytes = signing_key.sign(&tx_hash_to_sign.0).to_bytes();
+    let signed_tx_bytes = crate::transaction::sign_transaction(registration_tx, &signature_bytes)
+        .map_err(|e| format!("Failed to serialize signed Device2 registration transaction: {}", e))?;
 
     // === STEP 6: Convert to WasmSignedTransaction ===
     let signed_tx = crate::types::SignedTransaction::from_borsh_bytes(&signed_tx_bytes)

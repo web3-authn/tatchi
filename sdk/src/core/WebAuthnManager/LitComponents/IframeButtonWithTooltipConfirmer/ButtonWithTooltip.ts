@@ -11,7 +11,7 @@ import { TooltipGeometry, TooltipPositionInternal, utilParsePx } from './iframe-
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
 import { W3A_BUTTON_WITH_TOOLTIP_ID, ElementSelectors } from '../tags';
 import { ensureExternalStyles } from '../css/css-loader';
-import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../txDigest';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../../digests/intentDigest';
 
 /**
  * Lit-based embedded transaction confirmation element for iframe usage.

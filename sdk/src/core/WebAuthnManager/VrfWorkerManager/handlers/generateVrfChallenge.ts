@@ -43,14 +43,15 @@ async function generateVrfChallengeInternal(
     id: ctx.generateMessageId(),
     payload: {
       sessionId,
-      vrfInputData: {
-        userId: inputData.userId,
-        rpId: inputData.rpId,
-        blockHeight: String(inputData.blockHeight),
-        blockHash: inputData.blockHash,
-      },
-    },
-  };
+	      vrfInputData: {
+	        userId: inputData.userId,
+	        rpId: inputData.rpId,
+	        blockHeight: String(inputData.blockHeight),
+	        blockHash: inputData.blockHash,
+	        intentDigest: inputData.intentDigest,
+	      },
+	    },
+	  };
 
   const response = await ctx.sendMessage(message);
 

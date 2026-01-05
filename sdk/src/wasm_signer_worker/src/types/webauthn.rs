@@ -341,4 +341,8 @@ pub struct VrfChallenge {
     pub block_height: String,
     #[wasm_bindgen(getter_with_clone, js_name = "blockHash")]
     pub block_hash: String,
+    /// Optional base64url-encoded 32-byte digest bound into the VRF input derivation.
+    #[wasm_bindgen(getter_with_clone, js_name = "intentDigest")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intent_digest: Option<String>,
 }

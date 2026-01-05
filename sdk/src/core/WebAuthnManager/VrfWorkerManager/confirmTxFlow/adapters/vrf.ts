@@ -1,16 +1,28 @@
 import type { VrfWorkerManagerContext } from '../../';
 import { TransactionContext, VRFChallenge } from '../../../../types';
-import type { SecureConfirmRequest } from '../types';
+import type { KnownSecureConfirmRequest } from '../types';
 import { SecureConfirmationType } from '../types';
 import { errorMessage, toError } from '../../../../../utils/errors';
+import { computeUiIntentDigestFromNep413, sha256Base64UrlUtf8 } from '../../../../digests/intentDigest';
 
 export async function maybeRefreshVrfChallenge(
   ctx: VrfWorkerManagerContext,
-  request: SecureConfirmRequest,
+  request: KnownSecureConfirmRequest,
   nearAccountId: string,
 ): Promise<{ vrfChallenge: VRFChallenge; transactionContext: TransactionContext }> {
 
   const rpId = ctx.touchIdPrompt.getRpId();
+  const intentDigestB64u = request.type === SecureConfirmationType.SIGN_TRANSACTION
+    ? (request.payload?.intentDigest as string | undefined)
+    : request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE
+      ? await computeUiIntentDigestFromNep413({
+        nearAccountId,
+        recipient: request.payload?.recipient ?? '',
+        message: request.payload?.message ?? '',
+      })
+      : (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
+        ? (request.intentDigest ? await sha256Base64UrlUtf8(request.intentDigest) : undefined)
+      : undefined;
   const vrfWorkerManager = ctx.vrfWorkerManager;
   if (!vrfWorkerManager) {
     throw new Error('VrfWorkerManager not available');
@@ -36,6 +48,7 @@ export async function maybeRefreshVrfChallenge(
             rpId,
             blockHeight: latestCtx.txBlockHeight,
             blockHash: latestCtx.txBlockHash,
+            ...(intentDigestB64u ? { intentDigest: intentDigestB64u } : {}),
           },
           saveInMemory: true,
           sessionId: request.requestId,
@@ -46,6 +59,7 @@ export async function maybeRefreshVrfChallenge(
             rpId,
             blockHeight: latestCtx.txBlockHeight,
             blockHash: latestCtx.txBlockHash,
+            ...(intentDigestB64u ? { intentDigest: intentDigestB64u } : {}),
           },
           request.requestId,
         );

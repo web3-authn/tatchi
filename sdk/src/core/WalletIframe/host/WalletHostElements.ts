@@ -6,9 +6,8 @@ import { LitElementWithProps } from '../../WebAuthnManager/LitComponents/LitElem
 import { IframeButtonHost as __KeepTxButton } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
 import { IframeExportHost as __KeepExportViewerIframe } from '../../WebAuthnManager/LitComponents/ExportPrivateKey/iframe-host';
 
-// Types mirrored from React hosts to smooth interop
-import type { WalletIframeTxButtonHostProps } from '../../../react/components/WalletIframeTxButtonHost';
 import type { TransactionInput } from '../../types';
+import type { ActionResult } from '../../types/tatchi';
 import { getTag, defineTag } from '../../WebAuthnManager/LitComponents/tags';
 
 // Keep references alive
@@ -85,4 +84,21 @@ export class WalletTxHostElement extends LitElementWithProps {
 // Preferred + alias
 try { defineTag('txHost', WalletTxHostElement as unknown as CustomElementConstructor); } catch {}
 
-export type { WalletIframeTxButtonHostProps };
+// Shared props shape for embedding a tx button inside the wallet host document.
+// (Previously mirrored from the React host component; kept here as a core primitive.)
+export interface WalletIframeTxButtonHostProps {
+  nearAccountId: string;
+  transactions: Array<TransactionInput>;
+  text?: string;
+  theme?: 'dark' | 'light';
+  width?: number | string;
+  height?: number | string;
+  className?: string;
+  style?: Record<string, unknown>;
+  buttonStyle: Record<string, string> | CSSStyleDeclaration;
+  buttonHoverStyle: Record<string, string> | CSSStyleDeclaration;
+  tooltipPosition: Record<string, string>;
+  onSuccess?: (result: ActionResult[]) => void;
+  onCancel?: () => void;
+  onError?: (error: Error) => void;
+}

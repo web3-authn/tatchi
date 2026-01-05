@@ -227,10 +227,13 @@ export async function executeDeviceLinkingContractCalls({
       nearRpcUrl: context.webAuthnManager.tatchiPasskeyConfigs.nearRpcUrl,
       nearAccountId: device1AccountId
     },
-    confirmationConfigOverride,
-    title: confirmerText?.title,
-    body: confirmerText?.body,
-    transactions: [
+	    // Prefer threshold signing when available; fall back to local signing if the account
+	    // is not enrolled with threshold key material.
+	    signerMode: { mode: 'threshold-signer', behavior: 'fallback' },
+	    confirmationConfigOverride,
+	    title: confirmerText?.title,
+	    body: confirmerText?.body,
+	    transactions: [
       // Transaction 1: AddKey - Add Device2's key to Device1's account
       {
         receiverId: device1AccountId,
@@ -667,6 +670,10 @@ export async function checkCanRegisterUserContractCall({
   authenticatorOptions?: AuthenticatorOptions;
 }): Promise<CheckCanRegisterUserResult> {
   try {
+    const intent_digest_32 = Array.from(base64UrlDecode(vrfChallenge.intentDigest || ''));
+    if (intent_digest_32.length !== 32) {
+      throw new Error('Missing or invalid vrfChallenge.intentDigest (expected base64url-encoded 32 bytes)');
+    }
     const vrfData = {
       vrf_input_data: Array.from(base64UrlDecode(vrfChallenge.vrfInput)),
       vrf_output: Array.from(base64UrlDecode(vrfChallenge.vrfOutput)),
@@ -676,6 +683,7 @@ export async function checkCanRegisterUserContractCall({
       rp_id: vrfChallenge.rpId,
       block_height: Number(vrfChallenge.blockHeight),
       block_hash: Array.from(base64UrlDecode(vrfChallenge.blockHash)),
+      intent_digest_32,
     };
 
     const args = {
@@ -733,6 +741,10 @@ export async function verifyAuthenticationResponse(
       if (!b64u) return [];
       return Array.from(base64UrlDecode(b64u));
     };
+    const intent_digest_32 = toBytes(vrfChallenge.intentDigest);
+    if (intent_digest_32.length !== 32) {
+      throw new Error('Missing or invalid vrfChallenge.intentDigest (expected base64url-encoded 32 bytes)');
+    }
     const vrf_data = {
       vrf_input_data: toBytes(vrfChallenge.vrfInput),
       vrf_output: toBytes(vrfChallenge.vrfOutput),
@@ -742,6 +754,7 @@ export async function verifyAuthenticationResponse(
       rp_id: vrfChallenge.rpId,
       block_height: Number(vrfChallenge.blockHeight || 0),
       block_hash: toBytes(vrfChallenge.blockHash),
+      intent_digest_32,
     };
 
     // Normalize authenticatorAttachment and userHandle to null for server schema
@@ -789,5 +802,190 @@ export async function verifyAuthenticationResponse(
       success: false,
       error: error.message || 'Failed to verify authentication response',
     };
+  }
+}
+
+export async function authorizeThresholdEd25519(
+  relayServerUrl: string,
+  vrfChallenge: VRFChallenge,
+  webauthnAuthentication: WebAuthnAuthenticationCredential,
+  args: {
+    relayerKeyId: string;
+    purpose: string;
+    /**
+     * Exact 32-byte digest that will be co-signed (tx hash / delegate hash / NEP-413 hash).
+     * The relayer must bind this digest to the VRF-authorized `intent_digest_32`.
+     */
+    signingDigest32: number[];
+    signingPayload?: unknown;
+  },
+): Promise<{
+  ok: boolean;
+  mpcSessionId?: string;
+  expiresAt?: string;
+  code?: string;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const toBytes = (b64u: string | undefined): number[] => {
+      if (!b64u) return [];
+      return Array.from(base64UrlDecode(b64u));
+    };
+    const intent_digest_32 = toBytes(vrfChallenge.intentDigest);
+    if (intent_digest_32.length !== 32) {
+      throw new Error('Missing or invalid vrfChallenge.intentDigest (expected base64url-encoded 32 bytes)');
+    }
+    const vrf_data = {
+      vrf_input_data: toBytes(vrfChallenge.vrfInput),
+      vrf_output: toBytes(vrfChallenge.vrfOutput),
+      vrf_proof: toBytes(vrfChallenge.vrfProof),
+      public_key: toBytes(vrfChallenge.vrfPublicKey),
+      user_id: vrfChallenge.userId,
+      rp_id: vrfChallenge.rpId,
+      block_height: Number(vrfChallenge.blockHeight || 0),
+      block_hash: toBytes(vrfChallenge.blockHash),
+      intent_digest_32,
+    };
+
+    // Strip extension results before sending to the relay (never send PRF outputs).
+    const webauthn_authentication = {
+      ...webauthnAuthentication,
+      authenticatorAttachment: webauthnAuthentication.authenticatorAttachment ?? null,
+      response: {
+        ...webauthnAuthentication.response,
+        userHandle: webauthnAuthentication.response.userHandle ?? null,
+      },
+      clientExtensionResults: null,
+    };
+
+    const url = `${relayServerUrl.replace(/\/$/, '')}/threshold-ed25519/authorize`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        relayerKeyId: args.relayerKeyId,
+        purpose: args.purpose,
+        signing_digest_32: (() => {
+          const d = args.signingDigest32;
+          if (!Array.isArray(d) || d.length !== 32) {
+            throw new Error('Missing or invalid args.signingDigest32 (expected number[32])');
+          }
+          return d;
+        })(),
+        signingPayload: args.signingPayload,
+        vrf_data,
+        webauthn_authentication,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { ok: false, error: `HTTP ${response.status}: ${errorText}` };
+    }
+
+    const json = await response.json();
+    return {
+      ok: !!json?.ok,
+      mpcSessionId: json?.mpcSessionId,
+      expiresAt: json?.expiresAt,
+      code: json?.code,
+      message: json?.message,
+    };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || 'Failed to authorize threshold-ed25519 signing' };
+  }
+}
+
+export async function thresholdEd25519Keygen(
+  relayServerUrl: string,
+  vrfChallenge: VRFChallenge,
+  webauthnAuthentication: WebAuthnAuthenticationCredential,
+  args: {
+    clientVerifyingShareB64u: string;
+    nearAccountId: string;
+  },
+): Promise<{
+  ok: boolean;
+  relayerKeyId?: string;
+  publicKey?: string;
+  relayerVerifyingShareB64u?: string;
+  code?: string;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const base = String(relayServerUrl || '').trim().replace(/\/$/, '');
+    if (!base) throw new Error('Missing relayServerUrl');
+
+    const clientVerifyingShareB64u = String(args.clientVerifyingShareB64u || '').trim();
+    if (!clientVerifyingShareB64u) throw new Error('Missing clientVerifyingShareB64u');
+
+    const nearAccountId = String(args.nearAccountId || '').trim();
+    if (!nearAccountId) throw new Error('Missing nearAccountId');
+
+    const toBytes = (b64u: string | undefined): number[] => {
+      if (!b64u) return [];
+      return Array.from(base64UrlDecode(b64u));
+    };
+    const intent_digest_32 = toBytes(vrfChallenge.intentDigest);
+    if (intent_digest_32.length !== 32) {
+      throw new Error('Missing or invalid vrfChallenge.intentDigest (expected base64url-encoded 32 bytes)');
+    }
+    const vrf_data = {
+      vrf_input_data: toBytes(vrfChallenge.vrfInput),
+      vrf_output: toBytes(vrfChallenge.vrfOutput),
+      vrf_proof: toBytes(vrfChallenge.vrfProof),
+      public_key: toBytes(vrfChallenge.vrfPublicKey),
+      user_id: vrfChallenge.userId,
+      rp_id: vrfChallenge.rpId,
+      block_height: Number(vrfChallenge.blockHeight || 0),
+      block_hash: toBytes(vrfChallenge.blockHash),
+      intent_digest_32,
+    };
+
+    // Strip extension results before sending to the relay (never send PRF outputs).
+    const webauthn_authentication = {
+      ...webauthnAuthentication,
+      authenticatorAttachment: webauthnAuthentication.authenticatorAttachment ?? null,
+      response: {
+        ...webauthnAuthentication.response,
+        userHandle: webauthnAuthentication.response.userHandle ?? null,
+      },
+      clientExtensionResults: null,
+    };
+
+    const url = `${base}/threshold-ed25519/keygen`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        clientVerifyingShareB64u,
+        nearAccountId,
+        vrf_data,
+        webauthn_authentication,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { ok: false, error: `HTTP ${response.status}: ${errorText}` };
+    }
+
+    const json = await response.json();
+    return {
+      ok: !!json?.ok,
+      relayerKeyId: json?.relayerKeyId,
+      publicKey: json?.publicKey,
+      relayerVerifyingShareB64u: json?.relayerVerifyingShareB64u,
+      code: json?.code,
+      message: json?.message,
+    };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || 'Failed to keygen threshold-ed25519' };
   }
 }

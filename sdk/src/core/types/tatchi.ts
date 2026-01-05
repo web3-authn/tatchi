@@ -4,7 +4,7 @@ import type { AccountId } from './accountIds';
 import type { SignedTransaction } from '../NearClient';
 import type { AuthenticatorOptions } from './authenticatorOptions';
 import type { ClientUserData } from '../IndexedDBManager/passkeyClientDB';
-import { WasmSignedDelegate } from './signer-worker';
+import type { SignerMode, WasmSignedDelegate } from './signer-worker';
 
 //////////////////////////////////
 /// Result Types
@@ -121,6 +121,14 @@ export interface TatchiConfigsInput {
   nearExplorerUrl?: string; // NEAR Explorer URL for transaction links
   walletTheme?: 'dark' | 'light';
   /**
+   * Default signing mode used by higher-level convenience helpers and UI wrappers when a per-call
+   * `signerMode` is not explicitly provided.
+   *
+   * Defaults to `{ mode: 'local-signer' }` for backwards compatibility.
+   *
+   */
+  signerMode?: SignerMode;
+  /**
    * Defaults for VRF-owned warm signing sessions minted by `loginAndCreateSession()`.
    * These can be overridden per-call via `LoginHooksOptions.signingSession`.
    */
@@ -182,6 +190,7 @@ export interface TatchiConfigs {
   contractId: 'w3a-v1.testnet' | string;
   nearExplorerUrl?: string;
   walletTheme?: 'dark' | 'light';
+  signerMode: SignerMode;
   signingSessionDefaults: {
     ttlMs: number;
     remainingUses: number;

@@ -237,6 +237,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       nearNetwork: payload?.nearNetwork || walletConfigs?.nearNetwork || 'testnet',
       contractId: payload?.contractId || walletConfigs?.contractId || '',
       nearExplorerUrl: payload?.nearExplorerUrl || walletConfigs?.nearExplorerUrl,
+      signerMode: payload?.signerMode || walletConfigs?.signerMode,
       relayer: payload?.relayer || walletConfigs?.relayer,
       authenticatorOptions: payload?.authenticatorOptions || walletConfigs?.authenticatorOptions,
       vrfWorkerConfigs: payload?.vrfWorkerConfigs || walletConfigs?.vrfWorkerConfigs,

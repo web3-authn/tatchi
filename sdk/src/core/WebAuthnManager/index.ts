@@ -5,6 +5,7 @@ import {
   type UnifiedIndexedDBManager,
 } from '../IndexedDBManager';
 import { StoreUserDataInput } from '../IndexedDBManager/passkeyClientDB';
+import type { ThresholdEd25519_2p_V1Material } from '../IndexedDBManager/passkeyNearKeysDB';
 import { type NearClient, SignedTransaction } from '../NearClient';
 import { SignerWorkerManager } from './SignerWorkerManager';
 import { VrfWorkerManager } from './VrfWorkerManager';
@@ -20,23 +21,39 @@ import {
   VRFInputData,
   VRFChallenge
 } from '../types/vrf-worker';
-import type { ActionArgsWasm, TransactionInputWasm } from '../types/actions';
+import { ActionType, type ActionArgsWasm, type TransactionInputWasm } from '../types/actions';
 import type { RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/sdkSentEvents';
 import type { SignTransactionResult, TatchiConfigs } from '../types/tatchi';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import type { DelegateActionInput } from '../types/delegate';
-import type { ConfirmationConfig, RpcCallPayload, WasmSignedDelegate } from '../types/signer-worker';
+import {
+  INTERNAL_WORKER_REQUEST_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT,
+  isSignAddKeyThresholdPublicKeyNoPromptSuccess,
+  type ConfirmationConfig,
+  type RpcCallPayload,
+  type SignerMode,
+  type ThresholdBehavior,
+  type WasmSignedDelegate,
+} from '../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
 import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
 import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../sdkPaths';
-import { DEFAULT_WAIT_STATUS } from '../types/rpc';
+import { DEFAULT_WAIT_STATUS, type TransactionContext } from '../types/rpc';
 import { getLastLoggedInDeviceNumber } from './SignerWorkerManager/getDeviceNumber';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
+import { thresholdEd25519Keygen } from '../rpcCalls';
+import { computeThresholdEd25519KeygenIntentDigest } from '../digests/intentDigest';
+import { computeThresholdEd25519GroupPublicKeyFromVerifyingShares, normalizeEd25519PublicKey } from '../threshold/ed25519GroupPublicKey';
 
 type SigningSessionOptions = {
   /** PRF-bearing credential; VRF worker extracts PRF outputs internally */
   credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+  /**
+   * Optional wrapKeySalt for WrapKeySeed delivery.
+   * When provided, VRF worker will reuse this salt instead of generating a new one.
+   */
+  wrapKeySalt?: string;
 };
 
 /**
@@ -229,7 +246,7 @@ export class WebAuthnManager {
     if (typeof args.handler !== 'function') {
       throw new Error('withSigningSession requires a handler function');
     }
-    const sessionId = (args.sessionId || '').trim() || (args.prefix ? this.generateSessionId(args.prefix) : '');
+    const sessionId = args.sessionId || (args.prefix ? this.generateSessionId(args.prefix) : '');
     if (!sessionId) {
       throw new Error('withSigningSession requires a sessionId or prefix');
     }
@@ -250,6 +267,7 @@ export class WebAuthnManager {
       if (args.options) {
         await this.vrfWorkerManager.mintSessionKeysAndSendToSigner({
           sessionId: args.sessionId,
+          wrapKeySalt: args.options.wrapKeySalt,
           credential: args.options.credential,
         });
       }
@@ -318,16 +336,15 @@ export class WebAuthnManager {
     const encryptedVrfKeypair = userForDevice?.encryptedVrfKeypair;
 
     // Gather encrypted key + wrapKeySalt and public key from IndexedDB for this device
-    const encryptedKeyData = await IndexedDBManager.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
-    if (!encryptedKeyData) {
+    const keyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber);
+    if (!keyMaterial) {
       console.error('WebAuthnManager: No encrypted key found for decrypt session', {
         nearAccountId: String(nearAccountId),
         deviceNumber,
       });
-      throw new Error(`No encrypted key found for account: ${nearAccountId}`);
+      throw new Error(`No key material found for account: ${nearAccountId}`);
     }
-    // For v2+ vaults, wrapKeySalt is the canonical salt.
-    const wrapKeySalt = encryptedKeyData.wrapKeySalt || '';
+    const wrapKeySalt = keyMaterial.wrapKeySalt;
     if (!wrapKeySalt) {
       console.error('WebAuthnManager: Missing wrapKeySalt in vault for decrypt session', {
         nearAccountId: String(nearAccountId),
@@ -453,7 +470,6 @@ export class WebAuthnManager {
     });
   }
 
-
   /**
    * **Sign Device2 registration transaction with already-stored key (no prompt)**
    *
@@ -493,15 +509,15 @@ export class WebAuthnManager {
       const sessionId = `device2-sign-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
       // Retrieve encrypted key data and wrapKeySalt from IndexedDB
-      const encryptedKeyData = await IndexedDBManager.nearKeysDB.getEncryptedKey(
+      const keyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(
         nearAccountId,
         deviceNumber
       );
-      if (!encryptedKeyData) {
-        throw new Error(`No encrypted key found for account ${nearAccountId} device ${deviceNumber}`);
+      if (!keyMaterial) {
+        throw new Error(`No key material found for account ${nearAccountId} device ${deviceNumber}`);
       }
 
-      const wrapKeySalt = encryptedKeyData.wrapKeySalt;
+      const wrapKeySalt = keyMaterial.wrapKeySalt;
       if (!wrapKeySalt) {
         throw new Error(`Missing wrapKeySalt for account ${nearAccountId} device ${deviceNumber}`);
       }
@@ -768,11 +784,11 @@ export class WebAuthnManager {
 
     // Fetch wrapKeySalt from vault so the derived WrapKeySeed can decrypt the stored NEAR keys.
     const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB);
-    const encryptedKeyData = await IndexedDBManager.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
-    if (!encryptedKeyData) {
-      throw new Error(`No encrypted key found for account ${nearAccountId} device ${deviceNumber}`);
+    const keyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber);
+    if (!keyMaterial) {
+      throw new Error(`No key material found for account ${nearAccountId} device ${deviceNumber}`);
     }
-    const wrapKeySalt = encryptedKeyData.wrapKeySalt || '';
+    const wrapKeySalt = keyMaterial.wrapKeySalt;
     if (!wrapKeySalt) {
       throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
     }
@@ -1092,6 +1108,7 @@ export class WebAuthnManager {
   async signTransactionsWithActions({
     transactions,
     rpcCall,
+    signerMode,
     confirmationConfigOverride,
     title,
     body,
@@ -1099,23 +1116,21 @@ export class WebAuthnManager {
   }: {
     transactions: TransactionInputWasm[],
     rpcCall: RpcCallPayload,
+    signerMode: SignerMode;
     // Accept partial override; merging happens in handlers layer
     confirmationConfigOverride?: Partial<ConfirmationConfig>,
     title?: string;
     body?: string;
     onEvent?: (update: onProgressEvents) => void,
   }): Promise<SignTransactionResult[]> {
-
-    if (transactions.length === 0) {
-      throw new Error('No payloads provided for signing');
-    }
-    const activeSessionId = this.getOrCreateActiveSigningSessionId(toAccountId(rpcCall.nearAccountId));
     return this.withSigningSession({
-      sessionId: activeSessionId,
+      sessionId: this.getOrCreateActiveSigningSessionId(toAccountId(rpcCall.nearAccountId)),
       handler: (sessionId) =>
         this.signerWorkerManager.signTransactionsWithActions({
           transactions,
           rpcCall,
+          signerMode,
+          relayerUrl: this.tatchiPasskeyConfigs.relayer.url,
           confirmationConfigOverride,
           title,
           body,
@@ -1125,9 +1140,106 @@ export class WebAuthnManager {
     });
   }
 
+  /**
+   * Sign AddKey(thresholdPublicKey) for `receiverId === nearAccountId` without running confirmTxFlow.
+   *
+   * This is a narrowly-scoped, internal-only helper for post-registration activation flows where
+   * the caller already has a PRF-bearing credential in memory (e.g., immediately after registration)
+   * and wants to avoid an extra TouchID/WebAuthn prompt.
+   */
+  async signAddKeyThresholdPublicKeyNoPrompt(args: {
+    nearAccountId: AccountId | string;
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+    wrapKeySalt: string;
+    transactionContext: TransactionContext;
+    thresholdPublicKey: string;
+    relayerVerifyingShareB64u: string;
+    deviceNumber?: number;
+    onEvent?: (update: onProgressEvents) => void;
+  }): Promise<SignTransactionResult> {
+    const nearAccountId = toAccountId(args.nearAccountId);
+    const wrapKeySalt = args.wrapKeySalt;
+    if (!wrapKeySalt) throw new Error('Missing wrapKeySalt for AddKey(thresholdPublicKey) signing');
+    if (!args.credential) throw new Error('Missing credential for AddKey(thresholdPublicKey) signing');
+    if (!args.transactionContext) throw new Error('Missing transactionContext for no-prompt signing');
+    const thresholdPublicKey = normalizeEd25519PublicKey(args.thresholdPublicKey);
+    if (!thresholdPublicKey) throw new Error('Missing thresholdPublicKey for AddKey(thresholdPublicKey) signing');
+    const relayerVerifyingShareB64u = args.relayerVerifyingShareB64u;
+    if (!relayerVerifyingShareB64u) throw new Error('Missing relayerVerifyingShareB64u for AddKey(thresholdPublicKey) signing');
+
+    const deviceNumber = Number(args.deviceNumber);
+    const resolvedDeviceNumber = Number.isSafeInteger(deviceNumber) && deviceNumber >= 1
+      ? deviceNumber
+      : await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB).catch(() => 1);
+
+    const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(
+      nearAccountId,
+      resolvedDeviceNumber,
+    );
+    if (!localKeyMaterial) {
+      throw new Error(`No local key material found for account ${nearAccountId} device ${resolvedDeviceNumber}`);
+    }
+
+    if (localKeyMaterial.wrapKeySalt !== wrapKeySalt) {
+      throw new Error('wrapKeySalt mismatch for AddKey(thresholdPublicKey) signing');
+    }
+
+    return await this.withSigningSession({
+      prefix: 'no-prompt-add-threshold-key',
+      options: { credential: args.credential, wrapKeySalt },
+      handler: async (sessionId) => {
+        const response = await this.signerWorkerManager.getContext().sendMessage({
+          sessionId,
+          message: {
+            type: INTERNAL_WORKER_REQUEST_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT,
+            payload: {
+              createdAt: Date.now(),
+              decryption: {
+                encryptedPrivateKeyData: localKeyMaterial.encryptedSk,
+                encryptedPrivateKeyChacha20NonceB64u: localKeyMaterial.chacha20NonceB64u,
+              },
+              transactionContext: args.transactionContext,
+              nearAccountId,
+              thresholdPublicKey,
+              relayerVerifyingShareB64u,
+            },
+          },
+          onEvent: args.onEvent,
+        });
+
+        if (!isSignAddKeyThresholdPublicKeyNoPromptSuccess(response)) {
+          throw new Error('AddKey(thresholdPublicKey) signing failed');
+        }
+        if (!response.payload.success) {
+          throw new Error(response.payload.error || 'AddKey(thresholdPublicKey) signing failed');
+        }
+
+        const signedTransactions = response.payload.signedTransactions || [];
+        if (signedTransactions.length !== 1) {
+          throw new Error(`Expected 1 signed transaction but received ${signedTransactions.length}`);
+        }
+
+        const signedTx = signedTransactions[0];
+        if (!signedTx || !(signedTx as any).transaction || !(signedTx as any).signature) {
+          throw new Error('Incomplete signed transaction data received for AddKey(thresholdPublicKey)');
+        }
+        return {
+          signedTransaction: new SignedTransaction({
+            transaction: (signedTx as any).transaction,
+            signature: (signedTx as any).signature,
+            borsh_bytes: Array.from((signedTx as any).borshBytes || []),
+          }),
+          nearAccountId: String(nearAccountId),
+          logs: response.payload.logs || [],
+        };
+      },
+    });
+  }
+
   async signDelegateAction({
     delegate,
     rpcCall,
+    signerMode,
     confirmationConfigOverride,
     title,
     body,
@@ -1135,6 +1247,7 @@ export class WebAuthnManager {
   }: {
     delegate: DelegateActionInput;
     rpcCall: RpcCallPayload;
+    signerMode: SignerMode;
     // Accept partial override; merging happens in handlers layer
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
     title?: string;
@@ -1162,6 +1275,8 @@ export class WebAuthnManager {
           return this.signerWorkerManager.signDelegateAction({
             delegate,
             rpcCall: normalizedRpcCall,
+            signerMode,
+            relayerUrl: this.tatchiPasskeyConfigs.relayer.url,
             confirmationConfigOverride,
             title,
             body,
@@ -1183,6 +1298,7 @@ export class WebAuthnManager {
     nonce: string;
     state: string | null;
     accountId: AccountId;
+    signerMode: SignerMode;
     title?: string;
     body?: string;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
@@ -1201,7 +1317,7 @@ export class WebAuthnManager {
       const result = await this.withSigningSession({
         sessionId: activeSessionId,
         handler: (sessionId) =>
-          this.signerWorkerManager.signNep413Message({ ...payload, sessionId, contractId, nearRpcUrl }),
+          this.signerWorkerManager.signNep413Message({ ...payload, sessionId, contractId, nearRpcUrl, relayerUrl: this.tatchiPasskeyConfigs.relayer.url }),
       });
       if (result.success) {
         return result;
@@ -1232,37 +1348,6 @@ export class WebAuthnManager {
   ///////////////////////////////////////
   // PRIVATE KEY EXPORT (Drawer/Modal in sandboxed iframe)
   ///////////////////////////////////////
-
-  /**
-   * Helper to ensure the local `lastUser` pointer is consistent with the latest DB updates.
-   * This fixes issues where a recovery or registration might have updated the user record
-   * but failed to update the `lastUser` pointer (e.g. due to previous bugs or interruptions),
-   * preventing the strict `ensureCurrentPasskey` check from passing.
-   */
-  private async autoHealLastUserPointer(nearAccountId: AccountId): Promise<void> {
-    try {
-      const lastUser = await this.getLastUser();
-
-      // If we are already pointing to the correct account, check if there's a fresher device.
-      if (lastUser && lastUser.nearAccountId === nearAccountId) {
-        const freshest = await IndexedDBManager.clientDB.getLastDBUpdatedUser(nearAccountId);
-        if (freshest && freshest.deviceNumber !== lastUser.deviceNumber) {
-          // We found a fresher record for this account (e.g. newly recovered device).
-          // Auto-heal the pointer to respect the user's latest intent.
-          console.log(`[WebAuthnManager] Auto-healing lastUser pointer from device ${lastUser.deviceNumber} to ${freshest.deviceNumber}`);
-          await this.setLastUser(nearAccountId, freshest.deviceNumber);
-        }
-      } else {
-        // If lastUser is not set or points to another account, try to set it to something valid for this account.
-        const freshest = await IndexedDBManager.clientDB.getLastDBUpdatedUser(nearAccountId);
-        if (freshest) {
-          await this.setLastUser(nearAccountId, freshest.deviceNumber);
-        }
-      }
-    } catch (e) {
-      console.warn('[WebAuthnManager] Auto-heal pointer failed (non-fatal):', e);
-    }
-  }
 
   /** Worker-driven export: two-phase V2 (collect PRF → decrypt → show UI) */
   async exportNearKeypairWithUIWorkerDriven(
@@ -1305,7 +1390,7 @@ export class WebAuthnManager {
     }
     return {
       accountId: String(nearAccountId),
-      publicKey: String(userData?.clientNearPublicKey || ''),
+      publicKey: userData?.clientNearPublicKey ?? '',
       privateKey: '',
     };
   }
@@ -1458,6 +1543,596 @@ export class WebAuthnManager {
       blockHash,
       actions
     });
+  }
+
+  // ==============================
+  // Threshold Signing
+  // ==============================
+
+  /**
+   * Derive the deterministic threshold client verifying share (2-of-2 ed25519) from WrapKeySeed.
+   * This is safe to call during registration because it only requires the PRF-bearing credential
+   * (no on-chain verification needed) and returns public material only.
+   */
+  async deriveThresholdEd25519ClientVerifyingShareFromCredential(args: {
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+    nearAccountId: AccountId | string;
+    wrapKeySalt?: string;
+  }): Promise<{
+    success: boolean;
+    nearAccountId: string;
+    clientVerifyingShareB64u: string;
+    wrapKeySalt: string;
+    error?: string;
+  }> {
+    const nearAccountId = toAccountId(args.nearAccountId);
+    try {
+      return await this.withSigningSession({
+        prefix: 'threshold-client-share',
+        options: { credential: args.credential, wrapKeySalt: args.wrapKeySalt },
+        handler: (sessionId) =>
+          this.signerWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
+            sessionId,
+            nearAccountId,
+          }),
+      });
+    } catch (error: unknown) {
+      const message = String((error as { message?: unknown })?.message ?? error);
+      return {
+        success: false,
+        nearAccountId,
+        clientVerifyingShareB64u: '',
+        wrapKeySalt: '',
+        error: message,
+      };
+    }
+  }
+
+  /**
+   * Threshold key enrollment (post-registration):
+   * prompts for a dual-PRF WebAuthn authentication to obtain PRF.first/second,
+   * then runs the `/threshold-ed25519/keygen` enrollment flow.
+   *
+   * This is intended to be called only after the passkey is registered on-chain.
+   */
+  async enrollThresholdEd25519KeyPostRegistration(args: {
+    nearAccountId: AccountId | string;
+    deviceNumber?: number;
+    relayerUrl?: string;
+  }): Promise<{
+    success: boolean;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    error?: string;
+  }> {
+    const nearAccountId = toAccountId(args.nearAccountId);
+
+    try {
+      const rpId = this.touchIdPrompt.getRpId();
+      if (!rpId) throw new Error('Missing rpId for WebAuthn VRF challenge');
+
+      // Generate a fresh VRF challenge for a dual-PRF authentication prompt (PRF.first + PRF.second).
+      const block = await this.nearClient.viewBlock({ finality: 'final' } as any);
+      const blockHeight = String((block as any)?.header?.height ?? '');
+      const blockHash = String((block as any)?.header?.hash ?? '');
+      if (!blockHeight || !blockHash) throw new Error('Failed to fetch NEAR block context for VRF challenge');
+
+      const vrfChallenge = await this.vrfWorkerManager.generateVrfChallengeOnce({
+        userId: nearAccountId,
+        rpId,
+        blockHeight,
+        blockHash,
+      });
+
+      const authenticators = await this.getAuthenticatorsByUser(nearAccountId);
+      if (!authenticators.length) {
+        throw new Error(`No passkey authenticators found for account ${nearAccountId}`);
+      }
+
+      const authCredential = await this.getAuthenticationCredentialsSerializedDualPrf({
+        nearAccountId,
+        challenge: vrfChallenge,
+        credentialIds: authenticators.map((a) => a.credentialId),
+      });
+
+      return await this.enrollThresholdEd25519Key({
+        credential: authCredential,
+        nearAccountId,
+        deviceNumber: args.deviceNumber,
+        relayerUrl: args.relayerUrl,
+      });
+    } catch (error: unknown) {
+      const message = String((error as { message?: unknown })?.message ?? error);
+      return { success: false, publicKey: '', relayerKeyId: '', wrapKeySalt: '', error: message };
+    }
+  }
+
+  /**
+   * Threshold key rotation (post-registration):
+   * - keygen (new relayerKeyId + publicKey)
+   * - AddKey(new threshold publicKey)
+   * - DeleteKey(old threshold publicKey)
+   *
+   * Uses the local signer key for AddKey/DeleteKey, and requires the account to already
+   * have a stored `threshold_ed25519_2p_v1` key material entry for the target device.
+   */
+  async rotateThresholdEd25519KeyPostRegistration(args: {
+    nearAccountId: AccountId | string;
+    deviceNumber?: number;
+    relayerUrl?: string;
+  }): Promise<{
+    success: boolean;
+    oldPublicKey: string;
+    oldRelayerKeyId: string;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    deleteOldKeyAttempted: boolean;
+    deleteOldKeySuccess: boolean;
+    warning?: string;
+    error?: string;
+  }> {
+    const nearAccountId = toAccountId(args.nearAccountId);
+
+    let oldPublicKey = '';
+    let oldRelayerKeyId = '';
+
+    try {
+      const deviceNumber = Number(args.deviceNumber);
+      const resolvedDeviceNumber = Number.isSafeInteger(deviceNumber) && deviceNumber >= 1
+        ? deviceNumber
+        : await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB).catch(() => 1);
+
+      const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(nearAccountId, resolvedDeviceNumber);
+      if (!existing) {
+        throw new Error(
+          `No threshold key material found for account ${nearAccountId} device ${resolvedDeviceNumber}. Call enrollThresholdEd25519Key() first.`,
+        );
+      }
+      oldPublicKey = existing.publicKey;
+      oldRelayerKeyId = existing.relayerKeyId;
+
+      const rpId = this.touchIdPrompt.getRpId();
+      if (!rpId) throw new Error('Missing rpId for WebAuthn VRF challenge');
+
+      // Generate a fresh VRF challenge for a dual-PRF authentication prompt (PRF.first + PRF.second).
+      const block = await this.nearClient.viewBlock({ finality: 'final' } as any);
+      const blockHeight = String((block as any)?.header?.height ?? '');
+      const blockHash = String((block as any)?.header?.hash ?? '');
+      if (!blockHeight || !blockHash) throw new Error('Failed to fetch NEAR block context for VRF challenge');
+
+      const vrfChallenge = await this.vrfWorkerManager.generateVrfChallengeOnce({
+        userId: nearAccountId,
+        rpId,
+        blockHeight,
+        blockHash,
+      });
+
+      const authenticators = await this.getAuthenticatorsByUser(nearAccountId);
+      if (!authenticators.length) {
+        throw new Error(`No passkey authenticators found for account ${nearAccountId}`);
+      }
+
+      const authCredential = await this.getAuthenticationCredentialsSerializedDualPrf({
+        nearAccountId,
+        challenge: vrfChallenge,
+        credentialIds: authenticators.map((a) => a.credentialId),
+      });
+
+      const enrollment = await this.enrollThresholdEd25519Key({
+        credential: authCredential,
+        nearAccountId,
+        deviceNumber: resolvedDeviceNumber,
+        relayerUrl: args.relayerUrl,
+      });
+      if (!enrollment.success) {
+        throw new Error(enrollment.error || 'Threshold keygen/enrollment failed');
+      }
+
+      const newPublicKey = enrollment.publicKey;
+      const newRelayerKeyId = enrollment.relayerKeyId;
+
+      const normalize = (pk: string): string => normalizeEd25519PublicKey(pk) || '';
+      const oldNormalized = normalize(oldPublicKey);
+      const newNormalized = normalize(newPublicKey);
+
+      if (!oldNormalized) {
+        return {
+          success: true,
+          oldPublicKey,
+          oldRelayerKeyId,
+          publicKey: newPublicKey,
+          relayerKeyId: newRelayerKeyId,
+          wrapKeySalt: enrollment.wrapKeySalt,
+          deleteOldKeyAttempted: false,
+          deleteOldKeySuccess: false,
+          warning: 'Rotation completed but old threshold key material had an invalid publicKey; skipped DeleteKey.',
+        };
+      }
+
+      if (oldNormalized === newNormalized) {
+        return {
+          success: true,
+          oldPublicKey,
+          oldRelayerKeyId,
+          publicKey: newPublicKey,
+          relayerKeyId: newRelayerKeyId,
+          wrapKeySalt: enrollment.wrapKeySalt,
+          deleteOldKeyAttempted: false,
+          deleteOldKeySuccess: true,
+          warning: 'Rotation returned the same threshold public key; skipped DeleteKey(old).',
+        };
+      }
+
+      const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber);
+      if (!localKeyMaterial) {
+        return {
+          success: true,
+          oldPublicKey,
+          oldRelayerKeyId,
+          publicKey: newPublicKey,
+          relayerKeyId: newRelayerKeyId,
+          wrapKeySalt: enrollment.wrapKeySalt,
+          deleteOldKeyAttempted: false,
+          deleteOldKeySuccess: false,
+          warning: `Rotation completed but could not load local key material for DeleteKey(old) (account ${nearAccountId} device ${resolvedDeviceNumber}).`,
+        };
+      }
+
+      const localPk = normalize(localKeyMaterial.publicKey);
+      if (localPk && localPk === oldNormalized) {
+        return {
+          success: true,
+          oldPublicKey,
+          oldRelayerKeyId,
+          publicKey: newPublicKey,
+          relayerKeyId: newRelayerKeyId,
+          wrapKeySalt: enrollment.wrapKeySalt,
+          deleteOldKeyAttempted: false,
+          deleteOldKeySuccess: false,
+          warning: 'Refusing to DeleteKey(old) because it matches the local signer public key.',
+        };
+      }
+
+      const hasAccessKey = async (publicKey: string, opts?: { attempts?: number; delayMs?: number }): Promise<boolean> => {
+        const expected = normalize(publicKey);
+        if (!expected) return false;
+        const attempts = Math.max(1, Math.floor(opts?.attempts ?? 4));
+        const delayMs = Math.max(50, Math.floor(opts?.delayMs ?? 500));
+        for (let i = 0; i < attempts; i++) {
+          try {
+            const { fullAccessKeys, functionCallAccessKeys } = await this.nearClient.getAccessKeys({ account: nearAccountId });
+            const keys = [...fullAccessKeys, ...functionCallAccessKeys].map((k) => normalize(k.public_key));
+            if (keys.includes(expected)) return true;
+          } catch {
+            // tolerate transient view errors; retry
+          }
+          await new Promise((res) => setTimeout(res, delayMs));
+        }
+        return false;
+      };
+
+      const waitForAccessKeyAbsent = async (publicKey: string, opts?: { attempts?: number; delayMs?: number }): Promise<boolean> => {
+        const expected = normalize(publicKey);
+        if (!expected) return true;
+        const attempts = Math.max(1, Math.floor(opts?.attempts ?? 6));
+        const delayMs = Math.max(50, Math.floor(opts?.delayMs ?? 650));
+        for (let i = 0; i < attempts; i++) {
+          try {
+            const { fullAccessKeys, functionCallAccessKeys } = await this.nearClient.getAccessKeys({ account: nearAccountId });
+            const keys = [...fullAccessKeys, ...functionCallAccessKeys].map((k) => normalize(k.public_key));
+            if (!keys.includes(expected)) return true;
+          } catch {
+            // tolerate transient view errors; retry
+          }
+          await new Promise((res) => setTimeout(res, delayMs));
+        }
+        return false;
+      };
+
+      const oldOnChain = await hasAccessKey(oldPublicKey, { attempts: 1, delayMs: 0 });
+      if (!oldOnChain) {
+        return {
+          success: true,
+          oldPublicKey,
+          oldRelayerKeyId,
+          publicKey: newPublicKey,
+          relayerKeyId: newRelayerKeyId,
+          wrapKeySalt: enrollment.wrapKeySalt,
+          deleteOldKeyAttempted: false,
+          deleteOldKeySuccess: true,
+        };
+      }
+
+      const deleteKeyAction: ActionArgsWasm = {
+        action_type: ActionType.DeleteKey,
+        public_key: oldNormalized,
+      };
+
+      const txInputs: TransactionInputWasm[] = [
+        {
+          receiverId: nearAccountId,
+          actions: [deleteKeyAction],
+        },
+      ];
+
+      let deleteOldKeyAttempted = false;
+      try {
+        const rpcCall: RpcCallPayload = {
+          contractId: this.tatchiPasskeyConfigs.contractId,
+          nearRpcUrl: this.tatchiPasskeyConfigs.nearRpcUrl,
+          nearAccountId,
+        };
+
+	        const signed = await this.signTransactionsWithActions({
+	          transactions: txInputs,
+	          rpcCall,
+	          signerMode: { mode: 'local-signer' },
+	          confirmationConfigOverride: {
+	            uiMode: 'skip',
+	            behavior: 'autoProceed',
+	            autoProceedDelay: 0,
+	          },
+	          title: 'Rotate threshold key',
+	          body: 'Confirm deletion of the old threshold access key.',
+	        });
+
+        const signedTx = signed?.[0]?.signedTransaction;
+        if (!signedTx) throw new Error('Failed to sign DeleteKey(oldThresholdPublicKey) transaction');
+        deleteOldKeyAttempted = true;
+
+        await this.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.linkDeviceDeleteKey);
+
+        const deleted = await waitForAccessKeyAbsent(oldPublicKey);
+        if (!deleted) {
+          return {
+            success: true,
+            oldPublicKey,
+            oldRelayerKeyId,
+            publicKey: newPublicKey,
+            relayerKeyId: newRelayerKeyId,
+            wrapKeySalt: enrollment.wrapKeySalt,
+            deleteOldKeyAttempted,
+            deleteOldKeySuccess: false,
+            warning: 'DeleteKey(old) submitted but old access key is still present on-chain.',
+          };
+        }
+
+        return {
+          success: true,
+          oldPublicKey,
+          oldRelayerKeyId,
+          publicKey: newPublicKey,
+          relayerKeyId: newRelayerKeyId,
+          wrapKeySalt: enrollment.wrapKeySalt,
+          deleteOldKeyAttempted,
+          deleteOldKeySuccess: true,
+        };
+      } catch (error: unknown) {
+        const message = String((error as { message?: unknown })?.message ?? error);
+        return {
+          success: true,
+          oldPublicKey,
+          oldRelayerKeyId,
+          publicKey: newPublicKey,
+          relayerKeyId: newRelayerKeyId,
+          wrapKeySalt: enrollment.wrapKeySalt,
+          deleteOldKeyAttempted,
+          deleteOldKeySuccess: false,
+          warning: `Rotation completed but failed to DeleteKey(old): ${message}`,
+        };
+      }
+    } catch (error: unknown) {
+      const message = String((error as { message?: unknown })?.message ?? error);
+      return {
+        success: false,
+        oldPublicKey,
+        oldRelayerKeyId,
+        publicKey: '',
+        relayerKeyId: '',
+        wrapKeySalt: '',
+        deleteOldKeyAttempted: false,
+        deleteOldKeySuccess: false,
+        error: message,
+      };
+    }
+  }
+
+  /**
+   * Threshold key enrollment (2-of-2): deterministically derive the client verifying share
+   * from WrapKeySeed and register the corresponding relayer share via `/threshold-ed25519/keygen`.
+   *
+   * Stores a v3 vault entry of kind `threshold_ed25519_2p_v1` (breaking; no migration).
+   */
+  async enrollThresholdEd25519Key(args: {
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+    nearAccountId: AccountId | string;
+    deviceNumber?: number;
+    relayerUrl?: string;
+  }): Promise<{
+    success: boolean;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    error?: string;
+  }> {
+    const nearAccountId = toAccountId(args.nearAccountId);
+    const relayerUrl = args.relayerUrl ?? this.tatchiPasskeyConfigs.relayer.url;
+
+    try {
+      if (!relayerUrl) throw new Error('Missing relayer url (configs.relayer.url)');
+      if (!args.credential) throw new Error('Missing credential');
+
+      const deviceNumber = Number(args.deviceNumber);
+      const resolvedDeviceNumber = Number.isSafeInteger(deviceNumber) && deviceNumber >= 1
+        ? deviceNumber
+        : await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB).catch(() => 1);
+
+      const hasAccessKey = async (publicKey: string, opts?: { attempts?: number; delayMs?: number }): Promise<boolean> => {
+        const expected = normalizeEd25519PublicKey(publicKey);
+        if (!expected) return false;
+        const attempts = Math.max(1, Math.floor(opts?.attempts ?? 6));
+        const delayMs = Math.max(50, Math.floor(opts?.delayMs ?? 750));
+        for (let i = 0; i < attempts; i++) {
+          try {
+            const { fullAccessKeys, functionCallAccessKeys } = await this.nearClient.getAccessKeys({ account: nearAccountId });
+            const keys = [...fullAccessKeys, ...functionCallAccessKeys].map((k) => normalizeEd25519PublicKey(k.public_key));
+            if (keys.includes(expected)) return true;
+          } catch {
+            // tolerate transient view errors; retry
+          }
+          await new Promise((res) => setTimeout(res, delayMs));
+        }
+        return false;
+      };
+
+      const result = await this.withSigningSession({
+        prefix: 'threshold-keygen',
+        options: { credential: args.credential },
+        handler: async (sessionId) => {
+          const derived = await this.signerWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
+            sessionId,
+            nearAccountId,
+          });
+          if (!derived.success) {
+            throw new Error(derived.error || 'Failed to derive threshold client verifying share');
+          }
+
+          const rpId = this.touchIdPrompt.getRpId();
+          if (!rpId) throw new Error('Missing rpId for WebAuthn VRF challenge');
+
+          // Keygen intent digest must bind the client verifying share; compute it before generating the VRF challenge.
+          const keygenIntentDigestB64u = await computeThresholdEd25519KeygenIntentDigest({
+            nearAccountId,
+            rpId,
+            clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+          });
+
+          // Fetch a fresh block height/hash for VRF freshness validation.
+          const block = await this.nearClient.viewBlock({ finality: 'final' } as any);
+          const blockHeight = String((block as any)?.header?.height ?? '');
+          const blockHash = String((block as any)?.header?.hash ?? '');
+          if (!blockHeight || !blockHash) throw new Error('Failed to fetch NEAR block context for keygen VRF challenge');
+
+          const vrfChallenge = await this.vrfWorkerManager.generateVrfChallengeOnce({
+            userId: nearAccountId,
+            rpId,
+            blockHeight,
+            blockHash,
+            intentDigest: keygenIntentDigestB64u,
+          });
+
+          // Collect a WebAuthn authentication credential with the VRF output as challenge.
+          const authenticators = await IndexedDBManager.clientDB.getAuthenticatorsByUser(nearAccountId);
+          const { authenticatorsForPrompt, wrongPasskeyError } = await IndexedDBManager.clientDB.ensureCurrentPasskey(
+            toAccountId(nearAccountId),
+            authenticators,
+          );
+          if (wrongPasskeyError) {
+            throw new Error(wrongPasskeyError);
+          }
+          if (!authenticatorsForPrompt.length) {
+            throw new Error(`No passkey authenticators found for account ${nearAccountId}`);
+          }
+          if (authenticatorsForPrompt.length === 1) {
+            const expectedVrfPublicKey = authenticatorsForPrompt[0]?.vrfPublicKey;
+            if (expectedVrfPublicKey && vrfChallenge.vrfPublicKey && expectedVrfPublicKey !== vrfChallenge.vrfPublicKey) {
+              throw new Error('VRF session is bound to a different passkey than the current device. Please log in again and retry.');
+            }
+          }
+
+          const webauthnAuthentication = await this.touchIdPrompt.getAuthenticationCredentialsSerialized({
+            nearAccountId,
+            challenge: vrfChallenge,
+            allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
+          });
+
+          const keygen = await thresholdEd25519Keygen(relayerUrl, vrfChallenge, webauthnAuthentication, {
+            clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+            nearAccountId,
+          });
+          if (!keygen.ok) {
+            throw new Error(keygen.error || keygen.message || keygen.code || 'Threshold keygen failed');
+          }
+
+          const publicKeyRaw = keygen.publicKey;
+          const relayerKeyId = keygen.relayerKeyId;
+          const relayerVerifyingShareB64u = keygen.relayerVerifyingShareB64u;
+          if (!publicKeyRaw) throw new Error('Threshold keygen returned empty publicKey');
+          if (!relayerKeyId) throw new Error('Threshold keygen returned empty relayerKeyId');
+          if (!relayerVerifyingShareB64u) throw new Error('Threshold keygen returned empty relayerVerifyingShareB64u');
+
+          const publicKey = normalizeEd25519PublicKey(publicKeyRaw);
+          if (!publicKey) throw new Error('Threshold keygen returned empty publicKey');
+
+          const expectedGroupPk = computeThresholdEd25519GroupPublicKeyFromVerifyingShares({
+            clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+            relayerVerifyingShareB64u,
+          });
+          if (normalizeEd25519PublicKey(expectedGroupPk) !== normalizeEd25519PublicKey(publicKey)) {
+            throw new Error('Threshold keygen returned publicKey that does not match the client+relayer verifying shares');
+          }
+
+          // Activate threshold enrollment on-chain by submitting AddKey(publicKey) signed with the local key.
+          const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber);
+          if (!localKeyMaterial) {
+            throw new Error(`No local key material found for account ${nearAccountId} device ${resolvedDeviceNumber}`);
+          }
+
+	          // If the key is already present, skip AddKey and just persist local threshold metadata.
+	          const alreadyActive = await hasAccessKey(publicKey, { attempts: 1, delayMs: 0 });
+	          if (!alreadyActive) {
+	            try {
+	              this.nonceManager.initializeUser(nearAccountId, localKeyMaterial.publicKey);
+	            } catch {}
+	            const txContext = await this.nonceManager.getNonceBlockHashAndHeight(this.nearClient, { force: true });
+
+	            const signed = await this.signAddKeyThresholdPublicKeyNoPrompt({
+	              nearAccountId,
+	              credential: args.credential,
+	              wrapKeySalt: localKeyMaterial.wrapKeySalt,
+	              transactionContext: txContext,
+	              thresholdPublicKey: publicKey,
+	              relayerVerifyingShareB64u,
+	              deviceNumber: resolvedDeviceNumber,
+	            });
+
+	            const signedTx = signed?.signedTransaction;
+	            if (!signedTx) throw new Error('Failed to sign AddKey(thresholdPublicKey) transaction');
+
+	            await this.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.linkDeviceAddKey);
+
+            const activated = await hasAccessKey(publicKey);
+            if (!activated) throw new Error('Threshold access key not found on-chain after AddKey');
+          }
+
+          const keyMaterial: ThresholdEd25519_2p_V1Material = {
+            kind: 'threshold_ed25519_2p_v1',
+            nearAccountId,
+            deviceNumber: resolvedDeviceNumber,
+            publicKey,
+            wrapKeySalt: derived.wrapKeySalt,
+            relayerKeyId,
+            clientShareDerivation: 'prf_first_v1',
+            timestamp: Date.now(),
+          };
+          await IndexedDBManager.nearKeysDB.storeKeyMaterial(keyMaterial);
+
+          return {
+            success: true,
+            publicKey,
+            relayerKeyId,
+            wrapKeySalt: derived.wrapKeySalt,
+          };
+        },
+      });
+
+      return result;
+    } catch (error: unknown) {
+      const message = String((error as { message?: unknown })?.message ?? error);
+      return { success: false, publicKey: '', relayerKeyId: '', wrapKeySalt: '', error: message };
+    }
   }
 
   // ==============================

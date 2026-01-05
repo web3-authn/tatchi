@@ -51,6 +51,7 @@ import { uiBuiltinRegistry, type WalletUIRegistry } from './iframe-lit-element-r
 import { errorMessage } from '../../../utils/errors';
 import { isObject, isString } from '../validation';
 import { defineTag } from '../../WebAuthnManager/LitComponents/tags';
+import { type SignerMode, normalizeSignerMode } from '../../types/signer-worker';
 // Keep essential custom elements from being tree-shaken
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const __ensureTreeDefinition = [__IframeButtonKeep];
@@ -111,8 +112,10 @@ export function setupLitElemMounter(opts: {
           ? (txsCandidate?.transactions || txsCandidate?.txSigningRequests) as TransactionInput[]
           : [];
         const options = (args as { options?: SignAndSendTransactionHooksOptions })?.options || {};
+        const signerModeInput = (options as unknown as { signerMode?: SignerMode | SignerMode['mode'] | null })?.signerMode;
+        const signerMode = normalizeSignerMode(signerModeInput, pm?.configs?.signerMode);
         if (!nearAccountId || transactions.length === 0) throw new Error('nearAccountId and transactions required');
-        return await pm!.signAndSendTransactions({ nearAccountId, transactions, options });
+        return await pm!.signAndSendTransactions({ nearAccountId, transactions, options: { ...options, signerMode } });
       }
       default:
         throw new Error(`Unknown pm action: ${action}`);

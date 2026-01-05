@@ -24,8 +24,10 @@ import { AccountId } from "../../types/accountIds";
 import { TransactionContext } from '../../types/rpc';
 import {
   ConfirmationConfig,
+  type SignerMode,
   WasmSignedDelegate,
 } from '../../types/signer-worker';
+import type { ThresholdBehavior } from '../../types/signer-worker';
 import { TouchIdPrompt } from "../touchIdPrompt";
 import { isSignerWorkerControlMessage } from './sessionMessages';
 import { WorkerControlMessage } from '../../workerControlMessages';
@@ -42,6 +44,7 @@ import {
   signDelegateAction,
   registerDevice2WithDerivedKey,
   exportNearKeypairUi,
+  deriveThresholdEd25519ClientVerifyingShare,
 } from './handlers';
 import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
@@ -366,7 +369,7 @@ export class SignerWorkerManager {
     }
   }
 
-  private async sendMessage<T extends WorkerRequestType>({
+  private async sendMessage<T extends keyof WorkerRequestTypeMap>({
     sessionId,
     message,
     onEvent,
@@ -536,6 +539,23 @@ export class SignerWorkerManager {
     return deriveNearKeypairAndEncryptFromSerialized({ ctx: this.getContext(), ...args });
   }
 
+  async deriveThresholdEd25519ClientVerifyingShare(args: {
+    sessionId: string;
+    nearAccountId: AccountId;
+  }): Promise<{
+    success: boolean;
+    nearAccountId: string;
+    clientVerifyingShareB64u: string;
+    wrapKeySalt: string;
+    error?: string;
+  }> {
+    return deriveThresholdEd25519ClientVerifyingShare({
+      ctx: this.getContext(),
+      sessionId: args.sessionId,
+      nearAccountId: String(args.nearAccountId),
+    });
+  }
+
   /**
    * Secure private key decryption with dual PRF
    */
@@ -609,6 +629,8 @@ export class SignerWorkerManager {
   async signTransactionsWithActions(args: {
     transactions: TransactionInputWasm[],
     rpcCall: RpcCallPayload,
+    signerMode: SignerMode,
+    relayerUrl?: string,
     onEvent?: (update: onProgressEvents) => void,
     confirmationConfigOverride?: Partial<ConfirmationConfig>,
     title?: string;
@@ -628,6 +650,8 @@ export class SignerWorkerManager {
   async signDelegateAction(args: {
     delegate: DelegateActionInput;
     rpcCall: RpcCallPayload;
+    signerMode: SignerMode;
+    relayerUrl?: string;
     onEvent?: (update: onProgressEvents) => void;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
     title?: string;
@@ -699,6 +723,8 @@ export class SignerWorkerManager {
     nonce: string;
     state: string | null;
     accountId: string;
+    signerMode: SignerMode;
+    relayerUrl?: string;
     title?: string;
     body?: string;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;

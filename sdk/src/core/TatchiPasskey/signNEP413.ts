@@ -2,6 +2,7 @@ import type { PasskeyManagerContext } from './index';
 import type { SignNEP413HooksOptions } from '../types/sdkSentEvents';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
 import type { AccountId } from '../types/accountIds';
+import { normalizeSignerMode } from '../types/signer-worker';
 
 /**
  * NEP-413 message signing parameters
@@ -54,13 +55,14 @@ export async function signNEP413Message(args: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   params: SignNEP413MessageParams,
-  options?: SignNEP413HooksOptions
+  options: SignNEP413HooksOptions
 }): Promise<SignNEP413MessageResult> {
 
   const { context, nearAccountId, params, options } = args;
   const confirmerText = options?.confirmerText;
   const confirmationConfigOverride = options?.confirmationConfig;
   const { nearClient, webAuthnManager } = context;
+  const signerMode = normalizeSignerMode(options.signerMode, context.configs.signerMode);
 
   try {
     // Emit preparation event
@@ -108,6 +110,7 @@ export async function signNEP413Message(args: {
       nonce: nextNonce,
       state: params.state || null,
       accountId: nearAccountId,
+      signerMode,
       title: confirmerText?.title,
       body: confirmerText?.body,
       confirmationConfigOverride,

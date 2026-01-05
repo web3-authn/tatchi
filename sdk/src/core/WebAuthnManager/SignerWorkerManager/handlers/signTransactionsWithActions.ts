@@ -7,6 +7,7 @@ import {
   WorkerRequestType,
   TransactionPayload,
   isSignTransactionsWithActionsSuccess,
+  type SignerMode,
 } from '../../../types/signer-worker';
 import { AccountId } from "../../../types/accountIds";
 import { SignerWorkerManagerContext } from '..';
@@ -16,6 +17,8 @@ import { toAccountId } from '../../../types/accountIds';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { isObject } from '../../../WalletIframe/validation';
 import { generateSessionId } from '../sessionHandshake.js';
+import { WebAuthnAuthenticationCredential } from '../../../types';
+import { resolveSignerModeForThresholdSigning } from '../../../threshold/thresholdEd25519RelayerHealth';
 
 /**
  * Sign multiple transactions with shared VRF challenge and credential
@@ -25,6 +28,8 @@ export async function signTransactionsWithActions({
   ctx,
   transactions,
   rpcCall,
+  signerMode,
+  relayerUrl: providedRelayerUrl,
   onEvent,
   confirmationConfigOverride,
   title,
@@ -34,6 +39,8 @@ export async function signTransactionsWithActions({
   ctx: SignerWorkerManagerContext,
   transactions: TransactionInputWasm[],
   rpcCall: RpcCallPayload;
+  signerMode: SignerMode;
+  relayerUrl?: string;
   onEvent?: (update: onProgressEvents) => void;
   // Allow callers to pass a partial override (e.g., { uiMode: 'drawer' })
   confirmationConfigOverride?: Partial<ConfirmationConfig>;
@@ -46,37 +53,52 @@ export async function signTransactionsWithActions({
   logs?: string[]
 }>> {
   try {
-    if (transactions.length === 0) {
-      throw new Error('No transactions provided for batch signing');
-    }
-
     const sessionId = providedSessionId ?? generateSessionId();
     const nearAccountId = rpcCall.nearAccountId;
 
-    // Validate all actions in all payloads
-    transactions.forEach((txPayload, txIndex) => {
-      txPayload.actions.forEach((action, actionIndex) => {
-        try {
-          validateActionArgsWasm(action);
-        } catch (error) {
-          throw new Error(`Transaction ${txIndex}, Action ${actionIndex} validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+    transactions.forEach(txPayload => {
+      txPayload.actions.forEach(action => {
+        validateActionArgsWasm(action);
       });
     });
 
     // Retrieve encrypted key data from IndexedDB in main thread
     console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
     const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
-    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
+    const [localKeyMaterial, thresholdKeyMaterial] = await Promise.all([
+      ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber),
+      ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(nearAccountId, deviceNumber),
+    ]);
+	    if (!localKeyMaterial) {
+	      throw new Error(`No local key material found for account: ${nearAccountId}`);
+	    }
 
-    if (!encryptedKeyData) {
-      throw new Error(`No encrypted key found for account: ${nearAccountId}`);
+	    const warnings: string[] = [];
+    const relayerUrl = String(providedRelayerUrl || '').trim();
+    const resolvedSignerMode = await resolveSignerModeForThresholdSigning({
+      nearAccountId,
+      signerMode,
+      relayerUrl,
+      hasThresholdKeyMaterial: !!thresholdKeyMaterial,
+      warnings,
+    });
+
+    // Ensure nonce/block context is fetched for the same access key that will sign.
+    // Threshold signing MUST use the threshold/group public key (relayer access key) for:
+    // - correct nonce reservation
+    // - relayer scope checks (/authorize expects signingPayload.transactionContext.nearPublicKeyStr == relayer key)
+    const signingNearPublicKeyStr = resolvedSignerMode === 'threshold-signer'
+      ? thresholdKeyMaterial?.publicKey
+      : localKeyMaterial.publicKey;
+    if (!signingNearPublicKeyStr) {
+      throw new Error(`Missing signing public key for signerMode=${resolvedSignerMode}`);
     }
+    ctx.nonceManager.initializeUser(toAccountId(nearAccountId), signingNearPublicKeyStr);
 
     // Normalize rpcCall to ensure required fields are present
     const resolvedRpcCall = {
       contractId: rpcCall.contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
-      nearRpcUrl: rpcCall.nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl),
+      nearRpcUrl: rpcCall.nearRpcUrl || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl,
       nearAccountId: rpcCall.nearAccountId,
     } as RpcCallPayload;
 
@@ -99,7 +121,92 @@ export async function signTransactionsWithActions({
 
     const intentDigest = confirmation.intentDigest;
     const transactionContext = confirmation.transactionContext;
-    const credential = confirmation.credential ? JSON.stringify(confirmation.credential) : undefined;
+    // Never forward PRF outputs to the relayer; strip extension results.
+    const credential = confirmation.credential
+      ? JSON.stringify({
+        ...(confirmation.credential),
+        authenticatorAttachment: confirmation.credential.authenticatorAttachment ?? null,
+        response: {
+          ...(confirmation.credential.response || {}),
+          userHandle: (confirmation.credential as WebAuthnAuthenticationCredential)?.response?.userHandle ?? null,
+        },
+        clientExtensionResults: null,
+      })
+      : undefined;
+    const vrfChallenge = confirmation.vrfChallenge;
+
+    // Threshold signer: authorize with relayer and pass threshold config into the signer worker.
+    if (resolvedSignerMode === 'threshold-signer') {
+      if (!thresholdKeyMaterial) throw new Error(`Missing threshold key material for ${nearAccountId}`);
+      if (!relayerUrl) {
+        throw new Error('Missing configs.relayer.url (required for threshold-signer)');
+      }
+      if (!confirmation.credential || !vrfChallenge) {
+        throw new Error('Missing WebAuthn credential or VRF challenge for threshold-signer authorization');
+      }
+
+      // Create transaction signing requests
+      const txSigningRequests: TransactionPayload[] = transactions.map(tx => ({
+        nearAccountId: rpcCall.nearAccountId,
+        receiverId: tx.receiverId,
+        actions: tx.actions
+      }));
+
+      const response = await ctx.sendMessage({
+        sessionId,
+        message: {
+          type: WorkerRequestType.SignTransactionsWithActions,
+          payload: {
+            signerMode: resolvedSignerMode,
+            rpcCall: resolvedRpcCall,
+            createdAt: Date.now(),
+            decryption: {
+              encryptedPrivateKeyData: '',
+              encryptedPrivateKeyChacha20NonceB64u: '',
+            },
+            threshold: {
+              relayerUrl,
+              relayerKeyId: thresholdKeyMaterial.relayerKeyId,
+            },
+            txSigningRequests: txSigningRequests,
+            intentDigest,
+            transactionContext,
+            vrfChallenge,
+            credential,
+          }
+        },
+        onEvent,
+      });
+
+      if (!isSignTransactionsWithActionsSuccess(response)) {
+        console.error('WebAuthnManager: Batch transaction signing failed:', response);
+        const payloadError = isObject(response?.payload) && (response as any)?.payload?.error;
+        throw new Error(payloadError || 'Batch transaction signing failed');
+      }
+      if (!response.payload.success) {
+        throw new Error(response.payload.error || 'Batch transaction signing failed');
+      }
+
+      const signedTransactions = response.payload.signedTransactions || [];
+      if (signedTransactions.length !== transactions.length) {
+        throw new Error(`Expected ${transactions.length} signed transactions but received ${signedTransactions.length}`);
+      }
+
+      return signedTransactions.map((signedTx, index) => {
+        if (!signedTx || !signedTx.transaction || !signedTx.signature) {
+          throw new Error(`Incomplete signed transaction data received for transaction ${index + 1}`);
+        }
+        return {
+          signedTransaction: new SignedTransaction({
+            transaction: signedTx.transaction,
+            signature: signedTx.signature,
+            borsh_bytes: Array.from(signedTx.borshBytes || [])
+          }),
+          nearAccountId: toAccountId(nearAccountId),
+          logs: [...(response.payload.logs || []), ...warnings]
+        };
+      });
+    }
 
     // Create transaction signing requests
     // NOTE: nonce and blockHash are computed in confirmation flow, not here
@@ -115,11 +222,12 @@ export async function signTransactionsWithActions({
       message: {
         type: WorkerRequestType.SignTransactionsWithActions,
         payload: {
+          signerMode: resolvedSignerMode,
           rpcCall: resolvedRpcCall,
           createdAt: Date.now(),
           decryption: {
-            encryptedPrivateKeyData: encryptedKeyData.encryptedData,
-            encryptedPrivateKeyChacha20NonceB64u: encryptedKeyData.chacha20NonceB64u,
+            encryptedPrivateKeyData: localKeyMaterial.encryptedSk,
+            encryptedPrivateKeyChacha20NonceB64u: localKeyMaterial.chacha20NonceB64u,
           },
           txSigningRequests: txSigningRequests,
           intentDigest,
@@ -156,7 +264,7 @@ export async function signTransactionsWithActions({
           borsh_bytes: Array.from(signedTx.borshBytes || [])
         }),
         nearAccountId: toAccountId(nearAccountId),
-        logs: response.payload.logs
+        logs: [...(response.payload.logs || []), ...warnings]
       };
     });
 

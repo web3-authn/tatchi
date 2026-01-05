@@ -26,9 +26,9 @@ export async function decryptPrivateKeyWithPrf({
     console.info('WebAuthnManager: Starting private key decryption with dual PRF (local operation)');
     // Retrieve encrypted key data from IndexedDB in main thread
     const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
-    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
-    if (!encryptedKeyData) {
-      throw new Error(`No encrypted key found for account: ${nearAccountId}`);
+    const keyMaterial = await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber);
+    if (!keyMaterial) {
+      throw new Error(`No key material found for account: ${nearAccountId}`);
     }
 
     const response = await ctx.sendMessage({
@@ -37,8 +37,8 @@ export async function decryptPrivateKeyWithPrf({
         type: WorkerRequestType.DecryptPrivateKeyWithPrf,
         payload: withSessionId(sessionId, {
           nearAccountId: nearAccountId,
-          encryptedPrivateKeyData: encryptedKeyData.encryptedData,
-          encryptedPrivateKeyChacha20NonceB64u: encryptedKeyData.chacha20NonceB64u,
+          encryptedPrivateKeyData: keyMaterial.encryptedSk,
+          encryptedPrivateKeyChacha20NonceB64u: keyMaterial.chacha20NonceB64u,
         })
       },
     });

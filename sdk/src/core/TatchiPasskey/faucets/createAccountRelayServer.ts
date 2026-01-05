@@ -1,14 +1,22 @@
 import { VRFChallenge } from '../../types/vrf-worker';
 import { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '../../types/sdkSentEvents';
 import { PasskeyManagerContext } from '..';
-import { base64UrlDecode, base64UrlEncode } from '../../../utils/encoders';
-import type { SignedTransaction } from '../../NearClient';
+import { base64UrlDecode } from '../../../utils/encoders';
 import { removePrfOutputGuard, serializeRegistrationCredential, normalizeRegistrationCredential } from '../../WebAuthnManager/credentialsHelpers';
 import type { WebAuthnRegistrationCredential } from '../../types/webauthn';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import type { CreateAccountAndRegisterResult } from '../../../server/core/types';
 import { isObject } from '../../WalletIframe/validation';
 import { errorMessage } from '../../../utils/errors';
+
+function isSerializedRegistrationCredential(
+  credential: WebAuthnRegistrationCredential | PublicKeyCredential,
+): credential is WebAuthnRegistrationCredential {
+  if (!isObject(credential)) return false;
+  const resp = (credential as { response?: unknown }).response;
+  if (!isObject(resp)) return false;
+  return typeof (resp as { attestationObject?: unknown }).attestationObject === 'string';
+}
 
 /**
  * HTTP Request body for the relay server's /create_account_and_register_user endpoint
@@ -17,6 +25,9 @@ export interface CreateAccountAndRegisterUserRequest {
   new_account_id: string;
   new_public_key: string;
   device_number: number;
+  threshold_ed25519?: {
+    client_verifying_share_b64u: string;
+  };
   vrf_data: {
     vrf_input_data: number[];
     vrf_output: number[];
@@ -26,6 +37,7 @@ export interface CreateAccountAndRegisterUserRequest {
     rp_id: string;
     block_height: number;
     block_hash: number[];
+    intent_digest_32: number[];
   };
   webauthn_registration: WebAuthnRegistrationCredential;
   deterministic_vrf_public_key: number[];
@@ -46,9 +58,15 @@ export async function createAccountAndRegisterWithRelayServer(
   deterministicVrfPublicKey: string,
   authenticatorOptions?: AuthenticatorOptions,
   onEvent?: (event: RegistrationSSEEvent) => void,
+  opts?: {
+    thresholdEd25519?: {
+      clientVerifyingShareB64u: string;
+    };
+  },
 ): Promise<{
   success: boolean;
   transactionId?: string;
+  thresholdEd25519?: { publicKey: string; relayerKeyId: string; relayerVerifyingShareB64u?: string };
   error?: string;
 }> {
   const { configs } = context;
@@ -67,13 +85,12 @@ export async function createAccountAndRegisterWithRelayServer(
 
     // Serialize the WebAuthn credential properly for the contract.
     // Accept both live PublicKeyCredential and already-serialized credentials from secureConfirm.
-    const isSerialized = isObject(credential)
-      && typeof (credential as any)?.response?.attestationObject === 'string';
+    const isSerialized = isSerializedRegistrationCredential(credential);
 
     // Ensure proper serialization + normalization regardless of source
     const serialized: WebAuthnRegistrationCredential = isSerialized
-      ? normalizeRegistrationCredential(credential as WebAuthnRegistrationCredential)
-      : serializeRegistrationCredential(credential as PublicKeyCredential);
+      ? normalizeRegistrationCredential(credential)
+      : serializeRegistrationCredential(credential);
 
     // Strip PRF outputs before sending to relay/contract
     const serializedCredential = removePrfOutputGuard<WebAuthnRegistrationCredential>(serialized);
@@ -83,10 +100,21 @@ export async function createAccountAndRegisterWithRelayServer(
     }
 
     // Prepare data for atomic endpoint
+    const intent_digest_32 = Array.from(base64UrlDecode(vrfChallenge.intentDigest || ''));
+    if (intent_digest_32.length !== 32) {
+      throw new Error('Missing or invalid vrfChallenge.intentDigest (expected base64url-encoded 32 bytes)');
+    }
     const requestData: CreateAccountAndRegisterUserRequest = {
       new_account_id: nearAccountId,
       new_public_key: publicKey,
       device_number: 1, // First device gets device number 1 (1-indexed)
+      ...(opts?.thresholdEd25519?.clientVerifyingShareB64u
+        ? {
+          threshold_ed25519: {
+            client_verifying_share_b64u: opts.thresholdEd25519.clientVerifyingShareB64u,
+          },
+        }
+        : {}),
       vrf_data: {
         vrf_input_data: Array.from(base64UrlDecode(vrfChallenge.vrfInput)),
         vrf_output: Array.from(base64UrlDecode(vrfChallenge.vrfOutput)),
@@ -96,6 +124,7 @@ export async function createAccountAndRegisterWithRelayServer(
         rp_id: vrfChallenge.rpId,
         block_height: Number(vrfChallenge.blockHeight),
         block_hash: Array.from(base64UrlDecode(vrfChallenge.blockHash)),
+        intent_digest_32,
       },
       webauthn_registration: serializedCredential,
       deterministic_vrf_public_key: Array.from(base64UrlDecode(deterministicVrfPublicKey)),
@@ -139,6 +168,13 @@ export async function createAccountAndRegisterWithRelayServer(
     return {
       success: true,
       transactionId: result.transactionHash,
+      thresholdEd25519: result.thresholdEd25519
+        ? {
+          publicKey: result.thresholdEd25519.publicKey,
+          relayerKeyId: result.thresholdEd25519.relayerKeyId,
+          relayerVerifyingShareB64u: result.thresholdEd25519.relayerVerifyingShareB64u
+        }
+        : undefined,
     };
 
   } catch (error: unknown) {

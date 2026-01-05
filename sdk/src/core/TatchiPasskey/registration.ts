@@ -1,4 +1,4 @@
-import type { NearClient, SignedTransaction } from '../NearClient';
+import type { NearClient } from '../NearClient';
 import { validateNearAccountId } from '../../utils/validation';
 import type {
   RegistrationHooksOptions,
@@ -12,12 +12,15 @@ import {
 } from './faucets/createAccountRelayServer';
 import { PasskeyManagerContext } from './index';
 import { WebAuthnManager } from '../WebAuthnManager';
+import { IndexedDBManager } from '../IndexedDBManager';
 import { VRFChallenge } from '../types/vrf-worker';
-import type { ConfirmationConfig } from '../types/signer-worker';
+import { type ConfirmationConfig, type SignerMode, normalizeSignerMode } from '../types/signer-worker';
 import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
+import { DEFAULT_WAIT_STATUS } from '../types/rpc';
+import { normalizeEd25519PublicKey } from '../threshold/ed25519GroupPublicKey';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
@@ -70,7 +73,7 @@ export async function registerPasskeyInternal(
       step: 1,
       phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
       status: RegistrationStatus.PROGRESS,
-      message: 'Account available - generating VRF credentials...'
+      message: 'Account available, generating credentials...'
     });
 
     const confirmationConfig: Partial<ConfirmationConfig> = {
@@ -124,7 +127,10 @@ export async function registerPasskeyInternal(
       throw new Error('Failed to derive deterministic VRF keypair from PRF');
     }
 
-    // 2) Derive NEAR key after VRF keypair exists
+    const requestedSignerMode = normalizeSignerMode(options?.signerMode, configs.signerMode);
+    const requestedSignerModeStr = requestedSignerMode.mode;
+
+    // 2) Derive/enroll the local NEAR key after VRF keypair exists.
     const nearKeyResult = await webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
       credential,
       nearAccountId,
@@ -133,6 +139,27 @@ export async function registerPasskeyInternal(
     if (!nearKeyResult.success || !nearKeyResult.publicKey) {
       const reason = nearKeyResult?.error || 'Failed to generate NEAR keypair with PRF';
       throw new Error(reason);
+    }
+    const nearPublicKey = nearKeyResult.publicKey;
+    const wrapKeySalt = String(nearKeyResult.wrapKeySalt || '').trim();
+    if (!wrapKeySalt) {
+      throw new Error('Missing wrapKeySalt after local key derivation');
+    }
+
+    // Optional: threshold-signer enrollment during registration.
+    // Derive client verifying share (public) and let the relay compute threshold group public key
+    // and include it in the on-chain AddKey set during create_account_and_register_user.
+    let thresholdClientVerifyingShareB64u: string | null = null;
+    if (requestedSignerModeStr === 'threshold-signer') {
+      const derived = await webAuthnManager.deriveThresholdEd25519ClientVerifyingShareFromCredential({
+        credential,
+        nearAccountId,
+        wrapKeySalt,
+      });
+      if (!derived.success || !derived.clientVerifyingShareB64u) {
+        throw new Error(derived.error || 'Failed to derive threshold client verifying share');
+      }
+      thresholdClientVerifyingShareB64u = derived.clientVerifyingShareB64u;
     }
 
     // 3) Await contract registration check (main blocker)
@@ -148,10 +175,10 @@ export async function registerPasskeyInternal(
       step: 2,
       phase: RegistrationPhase.STEP_2_KEY_GENERATION,
       status: RegistrationStatus.SUCCESS,
-      message: 'Wallet keys derived successfully from TouchId',
+      message: 'Wallet derived successfully from Passkey',
       verified: true,
       nearAccountId: nearAccountId,
-      nearPublicKey: nearKeyResult.publicKey,
+      nearPublicKey: nearPublicKey,
       vrfPublicKey: vrfChallenge.vrfPublicKey,
     });
 
@@ -159,12 +186,17 @@ export async function registerPasskeyInternal(
     accountAndRegistrationResult = await createAccountAndRegisterWithRelayServer(
       context,
       nearAccountId,
-      nearKeyResult.publicKey,
+      nearPublicKey,
       credential,
       vrfChallenge,
       deterministicVrfKeyResult.vrfPublicKey,
       authenticatorOptions,
       onEvent,
+      {
+        thresholdEd25519: thresholdClientVerifyingShareB64u
+          ? { clientVerifyingShareB64u: thresholdClientVerifyingShareB64u }
+          : undefined,
+      },
     );
 
     if (!accountAndRegistrationResult.success) {
@@ -184,10 +216,14 @@ export async function registerPasskeyInternal(
       message: 'Verifying on-chain access key matches expected public key...'
     });
 
-    const accessKeyVerified = await verifyAccountAccessKeyMatches(
+    const expectedAccessKeys: string[] = [nearPublicKey];
+    const thresholdPublicKey = String(accountAndRegistrationResult?.thresholdEd25519?.publicKey || '').trim();
+    const relayerKeyId = String(accountAndRegistrationResult?.thresholdEd25519?.relayerKeyId || '').trim();
+
+    const accessKeyVerified = await verifyAccountAccessKeysPresent(
       context.nearClient,
       nearAccountId,
-      nearKeyResult.publicKey
+      expectedAccessKeys,
     );
 
     if (!accessKeyVerified) {
@@ -201,18 +237,35 @@ export async function registerPasskeyInternal(
       message: 'Access key verified on-chain'
     });
 
+    await activateThresholdEnrollmentPostRegistration({
+      requestedSignerMode: requestedSignerModeStr,
+      nearAccountId,
+      nearPublicKey,
+      thresholdPublicKey,
+      relayerKeyId,
+      thresholdClientVerifyingShareB64u,
+      relayerVerifyingShareB64u: String(
+        accountAndRegistrationResult?.thresholdEd25519?.relayerVerifyingShareB64u || '',
+      ).trim(),
+      credential,
+      wrapKeySalt,
+      webAuthnManager: context.webAuthnManager,
+      nearClient: context.nearClient,
+      onEvent,
+    });
+
     // Step 7: Store user data with VRF credentials atomically
     onEvent?.({
       step: 7,
       phase: RegistrationPhase.STEP_7_DATABASE_STORAGE,
       status: RegistrationStatus.PROGRESS,
-      message: 'Storing VRF registration data'
+      message: 'Storing passkey wallet metadata...'
     });
 
     await webAuthnManager.atomicStoreRegistrationData({
       nearAccountId,
       credential,
-      publicKey: nearKeyResult.publicKey,
+      publicKey: nearPublicKey,
       encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
       vrfPublicKey: deterministicVrfKeyResult.vrfPublicKey,
       serverEncryptedVrfKeypair: deterministicVrfKeyResult.serverEncryptedVrfKeypair,
@@ -225,12 +278,12 @@ export async function registerPasskeyInternal(
       step: 7,
       phase: RegistrationPhase.STEP_7_DATABASE_STORAGE,
       status: RegistrationStatus.SUCCESS,
-      message: 'VRF registration data stored successfully'
+      message: 'Registration metadata stored successfully'
     });
 
     // Initialize NonceManager with newly stored user before fetching block/nonce
     try {
-      context.webAuthnManager.getNonceManager().initializeUser(nearAccountId, nearKeyResult.publicKey);
+      context.webAuthnManager.getNonceManager().initializeUser(nearAccountId, nearPublicKey);
       await context.webAuthnManager.getNonceManager().prefetchBlockheight(context.nearClient);
     } catch {}
 
@@ -260,8 +313,11 @@ export async function registerPasskeyInternal(
         nearAccountId: nearAccountId,
         encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
         credential: authCredential,
-      }).catch((unlockError: any) => {
-        return { success: false, error: unlockError.message };
+      }).catch((unlockError: unknown) => {
+        const message = (unlockError && typeof unlockError === 'object' && 'message' in unlockError)
+          ? String((unlockError as { message?: unknown }).message || '')
+          : String(unlockError || '');
+        return { success: false, error: message };
       });
 
       if (!unlockResult.success) {
@@ -289,7 +345,7 @@ export async function registerPasskeyInternal(
     const successResult = {
       success: true,
       nearAccountId: nearAccountId,
-      clientNearPublicKey: nearKeyResult.publicKey,
+      clientNearPublicKey: nearPublicKey,
       transactionId: registrationState.contractTransactionId,
       vrfRegistration: {
         success: true,
@@ -302,15 +358,20 @@ export async function registerPasskeyInternal(
     afterCall?.(true, successResult);
     return successResult;
 
-  } catch (error: any) {
-    console.error('Registration failed:', error.message, error.stack);
+  } catch (error: unknown) {
+    const message = (error && typeof error === 'object' && 'message' in error)
+      ? String((error as { message?: unknown }).message || '')
+      : String(error || '');
+    const stack = (error && typeof error === 'object' && 'stack' in error)
+      ? String((error as { stack?: unknown }).stack || '')
+      : '';
+    console.error('Registration failed:', message, stack);
 
     // Perform rollback based on registration state
     await performRegistrationRollback(
       registrationState,
       nearAccountId,
       webAuthnManager,
-      configs.nearRpcUrl,
       onEvent
     );
 
@@ -456,7 +517,6 @@ async function performRegistrationRollback(
   },
   nearAccountId: AccountId,
   webAuthnManager: WebAuthnManager,
-  rpcNodeUrl: string,
   onEvent?: (event: RegistrationSSEEvent) => void
 ): Promise<void> {
   console.debug('Starting registration rollback...', registrationState);
@@ -495,41 +555,138 @@ async function performRegistrationRollback(
     }
     console.debug('Registration rollback completed');
 
-  } catch (rollbackError: any) {
+  } catch (rollbackError: unknown) {
     console.error('Rollback failed:', rollbackError);
     onEvent?.({
       step: 0,
       phase: RegistrationPhase.REGISTRATION_ERROR,
       status: RegistrationStatus.ERROR,
-      message: `Rollback failed: ${rollbackError.message}`,
+      message: `Rollback failed: ${
+        (rollbackError && typeof rollbackError === 'object' && 'message' in rollbackError)
+          ? String((rollbackError as { message?: unknown }).message || '')
+          : String(rollbackError || '')
+      }`,
       error: 'Both registration and rollback failed'
     } as RegistrationSSEEvent);
   }
 }
 
-/**
- * Poll the NEAR RPC to verify the newly created account exposes the expected public key
- * Retries a few times to tolerate RPC indexing delays after transaction finalization.
- */
-async function verifyAccountAccessKeyMatches(
+async function activateThresholdEnrollmentPostRegistration(opts: {
+  requestedSignerMode: SignerMode['mode'];
+  nearAccountId: AccountId;
+  nearPublicKey: string;
+  thresholdPublicKey: string;
+  relayerKeyId: string;
+  thresholdClientVerifyingShareB64u: string | null;
+  relayerVerifyingShareB64u: string;
+  credential: WebAuthnRegistrationCredential;
+  wrapKeySalt: string;
+  webAuthnManager: WebAuthnManager;
+  nearClient: NearClient;
+  onEvent?: (event: RegistrationSSEEvent) => void;
+}): Promise<void> {
+  // Optional: activate threshold enrollment post-registration by having the client
+  // submit AddKey(thresholdPublicKey) signed with the local key.
+  if (opts.requestedSignerMode !== 'threshold-signer') return;
+
+  const thresholdPublicKey = String(opts.thresholdPublicKey || '').trim();
+  const relayerKeyId = String(opts.relayerKeyId || '').trim();
+  const clientVerifyingShareB64u = String(opts.thresholdClientVerifyingShareB64u || '').trim();
+  const relayerVerifyingShareB64u = String(opts.relayerVerifyingShareB64u || '').trim();
+
+  if (!thresholdPublicKey || !relayerKeyId || !clientVerifyingShareB64u || !relayerVerifyingShareB64u) {
+    console.warn('[Registration] threshold-signer requested but threshold enrollment details are missing; continuing with local-signer only');
+    return;
+  }
+
+  try {
+    opts.onEvent?.({
+      step: 6,
+      phase: RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION,
+      status: RegistrationStatus.PROGRESS,
+      message: 'Activating threshold access key (AddKey) on-chain...'
+    });
+
+    // Prepare a single AddKey transaction signed with the local key (no extra TouchID prompt).
+    try {
+      opts.webAuthnManager.getNonceManager().initializeUser(opts.nearAccountId, opts.nearPublicKey);
+    } catch {}
+    const txContext = await opts.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(
+      opts.nearClient,
+      { force: true },
+    );
+
+    const signed = await opts.webAuthnManager.signAddKeyThresholdPublicKeyNoPrompt({
+      nearAccountId: opts.nearAccountId,
+      credential: opts.credential,
+      wrapKeySalt: opts.wrapKeySalt,
+      transactionContext: txContext,
+      thresholdPublicKey,
+      relayerVerifyingShareB64u,
+    });
+
+    const signedTx = signed?.signedTransaction;
+    if (!signedTx) throw new Error('Failed to sign AddKey(thresholdPublicKey) transaction');
+
+    await opts.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.linkDeviceAddKey);
+
+    const thresholdKeyVerified = await verifyAccountAccessKeysPresent(
+      opts.nearClient,
+      opts.nearAccountId,
+      [opts.nearPublicKey, thresholdPublicKey],
+    );
+    if (!thresholdKeyVerified) {
+      throw new Error('Threshold access key not found on-chain after AddKey');
+    }
+
+    await IndexedDBManager.nearKeysDB.storeKeyMaterial({
+      kind: 'threshold_ed25519_2p_v1',
+      nearAccountId: opts.nearAccountId,
+      deviceNumber: 1,
+      publicKey: thresholdPublicKey,
+      wrapKeySalt: opts.wrapKeySalt,
+      relayerKeyId,
+      clientShareDerivation: 'prf_first_v1',
+      timestamp: Date.now(),
+    });
+
+    opts.onEvent?.({
+      step: 6,
+      phase: RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION,
+      status: RegistrationStatus.SUCCESS,
+      message: 'Threshold access key activated on-chain'
+    });
+  } catch (e) {
+    console.warn('[Registration] threshold enrollment activation failed; continuing with local-signer only:', e);
+  }
+}
+
+async function verifyAccountAccessKeysPresent(
   nearClient: NearClient,
   nearAccountId: string,
-  expectedPublicKey: string,
-  opts?: { attempts?: number; delayMs?: number }
+  expectedPublicKeys: string[],
+  opts?: { attempts?: number; delayMs?: number },
 ): Promise<boolean> {
-  const attempts = Math.max(1, Math.floor(opts?.attempts ?? 5));
+  const unique = Array.from(
+    new Set(expectedPublicKeys.map((k) => normalizeEd25519PublicKey(String(k || '').trim())).filter(Boolean)),
+  );
+  if (!unique.length) return false;
+
+  const attempts = Math.max(1, Math.floor(opts?.attempts ?? 6));
   const delayMs = Math.max(50, Math.floor(opts?.delayMs ?? 750));
 
   for (let i = 0; i < attempts; i++) {
     try {
       const { fullAccessKeys, functionCallAccessKeys } = await nearClient.getAccessKeys({ account: nearAccountId });
-      const keys = [...fullAccessKeys, ...functionCallAccessKeys];
-      const found = keys.some(k => String((k as any)?.public_key || '') === expectedPublicKey);
-      if (found) return true;
-    } catch (e) {
-      // Tolerate transient view errors during propagation; retry
+      const keys = [...fullAccessKeys, ...functionCallAccessKeys].map((k) => normalizeEd25519PublicKey(k.public_key));
+      const allPresent = unique.every((expected) => keys.includes(expected));
+      if (allPresent) return true;
+    } catch {
+      // tolerate transient view errors during propagation; retry
     }
-    await new Promise(res => setTimeout(res, delayMs));
+    await new Promise((res) => setTimeout(res, delayMs));
   }
   return false;
 }
+
+// group PK helpers live in `core/threshold/ed25519GroupPublicKey.ts`

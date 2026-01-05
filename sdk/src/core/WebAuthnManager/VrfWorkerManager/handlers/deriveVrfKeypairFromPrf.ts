@@ -42,15 +42,16 @@ export async function deriveVrfKeypairFromPrf(
     payload: {
       credential: args.credential,
       nearAccountId: args.nearAccountId,
-      saveInMemory,
-      vrfInputData: hasVrfInputData ? {
-        userId: vrfInputData.userId,
-        rpId: vrfInputData.rpId,
-        blockHeight: String(vrfInputData.blockHeight),
-        blockHash: vrfInputData.blockHash,
-      } : undefined,
-    }
-  };
+	      saveInMemory,
+	      vrfInputData: hasVrfInputData ? {
+	        userId: vrfInputData.userId,
+	        rpId: vrfInputData.rpId,
+	        blockHeight: String(vrfInputData.blockHeight),
+	        blockHash: vrfInputData.blockHash,
+	        intentDigest: vrfInputData.intentDigest,
+	      } : undefined,
+	    }
+	  };
 
   const response = await ctx.sendMessage(message);
 
@@ -82,6 +83,7 @@ export async function deriveVrfKeypairFromPrf(
       rpId: data.vrfChallengeData.rpId,
       blockHeight: data.vrfChallengeData.blockHeight,
       blockHash: data.vrfChallengeData.blockHash,
+      ...(data.vrfChallengeData.intentDigest ? { intentDigest: data.vrfChallengeData.intentDigest } : {}),
     })
     : null;
 

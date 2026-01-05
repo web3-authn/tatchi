@@ -33,7 +33,7 @@ export async function exportNearKeypairUi({
   // Gather encrypted key + ChaCha20 nonce and public key from IndexedDB
   const deviceNumber = await getLastLoggedInDeviceNumber(accountId, ctx.indexedDB.clientDB);
   const [keyData, user] = await Promise.all([
-    ctx.indexedDB.nearKeysDB.getEncryptedKey(accountId, deviceNumber),
+    ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(accountId, deviceNumber),
     ctx.indexedDB.clientDB.getUserByDevice(accountId, deviceNumber),
   ]);
   const publicKey = user?.clientNearPublicKey || '';
@@ -48,7 +48,7 @@ export async function exportNearKeypairUi({
       type: WorkerRequestType.DecryptPrivateKeyWithPrf,
       payload: {
         nearAccountId: accountId,
-        encryptedPrivateKeyData: keyData.encryptedData,
+        encryptedPrivateKeyData: keyData.encryptedSk,
         encryptedPrivateKeyChacha20NonceB64u: keyData.chacha20NonceB64u,
       },
     },

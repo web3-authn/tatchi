@@ -300,13 +300,14 @@ async function main(): Promise<void> {
               );
             }
 
-            await IndexedDBManager.nearKeysDB.storeEncryptedKey({
+            await IndexedDBManager.nearKeysDB.storeKeyMaterial({
+              kind: 'local_near_sk_v3',
               nearAccountId: account,
               deviceNumber,
-              encryptedData: rec.encryptedPrivateKey,
+              publicKey: rec.publicKey,
+              encryptedSk: rec.encryptedPrivateKey,
               chacha20NonceB64u: rec.chacha20NonceB64u,
               wrapKeySalt: rec.wrapKeySalt,
-              version: 2,
               timestamp: Date.now(),
             });
             // Upsert public key if missing for this device

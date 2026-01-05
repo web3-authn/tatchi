@@ -120,6 +120,18 @@ pub(crate) async fn verify_authentication_if_needed(
         }
     };
 
+    if challenge
+        .intent_digest
+        .as_deref()
+        .map(|s| s.trim().is_empty())
+        .unwrap_or(true)
+    {
+        return Err(VrfWorkerResponse::fail(
+            message_id.clone(),
+            "Missing intentDigest in VRF challenge; generate the VRF challenge with a 32-byte intent digest bound into the input.".to_string(),
+        ));
+    }
+
     let vrf_data = match VrfData::try_from(&challenge) {
         Ok(data) => {
             let vrf_pk_b64u = crate::utils::base64_url_encode(&data.public_key);

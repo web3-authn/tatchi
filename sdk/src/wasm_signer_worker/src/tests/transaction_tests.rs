@@ -14,6 +14,7 @@ fn build_and_sign_transaction_round_trip() {
     // Deterministic signing key from a fixed 32-byte seed.
     let seed = [7u8; 32];
     let signing_key = SigningKey::from_bytes(&seed);
+    let public_key_bytes = signing_key.verifying_key().to_bytes();
 
     // Single transfer action: 1 yoctoNEAR.
     let params = vec![ActionParams::Transfer {
@@ -29,13 +30,16 @@ fn build_and_sign_transaction_round_trip() {
         "bob.near",
         1,
         &block_hash_bytes,
-        &signing_key,
+        &public_key_bytes,
         actions,
     )
     .expect("transaction should build");
 
     // Sign the transaction and ensure we get non-empty Borsh bytes and a stable hash.
-    let signed_bytes = sign_transaction(tx, &signing_key).expect("signing should succeed");
+    use ed25519_dalek::Signer;
+    let (tx_hash_to_sign, _size) = tx.get_hash_and_size();
+    let signature_bytes = signing_key.sign(&tx_hash_to_sign.0).to_bytes();
+    let signed_bytes = sign_transaction(tx, &signature_bytes).expect("signing should succeed");
     assert!(!signed_bytes.is_empty());
 
     let hash_hex = calculate_transaction_hash(&signed_bytes);
@@ -51,6 +55,7 @@ fn build_and_sign_transaction_round_trip() {
 fn build_transaction_rejects_invalid_block_hash_size() {
     let seed = [1u8; 32];
     let signing_key = SigningKey::from_bytes(&seed);
+    let public_key_bytes = signing_key.verifying_key().to_bytes();
 
     let params = vec![ActionParams::Transfer {
         deposit: "1".to_string(),
@@ -64,7 +69,7 @@ fn build_transaction_rejects_invalid_block_hash_size() {
         "bob.near",
         1,
         &bad_block_hash,
-        &signing_key,
+        &public_key_bytes,
         actions,
     )
     .unwrap_err();

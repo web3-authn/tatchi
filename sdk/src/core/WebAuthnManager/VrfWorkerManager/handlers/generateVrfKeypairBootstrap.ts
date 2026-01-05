@@ -27,19 +27,20 @@ export async function generateVrfKeypairBootstrap(
     const message: VRFWorkerMessage<WasmGenerateVrfKeypairBootstrapRequest> = {
       type: 'GENERATE_VRF_KEYPAIR_BOOTSTRAP',
       id: ctx.generateMessageId(),
-      payload: {
-        // Include VRF input data if provided for challenge generation
-        sessionId: args.sessionId,
-        vrfInputData: args.vrfInputData
-          ? {
-              userId: args.vrfInputData.userId,
-              rpId: args.vrfInputData.rpId,
-              blockHeight: String(args.vrfInputData.blockHeight),
-              blockHash: args.vrfInputData.blockHash,
-            }
-          : undefined,
-      },
-    };
+	      payload: {
+	        // Include VRF input data if provided for challenge generation
+	        sessionId: args.sessionId,
+	        vrfInputData: args.vrfInputData
+	          ? {
+	              userId: args.vrfInputData.userId,
+	              rpId: args.vrfInputData.rpId,
+	              blockHeight: String(args.vrfInputData.blockHeight),
+	              blockHash: args.vrfInputData.blockHash,
+	              intentDigest: args.vrfInputData.intentDigest,
+	            }
+	          : undefined,
+	      },
+	    };
 
     const response = await ctx.sendMessage(message);
 
@@ -72,6 +73,7 @@ export async function generateVrfKeypairBootstrap(
         rpId: challengeData.rpId,
         blockHeight: challengeData.blockHeight,
         blockHash: challengeData.blockHash,
+        ...(challengeData.intentDigest ? { intentDigest: challengeData.intentDigest } : {}),
       })
     }
 

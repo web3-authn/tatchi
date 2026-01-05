@@ -672,13 +672,14 @@ async function restoreUserData({
   }
 
   // Store the encrypted NEAR keypair in the encrypted keys database
-  await IndexedDBManager.nearKeysDB.storeEncryptedKey({
+  await IndexedDBManager.nearKeysDB.storeKeyMaterial({
+    kind: 'local_near_sk_v3',
     nearAccountId: accountId,
     deviceNumber,
-    encryptedData: encryptedNearKeypair.encryptedPrivateKey,
+    publicKey,
+    encryptedSk: encryptedNearKeypair.encryptedPrivateKey,
     chacha20NonceB64u,
     wrapKeySalt,
-    version: 2,
     timestamp: Date.now()
   });
 

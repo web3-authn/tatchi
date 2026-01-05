@@ -35,8 +35,12 @@
 
 import {
   SignerWorkerMessage,
+  type SignerWorkerRequestType,
+  type SignerWorkerResponseType,
   WorkerRequestType,
   WorkerResponseType,
+  INTERNAL_WORKER_REQUEST_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT,
+  INTERNAL_WORKER_RESPONSE_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT_FAILURE,
   WasmRequestPayload,
 } from './types/signer-worker';
 // Import WASM binary directly
@@ -153,7 +157,7 @@ setTimeout(() => {
 /**
  * Maps a WorkerRequestType to its corresponding failure response type
  */
-function getFailureResponseType(requestType: WorkerRequestType): WorkerResponseType {
+function getFailureResponseType(requestType: SignerWorkerRequestType): SignerWorkerResponseType {
   switch (requestType) {
     case WorkerRequestType.DeriveNearKeypairAndEncrypt:
       return WorkerResponseType.DeriveNearKeypairAndEncryptFailure;
@@ -173,6 +177,10 @@ function getFailureResponseType(requestType: WorkerRequestType): WorkerResponseT
       return WorkerResponseType.RegisterDevice2WithDerivedKeyFailure;
     case WorkerRequestType.SignDelegateAction:
       return WorkerResponseType.SignDelegateActionFailure;
+    case WorkerRequestType.DeriveThresholdEd25519ClientVerifyingShare:
+      return WorkerResponseType.DeriveThresholdEd25519ClientVerifyingShareFailure;
+    case INTERNAL_WORKER_REQUEST_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT:
+      return INTERNAL_WORKER_RESPONSE_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT_FAILURE;
     default:
       // Fallback for unknown request types
       return WorkerResponseType.DeriveNearKeypairAndEncryptFailure;

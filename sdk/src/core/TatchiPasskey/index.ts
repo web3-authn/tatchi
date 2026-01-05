@@ -49,7 +49,7 @@ import type {
   SignTransactionHooksOptions,
 } from '../types/sdkSentEvents';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
-import { ConfirmationConfig, type WasmSignedDelegate } from '../types/signer-worker';
+    import { ConfirmationConfig, normalizeSignerMode, type SignerMode, type WasmSignedDelegate } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import type { DerivedAddressRecord, RecoveryEmailRecord } from '../IndexedDBManager';
@@ -197,6 +197,7 @@ export class TatchiPasskey {
             connectTimeoutMs: 20_000, // 20s
             requestTimeoutMs: 60_000, // 60s
             theme: this.configs.walletTheme,
+            signerMode: this.configs.signerMode,
             nearRpcUrl: this.configs.nearRpcUrl,
             nearNetwork: this.configs.nearNetwork,
             contractId: this.configs.contractId,
@@ -367,6 +368,7 @@ export class TatchiPasskey {
           confirmationConfig,
           options: {
             onEvent: options?.onEvent,
+            ...(options?.signerMode ? { signerMode: options.signerMode } : {}),
             ...(options?.confirmerText ? { confirmerText: options.confirmerText } : {})
           }
         });
@@ -408,6 +410,7 @@ export class TatchiPasskey {
           confirmationConfig,
           options: {
             onEvent: options?.onEvent,
+            ...(options?.signerMode ? { signerMode: options.signerMode } : {}),
             ...(options?.confirmerText ? { confirmerText: options.confirmerText } : {})
           }
         });
@@ -429,6 +432,78 @@ export class TatchiPasskey {
       this.configs.authenticatorOptions || DEFAULT_AUTHENTICATOR_OPTIONS,
       confirmationConfigOverride,
     );
+  }
+
+  /**
+   * Post-registration threshold enrollment.
+   * Runs `/threshold-ed25519/keygen` authorization and stores `threshold_ed25519_2p_v1`
+   * key material locally. Intended to be called after the passkey is registered on-chain.
+   */
+  async enrollThresholdEd25519Key(
+    nearAccountId: string,
+    options?: {
+      deviceNumber?: number;
+      relayerUrl?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    error?: string;
+  }> {
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter(nearAccountId);
+      return await router.enrollThresholdEd25519Key({
+        nearAccountId,
+        options: options || {},
+      });
+    }
+
+    return await this.webAuthnManager.enrollThresholdEd25519KeyPostRegistration({
+      nearAccountId: toAccountId(nearAccountId),
+      deviceNumber: options?.deviceNumber,
+      relayerUrl: options?.relayerUrl,
+    });
+  }
+
+  /**
+   * Threshold key rotation helper:
+   * keygen → AddKey(new) → DeleteKey(old).
+   */
+  async rotateThresholdEd25519Key(
+    nearAccountId: string,
+    options?: {
+      deviceNumber?: number;
+      relayerUrl?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    oldPublicKey: string;
+    oldRelayerKeyId: string;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    deleteOldKeyAttempted: boolean;
+    deleteOldKeySuccess: boolean;
+    warning?: string;
+    error?: string;
+  }> {
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter(nearAccountId);
+      return await router.rotateThresholdEd25519Key({
+        nearAccountId,
+        options: options || {},
+      });
+    }
+
+    return await this.webAuthnManager.rotateThresholdEd25519KeyPostRegistration({
+      nearAccountId: toAccountId(nearAccountId),
+      deviceNumber: options?.deviceNumber,
+      relayerUrl: options?.relayerUrl,
+    });
   }
 
   /**
@@ -655,23 +730,17 @@ export class TatchiPasskey {
     nearAccountId: string,
     receiverId: string,
     actionArgs: ActionArgs | ActionArgs[],
-    options?: ActionHooksOptions
+    options: ActionHooksOptions
   }): Promise<ActionResult> {
     // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(args.nearAccountId);
-        const confirmerText = args.options?.confirmerText;
         const res = await router.executeAction({
           nearAccountId: args.nearAccountId,
           receiverId: args.receiverId,
           actionArgs: args.actionArgs,
-          options: {
-            onEvent: args.options?.onEvent,
-            waitUntil: args.options?.waitUntil,
-            confirmationConfig: args.options?.confirmationConfig,
-            confirmerText,
-          }
+          options: args.options
         });
         await args.options?.afterCall?.(true, res);
         return res;
@@ -739,27 +808,25 @@ export class TatchiPasskey {
   async signAndSendTransactions({
     nearAccountId,
     transactions,
-    options = {}
+    options
   }: {
     nearAccountId: string,
     transactions: TransactionInput[],
-    options?: SignAndSendTransactionHooksOptions,
+    options: SignAndSendTransactionHooksOptions,
   }): Promise<ActionResult[]> {
 
     // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(nearAccountId);
-        const confirmerText = options?.confirmerText;
+        const routerOptions: SignAndSendTransactionHooksOptions = {
+          ...options,
+          executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil },
+        };
         const res = await router.signAndSendTransactions({
           nearAccountId,
           transactions: transactions.map(t => ({ receiverId: t.receiverId, actions: t.actions })),
-          options: {
-            onEvent: options?.onEvent,
-            executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil },
-            confirmationConfig: options?.confirmationConfig,
-            confirmerText,
-          }
+          options: routerOptions
         });
         // Emit completion
         const txIds = (res || []).map(r => r?.transactionId).filter(Boolean).join(', ');
@@ -799,12 +866,12 @@ export class TatchiPasskey {
     nearAccountId,
     receiverId,
     actions,
-    options = {}
+    options
   }: {
     nearAccountId: string;
     receiverId: string;
     actions: ActionArgs[];
-    options?: SignAndSendTransactionHooksOptions;
+    options: SignAndSendTransactionHooksOptions;
   }): Promise<ActionResult> {
     const results = await this.signAndSendTransactions({
       nearAccountId,
@@ -874,22 +941,22 @@ export class TatchiPasskey {
   async signTransactionsWithActions({ nearAccountId, transactions, options }: {
     nearAccountId: string,
     transactions: TransactionInput[],
-    options?: SignTransactionHooksOptions
+    options: SignTransactionHooksOptions
   }): Promise<SignTransactionResult[]> {
     // route signing via wallet origin
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(nearAccountId);
         const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
-        const confirmerText = options?.confirmerText;
         const result = await router.signTransactionsWithActions({
-          nearAccountId, transactions:
-          txs,
+          nearAccountId,
+          transactions: txs,
           options: {
+            signerMode: normalizeSignerMode(options?.signerMode, this.configs.signerMode),
             onEvent: options?.onEvent,
             confirmationConfig: options?.confirmationConfig,
-            confirmerText,
-          }
+            confirmerText: options?.confirmerText,
+          },
         });
         const arr: SignTransactionResult[] = Array.isArray(result) ? result : [];
         await options?.afterCall?.(true, arr);
@@ -984,7 +1051,7 @@ export class TatchiPasskey {
   }: {
     nearAccountId: string;
     delegate: DelegateActionInput;
-    options?: DelegateActionHooksOptions;
+    options: DelegateActionHooksOptions;
   }): Promise<SignDelegateActionResult> {
     // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
     if (this.shouldUseWalletIframe()) {
@@ -994,6 +1061,7 @@ export class TatchiPasskey {
           nearAccountId,
           delegate,
           options: {
+            signerMode: normalizeSignerMode(options?.signerMode, this.configs.signerMode),
             onEvent: options?.onEvent,
             confirmationConfig: options?.confirmationConfig,
             confirmerText: options?.confirmerText,
@@ -1051,12 +1119,13 @@ export class TatchiPasskey {
     delegate: DelegateActionInput;
     relayerUrl: string;
     signal?: AbortSignal;
-    options?: SignAndSendDelegateActionHooksOptions;
+    options: SignAndSendDelegateActionHooksOptions;
   }): Promise<SignAndSendDelegateActionResult> {
     const { nearAccountId, delegate, relayerUrl, signal, options } = args;
 
     const signOptions: DelegateActionHooksOptions | undefined = options
       ? {
+          signerMode: options.signerMode,
           onEvent: options.onEvent,
           onError: options.onError,
           waitUntil: options.waitUntil,
@@ -1072,7 +1141,7 @@ export class TatchiPasskey {
       signResult = await this.signDelegateAction({
         nearAccountId,
         delegate,
-        options: signOptions,
+        options: signOptions as DelegateActionHooksOptions,
       });
     } catch (error) {
       await options?.afterCall?.(false);
@@ -1151,20 +1220,23 @@ export class TatchiPasskey {
   async signNEP413Message(args: {
     nearAccountId: string,
     params: SignNEP413MessageParams,
-    options?: SignNEP413HooksOptions
+    options: SignNEP413HooksOptions
   }): Promise<SignNEP413MessageResult> {
     // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(args.nearAccountId);
-        const confirmerText = args.options?.confirmerText;
-        const confirmationConfig = args.options?.confirmationConfig;
         const result = await router.signNep413Message({
           nearAccountId: args.nearAccountId,
           message: args.params.message,
           recipient: args.params.recipient,
           state: args.params.state,
-          options: { onEvent: args.options?.onEvent, confirmerText, confirmationConfig }
+          options: {
+            signerMode: normalizeSignerMode(args.options?.signerMode, this.configs.signerMode),
+            onEvent: args.options?.onEvent,
+            confirmerText: args.options?.confirmerText,
+            confirmationConfig: args.options?.confirmationConfig,
+          }
         });
         await args.options?.afterCall?.(true, result);
         // Expect wallet to return the same shape as WebAuthnManager.signNEP413Message
@@ -1349,7 +1421,7 @@ export class TatchiPasskey {
   async setRecoveryEmails(
     nearAccountId: string,
     recoveryEmails: string[],
-    options?: ActionHooksOptions
+    options: ActionHooksOptions
   ): Promise<ActionResult> {
     if (this.shouldUseWalletIframe()) {
       try {
@@ -1628,7 +1700,7 @@ export class TatchiPasskey {
   async deleteDeviceKey(
     accountId: string,
     publicKeyToDelete: string,
-    options?: ActionHooksOptions
+    options: ActionHooksOptions
   ): Promise<ActionResult> {
     // Validate that we're not deleting the last key
     const keysView = this.iframeRouter

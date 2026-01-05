@@ -8,7 +8,7 @@
  */
 
 import { waitForWrapKeyPortAttach } from './sessionMessages.js';
-import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../txDigest';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../digests/intentDigest';
 import type { NearClient } from '../../NearClient';
 import type { NonceManager } from '../../nonceManager';
 import type { TransactionContext } from '../../types/rpc';

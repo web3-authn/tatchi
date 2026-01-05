@@ -82,6 +82,11 @@ export interface VRFChallenge {
   rpId: string;
   blockHeight: string;
   blockHash: string;
+  /**
+   * Optional base64url-encoded 32-byte digest that was bound into the VRF input hash.
+   * When present, it must decode to exactly 32 bytes on the WASM worker / contract side.
+   */
+  intentDigest?: string;
 }
 
 /**
@@ -108,6 +113,7 @@ export function validateVRFChallenge(vrfChallengeData: {
   rpId: string;
   blockHeight: string;
   blockHash: string;
+  intentDigest?: string;
 }): VRFChallenge {
   if (!vrfChallengeData.vrfInput || typeof vrfChallengeData.vrfInput !== 'string') {
     throw new Error('vrfInput must be a non-empty string');
@@ -143,6 +149,7 @@ export function validateVRFChallenge(vrfChallengeData: {
     rpId: vrfChallengeData.rpId,
     blockHeight: vrfChallengeData.blockHeight,
     blockHash: vrfChallengeData.blockHash,
+    ...(vrfChallengeData.intentDigest ? { intentDigest: vrfChallengeData.intentDigest } : {}),
   };
 }
 
@@ -194,6 +201,11 @@ export interface VRFInputData {
   rpId: string;
   blockHeight: string;
   blockHash: string;
+  /**
+   * Optional base64url-encoded 32-byte digest to bind into the VRF input hash.
+   * This is intended for transaction/delegate signing flows (e.g. the UI intent digest).
+   */
+  intentDigest?: string;
 }
 
 export interface VRFWorkerMessage<T extends WasmVrfWorkerRequestType> {

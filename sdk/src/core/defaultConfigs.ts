@@ -1,4 +1,5 @@
 import type { EmailRecoveryContracts, TatchiConfigs, TatchiConfigsInput } from './types/tatchi';
+import { normalizeSignerMode } from './types/signer-worker';
 
 // Default SDK configs suitable for local dev.
 // Cross-origin wallet isolation is recommended; set iframeWallet in your app config when you have a dedicated origin.
@@ -11,6 +12,7 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',
   nearExplorerUrl: 'https://testnet.nearblocks.io',
+  signerMode: { mode: 'local-signer' },
   // Warm signing session defaults used by login/unlock flows.
   // Enforcement (TTL/uses) is owned by the VRF worker; signer workers remain one-shot.
   signingSessionDefaults: {
@@ -75,6 +77,7 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
   // Prefer explicit override for relayer URL; fall back to default preset.
   // Used below to default VRF relayServerUrl when it is undefined.
   const relayServerUrlDefault = relayerUrl;
+  const signerMode = normalizeSignerMode(overrides.signerMode, defaults.signerMode);
 
   const merged: TatchiConfigs = {
     nearRpcUrl: overrides.nearRpcUrl ?? defaults.nearRpcUrl,
@@ -82,6 +85,7 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
     contractId: overrides.contractId ?? defaults.contractId,
     nearExplorerUrl: overrides.nearExplorerUrl ?? defaults.nearExplorerUrl,
     walletTheme: overrides.walletTheme ?? defaults.walletTheme,
+    signerMode,
     signingSessionDefaults: {
       ttlMs: overrides.signingSessionDefaults?.ttlMs
         ?? defaults.signingSessionDefaults?.ttlMs,

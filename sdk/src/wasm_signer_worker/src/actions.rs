@@ -335,12 +335,274 @@ fn parse_access_key_from_json(json_str: &str) -> Result<crate::types::AccessKey,
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        // Native fallback - requires serde_json or manual parsing.
-        // Since we don't have serde_json in dependencies, we return error.
-        let _ = json_str;
-        Err(
-            "Parsing JSON string AccessKey not supported on native target without serde_json"
-                .to_string(),
-        )
+        // Native tests compile this crate without a browser/JS runtime. To keep native
+        // `cargo test` lightweight (no `serde_json` dependency), implement a tiny parser
+        // that supports the AccessKey shapes we use in tests:
+        // - {"nonce":0,"permission":{"FullAccess":{}}}
+        // - {"nonce":0,"permission":{"FunctionCall":{"allowance":"..","receiverId":"..","methodNames":[".."]}}}
+        parse_access_key_json_minimal(json_str)
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn parse_access_key_json_minimal(json_str: &str) -> Result<crate::types::AccessKey, String> {
+    use crate::types::{AccessKey, AccessKeyPermission, FunctionCallPermission, Nonce};
+
+    let compact = strip_whitespace_outside_strings(json_str);
+
+    let nonce_str = extract_number_field(&compact, "nonce")?;
+    let nonce: Nonce = nonce_str
+        .parse()
+        .map_err(|e| format!("Invalid nonce: {}", e))?;
+
+    let perm_section = extract_field_value_start(&compact, "permission")?;
+
+    let permission = if perm_section.starts_with("\"FullAccess\"") {
+        AccessKeyPermission::FullAccess
+    } else if perm_section.starts_with('{') {
+        if perm_section.starts_with("{\"FullAccess\"") {
+            AccessKeyPermission::FullAccess
+        } else if perm_section.starts_with("{\"FunctionCall\"") {
+            let fc_obj = extract_object_value(perm_section, "FunctionCall")?;
+
+            let receiver_id = extract_string_field_any(&fc_obj, &["receiverId", "receiver_id"])?;
+            let method_names = extract_string_array_field_any(&fc_obj, &["methodNames", "method_names"])?;
+            let allowance = match extract_optional_field_value_start(&fc_obj, "allowance")? {
+                None => None,
+                Some(v) if v.starts_with("null") => None,
+                Some(v) if v.starts_with('"') => {
+                    let (s, _) = parse_json_string(v)?;
+                    Some(parse_balance(&s)?)
+                }
+                Some(v) => {
+                    let num = take_number_prefix(v)
+                        .ok_or_else(|| "Invalid allowance value".to_string())?;
+                    Some(parse_balance(num)?)
+                }
+            };
+
+            AccessKeyPermission::FunctionCall(FunctionCallPermission {
+                allowance,
+                receiver_id,
+                method_names,
+            })
+        } else {
+            return Err("Unsupported AccessKey.permission object variant".to_string());
+        }
+    } else {
+        return Err("Invalid AccessKey.permission value".to_string());
+    };
+
+    Ok(AccessKey { nonce, permission })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn strip_whitespace_outside_strings(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut in_string = false;
+    let mut escape = false;
+
+    for ch in input.chars() {
+        if escape {
+            out.push(ch);
+            escape = false;
+            continue;
+        }
+
+        if in_string && ch == '\\' {
+            out.push(ch);
+            escape = true;
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = !in_string;
+            out.push(ch);
+            continue;
+        }
+
+        if in_string || !ch.is_whitespace() {
+            out.push(ch);
+        }
+    }
+
+    out
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn extract_field_value_start<'a>(json: &'a str, key: &str) -> Result<&'a str, String> {
+    let needle = format!("\"{}\":", key);
+    let idx = json
+        .find(&needle)
+        .ok_or_else(|| format!("Missing '{}' field", key))?;
+    Ok(&json[idx + needle.len()..])
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn extract_optional_field_value_start<'a>(
+    json: &'a str,
+    key: &str,
+) -> Result<Option<&'a str>, String> {
+    let needle = format!("\"{}\":", key);
+    let Some(idx) = json.find(&needle) else {
+        return Ok(None);
+    };
+    Ok(Some(&json[idx + needle.len()..]))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn extract_number_field<'a>(json: &'a str, key: &str) -> Result<&'a str, String> {
+    let after = extract_field_value_start(json, key)?;
+    let end = after
+        .find(|c: char| c == ',' || c == '}')
+        .ok_or_else(|| format!("Unterminated '{}' number field", key))?;
+    Ok(&after[..end])
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn extract_string_field_any(json: &str, keys: &[&str]) -> Result<String, String> {
+    for key in keys {
+        if let Ok(after) = extract_field_value_start(json, key) {
+            let (value, _) = parse_json_string(after)?;
+            return Ok(value);
+        }
+    }
+    Err(format!("Missing string field (any of: {:?})", keys))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn extract_string_array_field_any(json: &str, keys: &[&str]) -> Result<Vec<String>, String> {
+    for key in keys {
+        if let Ok(after) = extract_field_value_start(json, key) {
+            return parse_json_string_array(after);
+        }
+    }
+    Err(format!("Missing string[] field (any of: {:?})", keys))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn extract_object_value<'a>(permission_json: &'a str, variant: &str) -> Result<&'a str, String> {
+    // Expects: {"Variant":{...}} and returns the `{...}` slice.
+    let needle = format!("{{\"{}\":", variant);
+    if !permission_json.starts_with(&needle) {
+        return Err(format!("Expected permission variant '{}'", variant));
+    }
+    let after = &permission_json[needle.len()..];
+    if !after.starts_with('{') {
+        return Err(format!("Expected object for permission variant '{}'", variant));
+    }
+    let end = find_matching_brace_index(after)
+        .ok_or_else(|| format!("Unterminated permission variant '{}'", variant))?;
+    Ok(&after[..=end])
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn find_matching_brace_index(s: &str) -> Option<usize> {
+    let mut depth: i32 = 0;
+    let mut in_string = false;
+    let mut escape = false;
+
+    for (i, ch) in s.char_indices() {
+        if escape {
+            escape = false;
+            continue;
+        }
+        if in_string && ch == '\\' {
+            escape = true;
+            continue;
+        }
+        if ch == '"' {
+            in_string = !in_string;
+            continue;
+        }
+        if in_string {
+            continue;
+        }
+        if ch == '{' {
+            depth += 1;
+        } else if ch == '}' {
+            depth -= 1;
+            if depth == 0 {
+                return Some(i);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn parse_json_string(input: &str) -> Result<(String, &str), String> {
+    let mut chars = input.chars();
+    let Some('"') = chars.next() else {
+        return Err("Expected '\"'".to_string());
+    };
+
+    let mut out = String::new();
+    let mut escape = false;
+    let mut consumed = 1usize;
+
+    for ch in chars {
+        consumed += ch.len_utf8();
+        if escape {
+            out.push(ch);
+            escape = false;
+            continue;
+        }
+        if ch == '\\' {
+            escape = true;
+            continue;
+        }
+        if ch == '"' {
+            let rest = &input[consumed..];
+            return Ok((out, rest));
+        }
+        out.push(ch);
+    }
+
+    Err("Unterminated string".to_string())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn parse_json_string_array(input: &str) -> Result<Vec<String>, String> {
+    // Expects: ["a","b"] (whitespace already stripped outside strings)
+    if !input.starts_with('[') {
+        return Err("Expected '['".to_string());
+    }
+    let end = input
+        .find(']')
+        .ok_or_else(|| "Unterminated string array".to_string())?;
+    let mut cursor = &input[1..end];
+    let mut out: Vec<String> = Vec::new();
+
+    while !cursor.is_empty() {
+        if cursor.starts_with(',') {
+            cursor = &cursor[1..];
+            continue;
+        }
+        let (s, rest) = parse_json_string(cursor)?;
+        out.push(s);
+        cursor = rest;
+    }
+
+    Ok(out)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn take_number_prefix(input: &str) -> Option<&str> {
+    let end = input
+        .find(|c: char| c == ',' || c == '}' || c == ']')
+        .unwrap_or(input.len());
+    let prefix = &input[..end];
+    if prefix.is_empty() {
+        None
+    } else {
+        Some(prefix)
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn parse_balance(input: &str) -> Result<Balance, String> {
+    input
+        .parse::<Balance>()
+        .map_err(|e| format!("Invalid allowance: {}", e))
 }

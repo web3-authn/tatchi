@@ -6,6 +6,7 @@ import {
 } from '../types';
 import { VRFChallenge, TransactionContext } from '../../../../types';
 import type { WebAuthnRegistrationCredential } from '../../../../types/webauthn';
+import { sha256Base64UrlUtf8 } from '../../../../digests/intentDigest';
 import {
   getNearAccountId,
   getIntentDigest,
@@ -57,14 +58,24 @@ export async function handleRegistrationFlow(
   const transactionContext = nearRpc.transactionContext as TransactionContext;
   session.setReservedNonces(nearRpc.reservedNonces);
 
+  const computeBoundIntentDigestB64u = async (): Promise<string> => {
+    const uiIntentDigest = getIntentDigest(request);
+    if (!uiIntentDigest) {
+      throw new Error('Missing intentDigest for registration flow');
+    }
+    return sha256Base64UrlUtf8(uiIntentDigest);
+  };
+
   // 2) Initial VRF challenge via bootstrap
   const rpId = adapters.vrf.getRpId();
+  const boundIntentDigestB64u = await computeBoundIntentDigestB64u();
   const bootstrap = await adapters.vrf.generateVrfKeypairBootstrap({
     vrfInputData: {
       userId: nearAccountId,
       rpId,
       blockHeight: transactionContext.txBlockHeight,
       blockHash: transactionContext.txBlockHash,
+      intentDigest: boundIntentDigestB64u,
     },
     saveInMemory: true,
     sessionId: request.requestId,
@@ -96,7 +107,7 @@ export async function handleRegistrationFlow(
 
   // 5) Collect registration credentials (with duplicate retry)
   let credential: PublicKeyCredential | undefined;
-  let deviceNumber = request.payload?.deviceNumber;
+  let deviceNumber = request.payload?.deviceNumber ?? 1;
 
   const tryCreate = async (dn?: number): Promise<PublicKeyCredential> => {
     console.debug('[RegistrationFlow] navigator.credentials.create start', { deviceNumber: dn });
@@ -119,8 +130,31 @@ export async function handleRegistrationFlow(
       if (isDuplicate) {
         const nextDeviceNumber = (deviceNumber !== undefined && Number.isFinite(deviceNumber)) ? (deviceNumber + 1) : 2;
         console.debug('[RegistrationFlow] duplicate credential, retry with next deviceNumber', { nextDeviceNumber });
-        credential = await tryCreate(nextDeviceNumber);
+        // Keep request payload and intentDigest in sync with the deviceNumber retry.
+        deviceNumber = nextDeviceNumber;
         getRegisterAccountPayload(request).deviceNumber = nextDeviceNumber;
+        request.intentDigest = request.type === 'registerAccount'
+          ? `register:${nearAccountId}:${nextDeviceNumber}`
+          : `device2-register:${nearAccountId}:${nextDeviceNumber}`;
+
+        // Regenerate a VRF challenge bound to the updated intentDigest so the contract-side
+        // VRF input derivation remains consistent end-to-end.
+        const retryBoundIntentDigestB64u = await computeBoundIntentDigestB64u();
+        const retryBootstrap = await adapters.vrf.generateVrfKeypairBootstrap({
+          vrfInputData: {
+            userId: nearAccountId,
+            rpId,
+            blockHeight: transactionContext.txBlockHeight,
+            blockHash: transactionContext.txBlockHash,
+            intentDigest: retryBoundIntentDigestB64u,
+          },
+          saveInMemory: true,
+          sessionId: request.requestId,
+        });
+        uiVrfChallenge = retryBootstrap.vrfChallenge;
+        session.updateUI({ vrfChallenge: uiVrfChallenge });
+
+        credential = await tryCreate(nextDeviceNumber);
       } else {
         console.error('[RegistrationFlow] credentials.create failed (non-duplicate)', { name, msg });
         throw err;

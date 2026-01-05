@@ -116,13 +116,14 @@ import {
   StartDevice2LinkingFlowResults,
 } from '../../types/linkDevice'
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
-import type { ConfirmationConfig } from '../../types/signer-worker';
+import type { ConfirmationConfig, SignerMode } from '../../types/signer-worker';
 import type { AccessKeyList } from '../../NearClient';
 import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
 import type { RecoveryResult } from '../../TatchiPasskey';
 import { openOfflineExportWindow } from '../../OfflineExport/index.js';
 import type { DerivedAddressRecord } from '../../IndexedDBManager';
 import type { EmailRecoveryContracts } from '../../types/tatchi';
+import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../defaultConfigs';
 
 // Simple, framework-agnostic service iframe client.
 // Responsibilities split:
@@ -136,6 +137,8 @@ export interface WalletIframeRouterOptions {
   connectTimeoutMs?: number; // default 8000
   requestTimeoutMs?: number; // default 20000
   theme?: 'dark' | 'light';
+  /** Default signer policy applied inside the wallet iframe when per-call options omit `signerMode`. */
+  signerMode?: SignerMode;
   // Enable verbose client-side logging for debugging
   debug?: boolean;
   // Test-only/diagnostic options (not part of the public API contract for apps)
@@ -242,6 +245,7 @@ export class WalletIframeRouter {
       sdkBasePath: '/sdk',
       testOptions,
       ...options,
+      signerMode: options.signerMode ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.signerMode,
     } as Required<WalletIframeRouterOptions>;
     this.walletOriginUrl = parsedOrigin;
     this.walletOriginOrigin = parsedOrigin.origin;
@@ -368,6 +372,10 @@ export class WalletIframeRouter {
     // Keep listeners registered; callers can unsubscribe if desired.
   }
 
+  private resolveSignerMode(input?: SignerMode): SignerMode {
+    return input ?? this.opts.signerMode;
+  }
+
   /**
    * Initialize the transport and configure the wallet host.
    * Safe to call multiple times; concurrent calls deduplicate via initInFlight.
@@ -388,6 +396,7 @@ export class WalletIframeRouter {
         type: 'PM_SET_CONFIG',
         payload: {
           theme: this.opts.theme,
+          signerMode: this.opts.signerMode,
           nearRpcUrl: this.opts.nearRpcUrl,
           nearNetwork: this.opts.nearNetwork,
           // Align with PMSetConfigPayload which expects `contractId`
@@ -508,7 +517,8 @@ export class WalletIframeRouter {
   async signTransactionsWithActions(payload: {
     nearAccountId: string;
     transactions: TransactionInput[];
-    options?: {
+    options: {
+      signerMode: SignerMode;
       onEvent?: (ev: ActionSSEEvent) => void;
       onError?: (error: Error) => void;
       afterCall?: AfterCall<SignTransactionResult[]>;
@@ -518,20 +528,21 @@ export class WalletIframeRouter {
     }
   }): Promise<SignTransactionResult[]> {
     // Do not forward non-cloneable functions in options; host emits its own PROGRESS messages
-    const safeOptions = payload.options
-      ? {
-          ...(payload.options.confirmationConfig
-            ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
-            : {}),
-          ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
-        }
-      : undefined;
+    const safeOptions = {
+      signerMode: payload.options.signerMode,
+      ...(payload.options.confirmationConfig
+        ? { confirmationConfig: payload.options.confirmationConfig }
+        : {}),
+      ...(payload.options.confirmerText
+        ? { confirmerText: payload.options.confirmerText }
+        : {}),
+    };
     const res = await this.post<SignTransactionResult>({
       type: 'PM_SIGN_TXS_WITH_ACTIONS',
       payload: {
         nearAccountId: payload.nearAccountId,
         transactions: payload.transactions,
-        options: safeOptions && Object.keys(safeOptions).length > 0 ? safeOptions : undefined
+        options: safeOptions
       },
       options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
@@ -541,7 +552,8 @@ export class WalletIframeRouter {
   async signDelegateAction(payload: {
     nearAccountId: string;
     delegate: DelegateActionInput;
-    options?: {
+    options: {
+      signerMode: SignerMode;
       onEvent?: (ev: ActionSSEEvent) => void;
       onError?: (error: Error) => void;
       afterCall?: AfterCall<any>;
@@ -549,20 +561,19 @@ export class WalletIframeRouter {
       confirmerText?: { title?: string; body?: string };
     }
   }): Promise<unknown> {
-    const safeOptions = payload.options
-      ? {
-          ...(payload.options.confirmationConfig
-            ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
-            : {}),
-          ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
-        }
-      : undefined;
+    const safeOptions = {
+      signerMode: payload.options.signerMode,
+      ...(payload.options.confirmationConfig
+        ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+        : {}),
+      ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
+    };
     const res = await this.post<unknown>({
       type: 'PM_SIGN_DELEGATE_ACTION',
       payload: {
         nearAccountId: payload.nearAccountId,
         delegate: payload.delegate,
-        options: safeOptions && Object.keys(safeOptions).length > 0 ? safeOptions : undefined
+        options: safeOptions
       },
       options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
@@ -574,6 +585,7 @@ export class WalletIframeRouter {
     confirmationConfig?: Partial<ConfirmationConfig>;
     options?: {
       onEvent?: (ev: RegistrationSSEEvent) => void;
+      signerMode?: SignerMode;
       confirmerText?: { title?: string; body?: string };
     }
   }): Promise<RegistrationResult> {
@@ -619,6 +631,86 @@ export class WalletIframeRouter {
       // Step 5: Always release overlay lock and hide when done (success or error)
       this.overlayForceFullscreen = false;
       this.overlay.setSticky(false);
+      this.hideFrameForActivation();
+    }
+  }
+
+  async enrollThresholdEd25519Key(payload: {
+    nearAccountId: string;
+    options?: {
+      deviceNumber?: number;
+      relayerUrl?: string;
+    };
+  }): Promise<{
+    success: boolean;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    error?: string;
+  }> {
+    this.showFrameForActivation();
+    try {
+      const safeOptions = removeFunctionsFromOptions(payload.options);
+      const res = await this.post<{
+        success: boolean;
+        publicKey: string;
+        relayerKeyId: string;
+        wrapKeySalt: string;
+        error?: string;
+      }>({
+        type: 'PM_ENROLL_THRESHOLD_ED25519_KEY',
+        payload: {
+          nearAccountId: payload.nearAccountId,
+          options: safeOptions,
+        },
+      });
+      return res.result;
+    } finally {
+      this.hideFrameForActivation();
+    }
+  }
+
+  async rotateThresholdEd25519Key(payload: {
+    nearAccountId: string;
+    options?: {
+      deviceNumber?: number;
+      relayerUrl?: string;
+    };
+  }): Promise<{
+    success: boolean;
+    oldPublicKey: string;
+    oldRelayerKeyId: string;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    deleteOldKeyAttempted: boolean;
+    deleteOldKeySuccess: boolean;
+    warning?: string;
+    error?: string;
+  }> {
+    this.showFrameForActivation();
+    try {
+      const safeOptions = removeFunctionsFromOptions(payload.options);
+      const res = await this.post<{
+        success: boolean;
+        oldPublicKey: string;
+        oldRelayerKeyId: string;
+        publicKey: string;
+        relayerKeyId: string;
+        wrapKeySalt: string;
+        deleteOldKeyAttempted: boolean;
+        deleteOldKeySuccess: boolean;
+        warning?: string;
+        error?: string;
+      }>({
+        type: 'PM_ROTATE_THRESHOLD_ED25519_KEY',
+        payload: {
+          nearAccountId: payload.nearAccountId,
+          options: safeOptions,
+        },
+      });
+      return res.result;
+    } finally {
       this.hideFrameForActivation();
     }
   }
@@ -690,20 +782,20 @@ export class WalletIframeRouter {
     message: string;
     recipient: string;
     state?: string;
-    options?: {
+    options: {
+      signerMode: SignerMode;
       onEvent?: (ev: ActionSSEEvent) => void;
       confirmerText?: { title?: string; body?: string };
       confirmationConfig?: Partial<ConfirmationConfig>;
     }
   }): Promise<SignNEP413MessageResult> {
-    const safeOptions = payload.options
-      ? {
-          ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
-          ...(payload.options.confirmationConfig
-            ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
-            : {}),
-        }
-      : undefined;
+    const safeOptions = {
+      signerMode: payload.options.signerMode,
+      ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
+      ...(payload.options.confirmationConfig
+        ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+        : {}),
+    };
     const res = await this.post<SignNEP413MessageResult>({
       type: 'PM_SIGN_NEP413',
       payload: {
@@ -713,7 +805,7 @@ export class WalletIframeRouter {
           recipient: payload.recipient,
           state: payload.state
         },
-        options: safeOptions && Object.keys(safeOptions).length > 0 ? safeOptions : undefined
+        options: safeOptions
       },
       options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
@@ -743,23 +835,24 @@ export class WalletIframeRouter {
     nearAccountId: string;
     receiverId: string;
     actionArgs: ActionArgs | ActionArgs[];
-    options?: ActionHooksOptions
+    options: ActionHooksOptions
   }): Promise<ActionResult> {
     // Strip non-cloneable functions from options; host emits PROGRESS events
     const { options } = payload;
-    const safeOptions = options
-      ? {
-          waitUntil: options.waitUntil,
-          confirmationConfig: options.confirmationConfig,
-          ...(options.confirmerText ? { confirmerText: options.confirmerText } : {}),
-        }
-      : undefined;
+    const safeOptions = {
+      signerMode: this.resolveSignerMode(options.signerMode),
+      waitUntil: options.waitUntil,
+      confirmationConfig: options.confirmationConfig,
+      ...(options.confirmerText ? { confirmerText: options.confirmerText } : {}),
+    };
 
     const res = await this.post<ActionResult>({
       type: 'PM_EXECUTE_ACTION',
       payload: {
-        ...payload,
-        options: safeOptions
+        nearAccountId: payload.nearAccountId,
+        receiverId: payload.receiverId,
+        actionArgs: payload.actionArgs,
+        options: safeOptions,
       },
       options: { onProgress: this.wrapOnEvent(options?.onEvent, isActionSSEEvent) }
     });
@@ -847,15 +940,14 @@ export class WalletIframeRouter {
   async setRecoveryEmails(payload: {
     nearAccountId: string;
     recoveryEmails: string[];
-    options?: ActionHooksOptions;
+    options: ActionHooksOptions;
   }): Promise<ActionResult> {
     const { options } = payload;
-    const safeOptions = options
-      ? {
-          waitUntil: options.waitUntil,
-          confirmationConfig: options.confirmationConfig,
-        }
-      : undefined;
+    const safeOptions = {
+      signerMode: this.resolveSignerMode(options.signerMode),
+      waitUntil: options.waitUntil,
+      confirmationConfig: options.confirmationConfig,
+    };
 
     const res = await this.post<ActionResult>({
       type: 'PM_SET_RECOVERY_EMAILS',
@@ -888,19 +980,17 @@ export class WalletIframeRouter {
   async signAndSendTransactions(payload: {
     nearAccountId: string;
     transactions: TransactionInput[];
-    options?: SignAndSendTransactionHooksOptions
+    options: SignAndSendTransactionHooksOptions
   }): Promise<ActionResult[]> {
-
     const { options } = payload;
     // cannot send objects/functions through postMessage(), clean options first
-    const safeOptions = options
-      ? {
-          waitUntil: options.waitUntil,
-          executionWait: options.executionWait,
-          confirmationConfig: options.confirmationConfig,
-          ...(options.confirmerText ? { confirmerText: options.confirmerText } : {}),
-        }
-      : undefined;
+    const safeOptions = {
+      signerMode: this.resolveSignerMode(options.signerMode),
+      waitUntil: options.waitUntil,
+      executionWait: options.executionWait,
+      confirmationConfig: options.confirmationConfig,
+      ...(options.confirmerText ? { confirmerText: options.confirmerText } : {}),
+    };
 
     const res = await this.post<ActionResult[]>({
       type: 'PM_SIGN_AND_SEND_TXS',
@@ -930,19 +1020,22 @@ export class WalletIframeRouter {
     return res.result
   }
 
-  async deleteDeviceKey(
-    accountId: string,
-    publicKeyToDelete: string,
-    options?: { onEvent?: (ev: ActionSSEEvent) => void }
-  ) : Promise<ActionResult> {
+  async deleteDeviceKey(payload: {
+    accountId: string;
+    publicKeyToDelete: string;
+    options: { signerMode: SignerMode; onEvent?: (ev: ActionSSEEvent) => void };
+  }) : Promise<ActionResult> {
     const res = await this.post<ActionResult>({
       type: 'PM_DELETE_DEVICE_KEY',
       payload: {
-        accountId,
-        publicKeyToDelete
-      },
-      options: { onProgress: this.wrapOnEvent(options?.onEvent, isActionSSEEvent) }
-    });
+        accountId: payload.accountId,
+        publicKeyToDelete: payload.publicKeyToDelete,
+	        options: {
+	          signerMode: payload.options.signerMode,
+	        }
+	      },
+	      options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
+	    });
     return res.result
   }
 

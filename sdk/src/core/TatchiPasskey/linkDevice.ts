@@ -863,7 +863,7 @@ export class LinkDeviceFlow {
     // Clean up any temp account VRF data.
     if (this.session?.tempPrivateKey) {
       try {
-        await IndexedDBManager.nearKeysDB.deleteEncryptedKey('temp-device-linking.testnet');
+        await IndexedDBManager.nearKeysDB.deleteKeyMaterial('temp-device-linking.testnet');
       } catch {}
       // Clean up temporary private key from memory after successful completion
       this.cleanupTemporaryKeyFromMemory();
@@ -965,10 +965,10 @@ export class LinkDeviceFlow {
       if (accountId && credential) {
         try { await IndexedDBManager.clientDB.deleteAllAuthenticatorsForUser(accountId); } catch {}
         try { await IndexedDBManager.clientDB.deleteUser(accountId); } catch {}
-        try { await IndexedDBManager.nearKeysDB.deleteEncryptedKey(accountId); } catch {}
+        try { await IndexedDBManager.nearKeysDB.deleteKeyMaterial(accountId); } catch {}
       }
       // Always clean up temp account VRF data (this is where initial QR generation stores data)
-      try { await IndexedDBManager.nearKeysDB.deleteEncryptedKey('temp-device-linking.testnet'); } catch {}
+      try { await IndexedDBManager.nearKeysDB.deleteKeyMaterial('temp-device-linking.testnet'); } catch {}
     } catch (error) {
       console.error(`LinkDeviceFlow: Error during cleanup:`, error);
     }

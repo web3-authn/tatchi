@@ -349,6 +349,7 @@ export class VrfWorkerManager {
     transactionContext: TransactionContext;
     intentDigest: string;
     credential?: SerializableCredential;
+    vrfChallenge?: VRFChallenge;
   }> {
     return confirmAndPrepareSigningSession(this.getHandlerContext(), params);
   }

@@ -1,5 +1,5 @@
 
-import type { EncryptedKeyData } from '../../../IndexedDBManager/passkeyNearKeysDB';
+import type { LocalNearSkV3Material } from '../../../IndexedDBManager/passkeyNearKeysDB';
 import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
 import {
   WorkerRequestType,
@@ -67,8 +67,10 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     }
 
     const wasmResult = response.payload;
-    const version = (wasmResult as any).version ?? 2;
     const wrapKeySaltPersisted = wasmResult.wrapKeySalt;
+    if (!wrapKeySaltPersisted) {
+      throw new Error('Missing wrapKeySalt in deriveNearKeypairAndEncrypt result');
+    }
     // Prefer explicitly provided deviceNumber, else derive from IndexedDB state
     const deviceNumber = (typeof options?.deviceNumber === 'number')
       ? options!.deviceNumber!
@@ -77,16 +79,17 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     if (!chacha20NonceB64u) {
       throw new Error('Missing chacha20NonceB64u in deriveNearKeypairAndEncrypt result');
     }
-    const keyData: EncryptedKeyData = {
-      nearAccountId: nearAccountId,
+    const keyMaterial: LocalNearSkV3Material = {
+      kind: 'local_near_sk_v3',
+      nearAccountId,
       deviceNumber,
-      encryptedData: wasmResult.encryptedData,
+      publicKey: wasmResult.publicKey,
+      encryptedSk: wasmResult.encryptedData,
       chacha20NonceB64u,
       wrapKeySalt: wrapKeySaltPersisted,
-      version,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    await ctx.indexedDB.nearKeysDB.storeEncryptedKey(keyData);
+    await ctx.indexedDB.nearKeysDB.storeKeyMaterial(keyMaterial);
 
     return {
       success: true,
