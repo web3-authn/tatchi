@@ -110,6 +110,7 @@ async function main() {
         const {
           new_account_id,
           new_public_key,
+          threshold_ed25519,
           vrf_data,
           webauthn_registration,
           deterministic_vrf_public_key,
@@ -121,6 +122,7 @@ async function main() {
         const result = await authService.createAccountAndRegisterUser({
           new_account_id,
           new_public_key,
+          threshold_ed25519,
           vrf_data,
           webauthn_registration,
           deterministic_vrf_public_key,

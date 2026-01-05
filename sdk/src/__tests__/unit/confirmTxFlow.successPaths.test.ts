@@ -161,14 +161,16 @@ test.describe('confirmTxFlow – success paths', () => {
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
 
-      const request = {
-        schemaVersion: 2, requestId: 'r2', type: types.SecureConfirmationType.REGISTER_ACCOUNT,
-        summary: {},
-        payload: {
-          nearAccountId: 'bob.testnet',
-          rpcCall: { method: 'create', argsJson: {} }
-        }
-      };
+	      const request = {
+	        schemaVersion: 2, requestId: 'r2', type: types.SecureConfirmationType.REGISTER_ACCOUNT,
+	        summary: {},
+	        payload: {
+	          nearAccountId: 'bob.testnet',
+	          deviceNumber: 1,
+	          rpcCall: { method: 'create', argsJson: {} }
+	        },
+	        intentDigest: 'register:bob.testnet:1',
+	      };
       const msgs: any[] = [];
       const worker = { postMessage: (m: any) => msgs.push(m) } as unknown as Worker;
       await handle(ctx, { type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD, data: request }, worker);
@@ -275,7 +277,17 @@ test.describe('confirmTxFlow – success paths', () => {
             getUserByDevice: async () => ({ deviceNumber: 1 }),
           },
           nearKeysDB: {
-            getEncryptedKey: async () => ({ wrapKeySalt: 'salt-sign' }),
+            getLocalKeyMaterial: async () => ({
+              kind: 'local_near_sk_v3',
+              nearAccountId: 'carol.testnet',
+              deviceNumber: 1,
+              publicKey: 'ed25519:pk',
+              encryptedSk: 'ciphertext-b64u',
+              chacha20NonceB64u: 'nonce-b64u',
+              wrapKeySalt: 'salt-sign',
+              timestamp: Date.now(),
+            }),
+            getThresholdKeyMaterial: async () => null,
           },
         },
       };
@@ -307,6 +319,7 @@ test.describe('confirmTxFlow – success paths', () => {
       const resp = msgs[0]?.data;
       return {
         confirmed: resp?.confirmed,
+        error: resp?.error,
         tx: resp?.transactionContext,
         reserved,
         refreshed,
@@ -314,7 +327,7 @@ test.describe('confirmTxFlow – success paths', () => {
       };
     }, { paths: IMPORT_PATHS });
 
-    expect(result.confirmed).toBe(true);
+    expect(result.confirmed, result.error || 'unknown error').toBe(true);
     expect(result.tx?.nextNonce).toBe('201');
     expect(result.reserved).toEqual(['201']);
     expect(result.refreshed).toBeGreaterThanOrEqual(0);
@@ -406,7 +419,17 @@ test.describe('confirmTxFlow – success paths', () => {
             getUserByDevice: async () => ({ deviceNumber: 1 }),
           },
           nearKeysDB: {
-            getEncryptedKey: async () => ({ wrapKeySalt: 'salt-nep' }),
+            getLocalKeyMaterial: async () => ({
+              kind: 'local_near_sk_v3',
+              nearAccountId: 'nep.testnet',
+              deviceNumber: 1,
+              publicKey: 'ed25519:pk',
+              encryptedSk: 'ciphertext-b64u',
+              chacha20NonceB64u: 'nonce-b64u',
+              wrapKeySalt: 'salt-nep',
+              timestamp: Date.now(),
+            }),
+            getThresholdKeyMaterial: async () => null,
           },
         },
       };
@@ -434,6 +457,7 @@ test.describe('confirmTxFlow – success paths', () => {
       const resp = msgs[0]?.data;
       return {
         confirmed: resp?.confirmed,
+        error: resp?.error,
         prf: resp?.prfOutput,
         vrf: resp?.vrfChallenge,
         tx: resp?.transactionContext,
@@ -442,7 +466,7 @@ test.describe('confirmTxFlow – success paths', () => {
       };
     }, { paths: IMPORT_PATHS });
 
-    expect(result.confirmed).toBe(true);
+    expect(result.confirmed, result.error || 'unknown error').toBe(true);
     expect(result.vrf?.vrfOutput).toBe('nep-out');
     expect(result.tx?.nextNonce).toBe('11');
     expect(result.refreshed).toBeGreaterThanOrEqual(0);

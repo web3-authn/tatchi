@@ -129,11 +129,12 @@ test.describe('WalletIframeRouter – concurrent requests aggregate overlay visi
 
         const actionArgs = { type: 'Transfer', amount: '1' } as any;
 
-        const p1 = router.executeAction({
-          nearAccountId: 'concurrent1.testnet',
-          receiverId: 'w3a-v1.testnet',
-          actionArgs,
-        });
+	        const p1 = router.executeAction({
+	          nearAccountId: 'concurrent1.testnet',
+	          receiverId: 'w3a-v1.testnet',
+	          actionArgs,
+	          options: { signerMode: { mode: 'local-signer' } },
+	        });
 
         // Wait for overlay to be shown by first request
         const shown1 = await waitFor(() => {
@@ -141,11 +142,12 @@ test.describe('WalletIframeRouter – concurrent requests aggregate overlay visi
           return s.exists && s.visible;
         }, 3000);
 
-        const p2 = router.executeAction({
-          nearAccountId: 'concurrent2.testnet',
-          receiverId: 'w3a-v1.testnet',
-          actionArgs,
-        });
+	        const p2 = router.executeAction({
+	          nearAccountId: 'concurrent2.testnet',
+	          receiverId: 'w3a-v1.testnet',
+	          actionArgs,
+	          options: { signerMode: { mode: 'local-signer' } },
+	        });
 
         // Ensure second has reached confirmation (show) before first hides
         const secondAtConfirm = await waitFor(() => !!marks['SECOND_CONFIRMATION'], 1500);

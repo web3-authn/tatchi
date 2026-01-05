@@ -100,19 +100,20 @@ test.describe('Link device → immediate sign (regression)', () => {
 
         // LinkDeviceFlow derives/stores the encrypted NEAR key earlier in the real flow.
         // For this regression, store a minimal entry so signing can proceed immediately.
-        await nearKeysDB.storeEncryptedKey({
+        await nearKeysDB.storeKeyMaterial({
+          kind: 'local_near_sk_v3',
           nearAccountId: nearAccountId,
           deviceNumber,
-          encryptedData: 'ciphertext-b64u',
+          publicKey: 'ed25519:pk-device2',
+          encryptedSk: 'ciphertext-b64u',
           chacha20NonceB64u: 'nonce-b64u',
           wrapKeySalt: 'wrapKeySalt-b64u',
-          version: 2,
           timestamp: Date.now(),
         });
 
         const last = await clientDB.getLastUser();
         const deviceFromHelper = await getLastLoggedInDeviceNumber(nearAccountId, clientDB);
-        const key = await nearKeysDB.getEncryptedKey(nearAccountId, deviceFromHelper);
+        const key = await nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceFromHelper);
         const authenticators = await clientDB.getAuthenticatorsByUser(nearAccountId);
 
         // Exercise the signing handler path up to and including the IndexedDB lookups.
@@ -120,6 +121,7 @@ test.describe('Link device → immediate sign (regression)', () => {
         // and focuses on "link device → immediate sign" state wiring.
         const signingCtx: any = {
           indexedDB: { clientDB, nearKeysDB },
+          nonceManager: { initializeUser: () => {} },
           vrfWorkerManager: {
             confirmAndPrepareSigningSession: async () => ({
               intentDigest: 'intent',
@@ -154,6 +156,7 @@ test.describe('Link device → immediate sign (regression)', () => {
             },
           ],
           rpcCall: { nearAccountId },
+          signerMode: { mode: 'local-signer' },
           sessionId: 'linkdevice-regression',
         });
 
@@ -161,7 +164,7 @@ test.describe('Link device → immediate sign (regression)', () => {
           success: true,
           lastUser: last ? { nearAccountId: last.nearAccountId, deviceNumber: last.deviceNumber } : null,
           deviceFromHelper,
-          hasEncryptedKey: !!key?.encryptedData,
+          hasEncryptedKey: key?.kind === 'local_near_sk_v3' && !!key?.encryptedSk,
           authenticatorCount: Array.isArray(authenticators) ? authenticators.length : 0,
           signedCount: Array.isArray(signed) ? signed.length : 0,
         } as const;
@@ -267,19 +270,20 @@ test.describe('Link device → immediate sign (regression)', () => {
 
         // LinkDeviceFlow derives/stores the encrypted NEAR key earlier in the real flow.
         // For this regression, store a minimal entry so signing can proceed immediately.
-        await nearKeysDB.storeEncryptedKey({
+        await nearKeysDB.storeKeyMaterial({
+          kind: 'local_near_sk_v3',
           nearAccountId: nearAccountId,
           deviceNumber: 2,
-          encryptedData: 'ciphertext-b64u',
+          publicKey: 'ed25519:pk-device2',
+          encryptedSk: 'ciphertext-b64u',
           chacha20NonceB64u: 'nonce-b64u',
           wrapKeySalt: 'wrapKeySalt-b64u',
-          version: 2,
           timestamp: Date.now(),
         });
 
         const last = await clientDB.getLastUser();
         const deviceFromHelper = await getLastLoggedInDeviceNumber(nearAccountId, clientDB);
-        const key = await nearKeysDB.getEncryptedKey(nearAccountId, deviceFromHelper);
+        const key = await nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceFromHelper);
         const authenticators = await clientDB.getAuthenticatorsByUser(nearAccountId);
 
         // Exercise the signing handler path up to and including the IndexedDB lookups.
@@ -287,6 +291,7 @@ test.describe('Link device → immediate sign (regression)', () => {
         // and focuses on "link device → immediate sign" state wiring.
         const signingCtx: any = {
           indexedDB: { clientDB, nearKeysDB },
+          nonceManager: { initializeUser: () => {} },
           vrfWorkerManager: {
             confirmAndPrepareSigningSession: async () => ({
               intentDigest: 'intent',
@@ -321,6 +326,7 @@ test.describe('Link device → immediate sign (regression)', () => {
             },
           ],
           rpcCall: { nearAccountId },
+          signerMode: { mode: 'local-signer' },
           sessionId: 'linkdevice-regression-string-device',
         });
 
@@ -328,7 +334,7 @@ test.describe('Link device → immediate sign (regression)', () => {
           success: true,
           lastUser: last ? { nearAccountId: last.nearAccountId, deviceNumber: last.deviceNumber } : null,
           deviceFromHelper,
-          hasEncryptedKey: !!key?.encryptedData,
+          hasEncryptedKey: key?.kind === 'local_near_sk_v3' && !!key?.encryptedSk,
           authenticatorCount: Array.isArray(authenticators) ? authenticators.length : 0,
           signedCount: Array.isArray(signed) ? signed.length : 0,
         } as const;

@@ -173,16 +173,18 @@ test.describe('confirmTxFlow – defensive paths', () => {
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
 
-      const request = {
-        schemaVersion: 2,
-        requestId: 'cancel-reg',
-        type: types.SecureConfirmationType.REGISTER_ACCOUNT,
-        summary: {},
-        payload: {
-          nearAccountId: 'cancel-reg.testnet',
-          rpcCall: { method: 'register', argsJson: {} },
-        },
-      } as any;
+	      const request = {
+	        schemaVersion: 2,
+	        requestId: 'cancel-reg',
+	        type: types.SecureConfirmationType.REGISTER_ACCOUNT,
+	        summary: {},
+	        payload: {
+	          nearAccountId: 'cancel-reg.testnet',
+	          deviceNumber: 1,
+	          rpcCall: { method: 'register', argsJson: {} },
+	        },
+	        intentDigest: 'register:cancel-reg.testnet:1',
+	      } as any;
 
       const workerMessages: any[] = [];
       const worker = { postMessage: (msg: any) => workerMessages.push(msg) } as unknown as Worker;
@@ -517,7 +519,18 @@ test.describe('confirmTxFlow – defensive paths', () => {
             getLastUser: async () => ({ nearAccountId: 'error.testnet', deviceNumber: 1 }),
             getUserByDevice: async () => ({ deviceNumber: 1 }),
           },
-          nearKeysDB: { getEncryptedKey: async () => ({ wrapKeySalt: 'salt-missing-prf' }) },
+          nearKeysDB: {
+            getKeyMaterial: async () => ({
+              kind: 'local_near_sk_v3',
+              nearAccountId: 'error.testnet',
+              deviceNumber: 1,
+              publicKey: 'ed25519:pk',
+              encryptedSk: 'ciphertext-b64u',
+              chacha20NonceB64u: 'nonce-b64u',
+              wrapKeySalt: 'salt-missing-prf',
+              timestamp: Date.now(),
+            }),
+          },
         },
       };
 
@@ -617,16 +630,18 @@ test.describe('confirmTxFlow – defensive paths', () => {
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
 
-      const request = {
-        schemaVersion: 2,
-        requestId: 'prf-fail-reg',
-        type: types.SecureConfirmationType.REGISTER_ACCOUNT,
-        summary: {},
-        payload: {
-          nearAccountId: 'error-reg.testnet',
-          rpcCall: { method: 'register', argsJson: {} },
-        },
-      } as any;
+	      const request = {
+	        schemaVersion: 2,
+	        requestId: 'prf-fail-reg',
+	        type: types.SecureConfirmationType.REGISTER_ACCOUNT,
+	        summary: {},
+	        payload: {
+	          nearAccountId: 'error-reg.testnet',
+	          deviceNumber: 1,
+	          rpcCall: { method: 'register', argsJson: {} },
+	        },
+	        intentDigest: 'register:error-reg.testnet:1',
+	      } as any;
 
       const workerMessages: any[] = [];
       const worker = { postMessage: (msg: any) => workerMessages.push(msg) } as unknown as Worker;

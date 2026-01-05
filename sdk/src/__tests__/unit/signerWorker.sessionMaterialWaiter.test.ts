@@ -49,6 +49,7 @@ test.describe('signer worker – session material waiters', () => {
         type: WorkerRequestType.SignTransactionsWithActions,
         payload: {
           sessionId,
+          signerMode: { mode: 'local-signer' },
           rpcCall: { contractId: 'c', nearRpcUrl: 'u', nearAccountId: 'a' },
           createdAt: Date.now(),
           decryption: { encryptedPrivateKeyData: 'AA', encryptedPrivateKeyChacha20NonceB64u: 'AA' },
@@ -112,6 +113,7 @@ test.describe('signer worker – session material waiters', () => {
         type: WorkerRequestType.SignTransactionsWithActions,
         payload: {
           sessionId,
+          signerMode: { mode: 'local-signer' },
           rpcCall: { contractId: 'c', nearRpcUrl: 'u', nearAccountId: 'a' },
           createdAt: Date.now(),
           decryption: { encryptedPrivateKeyData: 'AA', encryptedPrivateKeyChacha20NonceB64u: 'AA' },

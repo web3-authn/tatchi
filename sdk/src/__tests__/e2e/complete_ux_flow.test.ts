@@ -255,10 +255,11 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
             type: ActionType.DeleteAccount,
             beneficiaryId,
           },
-          options: {
-            onEvent: (event: any) => {
-              console.log('[cleanup] DeleteAccount event', event?.phase, event?.status);
-            },
+	          options: {
+	            signerMode: { mode: 'local-signer' },
+	            onEvent: (event: any) => {
+	              console.log('[cleanup] DeleteAccount event', event?.phase, event?.status);
+	            },
             onError: (error: any) => {
               console.warn('[cleanup] DeleteAccount error', error);
             },

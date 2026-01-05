@@ -197,11 +197,12 @@ export async function executeTransfer(
           type: args.actionType ?? 'Transfer',
           amount: args.amountYocto,
         },
-        options: {
-          onEvent: (event: any) => {
-            events.push(event);
-            console.log(`[flow:transfer]   -> ${event.phase} | ${event.message}`);
-          },
+	        options: {
+	          signerMode: { mode: 'local-signer' },
+	          onEvent: (event: any) => {
+	            events.push(event);
+	            console.log(`[flow:transfer]   -> ${event.phase} | ${event.message}`);
+	          },
           onError: (error: any) => {
             console.error(`[flow:transfer] ! ${error}`);
           }

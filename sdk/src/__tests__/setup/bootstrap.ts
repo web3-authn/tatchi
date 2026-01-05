@@ -355,7 +355,17 @@ export async function executeSequentialSetup(
 
   // Step 1a: Log CORS/CORP headers installation (routes already installed pre-navigation)
   const appOrigin = new URL(configs.frontendUrl).origin;
-  await installWalletSdkCorsShim(page, { appOrigin, logStyle: 'setup' });
+  const mirrorWalletOrigin = (() => {
+    // When running without Caddy, tests only start the app dev server, so we mirror wallet-origin
+    // assets/routes from the app origin. With Caddy enabled (default), wallet.example.localhost is
+    // served separately and we should not mirror to avoid breaking the iframe handshake.
+    const noCaddy =
+      process.env.NO_CADDY === '1'
+      || process.env.VITE_NO_CADDY === '1'
+      || process.env.CI === '1';
+    return noCaddy;
+  })();
+  await installWalletSdkCorsShim(page, { appOrigin, logStyle: 'setup', mirror: mirrorWalletOrigin });
 
   // Step 2: ENVIRONMENT SETUP
   const authenticatorId = await setupWebAuthnVirtualAuthenticator(page);
