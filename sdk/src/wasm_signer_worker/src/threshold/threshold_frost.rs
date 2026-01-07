@@ -34,6 +34,30 @@ fn normalize_rp_id(rp_id: &str) -> String {
     rp_id.trim().to_ascii_lowercase()
 }
 
+const THRESHOLD_DERIVE_NONZERO_SCALAR_MAX_TRIES_V1: u32 = 1024;
+
+// Deterministic "rejection sampling" for derived scalars:
+// try `derive_candidate(ctr)` for ctr=0..MAX and return the first non-zero scalar.
+//
+// This is useful when deriving secrets via HKDF + `from_bytes_mod_order_wide`, where
+// the all-zero scalar is astronomically unlikely but still invalid as a signing share.
+fn deterministic_rejection_sample_nonzero_scalar_v1<F>(
+    mut derive_candidate: F,
+    exhausted_error: &str,
+) -> Result<CurveScalar, String>
+where
+    F: FnMut(u32) -> Result<CurveScalar, String>,
+{
+    for ctr in 0u32..THRESHOLD_DERIVE_NONZERO_SCALAR_MAX_TRIES_V1 {
+        let scalar = derive_candidate(ctr)?;
+        if scalar != CurveScalar::ZERO {
+            return Ok(scalar);
+        }
+    }
+
+    Err(exhausted_error.to_string())
+}
+
 fn derive_threshold_relayer_share_scalar_v1(
     master_secret_bytes: &[u8],
     near_account_id: &str,
@@ -48,40 +72,52 @@ fn derive_threshold_relayer_share_scalar_v1(
     }
 
     let rp_id = normalize_rp_id(rp_id);
+
+    // Deterministically derive the relayer signing share from the relayer master secret + public inputs.
+    //
+    // - HKDF salt binds the derivation to the client verifying share (public key-share).
+    // - HKDF `info` binds it to the NEAR account + rpId.
+    // - `ctr` enables deterministic "rejection sampling": if the reduced scalar is 0 mod ℓ,
+    //   increment ctr and retry.
     let salt = Sha256::digest(client_verifying_share_bytes);
     let hk = Hkdf::<Sha256>::new(Some(salt.as_slice()), master_secret_bytes);
 
-    for ctr in 0u32..1024u32 {
-        let mut okm = [0u8; 64];
-        let mut info: Vec<u8> = Vec::with_capacity(
-            THRESHOLD_RELAYER_SHARE_INFO_PREFIX_V1.len()
-                + 1
-                + near_account_id.trim().len()
-                + 1
-                + rp_id.len()
-                + 1
-                + 8
-                + 4,
-        );
-        info.extend_from_slice(THRESHOLD_RELAYER_SHARE_INFO_PREFIX_V1);
-        info.push(0);
-        info.extend_from_slice(near_account_id.trim().as_bytes());
-        info.push(0);
-        info.extend_from_slice(rp_id.as_bytes());
-        info.push(0);
-        info.extend_from_slice(&0u64.to_le_bytes()); // epoch (reserved)
-        info.extend_from_slice(&ctr.to_le_bytes());
+    // info := prefix || 0 || near_account_id || 0 || rp_id || 0 || epoch || ctr
+    // `0` separators prevent ambiguous concatenation; epoch is reserved for future rotations.
+    let near_account_id = near_account_id.trim();
+    let mut info: Vec<u8> = Vec::with_capacity(
+        THRESHOLD_RELAYER_SHARE_INFO_PREFIX_V1.len()
+            + 1
+            + near_account_id.len()
+            + 1
+            + rp_id.len()
+            + 1
+            + 8
+            + 4,
+    );
+    info.extend_from_slice(THRESHOLD_RELAYER_SHARE_INFO_PREFIX_V1);
+    info.push(0);
+    info.extend_from_slice(near_account_id.as_bytes());
+    info.push(0);
+    info.extend_from_slice(rp_id.as_bytes());
+    info.push(0);
+    info.extend_from_slice(&0u64.to_le_bytes()); // epoch (reserved)
+    info.extend_from_slice(&0u32.to_le_bytes()); // ctr (overwritten per-attempt)
+    let ctr_offset = info.len() - 4;
 
-        hk.expand(&info, &mut okm)
-            .map_err(|_| "HKDF expand failed".to_string())?;
+    let mut okm = [0u8; 64];
+    deterministic_rejection_sample_nonzero_scalar_v1(
+        |ctr| {
+            info[ctr_offset..].copy_from_slice(&ctr.to_le_bytes());
 
-        let scalar = CurveScalar::from_bytes_mod_order_wide(&okm);
-        if scalar != CurveScalar::ZERO {
-            return Ok(scalar);
-        }
-    }
+            // Expand to 64 bytes so we can reduce a "wide" value into a scalar mod ℓ.
+            hk.expand(&info, &mut okm)
+                .map_err(|_| "HKDF expand failed".to_string())?;
 
-    Err("Derived relayer signing share is zero; retry with a different master secret".to_string())
+            Ok(CurveScalar::from_bytes_mod_order_wide(&okm))
+        },
+        "Derived relayer signing share is zero; retry with a different master secret",
+    )
 }
 
 /// Server-side helper: generate a relayer signing share and compute a group public key from
@@ -392,6 +428,9 @@ pub fn threshold_ed25519_round2_sign(args: JsValue) -> Result<JsValue, JsValue> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::WrapKey;
+    use crate::encoders::base64_url_encode;
+    use ed25519_dalek::Verifier;
 
     #[test]
     fn deterministic_relayer_share_is_stable_and_rp_id_normalized() {
@@ -475,5 +514,146 @@ mod tests {
         )
         .expect("should derive scalar");
         assert_ne!(base.to_bytes(), different_client.to_bytes());
+    }
+
+    #[test]
+    fn two_of_two_signature_from_derived_shares_verifies() {
+        let master_secret = [99u8; 32];
+        let near_account_id = "alice.near";
+        let rp_id = "example.com";
+        let wrap_key = WrapKey {
+            wrap_key_seed: base64_url_encode(&[7u8; 32]),
+            wrap_key_salt: base64_url_encode(&[8u8; 32]),
+        };
+
+        let client_signing_share_bytes =
+            crate::threshold::threshold_client_share::derive_threshold_client_signing_share_bytes_v1(
+                &wrap_key,
+                near_account_id,
+            )
+            .expect("client signing share should derive");
+        let client_verifying_share_bytes =
+            crate::threshold::threshold_client_share::derive_threshold_client_verifying_share_bytes_v1(
+                &wrap_key,
+                near_account_id,
+            )
+            .expect("client verifying share should derive");
+
+        let relayer_scalar = derive_threshold_relayer_share_scalar_v1(
+            &master_secret,
+            near_account_id,
+            rp_id,
+            &client_verifying_share_bytes,
+        )
+        .expect("relayer share should derive");
+        let relayer_signing_share_bytes = relayer_scalar.to_bytes();
+        let relayer_verifying_share_bytes = (ED25519_BASEPOINT_POINT * relayer_scalar)
+            .compress()
+            .to_bytes();
+
+        // groupPk = (2 * clientPk) - relayerPk
+        let client_point = CompressedEdwardsY(client_verifying_share_bytes)
+            .decompress()
+            .expect("client verifying share must decompress");
+        let relayer_point = CompressedEdwardsY(relayer_verifying_share_bytes)
+            .decompress()
+            .expect("relayer verifying share must decompress");
+        let group_pk_bytes = (client_point + client_point - relayer_point)
+            .compress()
+            .to_bytes();
+
+        let verifying_key = frost_ed25519::VerifyingKey::deserialize(&group_pk_bytes)
+            .expect("group verifying key must deserialize");
+        let client_identifier: frost_ed25519::Identifier =
+            1u16.try_into().expect("valid client identifier");
+        let relayer_identifier: frost_ed25519::Identifier =
+            2u16.try_into().expect("valid relayer identifier");
+
+        let client_signing_share =
+            frost_ed25519::keys::SigningShare::deserialize(&client_signing_share_bytes)
+                .expect("client signing share must deserialize");
+        let client_verifying_share =
+            frost_ed25519::keys::VerifyingShare::deserialize(&client_verifying_share_bytes)
+                .expect("client verifying share must deserialize");
+        let relayer_signing_share =
+            frost_ed25519::keys::SigningShare::deserialize(&relayer_signing_share_bytes)
+                .expect("relayer signing share must deserialize");
+        let relayer_verifying_share =
+            frost_ed25519::keys::VerifyingShare::deserialize(&relayer_verifying_share_bytes)
+                .expect("relayer verifying share must deserialize");
+
+        let client_key_package = frost_ed25519::keys::KeyPackage::new(
+            client_identifier,
+            client_signing_share,
+            client_verifying_share.clone(),
+            verifying_key.clone(),
+            2,
+        );
+        let relayer_key_package = frost_ed25519::keys::KeyPackage::new(
+            relayer_identifier,
+            relayer_signing_share,
+            relayer_verifying_share.clone(),
+            verifying_key.clone(),
+            2,
+        );
+
+        // Sign a 32-byte digest (mirrors worker behavior).
+        let msg_digest: [u8; 32] = Sha256::digest(b"test message")
+            .as_slice()
+            .try_into()
+            .expect("sha256 digest must be 32 bytes");
+
+        let mut rng = frost_ed25519::rand_core::OsRng;
+        let (client_nonces, client_commitments) =
+            frost_ed25519::round1::commit(client_key_package.signing_share(), &mut rng);
+        let (relayer_nonces, relayer_commitments) =
+            frost_ed25519::round1::commit(relayer_key_package.signing_share(), &mut rng);
+
+        let mut commitments_map = BTreeMap::new();
+        commitments_map.insert(client_identifier, client_commitments);
+        commitments_map.insert(relayer_identifier, relayer_commitments);
+        let signing_package = frost_ed25519::SigningPackage::new(commitments_map, &msg_digest);
+
+        let client_sig_share = frost_ed25519::round2::sign(
+            &signing_package,
+            &client_nonces,
+            &client_key_package,
+        )
+        .expect("client round2 sign should succeed");
+        let relayer_sig_share = frost_ed25519::round2::sign(
+            &signing_package,
+            &relayer_nonces,
+            &relayer_key_package,
+        )
+        .expect("relayer round2 sign should succeed");
+
+        let mut verifying_shares = BTreeMap::new();
+        verifying_shares.insert(client_identifier, client_verifying_share);
+        verifying_shares.insert(relayer_identifier, relayer_verifying_share);
+        let pubkey_package =
+            frost_ed25519::keys::PublicKeyPackage::new(verifying_shares, verifying_key);
+
+        let mut signature_shares = BTreeMap::new();
+        signature_shares.insert(client_identifier, client_sig_share);
+        signature_shares.insert(relayer_identifier, relayer_sig_share);
+
+        let group_signature =
+            frost_ed25519::aggregate(&signing_package, &signature_shares, &pubkey_package)
+                .expect("aggregate should succeed");
+        let sig_bytes = group_signature
+            .serialize()
+            .expect("signature serialization should succeed");
+        assert_eq!(sig_bytes.len(), 64);
+
+        let vk = ed25519_dalek::VerifyingKey::from_bytes(&group_pk_bytes)
+            .expect("ed25519 group pk must be valid");
+        let sig: [u8; 64] = sig_bytes
+            .as_slice()
+            .try_into()
+            .expect("signature must be 64 bytes");
+        let sig = ed25519_dalek::Signature::from_bytes(&sig);
+
+        vk.verify(&msg_digest, &sig)
+            .expect("ed25519-dalek should verify group signature");
     }
 }
