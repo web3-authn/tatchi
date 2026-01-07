@@ -100,6 +100,7 @@ function createTestSessionAdapter(): {
 
 async function buildThresholdSessionBody(input: {
   relayerKeyId: string;
+  clientVerifyingShareB64u: string;
   nearAccountId: string;
   rpId: string;
   sessionId: string;
@@ -120,6 +121,7 @@ async function buildThresholdSessionBody(input: {
 
   return {
     relayerKeyId: input.relayerKeyId,
+    clientVerifyingShareB64u: input.clientVerifyingShareB64u,
     sessionPolicy: policy,
     sessionKind: 'jwt',
     vrf_data: {
@@ -140,6 +142,7 @@ async function buildThresholdSessionBody(input: {
 
 async function buildNearTxAuthorizeBody(input: {
   relayerKeyId: string;
+  clientVerifyingShareB64u: string;
   nearAccountId: string;
   nearPublicKeyStr: string;
   receiverId: string;
@@ -179,6 +182,7 @@ async function buildNearTxAuthorizeBody(input: {
     signingDigestB64u: base64UrlEncode(signingDigestBytes),
     body: {
       relayerKeyId: input.relayerKeyId,
+      clientVerifyingShareB64u: input.clientVerifyingShareB64u,
       purpose: 'near_tx',
       signing_digest_32: Array.from(signingDigestBytes),
       signingPayload,
@@ -232,6 +236,7 @@ async function buildKeygenBody(input: {
 
 function minimalAuthorizeBody(input: {
   relayerKeyId: string;
+  clientVerifyingShareB64u: string;
   purpose: string;
   signingDigest32: number[];
   userId: string;
@@ -239,6 +244,7 @@ function minimalAuthorizeBody(input: {
 }): Record<string, unknown> {
   return {
     relayerKeyId: input.relayerKeyId,
+    clientVerifyingShareB64u: input.clientVerifyingShareB64u,
     purpose: input.purpose,
     signing_digest_32: input.signingDigest32,
     signingPayload: { kind: input.purpose },
@@ -280,6 +286,7 @@ test.describe('threshold-ed25519 scope (express)', () => {
       const sessionId = `sess-${Date.now()}`;
       const sessionBody = await buildThresholdSessionBody({
         relayerKeyId,
+        clientVerifyingShareB64u,
         nearAccountId: 'bob.testnet',
         rpId: 'example.localhost',
         sessionId,
@@ -299,6 +306,7 @@ test.describe('threshold-ed25519 scope (express)', () => {
 
       const { body: authorizeBody } = await buildNearTxAuthorizeBody({
         relayerKeyId,
+        clientVerifyingShareB64u,
         nearAccountId: 'bob.testnet',
         nearPublicKeyStr,
         receiverId: 'receiver.testnet',
@@ -348,6 +356,7 @@ test.describe('threshold-ed25519 scope (express)', () => {
       const sessionId = `sess-${Date.now()}`;
       const sessionBody = await buildThresholdSessionBody({
         relayerKeyId,
+        clientVerifyingShareB64u,
         nearAccountId: 'bob.testnet',
         rpId: 'example.localhost',
         sessionId,
@@ -367,6 +376,7 @@ test.describe('threshold-ed25519 scope (express)', () => {
 
       const { body: authorizeBody } = await buildNearTxAuthorizeBody({
         relayerKeyId,
+        clientVerifyingShareB64u,
         nearAccountId: 'bob.testnet',
         nearPublicKeyStr,
         receiverId: 'receiver.testnet',
@@ -414,11 +424,11 @@ test.describe('threshold-ed25519 scope (express)', () => {
     }
   });
 
-		  test('authorize binds signing digest; mpcSessionId is single-use; finalize discards signingSessionId', async () => {
-		    const { service, threshold } = makeAuthServiceForThreshold();
-		    const router = createRelayRouter(service, { threshold });
-		    const srv = await startExpressRouter(router);
-		    try {
+  test('authorize binds signing digest; mpcSessionId is single-use; finalize discards signingSessionId', async () => {
+    const { service, threshold } = makeAuthServiceForThreshold();
+    const router = createRelayRouter(service, { threshold });
+    const srv = await startExpressRouter(router);
+    try {
 	      const clientVerifyingShareB64u = await randomClientVerifyingShareB64u();
         const keygenBody = await buildKeygenBody({ nearAccountId: 'bob.testnet', clientVerifyingShareB64u });
 	      const keygen = await fetchJson(`${srv.baseUrl}/threshold-ed25519/keygen`, {
@@ -436,6 +446,7 @@ test.describe('threshold-ed25519 scope (express)', () => {
 
       const { body: authorizeBody, signingDigestB64u } = await buildNearTxAuthorizeBody({
         relayerKeyId,
+        clientVerifyingShareB64u,
         nearAccountId: 'bob.testnet',
         nearPublicKeyStr,
         receiverId: 'receiver.testnet',
@@ -502,11 +513,11 @@ test.describe('threshold-ed25519 scope (express)', () => {
     }
   });
 
-		  test('sign/init rejects digest mismatch and nearAccountId mismatch', async () => {
-		    const { service, threshold } = makeAuthServiceForThreshold();
-		    const router = createRelayRouter(service, { threshold });
-		    const srv = await startExpressRouter(router);
-		    try {
+  test('sign/init rejects digest mismatch and nearAccountId mismatch', async () => {
+    const { service, threshold } = makeAuthServiceForThreshold();
+    const router = createRelayRouter(service, { threshold });
+    const srv = await startExpressRouter(router);
+    try {
 	      const clientVerifyingShareB64u = await randomClientVerifyingShareB64u();
         const keygenBody = await buildKeygenBody({ nearAccountId: 'bob.testnet', clientVerifyingShareB64u });
 	      const keygen = await fetchJson(`${srv.baseUrl}/threshold-ed25519/keygen`, {
@@ -521,6 +532,7 @@ test.describe('threshold-ed25519 scope (express)', () => {
 
       const { body: authorizeBody, signingDigestB64u } = await buildNearTxAuthorizeBody({
         relayerKeyId,
+        clientVerifyingShareB64u,
         nearAccountId: 'bob.testnet',
         nearPublicKeyStr,
         receiverId: 'receiver.testnet',
@@ -577,11 +589,11 @@ test.describe('threshold-ed25519 scope (express)', () => {
     }
   });
 
-		  test('authorize rejects missing signing_digest_32', async () => {
-		    const { service, threshold } = makeAuthServiceForThreshold();
-		    const router = createRelayRouter(service, { threshold });
-		    const srv = await startExpressRouter(router);
-		    try {
+  test('authorize rejects missing signing_digest_32', async () => {
+    const { service, threshold } = makeAuthServiceForThreshold();
+    const router = createRelayRouter(service, { threshold });
+    const srv = await startExpressRouter(router);
+    try {
 	      const clientVerifyingShareB64u = await randomClientVerifyingShareB64u();
         const keygenBody = await buildKeygenBody({ nearAccountId: 'bob.testnet', clientVerifyingShareB64u });
 	      const keygen = await fetchJson(`${srv.baseUrl}/threshold-ed25519/keygen`, {
@@ -600,6 +612,7 @@ test.describe('threshold-ed25519 scope (express)', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           relayerKeyId,
+          clientVerifyingShareB64u,
           purpose: 'near_tx',
           vrf_data: {
             vrf_input_data: Array(32).fill(0),
@@ -648,6 +661,7 @@ test.describe('threshold-ed25519 scope (cloudflare)', () => {
     const sessionId = `sess-${Date.now()}`;
     const sessionBody = await buildThresholdSessionBody({
       relayerKeyId,
+      clientVerifyingShareB64u,
       nearAccountId: 'bob.testnet',
       rpId: 'example.localhost',
       sessionId,
@@ -669,6 +683,7 @@ test.describe('threshold-ed25519 scope (cloudflare)', () => {
 
     const { body: authorizeBody } = await buildNearTxAuthorizeBody({
       relayerKeyId,
+      clientVerifyingShareB64u,
       nearAccountId: 'bob.testnet',
       nearPublicKeyStr,
       receiverId: 'receiver.testnet',
@@ -721,6 +736,7 @@ test.describe('threshold-ed25519 scope (cloudflare)', () => {
 
     const { body: authorizeBody, signingDigestB64u } = await buildNearTxAuthorizeBody({
       relayerKeyId,
+      clientVerifyingShareB64u,
       nearAccountId: 'bob.testnet',
       nearPublicKeyStr,
       receiverId: 'receiver.testnet',
