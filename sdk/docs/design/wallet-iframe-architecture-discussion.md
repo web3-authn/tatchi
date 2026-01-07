@@ -80,8 +80,6 @@ The main point of this SDK is no reliance on external servers. Hosting the servi
 ## 10) Visible Wallet UI Components (Re‑use)
 
 - `<w3a-tx-confirmer>`: inline wallet‑origin Lit element that captures the confirm click and runs WebAuthn without a nested iframe.
-- `IframeButtonWithTooltipConfirmer`: embedded wallet‑origin iframe; can run WebAuthn on its own click.
-- Add iframe `allow="publickey-credentials-get; publickey-credentials-create"` for embedded button usage.
 
 ## 11) Digest Integrity & NEAR/VRF Context
 

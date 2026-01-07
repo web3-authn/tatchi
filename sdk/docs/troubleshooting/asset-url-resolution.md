@@ -25,11 +25,10 @@
 - Confirm MIME types for `.js` and `.wasm`.
 
 **Quick Checks**
-- `GET <wallet-origin>/sdk/w3a-button-with-tooltip.js` → 200 `application/javascript`.
-- `GET <wallet-origin>/sdk/iframe-tx-button-bootstrap.js` → 200 `application/javascript`.
+- `GET <wallet-origin>/sdk/wallet-iframe-host.js` → 200 `application/javascript`.
+- `GET <wallet-origin>/sdk/w3a-tx-confirmer.js` → 200 `application/javascript`.
+- `GET <wallet-origin>/sdk/tx-confirm-ui.js` → 200 `application/javascript`.
 - In wallet iframe console: `window.__W3A_EMBEDDED_BASE__` ends with `/sdk/`.
-- In the child iframe: `customElements.get('w3a-button-with-tooltip')` returns a constructor; element has a populated `shadowRoot`.
 
 **Outcome**
-- With the base path fixed, rewrites excluded, and MIME types correct, `w3a-button-with-tooltip` works in both development and production.
-
+- With the base path fixed, rewrites excluded, and MIME types correct, embedded bundles like `w3a-tx-confirmer` load in both development and production.

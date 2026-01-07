@@ -39,9 +39,6 @@
  * - No functions are transferred across the iframe boundary
  */
 
-// Import and retain a reference to ensure bundlers don’t treeshake the element
-// Import iframe tooltip confirmer button and keep reference
-import { IframeButtonHost as __IframeButtonKeep } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
 // Import arrow register button so it's defined and not tree-shaken in wallet origin
 import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import { TatchiPasskey } from '../../TatchiPasskey';
@@ -50,18 +47,8 @@ import { BaseSSEEvent, TransactionInput, TransactionInputWasm } from '../../type
 import { uiBuiltinRegistry, type WalletUIRegistry } from './iframe-lit-element-registry';
 import { errorMessage } from '../../../utils/errors';
 import { isObject, isString } from '../validation';
-import { defineTag } from '../../WebAuthnManager/LitComponents/tags';
 import { type SignerMode, coerceSignerMode } from '../../types/signer-worker';
-// Keep essential custom elements from being tree-shaken
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const __ensureTreeDefinition = [__IframeButtonKeep];
-// Define the element defensively in case the side-effect define was optimized away
-
-// Wallet host lit wrappers (no nested wallet iframe)
-import './WalletHostElements';
 import { ensureHostBaseStyles, markContainer, setContainerAnchored } from './mounter-styles';
-
-defineTag('txButton', __IframeButtonKeep as unknown as CustomElementConstructor);
 
 export type EnsureTatchiPasskey = () => void;
 export type GetPasskeyManager = () => TatchiPasskey | TatchiPasskeyIframe | null; // Avoid tight coupling to class type

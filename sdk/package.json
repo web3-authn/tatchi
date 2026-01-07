@@ -108,11 +108,6 @@
       "require": "./dist/cjs/react/components/PasskeyAuthMenu/preload.js",
       "types": "./dist/types/src/react/components/PasskeyAuthMenu/preload.d.ts"
     },
-    "./react/embedded": {
-      "import": "./dist/esm/react/components/SendTxButtonWithTooltip.js",
-      "require": "./dist/cjs/react/components/SendTxButtonWithTooltip.js",
-      "types": "./dist/types/src/react/components/SendTxButtonWithTooltip.d.ts"
-    },
     "./react/provider": {
       "import": "./dist/esm/react/context/TatchiPasskeyProvider.js",
       "require": "./dist/cjs/react/context/TatchiPasskeyProvider.js",

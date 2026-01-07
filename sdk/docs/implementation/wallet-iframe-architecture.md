@@ -16,7 +16,7 @@ Web3Authn uses a hidden "wallet service" iframe to handle all security-critical 
 
 **Developer-Friendly API**: The `TatchiPasskey` SDK provides a clean interface that abstracts away the underlying iframe communication. You call methods like `register()` and `signTransactions()` just like any other JavaScript library.
 
-**No Browser Popups**: User interactions happen through inline UI elements (modals or embedded buttons) hosted on the wallet origin, eliminating popup blockers and improving UX.
+**No Browser Popups**: User interactions happen through inline UI elements (modals/drawers) hosted on the wallet origin, eliminating popup blockers and improving UX.
 
 ## Architecture Components
 
@@ -58,7 +58,7 @@ The hidden iframe hosts the security-critical infrastructure:
 - Coordinate with Web Workers for cryptographic operations
 - Return only non-sensitive results (signed transactions, public keys, status codes)
 
-**User Interface**: When user interaction is needed, the iframe shows a confirmation modal or embedded button—all within the wallet's origin to satisfy browser security requirements. No popups are ever opened.
+**User Interface**: When user interaction is needed, the iframe shows a confirmation modal/drawer—all within the wallet's origin to satisfy browser security requirements. No popups are ever opened.
 
 ## Security Boundaries
 
@@ -85,7 +85,7 @@ All UI elements that capture user gestures for WebAuthn operations must be on th
 
 **Modal Flow**: The `<w3a-tx-confirmer>` component appears inline within the wallet iframe to capture the user's click, then disappears after confirmation.
 
-**Embedded Flow**: The `IframeButtonWithTooltipConfirmer` runs in its own visible iframe (also on the wallet origin) and handles both the click capture and WebAuthn operation.
+ 
 
 ## Initialization Flow
 
@@ -207,10 +207,6 @@ Here's what happens when a user signs a transaction—no popups involved:
    - Returns signed transactions
 
 7. **Response**: The wallet iframe sends only the signed transactions back to your application. The modal closes, and the hidden service iframe remains mounted for future operations.
-
-### Embedded Button Variant
-
-When using the embedded button flow, WebAuthn runs directly in the visible embedded iframe (which is also on the wallet origin). Since it shares the origin with the service iframe, it can forward results to the signer worker directly.
 
 ## Web Workers and WebAssembly
 
@@ -426,7 +422,7 @@ This creates an end-to-end security model where credentials are scoped to the wa
    - `WebAuthnManager`
    - Signer and VRF workers
    - IndexedDB managers
-4. Keep existing Modal and Embedded Button flows for user activation
+4. Keep existing modal/drawer confirmer flows for user activation
 5. Update parent SDK to forward requests and handle responses
 
 **Result**: All cryptographic operations isolated to wallet origin; parent only receives signed results.

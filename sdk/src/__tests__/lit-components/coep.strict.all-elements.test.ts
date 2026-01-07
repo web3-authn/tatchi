@@ -94,8 +94,6 @@ test('COEP strict: all Lit elements define + upgrade without COEP/CORP violation
 
   // Prefer public/stable SDK bundles under `/sdk/*` (these are what integrators load).
   // - `w3a-tx-confirmer.js` pulls in confirmer variants + their internal Lit elements.
-  // - `w3a-button-with-tooltip.js` defines the embedded tooltip button.
-  // - `w3a-tx-button.js` defines the iframe host element for embedding.
   // - `export-private-key-viewer.js` defines the export viewer element.
   const CASES: ElementCase[] = [
     // This wrapper bundle is what integrators typically load; it pulls in the confirmer variants
@@ -109,24 +107,6 @@ test('COEP strict: all Lit elements define + upgrade without COEP/CORP violation
     { name: 'HaloBorder', modulePath: '/sdk/w3a-tx-confirmer.js', tagName: 'w3a-halo-border' },
     { name: 'PasskeyHaloLoading', modulePath: '/sdk/w3a-tx-confirmer.js', tagName: 'w3a-passkey-halo-loading' },
     { name: 'PadlockIcon', modulePath: '/sdk/w3a-tx-confirmer.js', tagName: 'w3a-padlock-icon' },
-    {
-      name: 'EmbeddedButtonWithTooltip',
-      modulePath: '/sdk/w3a-button-with-tooltip.js',
-      tagName: 'w3a-button-with-tooltip',
-      mount: {
-        props: {
-          nearAccountId: 'demo.testnet',
-          txSigningRequests: [],
-          tooltip: { width: '360px', height: 'auto', position: 'top-center', offset: '8px' },
-        },
-      },
-    },
-    {
-      name: 'IframeTxButtonHost',
-      modulePath: '/sdk/w3a-tx-button.js',
-      tagName: 'w3a-tx-button',
-      mount: { props: { nearAccountId: 'demo.testnet', txSigningRequests: [] } },
-    },
     { name: 'ExportPrivateKeyViewer', modulePath: '/sdk/export-private-key-viewer.js', tagName: 'w3a-export-key-viewer' },
     {
       name: 'ExportViewerIframeHost',

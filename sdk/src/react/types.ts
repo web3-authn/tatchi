@@ -276,21 +276,3 @@ export type {
   StartDeviceLinkingOptionsDevice2,
   ScanAndLinkDeviceOptionsDevice1,
 } from '../core/types/linkDevice';
-
-// === Secure Send Transaction Button type ===
-export interface SendTxButtonWithTooltipBaseProps {
-  /** NEAR account ID */
-  nearAccountId: string;
-  /** Transaction payloads to sign */
-  txSigningRequests: TransactionInput[];
-  /** Optional hook options passed into signAndSendTransactions */
-  options?: SignAndSendTransactionHooksOptions;
-  /** Callback when user cancels */
-  onCancel?: () => void;
-  /** Callback for SSE-style action events */
-  onEvent?: EventCallback<ActionSSEEvent>;
-  /** Callback when transaction is successfully signed */
-  onSuccess?: (result: ActionResult[]) => void;
-  /** Notifies when Touch ID prompt loads/unloads */
-  onLoadTouchIdPrompt?: (loading: boolean) => void;
-}

@@ -24,11 +24,6 @@
  * - UIBridgeProps: Defines how to bridge results back to parent
  * - UIComponentDef: Complete component definition with all bindings
  *
- * Built-in Components:
- * - w3a-tx-button-host: Transaction button with host wrapper
- * - w3a-tx-button: Direct transaction button
- * - Backward compatibility aliases for existing component names
- *
  * Extension Points:
  * - New components can be added to the registry
  * - Custom event/prop bindings can be defined
@@ -39,11 +34,6 @@
  * - Event handlers are properly bound to TatchiPasskey methods
  * - No arbitrary code execution is allowed in component definitions
  */
-
-import {
-  W3A_TX_BUTTON_HOST_ID,
-  W3A_TX_BUTTON_ID,
-} from '../../WebAuthnManager/LitComponents/tags';
 
 export type PmActionName =
   | 'signAndSendTransactions';
@@ -79,31 +69,4 @@ export type UIComponentDef = {
 export type WalletUIRegistry = Record<string, UIComponentDef>;
 
 // Built-in components available out of the box inside the wallet host.
-export const uiBuiltinRegistry: WalletUIRegistry = {
-  // Preferred keys/tags
-  'w3a-tx-button-host': {
-    tag: W3A_TX_BUTTON_HOST_ID,
-    propBindings: [
-      { prop: 'externalConfirm', action: 'signAndSendTransactions' },
-    ],
-    bridgeProps: {
-      successProp: 'onSuccess',
-      cancelProp: 'onCancel',
-      messageType: 'TX_BUTTON_RESULT'
-    }
-  },
-  'w3a-tx-button': {
-    tag: W3A_TX_BUTTON_ID,
-    propBindings: [
-      { prop: 'externalConfirm', action: 'signAndSendTransactions' },
-    ],
-    bridgeProps: {
-      successProp: 'onSuccess',
-      cancelProp: 'onCancel',
-      messageType: 'TX_BUTTON_RESULT'
-    }
-  },
-  // Back-compat alias keys mapping to preferred ones
-  'tx-host': { tag: W3A_TX_BUTTON_HOST_ID },
-  'tx-button': { tag: W3A_TX_BUTTON_ID },
-};
+export const uiBuiltinRegistry: WalletUIRegistry = {};

@@ -101,16 +101,6 @@ export { AccountMenuButton, ProfileSettingsButton } from './components/AccountMe
 export { QRCodeScanner } from './components/QRCodeScanner';
 // Show QR Code for device linking
 export { ShowQRCode } from './components/ShowQRCode';
-// Embedded transaction confirmation component (React wrapper hosting Lit component)
-export {
-  TouchIdWithText,
-  SendTxButtonWithTooltip,
-  type SendTxButtonWithTooltipProps,
-} from './components/SendTxButtonWithTooltip';
-export {
-  WalletIframeTxButtonHost,
-  type WalletIframeTxButtonHostProps,
-} from './components/WalletIframeTxButtonHost';
 // Sign Up / Sign In menu
 export { PasskeyAuthMenu, PasskeyAuthMenuSkeleton } from './components/PasskeyAuthMenu/passkeyAuthMenuCompat';
 export type { PasskeyAuthMenuProps } from './components/PasskeyAuthMenu/passkeyAuthMenuCompat';

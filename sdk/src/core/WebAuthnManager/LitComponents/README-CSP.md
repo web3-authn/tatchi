@@ -25,9 +25,6 @@ Component Notes
 - TxTree
   - Renders in light DOM by default to avoid Lit’s inline `<style>` injection.
   - All visuals come from `tx-tree.css`; depth classes replace per-node var writes.
-- IframeButtonHost (embedded button host)
-  - No inline styles. Sizing via width/height attributes; interactive area via CSS var `--w3a-iframe-clip-path`.
-  - `sandbox="allow-scripts"` for opaque origin; communication via postMessage only.
 - Iframe Tx Confirmer (modal/drawer)
 - `tx-confirmer.css` provides layout/tokens; `tx-tree.css` for nested tree.
   - First render is gated on required styles (including halo/loader) to avoid FOUC.
@@ -45,8 +42,8 @@ Dev and CI
 Emitted CSS Assets
 - The build copies all component CSS to `/sdk` and generates `w3a-components.css` from the palette:
 - wallet-service.css, w3a-components.css, tx-tree.css, drawer.css, tx-confirmer.css,
-    button-with-tooltip.css, halo-border.css, passkey-halo-loading.css, padlock-icon.css,
-    iframe-button-host.css, export-iframe.css, export-viewer.css, overlay.css.
+    halo-border.css, passkey-halo-loading.css, padlock-icon.css,
+    export-iframe.css, export-viewer.css, overlay.css.
 - A build-time assertion (`scripts/assert-sdk-css-assets.mjs`) fails if any are missing.
 
 Shadow DOM (opt‑in)

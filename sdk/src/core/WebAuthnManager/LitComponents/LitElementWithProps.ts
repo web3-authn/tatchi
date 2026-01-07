@@ -53,7 +53,7 @@ export class LitElementWithProps extends LitElement {
    * Optional: Tag names that should be defined before this component renders.
    * When missing, a console.warn is emitted to remind developers to import/keep the child.
    * Example:
-   *   static requiredChildTags = ['w3a-tx-button'];
+   *   static requiredChildTags = ['w3a-tx-tree'];
    */
   static requiredChildTags?: string[];
 

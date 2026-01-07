@@ -23,7 +23,7 @@ This document explains how theme colors and CSS variables are defined, generated
 
 - What it contains (host‑scoped, Shadow‑DOM friendly):
   - Default dark alias tokens applied directly on Web3Auth custom element hosts:
-    - `w3a-tx-tree, w3a-drawer, w3a-modal-tx-confirmer, w3a-drawer-tx-confirmer, w3a-button-with-tooltip, w3a-halo-border, w3a-passkey-halo-loading { --w3a-colors-* }`
+    - `w3a-tx-tree, w3a-drawer, w3a-modal-tx-confirmer, w3a-drawer-tx-confirmer, w3a-tx-confirm-content, w3a-halo-border, w3a-passkey-halo-loading, w3a-export-key-viewer { --w3a-colors-* }`
   - Theme overrides scoped by a document attribute and again limited to hosts:
     - `:root[data-w3a-theme="light"] <hosts> { --w3a-colors-* }`
     - `:root[data-w3a-theme="cream"] <hosts> { --w3a-colors-* }`
@@ -51,7 +51,7 @@ We avoid inline `<style>` text for strict CSP environments and prefer external a
 Where we ensure the tokens are present:
 - `w3a-modal-tx-confirmer` (viewer-modal.ts): ensures `w3a-components.css` at document level.
 - `w3a-tx-confirm-content` (tx-confirm-content.ts): pre‑ensures `w3a-components.css` at document level.
-- `w3a-button-with-tooltip` and `ExportPrivateKey` viewer also ensure tokens.
+- `ExportPrivateKey` viewer also ensures tokens.
 
 Note: `@import` inside constructable stylesheets is ignored by browsers. Do not rely on `@import` for tokens; ensure `w3a-components.css` with `ensureExternalStyles` or a regular `<link>`.
 
