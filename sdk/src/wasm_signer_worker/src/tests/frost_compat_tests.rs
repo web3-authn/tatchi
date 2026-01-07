@@ -8,12 +8,8 @@ fn frost_ed25519_signatures_verify_with_ed25519_dalek() -> Result<(), frost::Err
     let mut rng = frost::rand_core::OsRng;
 
     // 2-of-2 dealer keygen (matches our initial threshold model).
-    let (shares, pubkey_package) = frost::keys::generate_with_dealer(
-        2,
-        2,
-        frost::keys::IdentifierList::Default,
-        &mut rng,
-    )?;
+    let (shares, pubkey_package) =
+        frost::keys::generate_with_dealer(2, 2, frost::keys::IdentifierList::Default, &mut rng)?;
 
     // Each participant validates + stores its key package.
     let mut key_packages: BTreeMap<frost::Identifier, frost::keys::KeyPackage> = BTreeMap::new();
@@ -69,8 +65,8 @@ fn frost_ed25519_signatures_verify_with_ed25519_dalek() -> Result<(), frost::Err
         .try_into()
         .expect("signature must be 64 bytes");
 
-    let dalek_vk = ed25519_dalek::VerifyingKey::from_bytes(&pk)
-        .expect("ed25519 public key should be valid");
+    let dalek_vk =
+        ed25519_dalek::VerifyingKey::from_bytes(&pk).expect("ed25519 public key should be valid");
     let dalek_sig = ed25519_dalek::Signature::from_bytes(&sig);
 
     dalek_vk
@@ -84,12 +80,8 @@ fn frost_ed25519_signatures_verify_with_ed25519_dalek() -> Result<(), frost::Err
 fn frost_detects_tampered_signature_share() -> Result<(), frost::Error> {
     let mut rng = frost::rand_core::OsRng;
 
-    let (shares, pubkey_package) = frost::keys::generate_with_dealer(
-        2,
-        2,
-        frost::keys::IdentifierList::Default,
-        &mut rng,
-    )?;
+    let (shares, pubkey_package) =
+        frost::keys::generate_with_dealer(2, 2, frost::keys::IdentifierList::Default, &mut rng)?;
 
     let mut key_packages: BTreeMap<frost::Identifier, frost::keys::KeyPackage> = BTreeMap::new();
     for (identifier, secret_share) in shares {
@@ -100,7 +92,8 @@ fn frost_detects_tampered_signature_share() -> Result<(), frost::Error> {
     let mut nonces_map = BTreeMap::new();
     let mut commitments_map = BTreeMap::new();
     for identifier in key_packages.keys() {
-        let (nonces, commitments) = frost::round1::commit(key_packages[identifier].signing_share(), &mut rng);
+        let (nonces, commitments) =
+            frost::round1::commit(key_packages[identifier].signing_share(), &mut rng);
         nonces_map.insert(*identifier, nonces);
         commitments_map.insert(*identifier, commitments);
     }
@@ -109,7 +102,11 @@ fn frost_detects_tampered_signature_share() -> Result<(), frost::Error> {
 
     let mut signature_shares = BTreeMap::new();
     for identifier in nonces_map.keys() {
-        let sig_share = frost::round2::sign(&signing_package, &nonces_map[identifier], &key_packages[identifier])?;
+        let sig_share = frost::round2::sign(
+            &signing_package,
+            &nonces_map[identifier],
+            &key_packages[identifier],
+        )?;
         signature_shares.insert(*identifier, sig_share);
     }
 
@@ -132,4 +129,3 @@ fn frost_detects_tampered_signature_share() -> Result<(), frost::Error> {
 
     Ok(())
 }
-

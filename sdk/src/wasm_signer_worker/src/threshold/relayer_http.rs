@@ -36,6 +36,19 @@ struct AuthorizeResponse {
     expires_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ThresholdSessionResponse {
+    pub(super) ok: bool,
+    pub(super) code: Option<String>,
+    pub(super) message: Option<String>,
+    pub(super) session_id: Option<String>,
+    pub(super) expires_at: Option<String>,
+    pub(super) remaining_uses: Option<u32>,
+    pub(super) jwt: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SignInitRequest<'a> {
@@ -99,13 +112,37 @@ fn to_json_string<T: Serialize>(val: &T) -> Result<String, String> {
         .ok_or_else(|| "threshold-signer: JSON.stringify did not return a string".to_string())
 }
 
-async fn post_json(cfg: &ThresholdSignerConfig, path: &str, body: &str, label: &str) -> Result<JsValue, String> {
+fn set_authorization_header(init: &JsValue, token: &str) -> Result<(), String> {
+    let headers_val = Reflect::get(init, &JsValue::from_str("headers"))
+        .map_err(|_| "threshold-signer: failed to read fetch init.headers".to_string())?;
+    if !headers_val.is_object() {
+        return Err("threshold-signer: fetch init.headers is not an object".to_string());
+    }
+    Reflect::set(
+        &headers_val,
+        &JsValue::from_str("Authorization"),
+        &JsValue::from_str(&format!("Bearer {}", token.trim())),
+    )
+    .map_err(|_| "threshold-signer: failed to set Authorization header".to_string())?;
+    Ok(())
+}
+
+async fn post_json(
+    cfg: &ThresholdSignerConfig,
+    path: &str,
+    body: &str,
+    label: &str,
+    bearer_token: Option<&str>,
+) -> Result<JsValue, String> {
     let url = format!(
         "{}/{}",
         cfg.relayer_url.trim_end_matches('/'),
         path.trim_start_matches('/')
     );
     let init = build_json_post_init(body)?;
+    if let Some(token) = bearer_token {
+        set_authorization_header(&init, token)?;
+    }
     let resp = fetch_with_init(&url, &init).await?;
 
     if !response_ok(&resp)? {
@@ -121,34 +158,86 @@ async fn post_json(cfg: &ThresholdSignerConfig, path: &str, body: &str, label: &
     response_json(&resp).await
 }
 
-pub(super) async fn authorize_mpc_session_id(
+fn build_authorize_body(
     cfg: &ThresholdSignerConfig,
-    near_account_id: &str,
+    client_verifying_share_b64u: &str,
     purpose: &str,
     signing_digest_32: &[u8],
-    vrf_challenge: &crate::types::VrfChallenge,
-    credential_json: &str,
     signing_payload_json: Option<&str>,
+    vrf_data_val: Option<JsValue>,
+    webauthn_val: Option<JsValue>,
 ) -> Result<String, String> {
-    if vrf_challenge.user_id.trim() != near_account_id.trim() {
-        return Err("threshold-signer: vrfChallenge.userId does not match nearAccountId".to_string());
+    let auth_obj = Object::new();
+    Reflect::set(
+        &auth_obj,
+        &JsValue::from_str("relayerKeyId"),
+        &JsValue::from_str(cfg.relayer_key_id.trim()),
+    )
+    .map_err(|_| "threshold-signer: failed to set authorize.relayerKeyId".to_string())?;
+    Reflect::set(
+        &auth_obj,
+        &JsValue::from_str("clientVerifyingShareB64u"),
+        &JsValue::from_str(client_verifying_share_b64u.trim()),
+    )
+    .map_err(|_| "threshold-signer: failed to set authorize.clientVerifyingShareB64u".to_string())?;
+    Reflect::set(
+        &auth_obj,
+        &JsValue::from_str("purpose"),
+        &JsValue::from_str(purpose),
+    )
+    .map_err(|_| "threshold-signer: failed to set authorize.purpose".to_string())?;
+    Reflect::set(
+        &auth_obj,
+        &JsValue::from_str("signing_digest_32"),
+        &bytes_to_js_array(signing_digest_32).into(),
+    )
+    .map_err(|_| "threshold-signer: failed to set authorize.signing_digest_32".to_string())?;
+
+    if let Some(vrf_data_val) = vrf_data_val {
+        Reflect::set(&auth_obj, &JsValue::from_str("vrf_data"), &vrf_data_val)
+            .map_err(|_| "threshold-signer: failed to set authorize.vrf_data".to_string())?;
+    }
+    if let Some(webauthn_val) = webauthn_val {
+        Reflect::set(
+            &auth_obj,
+            &JsValue::from_str("webauthn_authentication"),
+            &webauthn_val,
+        )
+        .map_err(|_| {
+            "threshold-signer: failed to set authorize.webauthn_authentication".to_string()
+        })?;
     }
 
-    let cred_js = js_sys::JSON::parse(credential_json)
-        .map_err(|e| format!("threshold-signer: invalid credential JSON: {:?}", e))?;
-    let webauthn: crate::types::WebAuthnAuthenticationCredential = serde_wasm_bindgen::from_value(cred_js)
-        .map_err(|e| format!("threshold-signer: invalid webauthn_authentication: {e}"))?;
-    let webauthn_val = serde_wasm_bindgen::to_value(&webauthn)
-        .map_err(|e| format!("threshold-signer: failed to serialize webauthn_authentication: {e}"))?;
+    if let Some(payload_json) = signing_payload_json
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+    {
+        let payload_val = js_sys::JSON::parse(&payload_json)
+            .map_err(|_| "threshold-signer: invalid signingPayload JSON".to_string())?;
+        Reflect::set(
+            &auth_obj,
+            &JsValue::from_str("signingPayload"),
+            &payload_val,
+        )
+        .map_err(|_| "threshold-signer: failed to set authorize.signingPayload".to_string())?;
+    }
 
+    js_sys::JSON::stringify(&auth_obj.into())
+        .map_err(|e| format!("threshold-signer: JSON.stringify failed: {:?}", e))?
+        .as_string()
+        .ok_or_else(|| "threshold-signer: JSON.stringify did not return a string".to_string())
+}
+
+fn build_contract_vrf_data(vrf_challenge: &crate::types::VrfChallenge) -> Result<JsValue, String> {
     let vrf_input_data = crate::encoders::base64_url_decode(vrf_challenge.vrf_input.trim())?;
     let vrf_output = crate::encoders::base64_url_decode(vrf_challenge.vrf_output.trim())?;
     let vrf_proof = crate::encoders::base64_url_decode(vrf_challenge.vrf_proof.trim())?;
     let public_key = crate::encoders::base64_url_decode(vrf_challenge.vrf_public_key.trim())?;
     let block_hash = crate::encoders::base64_url_decode(vrf_challenge.block_hash.trim())?;
-    let intent_digest_b64u = vrf_challenge.intent_digest.as_deref().ok_or_else(|| {
-        "threshold-signer: missing vrfChallenge.intentDigest".to_string()
-    })?;
+    let intent_digest_b64u = vrf_challenge
+        .intent_digest
+        .as_deref()
+        .ok_or_else(|| "threshold-signer: missing vrfChallenge.intentDigest".to_string())?;
     let intent_digest_32 = crate::encoders::base64_url_decode(intent_digest_b64u.trim())?;
     if intent_digest_32.len() != 32 {
         return Err(format!(
@@ -156,6 +245,19 @@ pub(super) async fn authorize_mpc_session_id(
             intent_digest_32.len()
         ));
     }
+    let session_policy_digest_32 = match vrf_challenge.session_policy_digest_32.as_deref() {
+        Some(b64u) if !b64u.trim().is_empty() => {
+            let bytes = crate::encoders::base64_url_decode(b64u.trim())?;
+            if bytes.len() != 32 {
+                return Err(format!(
+                    "threshold-signer: vrfChallenge.sessionPolicyDigest32 must decode to 32 bytes, got {}",
+                    bytes.len()
+                ));
+            }
+            Some(bytes)
+        }
+        _ => None,
+    };
 
     let block_height: u64 = vrf_challenge
         .block_height
@@ -218,59 +320,74 @@ pub(super) async fn authorize_mpc_session_id(
         &bytes_to_js_array(&intent_digest_32).into(),
     )
     .map_err(|_| "threshold-signer: failed to set vrf_data.intent_digest_32".to_string())?;
-
-    let auth_obj = Object::new();
-    Reflect::set(
-        &auth_obj,
-        &JsValue::from_str("relayerKeyId"),
-        &JsValue::from_str(cfg.relayer_key_id.trim()),
-    )
-    .map_err(|_| "threshold-signer: failed to set authorize.relayerKeyId".to_string())?;
-    Reflect::set(
-        &auth_obj,
-        &JsValue::from_str("purpose"),
-        &JsValue::from_str(purpose),
-    )
-    .map_err(|_| "threshold-signer: failed to set authorize.purpose".to_string())?;
-    Reflect::set(
-        &auth_obj,
-        &JsValue::from_str("signing_digest_32"),
-        &bytes_to_js_array(signing_digest_32).into(),
-    )
-    .map_err(|_| "threshold-signer: failed to set authorize.signing_digest_32".to_string())?;
-    Reflect::set(&auth_obj, &JsValue::from_str("vrf_data"), &vrf_data_obj.into())
-        .map_err(|_| "threshold-signer: failed to set authorize.vrf_data".to_string())?;
-    Reflect::set(
-        &auth_obj,
-        &JsValue::from_str("webauthn_authentication"),
-        &webauthn_val,
-    )
-    .map_err(|_| "threshold-signer: failed to set authorize.webauthn_authentication".to_string())?;
-
-    if let Some(payload_json) = signing_payload_json
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-    {
-        let payload_val = js_sys::JSON::parse(&payload_json)
-            .map_err(|_| "threshold-signer: invalid signingPayload JSON".to_string())?;
-        Reflect::set(&auth_obj, &JsValue::from_str("signingPayload"), &payload_val)
-            .map_err(|_| "threshold-signer: failed to set authorize.signingPayload".to_string())?;
+    if let Some(bytes) = session_policy_digest_32.as_deref() {
+        Reflect::set(
+            &vrf_data_obj,
+            &JsValue::from_str("session_policy_digest_32"),
+            &bytes_to_js_array(bytes).into(),
+        )
+        .map_err(|_| {
+            "threshold-signer: failed to set vrf_data.session_policy_digest_32".to_string()
+        })?;
     }
 
-    let auth_body = js_sys::JSON::stringify(&auth_obj.into())
-        .map_err(|e| format!("threshold-signer: JSON.stringify failed: {:?}", e))?
-        .as_string()
-        .ok_or_else(|| "threshold-signer: JSON.stringify did not return a string".to_string())?;
+    Ok(vrf_data_obj.into())
+}
 
-    let auth_json = post_json(cfg, "/threshold-ed25519/authorize", &auth_body, "/authorize").await?;
+pub(super) async fn authorize_mpc_session_id(
+    cfg: &ThresholdSignerConfig,
+    client_verifying_share_b64u: &str,
+    near_account_id: &str,
+    purpose: &str,
+    signing_digest_32: &[u8],
+    vrf_challenge: &crate::types::VrfChallenge,
+    credential_json: &str,
+    signing_payload_json: Option<&str>,
+) -> Result<String, String> {
+    if vrf_challenge.user_id.trim() != near_account_id.trim() {
+        return Err(
+            "threshold-signer: vrfChallenge.userId does not match nearAccountId".to_string(),
+        );
+    }
+
+    let cred_js = js_sys::JSON::parse(credential_json)
+        .map_err(|e| format!("threshold-signer: invalid credential JSON: {:?}", e))?;
+    let webauthn: crate::types::WebAuthnAuthenticationCredential =
+        serde_wasm_bindgen::from_value(cred_js)
+            .map_err(|e| format!("threshold-signer: invalid webauthn_authentication: {e}"))?;
+    let webauthn_val = serde_wasm_bindgen::to_value(&webauthn).map_err(|e| {
+        format!("threshold-signer: failed to serialize webauthn_authentication: {e}")
+    })?;
+
+    let vrf_data_val = build_contract_vrf_data(vrf_challenge)?;
+    let auth_body = build_authorize_body(
+        cfg,
+        client_verifying_share_b64u,
+        purpose,
+        signing_digest_32,
+        signing_payload_json,
+        Some(vrf_data_val),
+        Some(webauthn_val),
+    )?;
+
+    let auth_json = post_json(
+        cfg,
+        "/threshold-ed25519/authorize",
+        &auth_body,
+        "/authorize",
+        None,
+    )
+    .await?;
     let auth: AuthorizeResponse = serde_wasm_bindgen::from_value(auth_json)
         .map_err(|e| format!("threshold-signer: failed to parse /authorize response: {e}"))?;
 
     if !auth.ok {
-        let mut msg = auth
-            .message
-            .clone()
-            .unwrap_or_else(|| format!("threshold-signer: /authorize failed ({})", auth.code.unwrap_or_default()));
+        let mut msg = auth.message.clone().unwrap_or_else(|| {
+            format!(
+                "threshold-signer: /authorize failed ({})",
+                auth.code.unwrap_or_default()
+            )
+        });
         if let Some(expires) = auth.expires_at {
             msg = format!("{msg} (expiresAt={expires})");
         }
@@ -280,6 +397,132 @@ pub(super) async fn authorize_mpc_session_id(
     auth.mpc_session_id
         .clone()
         .ok_or_else(|| "threshold-signer: /authorize missing mpcSessionId".to_string())
+}
+
+pub(super) async fn authorize_mpc_session_id_with_threshold_session(
+    cfg: &ThresholdSignerConfig,
+    client_verifying_share_b64u: &str,
+    purpose: &str,
+    signing_digest_32: &[u8],
+    signing_payload_json: Option<&str>,
+    bearer_token: Option<&str>,
+) -> Result<String, String> {
+    let auth_body = build_authorize_body(
+        cfg,
+        client_verifying_share_b64u,
+        purpose,
+        signing_digest_32,
+        signing_payload_json,
+        None,
+        None,
+    )?;
+    let auth_json = post_json(
+        cfg,
+        "/threshold-ed25519/authorize",
+        &auth_body,
+        "/authorize",
+        bearer_token,
+    )
+    .await?;
+    let auth: AuthorizeResponse = serde_wasm_bindgen::from_value(auth_json)
+        .map_err(|e| format!("threshold-signer: failed to parse /authorize response: {e}"))?;
+
+    if !auth.ok {
+        let mut msg = auth.message.clone().unwrap_or_else(|| {
+            format!(
+                "threshold-signer: /authorize failed ({})",
+                auth.code.unwrap_or_default()
+            )
+        });
+        if let Some(expires) = auth.expires_at {
+            msg = format!("{msg} (expiresAt={expires})");
+        }
+        return Err(msg);
+    }
+
+    auth.mpc_session_id
+        .clone()
+        .ok_or_else(|| "threshold-signer: /authorize missing mpcSessionId".to_string())
+}
+
+pub(super) async fn mint_threshold_session(
+    cfg: &ThresholdSignerConfig,
+    client_verifying_share_b64u: &str,
+    near_account_id: &str,
+    vrf_challenge: &crate::types::VrfChallenge,
+    credential_json: &str,
+    session_policy_json: &str,
+    session_kind: &str,
+) -> Result<ThresholdSessionResponse, String> {
+    if vrf_challenge.user_id.trim() != near_account_id.trim() {
+        return Err(
+            "threshold-signer: vrfChallenge.userId does not match nearAccountId".to_string(),
+        );
+    }
+
+    let cred_js = js_sys::JSON::parse(credential_json)
+        .map_err(|e| format!("threshold-signer: invalid credential JSON: {:?}", e))?;
+    let webauthn: crate::types::WebAuthnAuthenticationCredential =
+        serde_wasm_bindgen::from_value(cred_js)
+            .map_err(|e| format!("threshold-signer: invalid webauthn_authentication: {e}"))?;
+    let webauthn_val = serde_wasm_bindgen::to_value(&webauthn).map_err(|e| {
+        format!("threshold-signer: failed to serialize webauthn_authentication: {e}")
+    })?;
+
+    let vrf_data_val = build_contract_vrf_data(vrf_challenge)?;
+
+    let policy_val = js_sys::JSON::parse(session_policy_json)
+        .map_err(|_| "threshold-signer: invalid thresholdSessionPolicyJson".to_string())?;
+
+    let body_obj = Object::new();
+    Reflect::set(
+        &body_obj,
+        &JsValue::from_str("relayerKeyId"),
+        &JsValue::from_str(cfg.relayer_key_id.trim()),
+    )
+    .map_err(|_| "threshold-signer: failed to set session.relayerKeyId".to_string())?;
+    Reflect::set(
+        &body_obj,
+        &JsValue::from_str("clientVerifyingShareB64u"),
+        &JsValue::from_str(client_verifying_share_b64u.trim()),
+    )
+    .map_err(|_| "threshold-signer: failed to set session.clientVerifyingShareB64u".to_string())?;
+    Reflect::set(&body_obj, &JsValue::from_str("sessionPolicy"), &policy_val)
+        .map_err(|_| "threshold-signer: failed to set session.sessionPolicy".to_string())?;
+    Reflect::set(&body_obj, &JsValue::from_str("vrf_data"), &vrf_data_val)
+        .map_err(|_| "threshold-signer: failed to set session.vrf_data".to_string())?;
+    Reflect::set(
+        &body_obj,
+        &JsValue::from_str("webauthn_authentication"),
+        &webauthn_val,
+    )
+    .map_err(|_| "threshold-signer: failed to set session.webauthn_authentication".to_string())?;
+    Reflect::set(
+        &body_obj,
+        &JsValue::from_str("sessionKind"),
+        &JsValue::from_str(session_kind),
+    )
+    .map_err(|_| "threshold-signer: failed to set session.sessionKind".to_string())?;
+
+    let body = js_sys::JSON::stringify(&body_obj.into())
+        .map_err(|e| format!("threshold-signer: JSON.stringify failed: {:?}", e))?
+        .as_string()
+        .ok_or_else(|| "threshold-signer: JSON.stringify did not return a string".to_string())?;
+
+    let resp_json = post_json(cfg, "/threshold-ed25519/session", &body, "/session", None).await?;
+    let resp: ThresholdSessionResponse = serde_wasm_bindgen::from_value(resp_json)
+        .map_err(|e| format!("threshold-signer: failed to parse /session response: {e}"))?;
+
+    if !resp.ok {
+        return Err(resp.message.clone().unwrap_or_else(|| {
+            format!(
+                "threshold-signer: /session failed ({})",
+                resp.code.unwrap_or_default()
+            )
+        }));
+    }
+
+    Ok(resp)
 }
 
 pub(super) async fn sign_init(
@@ -298,7 +541,14 @@ pub(super) async fn sign_init(
     };
 
     let init_body = to_json_string(&init_req)?;
-    let init_json = post_json(cfg, "/threshold-ed25519/sign/init", &init_body, "/sign/init").await?;
+    let init_json = post_json(
+        cfg,
+        "/threshold-ed25519/sign/init",
+        &init_body,
+        "/sign/init",
+        None,
+    )
+    .await?;
     let init: SignInitResponse = serde_wasm_bindgen::from_value(init_json)
         .map_err(|e| format!("threshold-signer: failed to parse /sign/init response: {e}"))?;
 
@@ -319,10 +569,10 @@ pub(super) async fn sign_init(
         .relayer_commitments
         .clone()
         .ok_or_else(|| "threshold-signer: /sign/init missing relayerCommitments".to_string())?;
-    let relayer_verifying_share_b64u = init
-        .relayer_verifying_share_b64u
-        .clone()
-        .ok_or_else(|| "threshold-signer: /sign/init missing relayerVerifyingShareB64u".to_string())?;
+    let relayer_verifying_share_b64u =
+        init.relayer_verifying_share_b64u.clone().ok_or_else(|| {
+            "threshold-signer: /sign/init missing relayerVerifyingShareB64u".to_string()
+        })?;
 
     Ok(SignInitOk {
         signing_session_id,
@@ -346,6 +596,7 @@ pub(super) async fn sign_finalize(
         "/threshold-ed25519/sign/finalize",
         &finalize_body,
         "/sign/finalize",
+        None,
     )
     .await?;
     let finalize: SignFinalizeResponse = serde_wasm_bindgen::from_value(finalize_json)
@@ -365,16 +616,19 @@ pub(super) async fn sign_finalize(
         let sig = crate::encoders::base64_standard_decode(&sig_b64)
             .map_err(|e| format!("threshold-signer: invalid signature base64: {e}"))?;
         if sig.len() != 64 {
-            return Err(format!("threshold-signer: invalid signature length {}", sig.len()));
+            return Err(format!(
+                "threshold-signer: invalid signature length {}",
+                sig.len()
+            ));
         }
         let mut out = [0u8; 64];
         out.copy_from_slice(&sig);
         return Ok(SignFinalizeOk::Signature(out));
     }
 
-    let relayer_sig_share_b64u = finalize
-        .relayer_signature_share_b64u
-        .ok_or_else(|| "threshold-signer: /sign/finalize missing relayerSignatureShareB64u".to_string())?;
+    let relayer_sig_share_b64u = finalize.relayer_signature_share_b64u.ok_or_else(|| {
+        "threshold-signer: /sign/finalize missing relayerSignatureShareB64u".to_string()
+    })?;
     Ok(SignFinalizeOk::RelayerSignatureShareB64u(
         relayer_sig_share_b64u,
     ))

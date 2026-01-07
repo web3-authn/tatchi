@@ -5,7 +5,8 @@ use curve25519_dalek::scalar::Scalar as CurveScalar;
 use hkdf::Hkdf;
 use sha2::Sha256;
 
-pub(crate) const THRESHOLD_CLIENT_SHARE_SALT_V1: &[u8] = b"tatchi-threshold-ed25519-client-share:v1";
+pub(crate) const THRESHOLD_CLIENT_SHARE_SALT_V1: &[u8] =
+    b"tatchi-threshold-ed25519-client-share:v1";
 
 pub(crate) fn derive_threshold_client_share_scalar_v1(
     wrap_key: &WrapKey,

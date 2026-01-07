@@ -345,4 +345,12 @@ pub struct VrfChallenge {
     #[wasm_bindgen(getter_with_clone, js_name = "intentDigest")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intent_digest: Option<String>,
+    /// Optional base64url-encoded 32-byte digest bound into the VRF input derivation (v4+ only).
+    #[wasm_bindgen(getter_with_clone, js_name = "sessionPolicyDigest32")]
+    #[serde(
+        rename = "sessionPolicyDigest32",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub session_policy_digest_32: Option<String>,
 }

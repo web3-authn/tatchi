@@ -1,6 +1,8 @@
 use crate::threshold::signer_backend::Ed25519SignerBackend;
 use crate::threshold::threshold_client_share::derive_threshold_client_verifying_share_bytes_v1;
-use crate::transaction::{build_transaction_with_actions, calculate_transaction_hash, sign_transaction};
+use crate::transaction::{
+    build_transaction_with_actions, calculate_transaction_hash, sign_transaction,
+};
 use crate::types::{
     AccessKey, AccessKeyPermission, DecryptionPayload, NearAction, PublicKey, SignedTransaction,
     SignerMode,

@@ -15,10 +15,7 @@ fn parse_near_public_key_to_bytes(public_key: &str) -> Result<[u8; 32], JsValue>
             decoded.len()
         )));
     }
-    Ok(decoded
-        .as_slice()
-        .try_into()
-        .expect("checked length above"))
+    Ok(decoded.as_slice().try_into().expect("checked length above"))
 }
 
 fn parse_near_block_hash_to_bytes(block_hash_b58: &str) -> Result<[u8; 32], JsValue> {
@@ -31,10 +28,7 @@ fn parse_near_block_hash_to_bytes(block_hash_b58: &str) -> Result<[u8; 32], JsVa
             decoded.len()
         )));
     }
-    Ok(decoded
-        .as_slice()
-        .try_into()
-        .expect("checked length above"))
+    Ok(decoded.as_slice().try_into().expect("checked length above"))
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -65,28 +59,42 @@ struct NearTxContext {
 ///
 /// Returns a JS Array of Uint8Array (each 32 bytes), one per tx in order.
 #[wasm_bindgen]
-pub fn threshold_ed25519_compute_near_tx_signing_digests(payload: JsValue) -> Result<JsValue, JsValue> {
+pub fn threshold_ed25519_compute_near_tx_signing_digests(
+    payload: JsValue,
+) -> Result<JsValue, JsValue> {
     let payload: NearTxSigningPayload = serde_wasm_bindgen::from_value(payload)
         .map_err(|e| JsValue::from_str(&format!("Invalid near_tx signingPayload: {e}")))?;
     if payload.tx_signing_requests.is_empty() {
         return Err(JsValue::from_str("txSigningRequests must not be empty"));
     }
 
-    let near_public_key_bytes = parse_near_public_key_to_bytes(&payload.transaction_context.near_public_key_str)?;
-    let block_hash_bytes = parse_near_block_hash_to_bytes(&payload.transaction_context.tx_block_hash)?;
+    let near_public_key_bytes =
+        parse_near_public_key_to_bytes(&payload.transaction_context.near_public_key_str)?;
+    let block_hash_bytes =
+        parse_near_block_hash_to_bytes(&payload.transaction_context.tx_block_hash)?;
 
-    let base_nonce: u64 = payload.transaction_context.next_nonce.trim().parse().map_err(|e| {
-        JsValue::from_str(&format!("Invalid transactionContext.nextNonce: {e}"))
-    })?;
+    let base_nonce: u64 = payload
+        .transaction_context
+        .next_nonce
+        .trim()
+        .parse()
+        .map_err(|e| JsValue::from_str(&format!("Invalid transactionContext.nextNonce: {e}")))?;
 
     // Ensure all txs share the same signer account id (mirrors worker behavior).
-    let signer_account_id = payload.tx_signing_requests[0].near_account_id.trim().to_string();
+    let signer_account_id = payload.tx_signing_requests[0]
+        .near_account_id
+        .trim()
+        .to_string();
     if signer_account_id.is_empty() {
-        return Err(JsValue::from_str("txSigningRequests[0].nearAccountId is required"));
+        return Err(JsValue::from_str(
+            "txSigningRequests[0].nearAccountId is required",
+        ));
     }
     for tx in &payload.tx_signing_requests {
         if tx.near_account_id.trim() != signer_account_id {
-            return Err(JsValue::from_str("All txSigningRequests[].nearAccountId must match"));
+            return Err(JsValue::from_str(
+                "All txSigningRequests[].nearAccountId must match",
+            ));
         }
     }
 
@@ -131,7 +139,9 @@ struct DelegatePayload {
 /// Compute the NEP-461 delegate signing digest (`sha256(encodeDelegateAction(...))`).
 /// Returns a 32-byte Uint8Array.
 #[wasm_bindgen]
-pub fn threshold_ed25519_compute_delegate_signing_digest(payload: JsValue) -> Result<Vec<u8>, JsValue> {
+pub fn threshold_ed25519_compute_delegate_signing_digest(
+    payload: JsValue,
+) -> Result<Vec<u8>, JsValue> {
     let payload: DelegateSigningPayload = serde_wasm_bindgen::from_value(payload)
         .map_err(|e| JsValue::from_str(&format!("Invalid nep461_delegate signingPayload: {e}")))?;
 
@@ -151,12 +161,18 @@ pub fn threshold_ed25519_compute_delegate_signing_digest(payload: JsValue) -> Re
     let actions = build_actions_from_params(payload.delegate.actions.clone())
         .map_err(|e| JsValue::from_str(&format!("Failed to build delegate actions: {e}")))?;
 
-    let nonce: u64 = payload.delegate.nonce.trim().parse().map_err(|e| {
-        JsValue::from_str(&format!("Invalid delegate.nonce: {e}"))
-    })?;
-    let max_block_height: u64 = payload.delegate.max_block_height.trim().parse().map_err(|e| {
-        JsValue::from_str(&format!("Invalid delegate.maxBlockHeight: {e}"))
-    })?;
+    let nonce: u64 = payload
+        .delegate
+        .nonce
+        .trim()
+        .parse()
+        .map_err(|e| JsValue::from_str(&format!("Invalid delegate.nonce: {e}")))?;
+    let max_block_height: u64 = payload
+        .delegate
+        .max_block_height
+        .trim()
+        .parse()
+        .map_err(|e| JsValue::from_str(&format!("Invalid delegate.maxBlockHeight: {e}")))?;
 
     let pk_bytes = parse_near_public_key_to_bytes(payload.delegate.public_key.trim())?;
     let public_key = PublicKey::from_ed25519_bytes(&pk_bytes);
@@ -188,7 +204,9 @@ struct Nep413SigningPayload {
 /// Compute the NEP-413 signing digest (sha256(prefix || borsh(payload))).
 /// Returns a 32-byte Uint8Array.
 #[wasm_bindgen]
-pub fn threshold_ed25519_compute_nep413_signing_digest(payload: JsValue) -> Result<Vec<u8>, JsValue> {
+pub fn threshold_ed25519_compute_nep413_signing_digest(
+    payload: JsValue,
+) -> Result<Vec<u8>, JsValue> {
     let payload: Nep413SigningPayload = serde_wasm_bindgen::from_value(payload)
         .map_err(|e| JsValue::from_str(&format!("Invalid nep413 signingPayload: {e}")))?;
 

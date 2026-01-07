@@ -25,4 +25,19 @@ pub struct ThresholdSignerConfig {
     /// When omitted, the signer worker will call `/threshold-ed25519/authorize` on-demand per signature.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mpc_session_id: Option<String>,
+    /// Optional serialized session policy JSON for minting a relayer threshold auth session.
+    ///
+    /// When present alongside a VRF challenge that includes `sessionPolicyDigest32`, the signer worker
+    /// may call `POST /threshold-ed25519/session` to obtain a short-lived authorization token/cookie.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold_session_policy_json: Option<String>,
+    /// Preferred session token delivery mechanism for `/threshold-ed25519/session`.
+    /// - "jwt" (default): return token in JSON and use Authorization: Bearer on subsequent requests.
+    /// - "cookie": set HttpOnly cookie (same-site only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold_session_kind: Option<String>,
+    /// Optional bearer token returned by `POST /threshold-ed25519/session`.
+    /// When present, the signer worker uses it to authenticate `/threshold-ed25519/authorize` requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold_session_jwt: Option<String>,
 }

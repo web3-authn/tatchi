@@ -3,7 +3,9 @@
 // *                        HANDLER 9: SIGN NEP-413 MESSAGE                    *
 // *                                                                            *
 // ******************************************************************************
-use crate::{encoders::base64_standard_encode, threshold::signer_backend::Ed25519SignerBackend, WrapKey};
+use crate::{
+    encoders::base64_standard_encode, threshold::signer_backend::Ed25519SignerBackend, WrapKey,
+};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -13,11 +15,11 @@ use wasm_bindgen::prelude::*;
 pub struct SignNep413Request {
     #[serde(default)]
     pub signer_mode: crate::types::SignerMode,
-    pub message: String, // Message to sign
-    pub recipient: String, // Recipient identifier
-    pub nonce: String, // Base64-encoded 32-byte nonce
-    pub state: Option<String>, // Optional state
-    pub account_id: String, // NEAR account ID
+    pub message: String,         // Message to sign
+    pub recipient: String,       // Recipient identifier
+    pub nonce: String,           // Base64-encoded 32-byte nonce
+    pub state: Option<String>,   // Optional state
+    pub account_id: String,      // NEAR account ID
     pub near_public_key: String, // NEAR ed25519 public key (ed25519:<base58>)
     pub decryption: crate::types::DecryptionPayload,
     /// Threshold signer config (required when `signer_mode == threshold-signer`).
@@ -90,12 +92,14 @@ pub async fn handle_sign_nep413_message(
     }
 
     let signer = match request.signer_mode {
-        crate::types::SignerMode::LocalSigner => Ed25519SignerBackend::from_encrypted_near_private_key(
-            crate::types::SignerMode::LocalSigner,
-            &wrap_key,
-            &request.decryption.encrypted_private_key_data,
-            &request.decryption.encrypted_private_key_chacha20_nonce_b64u,
-        )?,
+        crate::types::SignerMode::LocalSigner => {
+            Ed25519SignerBackend::from_encrypted_near_private_key(
+                crate::types::SignerMode::LocalSigner,
+                &wrap_key,
+                &request.decryption.encrypted_private_key_data,
+                &request.decryption.encrypted_private_key_chacha20_nonce_b64u,
+            )?
+        }
         crate::types::SignerMode::ThresholdSigner => {
             let cfg = request
                 .threshold
@@ -127,7 +131,9 @@ pub async fn handle_sign_nep413_message(
                 js_sys::JSON::stringify(&js_val)
                     .map_err(|e| format!("JSON.stringify signingPayload failed: {:?}", e))?
                     .as_string()
-                    .ok_or_else(|| "JSON.stringify signingPayload did not return a string".to_string())?
+                    .ok_or_else(|| {
+                        "JSON.stringify signingPayload did not return a string".to_string()
+                    })?
             };
 
             Ed25519SignerBackend::from_threshold_signer_config(

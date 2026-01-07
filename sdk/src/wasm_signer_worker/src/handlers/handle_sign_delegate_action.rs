@@ -289,7 +289,9 @@ pub async fn handle_sign_delegate_action(
                 js_sys::JSON::stringify(&js_val)
                     .map_err(|e| format!("JSON.stringify signingPayload failed: {:?}", e))?
                     .as_string()
-                    .ok_or_else(|| "JSON.stringify signingPayload did not return a string".to_string())?
+                    .ok_or_else(|| {
+                        "JSON.stringify signingPayload did not return a string".to_string()
+                    })?
             };
 
             Ed25519SignerBackend::from_threshold_signer_config(
@@ -331,7 +333,7 @@ pub async fn handle_sign_delegate_action(
     }
 
     if device_public_key_b58 != normalized_delegate_pk {
-        let error_msg = "Delegate public key does not match device key".to_string();
+        let error_msg = "Delegate public key does not match signing key".to_string();
         logs.push(error_msg.clone());
         return Ok(DelegateSignResult::failed(logs, error_msg));
     }

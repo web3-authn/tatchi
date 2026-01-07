@@ -325,8 +325,8 @@ fn parse_access_key_from_json(json_str: &str) -> Result<crate::types::AccessKey,
     #[cfg(target_arch = "wasm32")]
     {
         // Parse JSON string to JsValue
-        let val = js_sys::JSON::parse(json_str)
-            .map_err(|e| format!("JSON parse failed: {:?}", e))?;
+        let val =
+            js_sys::JSON::parse(json_str).map_err(|e| format!("JSON parse failed: {:?}", e))?;
 
         // Deserialize JsValue to AccessKey
         serde_wasm_bindgen::from_value(val)
@@ -366,7 +366,8 @@ fn parse_access_key_json_minimal(json_str: &str) -> Result<crate::types::AccessK
             let fc_obj = extract_object_value(perm_section, "FunctionCall")?;
 
             let receiver_id = extract_string_field_any(&fc_obj, &["receiverId", "receiver_id"])?;
-            let method_names = extract_string_array_field_any(&fc_obj, &["methodNames", "method_names"])?;
+            let method_names =
+                extract_string_array_field_any(&fc_obj, &["methodNames", "method_names"])?;
             let allowance = match extract_optional_field_value_start(&fc_obj, "allowance")? {
                 None => None,
                 Some(v) if v.starts_with("null") => None,
@@ -489,7 +490,10 @@ fn extract_object_value<'a>(permission_json: &'a str, variant: &str) -> Result<&
     }
     let after = &permission_json[needle.len()..];
     if !after.starts_with('{') {
-        return Err(format!("Expected object for permission variant '{}'", variant));
+        return Err(format!(
+            "Expected object for permission variant '{}'",
+            variant
+        ));
     }
     let end = find_matching_brace_index(after)
         .ok_or_else(|| format!("Unterminated permission variant '{}'", variant))?;

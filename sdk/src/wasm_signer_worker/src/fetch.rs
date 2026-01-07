@@ -5,8 +5,12 @@ use wasm_bindgen_futures::JsFuture;
 
 pub fn build_json_post_init(body: &str) -> Result<JsValue, String> {
     let init = Object::new();
-    Reflect::set(&init, &JsValue::from_str("method"), &JsValue::from_str("POST"))
-        .map_err(|_| "Failed to set fetch init.method".to_string())?;
+    Reflect::set(
+        &init,
+        &JsValue::from_str("method"),
+        &JsValue::from_str("POST"),
+    )
+    .map_err(|_| "Failed to set fetch init.method".to_string())?;
 
     // Ensure browser cookies/session credentials are sent to the relayer when configured.
     Reflect::set(

@@ -4,11 +4,11 @@
 // *                                                                            *
 // ******************************************************************************
 
+use crate::threshold::signer_backend::Ed25519SignerBackend;
 use crate::transaction::{
     build_actions_from_params, build_transaction_with_actions, calculate_transaction_hash,
     sign_transaction,
 };
-use crate::threshold::signer_backend::Ed25519SignerBackend;
 use crate::types::{
     handlers::{ConfirmationConfig, RpcCallPayload},
     progress::{
@@ -239,7 +239,9 @@ pub async fn handle_sign_transactions_with_actions(
             SignerMode::LocalSigner,
             &wrap_key,
             &tx_batch_request.decryption.encrypted_private_key_data,
-            &tx_batch_request.decryption.encrypted_private_key_chacha20_nonce_b64u,
+            &tx_batch_request
+                .decryption
+                .encrypted_private_key_chacha20_nonce_b64u,
         )?,
         SignerMode::ThresholdSigner => {
             let cfg = tx_batch_request
@@ -265,7 +267,9 @@ pub async fn handle_sign_transactions_with_actions(
                 js_sys::JSON::stringify(&js_val)
                     .map_err(|e| format!("JSON.stringify signingPayload failed: {:?}", e))?
                     .as_string()
-                    .ok_or_else(|| "JSON.stringify signingPayload did not return a string".to_string())?
+                    .ok_or_else(|| {
+                        "JSON.stringify signingPayload did not return a string".to_string()
+                    })?
             };
 
             Ed25519SignerBackend::from_threshold_signer_config(

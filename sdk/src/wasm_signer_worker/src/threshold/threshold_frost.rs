@@ -2,6 +2,8 @@ use crate::encoders::{base64_url_decode, base64_url_encode};
 use curve25519_dalek::constants::ED25519_BASEPOINT_POINT;
 use curve25519_dalek::edwards::CompressedEdwardsY;
 use curve25519_dalek::scalar::Scalar as CurveScalar;
+use hkdf::Hkdf;
+use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
@@ -16,10 +18,7 @@ fn parse_near_public_key_to_bytes(public_key: &str) -> Result<[u8; 32], JsValue>
             decoded.len()
         )));
     }
-    Ok(decoded
-        .as_slice()
-        .try_into()
-        .expect("checked length above"))
+    Ok(decoded.as_slice().try_into().expect("checked length above"))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +26,62 @@ fn parse_near_public_key_to_bytes(public_key: &str) -> Result<[u8; 32], JsValue>
 struct CommitmentsWire {
     hiding: String,
     binding: String,
+}
+
+const THRESHOLD_RELAYER_SHARE_INFO_PREFIX_V1: &[u8] = b"w3a/threshold/relayer_share_v1";
+
+fn normalize_rp_id(rp_id: &str) -> String {
+    rp_id.trim().to_ascii_lowercase()
+}
+
+fn derive_threshold_relayer_share_scalar_v1(
+    master_secret_bytes: &[u8],
+    near_account_id: &str,
+    rp_id: &str,
+    client_verifying_share_bytes: &[u8; 32],
+) -> Result<CurveScalar, String> {
+    if master_secret_bytes.len() != 32 {
+        return Err(format!(
+            "master secret must be 32 bytes, got {}",
+            master_secret_bytes.len()
+        ));
+    }
+
+    let rp_id = normalize_rp_id(rp_id);
+    let salt = Sha256::digest(client_verifying_share_bytes);
+    let hk = Hkdf::<Sha256>::new(Some(salt.as_slice()), master_secret_bytes);
+
+    for ctr in 0u32..1024u32 {
+        let mut okm = [0u8; 64];
+        let mut info: Vec<u8> = Vec::with_capacity(
+            THRESHOLD_RELAYER_SHARE_INFO_PREFIX_V1.len()
+                + 1
+                + near_account_id.trim().len()
+                + 1
+                + rp_id.len()
+                + 1
+                + 8
+                + 4,
+        );
+        info.extend_from_slice(THRESHOLD_RELAYER_SHARE_INFO_PREFIX_V1);
+        info.push(0);
+        info.extend_from_slice(near_account_id.trim().as_bytes());
+        info.push(0);
+        info.extend_from_slice(rp_id.as_bytes());
+        info.push(0);
+        info.extend_from_slice(&0u64.to_le_bytes()); // epoch (reserved)
+        info.extend_from_slice(&ctr.to_le_bytes());
+
+        hk.expand(&info, &mut okm)
+            .map_err(|_| "HKDF expand failed".to_string())?;
+
+        let scalar = CurveScalar::from_bytes_mod_order_wide(&okm);
+        if scalar != CurveScalar::ZERO {
+            return Ok(scalar);
+        }
+    }
+
+    Err("Derived relayer signing share is zero; retry with a different master secret".to_string())
 }
 
 /// Server-side helper: generate a relayer signing share and compute a group public key from
@@ -47,10 +102,7 @@ pub fn threshold_ed25519_keygen_from_client_verifying_share(
             bytes.len()
         )));
     }
-    let client_bytes: [u8; 32] = bytes
-        .as_slice()
-        .try_into()
-        .expect("length checked above");
+    let client_bytes: [u8; 32] = bytes.as_slice().try_into().expect("length checked above");
     let client_point = CompressedEdwardsY(client_bytes)
         .decompress()
         .ok_or_else(|| JsValue::from_str("Invalid client verifying share point"))?;
@@ -101,10 +153,88 @@ pub fn threshold_ed25519_keygen_from_client_verifying_share(
     .map_err(|e| JsValue::from_str(&format!("Failed to serialize keygen output: {e}")))
 }
 
+/// Server-side helper: deterministically derive the relayer signing share from a relayer master
+/// secret and client-provided public data, then compute the corresponding group public key.
+///
+/// This enables stateless relayer deployments: the relayer does not need to persist long-lived
+/// signing shares, as they can be re-derived on-demand.
+#[wasm_bindgen]
+pub fn threshold_ed25519_keygen_from_master_secret_and_client_verifying_share(
+    master_secret_b64u: String,
+    near_account_id: String,
+    rp_id: String,
+    client_verifying_share_b64u: String,
+) -> Result<JsValue, JsValue> {
+    let master_secret_bytes = base64_url_decode(master_secret_b64u.trim())
+        .map_err(|e| JsValue::from_str(&format!("Invalid THRESHOLD_ED25519_MASTER_SECRET_B64U: {e}")))?;
+    if master_secret_bytes.len() != 32 {
+        return Err(JsValue::from_str(&format!(
+            "THRESHOLD_ED25519_MASTER_SECRET_B64U must be 32 bytes, got {}",
+            master_secret_bytes.len()
+        )));
+    }
+
+    let bytes = base64_url_decode(client_verifying_share_b64u.trim())
+        .map_err(|e| JsValue::from_str(&format!("Invalid clientVerifyingShareB64u: {e}")))?;
+    if bytes.len() != 32 {
+        return Err(JsValue::from_str(&format!(
+            "clientVerifyingShareB64u must be 32 bytes, got {}",
+            bytes.len()
+        )));
+    }
+    let client_bytes: [u8; 32] = bytes.as_slice().try_into().expect("length checked above");
+    let client_point = CompressedEdwardsY(client_bytes)
+        .decompress()
+        .ok_or_else(|| JsValue::from_str("Invalid client verifying share point"))?;
+
+    let relayer_scalar = derive_threshold_relayer_share_scalar_v1(
+        master_secret_bytes.as_slice(),
+        &near_account_id,
+        &rp_id,
+        &client_bytes,
+    )
+    .map_err(|e| JsValue::from_str(&e))?;
+
+    let relayer_scalar_bytes = relayer_scalar.to_bytes();
+    let relayer_signing_share_b64u = base64_url_encode(&relayer_scalar_bytes);
+
+    let relayer_point = ED25519_BASEPOINT_POINT * relayer_scalar;
+    let relayer_verifying_share_bytes = relayer_point.compress().to_bytes();
+    let relayer_verifying_share_b64u = base64_url_encode(&relayer_verifying_share_bytes);
+
+    // For identifiers {1,2}, Lagrange coefficients at x=0 are: λ1 = 2, λ2 = -1.
+    let lambda1 = CurveScalar::from(2u64);
+    let lambda2 = -CurveScalar::ONE;
+    let group_point = client_point * lambda1 + relayer_point * lambda2;
+    let group_pk_bytes = group_point.compress().to_bytes();
+
+    let public_key = format!("ed25519:{}", bs58::encode(&group_pk_bytes).into_string());
+    let relayer_key_id = public_key.clone(); // default: relayerKeyId := publicKey
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Out {
+        relayer_key_id: String,
+        public_key: String,
+        relayer_signing_share_b64u: String,
+        relayer_verifying_share_b64u: String,
+    }
+
+    serde_wasm_bindgen::to_value(&Out {
+        relayer_key_id,
+        public_key,
+        relayer_signing_share_b64u,
+        relayer_verifying_share_b64u,
+    })
+    .map_err(|e| JsValue::from_str(&format!("Failed to serialize keygen output: {e}")))
+}
+
 /// Server-side helper: Round 1 FROST commit for the relayer share.
 /// Returns relayer nonces (opaque, serialized) and relayer commitments (public).
 #[wasm_bindgen]
-pub fn threshold_ed25519_round1_commit(relayer_signing_share_b64u: String) -> Result<JsValue, JsValue> {
+pub fn threshold_ed25519_round1_commit(
+    relayer_signing_share_b64u: String,
+) -> Result<JsValue, JsValue> {
     let share_bytes = base64_url_decode(relayer_signing_share_b64u.trim())
         .map_err(|e| JsValue::from_str(&format!("Invalid relayerSigningShareB64u: {e}")))?;
     if share_bytes.len() != 32 {
@@ -195,8 +325,9 @@ pub fn threshold_ed25519_round2_sign(args: JsValue) -> Result<JsValue, JsValue> 
     let relayer_scalar = CurveScalar::from_bytes_mod_order(relayer_scalar_bytes);
     let relayer_point = ED25519_BASEPOINT_POINT * relayer_scalar;
     let relayer_verifying_share_bytes = relayer_point.compress().to_bytes();
-    let verifying_share = frost_ed25519::keys::VerifyingShare::deserialize(&relayer_verifying_share_bytes)
-        .map_err(|e| JsValue::from_str(&format!("Invalid relayer verifying share: {e}")))?;
+    let verifying_share =
+        frost_ed25519::keys::VerifyingShare::deserialize(&relayer_verifying_share_bytes)
+            .map_err(|e| JsValue::from_str(&format!("Invalid relayer verifying share: {e}")))?;
 
     let signing_share = frost_ed25519::keys::SigningShare::deserialize(&share_bytes)
         .map_err(|e| JsValue::from_str(&format!("Invalid relayer signing share: {e}")))?;
@@ -224,7 +355,8 @@ pub fn threshold_ed25519_round2_sign(args: JsValue) -> Result<JsValue, JsValue> 
         .map_err(|e| JsValue::from_str(&format!("Invalid client hiding commitment: {e}")))?;
     let client_binding = frost_ed25519::round1::NonceCommitment::deserialize(&client_binding)
         .map_err(|e| JsValue::from_str(&format!("Invalid client binding commitment: {e}")))?;
-    let client_commitments = frost_ed25519::round1::SigningCommitments::new(client_hiding, client_binding);
+    let client_commitments =
+        frost_ed25519::round1::SigningCommitments::new(client_hiding, client_binding);
 
     let relayer_hiding = base64_url_decode(args.relayer_commitments.hiding.trim())
         .map_err(|e| JsValue::from_str(&format!("Invalid relayer commitments.hiding: {e}")))?;
@@ -234,7 +366,8 @@ pub fn threshold_ed25519_round2_sign(args: JsValue) -> Result<JsValue, JsValue> 
         .map_err(|e| JsValue::from_str(&format!("Invalid relayer hiding commitment: {e}")))?;
     let relayer_binding = frost_ed25519::round1::NonceCommitment::deserialize(&relayer_binding)
         .map_err(|e| JsValue::from_str(&format!("Invalid relayer binding commitment: {e}")))?;
-    let relayer_commitments = frost_ed25519::round1::SigningCommitments::new(relayer_hiding, relayer_binding);
+    let relayer_commitments =
+        frost_ed25519::round1::SigningCommitments::new(relayer_hiding, relayer_binding);
 
     let mut commitments_map = BTreeMap::new();
     commitments_map.insert(client_identifier, client_commitments);
@@ -254,4 +387,93 @@ pub fn threshold_ed25519_round2_sign(args: JsValue) -> Result<JsValue, JsValue> 
         relayer_signature_share_b64u: base64_url_encode(&relayer_sig_share.serialize()),
     })
     .map_err(|e| JsValue::from_str(&format!("Failed to serialize round2 output: {e}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deterministic_relayer_share_is_stable_and_rp_id_normalized() {
+        let master_secret = [7u8; 32];
+        let near_account_id = "alice.near";
+        let rp_id_mixed_case = "Example.Com";
+
+        let client_scalar = CurveScalar::from(5u64);
+        let client_point = ED25519_BASEPOINT_POINT * client_scalar;
+        let client_bytes = client_point.compress().to_bytes();
+
+        let s1 = derive_threshold_relayer_share_scalar_v1(
+            &master_secret,
+            near_account_id,
+            rp_id_mixed_case,
+            &client_bytes,
+        )
+        .expect("should derive scalar");
+        let s2 = derive_threshold_relayer_share_scalar_v1(
+            &master_secret,
+            near_account_id,
+            rp_id_mixed_case,
+            &client_bytes,
+        )
+        .expect("should derive scalar");
+        assert_eq!(s1.to_bytes(), s2.to_bytes());
+
+        // rpId normalization: mixed-case rpId should be treated the same as lowercase.
+        let s3 = derive_threshold_relayer_share_scalar_v1(
+            &master_secret,
+            near_account_id,
+            "example.com",
+            &client_bytes,
+        )
+        .expect("should derive scalar");
+        assert_eq!(s1.to_bytes(), s3.to_bytes());
+    }
+
+    #[test]
+    fn deterministic_relayer_share_changes_with_inputs() {
+        let master_secret = [42u8; 32];
+
+        let client_scalar = CurveScalar::from(7u64);
+        let client_point = ED25519_BASEPOINT_POINT * client_scalar;
+        let client_bytes = client_point.compress().to_bytes();
+
+        let base = derive_threshold_relayer_share_scalar_v1(
+            &master_secret,
+            "alice.near",
+            "example.com",
+            &client_bytes,
+        )
+        .expect("should derive scalar");
+
+        let different_near = derive_threshold_relayer_share_scalar_v1(
+            &master_secret,
+            "bob.near",
+            "example.com",
+            &client_bytes,
+        )
+        .expect("should derive scalar");
+        assert_ne!(base.to_bytes(), different_near.to_bytes());
+
+        let different_rp = derive_threshold_relayer_share_scalar_v1(
+            &master_secret,
+            "alice.near",
+            "other.example.com",
+            &client_bytes,
+        )
+        .expect("should derive scalar");
+        assert_ne!(base.to_bytes(), different_rp.to_bytes());
+
+        let client_scalar2 = CurveScalar::from(9u64);
+        let client_point2 = ED25519_BASEPOINT_POINT * client_scalar2;
+        let client_bytes2 = client_point2.compress().to_bytes();
+        let different_client = derive_threshold_relayer_share_scalar_v1(
+            &master_secret,
+            "alice.near",
+            "example.com",
+            &client_bytes2,
+        )
+        .expect("should derive scalar");
+        assert_ne!(base.to_bytes(), different_client.to_bytes());
+    }
 }

@@ -18,45 +18,44 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use crate::types::worker_messages::{
-    parse_typed_payload,
-    parse_worker_request_envelope,
-    worker_request_type_name,
-    worker_response_type_name,
-    SignerWorkerMessage,
-    SignerWorkerResponse,
-    WorkerRequestType,
+    parse_typed_payload, parse_worker_request_envelope, worker_request_type_name,
+    worker_response_type_name, SignerWorkerMessage, SignerWorkerResponse, WorkerRequestType,
     WorkerResponseType,
 };
 use crate::types::*;
 use log::debug;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::closure::Closure;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::JsFuture;
 #[cfg(target_arch = "wasm32")]
 use web_sys::{MessageEvent, MessagePort};
 
 pub use handlers::handle_decrypt_private_key_with_prf::{
-    handle_decrypt_private_key_with_prf,
-    DecryptPrivateKeyRequest,
-    DecryptPrivateKeyResult,
+    handle_decrypt_private_key_with_prf, DecryptPrivateKeyRequest, DecryptPrivateKeyResult,
 };
 pub use handlers::handle_derive_near_keypair_and_encrypt::{
-    handle_derive_near_keypair_and_encrypt,
-    DeriveNearKeypairAndEncryptRequest,
+    handle_derive_near_keypair_and_encrypt, DeriveNearKeypairAndEncryptRequest,
     DeriveNearKeypairAndEncryptResult,
 };
 pub use handlers::{
     CoseExtractionResult,
+    // Delegate Actions
+    DelegatePayload,
+    DelegateSignResult,
     // Extract Cose Public Key
     ExtractCoseRequest,
     KeyActionResult,
     // Recover Account
     RecoverKeypairRequest,
     RecoverKeypairResult,
+    // Combined Device2 Registration
+    RegisterDevice2WithDerivedKeyRequest,
+    RegisterDevice2WithDerivedKeyResult,
+    SignDelegateActionRequest,
     // Sign Nep413 Message
     SignNep413Request,
     SignNep413Result,
@@ -65,23 +64,11 @@ pub use handlers::{
     // Execute Actions
     SignTransactionsWithActionsRequest,
     TransactionPayload,
-    // Delegate Actions
-    DelegatePayload,
-    DelegateSignResult,
-    SignDelegateActionRequest,
-    // Combined Device2 Registration
-    RegisterDevice2WithDerivedKeyRequest,
-    RegisterDevice2WithDerivedKeyResult,
 };
 
 // Re-export NEAR types for TypeScript usage
 pub use types::near::{
-    DelegateAction,
-    PublicKey,
-    Signature,
-    SignedDelegate,
-    SignedTransaction,
-    Transaction,
+    DelegateAction, PublicKey, Signature, SignedDelegate, SignedTransaction, Transaction,
 };
 // Re-export progress types for auto-generation
 pub use types::progress::{
@@ -89,11 +76,7 @@ pub use types::progress::{
 };
 // Re-export WASM-friendly wrapper types for TypeScript usage
 pub use types::wasm_to_json::{
-    WasmDelegateAction,
-    WasmPublicKey,
-    WasmSignature,
-    WasmSignedDelegate,
-    WasmSignedTransaction,
+    WasmDelegateAction, WasmPublicKey, WasmSignature, WasmSignedDelegate, WasmSignedTransaction,
     WasmTransaction,
 };
 
@@ -346,22 +329,16 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::RecoverKeypairFromPasskey => {
-            let request: RecoverKeypairRequest =
-                parse_typed_payload(&payload_js, request_type)?;
+            let request: RecoverKeypairRequest = parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
             let result = handlers::handle_recover_keypair_from_passkey(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::DecryptPrivateKeyWithPrf => {
-            let request: DecryptPrivateKeyRequest =
-                parse_typed_payload(&payload_js, request_type)?;
+            let request: DecryptPrivateKeyRequest = parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            let result = handlers::handle_decrypt_private_key_with_prf(
-                request,
-                wrap_key,
-            )
-            .await?;
+            let result = handlers::handle_decrypt_private_key_with_prf(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
@@ -369,11 +346,7 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
             let request: SignTransactionsWithActionsRequest =
                 parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            let result = handlers::handle_sign_transactions_with_actions(
-                request,
-                wrap_key,
-            )
-            .await?;
+            let result = handlers::handle_sign_transactions_with_actions(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
@@ -386,8 +359,7 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::ExtractCosePublicKey => {
-            let request: ExtractCoseRequest =
-                parse_typed_payload(&payload_js, request_type)?;
+            let request: ExtractCoseRequest = parse_typed_payload(&payload_js, request_type)?;
             let result = handlers::handle_extract_cose_public_key(request).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
@@ -402,14 +374,9 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::SignNep413Message => {
-            let request: SignNep413Request =
-                parse_typed_payload(&payload_js, request_type)?;
+            let request: SignNep413Request = parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            let result = handlers::handle_sign_nep413_message(
-                request,
-                wrap_key,
-            )
-            .await?;
+            let result = handlers::handle_sign_nep413_message(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
@@ -434,11 +401,9 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
             let request: handlers::DeriveThresholdEd25519ClientVerifyingShareRequest =
                 parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            let result = handlers::handle_threshold_ed25519_derive_client_verifying_share(
-                request,
-                wrap_key,
-            )
-            .await?;
+            let result =
+                handlers::handle_threshold_ed25519_derive_client_verifying_share(request, wrap_key)
+                    .await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
@@ -446,11 +411,9 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
             let request: handlers::SignAddKeyThresholdPublicKeyNoPromptRequest =
                 parse_typed_payload(&payload_js, request_type)?;
             let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            let result = handlers::handle_sign_add_key_threshold_public_key_no_prompt(
-                request,
-                wrap_key,
-            )
-            .await?;
+            let result =
+                handlers::handle_sign_add_key_threshold_public_key_no_prompt(request, wrap_key)
+                    .await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
@@ -473,18 +436,12 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         WorkerRequestType::SignTransactionsWithActions => {
             WorkerResponseType::SignTransactionsWithActionsSuccess
         }
-        WorkerRequestType::SignDelegateAction => {
-            WorkerResponseType::SignDelegateActionSuccess
-        }
-        WorkerRequestType::ExtractCosePublicKey => {
-            WorkerResponseType::ExtractCosePublicKeySuccess
-        }
+        WorkerRequestType::SignDelegateAction => WorkerResponseType::SignDelegateActionSuccess,
+        WorkerRequestType::ExtractCosePublicKey => WorkerResponseType::ExtractCosePublicKeySuccess,
         WorkerRequestType::SignTransactionWithKeyPair => {
             WorkerResponseType::SignTransactionWithKeyPairSuccess
         }
-        WorkerRequestType::SignNep413Message => {
-            WorkerResponseType::SignNep413MessageSuccess
-        }
+        WorkerRequestType::SignNep413Message => WorkerResponseType::SignNep413MessageSuccess,
         WorkerRequestType::RegisterDevice2WithDerivedKey => {
             WorkerResponseType::RegisterDevice2WithDerivedKeySuccess
         }
@@ -514,7 +471,10 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize response: {:?}", e)))
 }
 
-fn lookup_wrap_key_shards(session_id: &str, _request_type: WorkerRequestType) -> Result<WrapKey, JsValue> {
+fn lookup_wrap_key_shards(
+    session_id: &str,
+    _request_type: WorkerRequestType,
+) -> Result<WrapKey, JsValue> {
     let material = WRAP_KEY_SEED_SESSIONS.with(|map| map.borrow().get(session_id).cloned());
     let Some(mat) = material else {
         return Err(JsValue::from_str(&format!(
@@ -544,7 +504,10 @@ async fn get_wrap_key_shards(
     lookup_wrap_key_shards(session_id, request_type)
 }
 
-fn lookup_prf_second(session_id: &str, _request_type: WorkerRequestType) -> Result<String, JsValue> {
+fn lookup_prf_second(
+    session_id: &str,
+    _request_type: WorkerRequestType,
+) -> Result<String, JsValue> {
     let prf_second = SESSION_PRF_OUTPUTS.with(|map| map.borrow().get(session_id).cloned());
     let Some(prf) = prf_second else {
         return Err(JsValue::from_str(&format!(
@@ -567,11 +530,20 @@ fn timeout_promise(ms: u32) -> js_sys::Promise {
             let _ = resolve.call1(&JsValue::UNDEFINED, &JsValue::FALSE);
             return;
         };
+
+        // If setTimeout() fails for any reason, resolve immediately so callers don't hang forever.
+        let resolve_clone = resolve.clone();
         let cb = Closure::<dyn FnOnce()>::once(move || {
-            let _ = resolve.call1(&JsValue::UNDEFINED, &JsValue::FALSE);
+            let _ = resolve_clone.call1(&JsValue::UNDEFINED, &JsValue::FALSE);
         });
-        let _ = set_timeout.call2(&global, cb.as_ref(), &JsValue::from_f64(ms as f64));
-        cb.forget();
+        if set_timeout
+            .call2(&global, cb.as_ref(), &JsValue::from_f64(ms as f64))
+            .is_ok()
+        {
+            cb.forget();
+        } else {
+            let _ = resolve.call1(&JsValue::UNDEFINED, &JsValue::FALSE);
+        }
     })
 }
 
