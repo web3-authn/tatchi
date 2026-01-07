@@ -140,6 +140,11 @@ export interface SignTransactionPayload {
   intentDigest: string;
   rpcCall: RpcCallPayload;
   /**
+   * Optional base64url-encoded 32-byte digest to bind a relayer session policy into the VRF input hash (v4+ only).
+   * When present, it will be forwarded to the VRF worker for inclusion in VRF input derivation.
+   */
+  sessionPolicyDigest32?: string;
+  /**
    * Controls whether confirmTxFlow should collect a WebAuthn credential.
    * - `webauthn`: prompt TouchID/FaceID and derive WrapKeySeed from PRF.first_auth.
    * - `warmSession`: skip WebAuthn and dispense the existing VRF session key to the signer worker.
@@ -170,6 +175,10 @@ export interface SignNep413Payload {
   nearAccountId: string;
   message: string;
   recipient: string;
+  /**
+   * Optional base64url-encoded 32-byte digest to bind a relayer session policy into the VRF input hash (v4+ only).
+   */
+  sessionPolicyDigest32?: string;
   /**
    * Optional contract verification context for VRF gating.
    * When provided, VRF Rust can call `verify_authentication_response` on-chain

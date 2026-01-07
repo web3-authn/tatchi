@@ -37,6 +37,7 @@ export async function generateVrfKeypairBootstrap(
 	              blockHeight: String(args.vrfInputData.blockHeight),
 	              blockHash: args.vrfInputData.blockHash,
 	              intentDigest: args.vrfInputData.intentDigest,
+                sessionPolicyDigest32: args.vrfInputData.sessionPolicyDigest32,
 	            }
 	          : undefined,
 	      },
@@ -74,6 +75,7 @@ export async function generateVrfKeypairBootstrap(
         blockHeight: challengeData.blockHeight,
         blockHash: challengeData.blockHash,
         ...(challengeData.intentDigest ? { intentDigest: challengeData.intentDigest } : {}),
+        ...(challengeData.sessionPolicyDigest32 ? { sessionPolicyDigest32: challengeData.sessionPolicyDigest32 } : {}),
       })
     }
 

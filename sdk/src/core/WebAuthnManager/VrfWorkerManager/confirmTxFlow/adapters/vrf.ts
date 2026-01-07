@@ -11,18 +11,6 @@ export async function maybeRefreshVrfChallenge(
   nearAccountId: string,
 ): Promise<{ vrfChallenge: VRFChallenge; transactionContext: TransactionContext }> {
 
-  const rpId = ctx.touchIdPrompt.getRpId();
-  const intentDigestB64u = request.type === SecureConfirmationType.SIGN_TRANSACTION
-    ? (request.payload?.intentDigest as string | undefined)
-    : request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE
-      ? await computeUiIntentDigestFromNep413({
-        nearAccountId,
-        recipient: request.payload?.recipient ?? '',
-        message: request.payload?.message ?? '',
-      })
-      : (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
-        ? (request.intentDigest ? await sha256Base64UrlUtf8(request.intentDigest) : undefined)
-      : undefined;
   const vrfWorkerManager = ctx.vrfWorkerManager;
   if (!vrfWorkerManager) {
     throw new Error('VrfWorkerManager not available');
@@ -32,15 +20,42 @@ export async function maybeRefreshVrfChallenge(
   if (
     !ctx.nonceManager.nearAccountId ||
     !ctx.nonceManager.nearPublicKeyStr ||
-    String(ctx.nonceManager.nearAccountId) !== String(nearAccountId)
+    ctx.nonceManager.nearAccountId !== nearAccountId
   ) {
     throw new Error('NonceManager not initialized with user data');
   }
 
-  const attempts = 3;
-  return await retryWithBackoff(async (attempt) => {
-    const latestCtx = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
+  const rpId = ctx.touchIdPrompt.getRpId();
+  let sessionPolicyDigest32: string | undefined;
+  let intentDigestB64u: string | undefined;
 
+  switch (request.type) {
+    case SecureConfirmationType.SIGN_TRANSACTION: {
+      sessionPolicyDigest32 = request.payload.sessionPolicyDigest32;
+      intentDigestB64u = request.payload.intentDigest;
+      break;
+    }
+    case SecureConfirmationType.SIGN_NEP413_MESSAGE: {
+      sessionPolicyDigest32 = request.payload.sessionPolicyDigest32;
+      intentDigestB64u = await computeUiIntentDigestFromNep413({
+        nearAccountId,
+        recipient: request.payload.recipient,
+        message: request.payload.message,
+      });
+      break;
+    }
+    case SecureConfirmationType.REGISTER_ACCOUNT:
+    case SecureConfirmationType.LINK_DEVICE: {
+      intentDigestB64u = request.intentDigest ? await sha256Base64UrlUtf8(request.intentDigest) : undefined;
+      break;
+    }
+    default:
+      break;
+  }
+
+  const attempts = 3;
+  return await retryWithBackoff(async () => {
+    const latestCtx = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
     const vrfChallenge = (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
       ? (await vrfWorkerManager.generateVrfKeypairBootstrap({
           vrfInputData: {
@@ -60,6 +75,7 @@ export async function maybeRefreshVrfChallenge(
             blockHeight: latestCtx.txBlockHeight,
             blockHash: latestCtx.txBlockHash,
             ...(intentDigestB64u ? { intentDigest: intentDigestB64u } : {}),
+            ...(sessionPolicyDigest32 ? { sessionPolicyDigest32 } : {}),
           },
           request.requestId,
         );
@@ -68,7 +84,6 @@ export async function maybeRefreshVrfChallenge(
       vrfChallenge,
       transactionContext: latestCtx
     };
-
   }, {
     attempts,
     baseDelayMs: 150,

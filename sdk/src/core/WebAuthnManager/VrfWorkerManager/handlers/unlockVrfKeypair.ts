@@ -5,7 +5,7 @@ import type {
   VRFWorkerResponse,
   WasmUnlockVrfKeypairRequest,
 } from '../../../types/vrf-worker';
-import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
+import type { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import type { VrfWorkerManagerHandlerContext } from './types';
 
 /**
@@ -17,7 +17,7 @@ import type { VrfWorkerManagerHandlerContext } from './types';
 export async function unlockVrfKeypair(
   ctx: VrfWorkerManagerHandlerContext,
   args: {
-    credential: WebAuthnAuthenticationCredential;
+    credential: WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential;
     nearAccountId: AccountId;
     encryptedVrfKeypair: EncryptedVRFKeypair;
     onEvent?: (event: { type: string; data: { step: string; message: string } }) => void;

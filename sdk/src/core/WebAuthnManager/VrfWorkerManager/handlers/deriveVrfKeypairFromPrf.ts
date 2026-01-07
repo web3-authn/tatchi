@@ -49,6 +49,7 @@ export async function deriveVrfKeypairFromPrf(
 	        blockHeight: String(vrfInputData.blockHeight),
 	        blockHash: vrfInputData.blockHash,
 	        intentDigest: vrfInputData.intentDigest,
+          sessionPolicyDigest32: vrfInputData.sessionPolicyDigest32,
 	      } : undefined,
 	    }
 	  };
@@ -84,6 +85,7 @@ export async function deriveVrfKeypairFromPrf(
       blockHeight: data.vrfChallengeData.blockHeight,
       blockHash: data.vrfChallengeData.blockHash,
       ...(data.vrfChallengeData.intentDigest ? { intentDigest: data.vrfChallengeData.intentDigest } : {}),
+      ...(data.vrfChallengeData.sessionPolicyDigest32 ? { sessionPolicyDigest32: data.vrfChallengeData.sessionPolicyDigest32 } : {}),
     })
     : null;
 

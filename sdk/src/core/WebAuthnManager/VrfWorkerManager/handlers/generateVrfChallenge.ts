@@ -49,6 +49,7 @@ async function generateVrfChallengeInternal(
 	        blockHeight: String(inputData.blockHeight),
 	        blockHash: inputData.blockHash,
 	        intentDigest: inputData.intentDigest,
+          sessionPolicyDigest32: inputData.sessionPolicyDigest32,
 	      },
 	    },
 	  };
@@ -60,6 +61,5 @@ async function generateVrfChallengeInternal(
   }
 
   const data = response.data as unknown as VRFChallenge;
-  console.debug('VRF Manager: VRF challenge generated successfully');
   return validateVRFChallenge(data);
 }
