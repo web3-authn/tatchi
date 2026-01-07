@@ -132,6 +132,20 @@ export type ThresholdEd25519KeyStoreEnvInput = {
   REDIS_URL?: string;
   THRESHOLD_ED25519_KEYSTORE_PREFIX?: string;
   THRESHOLD_ED25519_SESSION_PREFIX?: string;
+  THRESHOLD_ED25519_AUTH_PREFIX?: string;
+  /**
+   * 32-byte base64url master secret used to deterministically derive relayer signing shares.
+   * When set (and enabled via `THRESHOLD_ED25519_SHARE_MODE`), the relayer can be stateless for
+   * long-lived threshold key material.
+   */
+  THRESHOLD_ED25519_MASTER_SECRET_B64U?: string;
+  /**
+   * Relayer share mode:
+   * - "kv": use persisted relayer signing shares (current default behavior)
+   * - "derived": derive relayer signing shares from the master secret (stateless relayer)
+   * - "auto": prefer derived when master secret is configured, otherwise kv
+   */
+  THRESHOLD_ED25519_SHARE_MODE?: string;
 };
 
 export type ThresholdEd25519KeyStoreConfigInput = ThresholdEd25519KeyStoreConfig | ThresholdEd25519KeyStoreEnvInput;
@@ -228,6 +242,11 @@ export interface ContractVrfData {
    * Required by the on-chain verifier (must be exactly 32 bytes).
    */
   intent_digest_32: number[];
+  /**
+   * Optional 32-byte digest bound into VRF input derivation for relayer session policies.
+   * When present, must be exactly 32 bytes.
+   */
+  session_policy_digest_32?: number[];
 }
 
 // WebAuthn registration credential structure
@@ -362,8 +381,46 @@ export interface VerifyAuthenticationResponse {
 
 export type ThresholdEd25519Purpose = 'near_tx' | 'nep461_delegate' | 'nep413' | string;
 
+export type ThresholdEd25519SessionPolicy = {
+  version: 'threshold_session_v1';
+  nearAccountId: string;
+  rpId: string;
+  relayerKeyId: string;
+  sessionId: string;
+  ttlMs: number;
+  remainingUses: number;
+};
+
+export interface ThresholdEd25519SessionRequest extends VerifyAuthenticationRequest {
+  relayerKeyId: string;
+  /** Base64url-encoded 32-byte client verifying share (Ed25519 compressed point) for participant id=1. */
+  clientVerifyingShareB64u: string;
+  sessionPolicy: ThresholdEd25519SessionPolicy;
+}
+
+export interface ThresholdEd25519SessionResponse {
+  ok: boolean;
+  code?: string;
+  message?: string;
+  sessionId?: string;
+  expiresAt?: string;
+  remainingUses?: number;
+  jwt?: string;
+}
+
+export interface ThresholdEd25519AuthorizeWithSessionRequest {
+  relayerKeyId: string;
+  /** Base64url-encoded 32-byte client verifying share (Ed25519 compressed point) for participant id=1. */
+  clientVerifyingShareB64u: string;
+  purpose: ThresholdEd25519Purpose;
+  signing_digest_32: number[];
+  signingPayload?: unknown;
+}
+
 export interface ThresholdEd25519AuthorizeRequest extends VerifyAuthenticationRequest {
   relayerKeyId: string;
+  /** Base64url-encoded 32-byte client verifying share (Ed25519 compressed point) for participant id=1. */
+  clientVerifyingShareB64u: string;
   purpose: ThresholdEd25519Purpose;
   /**
    * Exact 32-byte digest that will be co-signed (tx hash / delegate hash / NEP-413 hash).
@@ -385,7 +442,11 @@ export interface ThresholdEd25519AuthorizeResponse {
   expiresAt?: string;
 }
 
-export interface ThresholdEd25519KeygenRequest {
+export type ThresholdEd25519KeygenRequest =
+  | ThresholdEd25519KeygenWithAuthenticationRequest
+  | ThresholdEd25519KeygenFromRegistrationTxRequest;
+
+export interface ThresholdEd25519KeygenWithAuthenticationRequest {
   /**
    * Base64url-encoded 32-byte verifying share (Ed25519 compressed point) for participant id=1.
    * This is derived deterministically on the client from PRF.first (via WrapKeySeed).
@@ -402,6 +463,24 @@ export interface ThresholdEd25519KeygenRequest {
    */
   vrf_data: ContractVrfData;
   webauthn_authentication: WebAuthnAuthenticationCredential;
+}
+
+export interface ThresholdEd25519KeygenFromRegistrationTxRequest {
+  /**
+   * Base64url-encoded 32-byte verifying share (Ed25519 compressed point) for participant id=1.
+   * This is derived deterministically on the client from PRF.first (via WrapKeySeed).
+   */
+  clientVerifyingShareB64u: string;
+  /**
+   * NEAR account that was registered/linked on-chain via `link_device_register_user`.
+   * The relayer will verify the transaction outcome against this account id.
+   */
+  nearAccountId: string;
+  /**
+   * Transaction hash for a successful `link_device_register_user` call.
+   * The relayer uses this as proof of on-chain WebAuthn+VRF verification (no additional TouchID prompt required).
+   */
+  registrationTxHash: string;
 }
 
 export interface ThresholdEd25519KeygenResponse {

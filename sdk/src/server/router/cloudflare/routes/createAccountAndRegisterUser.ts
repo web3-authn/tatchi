@@ -49,13 +49,22 @@ export async function handleCreateAccountAndRegisterUser(ctx: CloudflareRelayCon
     if (!threshold) {
       thresholdWarning = 'threshold signing is not configured on this server';
     } else {
-      const out = await threshold.keygenFromClientVerifyingShareForRegistration({
-        clientVerifyingShareB64u: thresholdClientVerifyingShareB64u,
-      });
-      if (!out.ok) {
-        thresholdWarning = out.message || 'threshold-ed25519 registration keygen failed';
+      const rpId = typeof (vrf_data as { rp_id?: unknown; rpId?: unknown }).rp_id === 'string'
+        ? String((vrf_data as { rp_id?: string }).rp_id || '')
+        : (typeof (vrf_data as { rpId?: unknown }).rpId === 'string' ? String((vrf_data as { rpId?: string }).rpId || '') : '');
+      if (!rpId.trim()) {
+        thresholdWarning = 'missing vrf_data.rp_id';
       } else {
-        thresholdKeygen = out;
+        const out = await threshold.keygenFromClientVerifyingShareForRegistration({
+          nearAccountId: new_account_id,
+          rpId,
+          clientVerifyingShareB64u: thresholdClientVerifyingShareB64u,
+        });
+        if (!out.ok) {
+          thresholdWarning = out.message || 'threshold-ed25519 registration keygen failed';
+        } else {
+          thresholdKeygen = out;
+        }
       }
     }
   }

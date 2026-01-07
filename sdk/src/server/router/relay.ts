@@ -1,10 +1,13 @@
 import type { DelegateActionPolicy } from '../delegateAction';
 import type { RouterLogger } from './logger';
 import type {
+  ThresholdEd25519AuthorizeWithSessionRequest,
   ThresholdEd25519AuthorizeRequest,
   ThresholdEd25519AuthorizeResponse,
   ThresholdEd25519KeygenRequest,
   ThresholdEd25519KeygenResponse,
+  ThresholdEd25519SessionRequest,
+  ThresholdEd25519SessionResponse,
   ThresholdEd25519SignFinalizeRequest,
   ThresholdEd25519SignFinalizeResponse,
   ThresholdEd25519SignInitRequest,
@@ -50,6 +53,8 @@ export type ThresholdEd25519RegistrationKeygenResult =
 
 export interface ThresholdSigningAdapter {
   keygenFromClientVerifyingShareForRegistration(input: {
+    nearAccountId: string;
+    rpId: string;
     clientVerifyingShareB64u: string;
   }): Promise<ThresholdEd25519RegistrationKeygenResult>;
   putRelayerKeyMaterial(input: {
@@ -60,6 +65,12 @@ export interface ThresholdSigningAdapter {
   }): Promise<void>;
   thresholdEd25519Keygen(request: ThresholdEd25519KeygenRequest): Promise<ThresholdEd25519KeygenResponse>;
   authorizeThresholdEd25519(request: ThresholdEd25519AuthorizeRequest): Promise<ThresholdEd25519AuthorizeResponse>;
+  authorizeThresholdEd25519WithSession(input: {
+    sessionId: string;
+    userId: string;
+    request: ThresholdEd25519AuthorizeWithSessionRequest;
+  }): Promise<ThresholdEd25519AuthorizeResponse>;
+  thresholdEd25519Session(request: ThresholdEd25519SessionRequest): Promise<ThresholdEd25519SessionResponse>;
   thresholdEd25519SignInit(request: ThresholdEd25519SignInitRequest): Promise<ThresholdEd25519SignInitResponse>;
   thresholdEd25519SignFinalize(request: ThresholdEd25519SignFinalizeRequest): Promise<ThresholdEd25519SignFinalizeResponse>;
 }

@@ -100,6 +100,18 @@ export class UpstashRedisRestClient {
       return raw;
     }
   }
+
+  async incrby(key: string, delta: number): Promise<number> {
+    const k = encodeURIComponent(key);
+    const d = encodeURIComponent(String(Math.trunc(Number(delta) || 0)));
+    const json = await this.call(`/incrby/${k}/${d}`, 'POST');
+    const raw = readResult(json);
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (!Number.isFinite(n)) {
+      throw new Error(`Upstash INCRBY returned non-number result: ${String(raw)}`);
+    }
+    return n;
+  }
 }
 
 export type RedisResp =
@@ -319,4 +331,3 @@ export async function redisGetdelJson(client: RedisTcpClient, key: string): Prom
   }
   return null;
 }
-

@@ -12,3 +12,9 @@ export {
   type ThresholdEd25519SigningSessionRecord,
   type ThresholdEd25519Commitments,
 } from './ThresholdEd25519SessionStore';
+
+export {
+  createThresholdEd25519AuthSessionStore,
+  type ThresholdEd25519AuthSessionStore,
+  type ThresholdEd25519AuthSessionRecord,
+} from './ThresholdEd25519AuthSessionStore';

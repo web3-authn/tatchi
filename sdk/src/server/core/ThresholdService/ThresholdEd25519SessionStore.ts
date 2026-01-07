@@ -19,6 +19,7 @@ export type ThresholdEd25519MpcSessionRecord = {
   signingDigestB64u: string;
   userId: string;
   rpId: string;
+  clientVerifyingShareB64u: string;
 };
 
 export type ThresholdEd25519SigningSessionRecord = {
@@ -26,6 +27,9 @@ export type ThresholdEd25519SigningSessionRecord = {
   mpcSessionId: string;
   relayerKeyId: string;
   signingDigestB64u: string;
+  userId: string;
+  rpId: string;
+  clientVerifyingShareB64u: string;
   clientCommitments: ThresholdEd25519Commitments;
   relayerCommitments: ThresholdEd25519Commitments;
   relayerNoncesB64u: string;
