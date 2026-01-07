@@ -5,7 +5,6 @@ import {
   ActionPhase,
   ActionType,
   ActionResult,
-  TouchIcon,
   TxExecutionStatus,
   useTatchi,
 } from '@tatchi-xyz/sdk/react';
@@ -40,11 +39,9 @@ export const DemoPage: React.FC = () => {
     error,
   } = useSetGreeting();
 
-  const networkPostfix = tatchi.configs.nearNetwork == 'mainnet' ? 'near' : 'testnet';
   const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
   const [txLoading, setTxLoading] = useState(false);
   const [delegateLoading, setDelegateLoading] = useState(false);
-  const [batchTxLoading, setBatchTxLoading] = useState(false);
   const [loadingUi, setLoadingUi] = useState<ConfirmationUIMode|null>(null);
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [sessionStatusLoading, setSessionStatusLoading] = useState(false);
@@ -295,95 +292,6 @@ export const DemoPage: React.FC = () => {
     }
   }, [greetingInput, isLoggedIn, nearAccountId, tatchi, createGreetingAction, fetchGreeting]);
 
-  const handleBatchSignActions = useCallback(async () => {
-    if (!isLoggedIn || !nearAccountId) return;
-
-    setBatchTxLoading(true);
-    try {
-      await tatchi.signAndSendTransactions({
-        nearAccountId,
-        transactions: [
-          {
-            receiverId: WEBAUTHN_CONTRACT_ID,
-            actions: [
-              createGreetingAction(greetingInput, { postfix: 'Batch' }),
-              { type: ActionType.Transfer, amount: '30000000000000000000' },
-            ],
-          },
-          {
-            receiverId: `jeff.${networkPostfix}`,
-            actions: [ { type: ActionType.Transfer, amount: '20000000000000000000' } ],
-          },
-          {
-            receiverId: `jensen.${networkPostfix}`,
-            actions: [ { type: ActionType.Transfer, amount: '10000000000000000000' } ],
-          },
-        ],
-        options: {
-          confirmationConfig: { uiMode: 'drawer' },
-          waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
-          onEvent: (event) => {
-            switch (event.phase) {
-              case ActionPhase.STEP_1_PREPARATION:
-              case ActionPhase.STEP_2_USER_CONFIRMATION:
-              case ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION:
-              case ActionPhase.STEP_4_AUTHENTICATION_COMPLETE:
-              case ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS:
-              case ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE:
-              case ActionPhase.STEP_7_BROADCASTING:
-              case ActionPhase.STEP_8_ACTION_COMPLETE:
-                toast.loading(event.message, { id: 'batch-sign' });
-                break;
-            }
-          },
-          onError: (error) => {
-            const name = error?.name ?? '';
-            const message = error?.message || String(error);
-            const lower = message.toLowerCase();
-            const isCancellation = message.includes('The operation either timed out or was not allowed') ||
-              name === 'NotAllowedError' ||
-              name === 'AbortError' ||
-              message.includes('NotAllowedError') ||
-              message.includes('AbortError') ||
-              lower.includes('user cancelled') ||
-              lower.includes('user canceled') ||
-              lower.includes('user aborted');
-            if (isCancellation) {
-              toast('Transaction cancelled by user', { id: 'batch-sign' });
-              return;
-            }
-            toast.error(`Transaction failed: ${message}`, { id: 'batch-sign' });
-          },
-          afterCall: (success: boolean, result?: ActionResult[]) => {
-            if (!success) return;
-
-            try { toast.dismiss('batch-sign'); } catch {}
-
-            const last = result && result.length ? result[result.length - 1] : result?.[0];
-            const txId = last?.transactionId;
-            if (txId) {
-              toast.success('Batch flow complete', {
-                description: (
-                  <a href={`${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`}
-                    target="_blank" rel="noopener noreferrer"
-                  >
-                    View transaction on NearBlocks
-                  </a>
-                ),
-              });
-            } else {
-              toast.success('Batch flow complete');
-            }
-            setTimeout(() => void fetchGreeting(), 1000);
-          },
-        },
-      });
-    } catch {}
-    finally {
-      setBatchTxLoading(false);
-    }
-  }, [isLoggedIn, nearAccountId, tatchi, greetingInput, createGreetingAction, networkPostfix, fetchGreeting]);
-
   const nearToYocto = (nearAmount: string): string => {
     const amount = parseFloat(nearAmount);
     if (isNaN(amount) || amount <= 0) return '0';
@@ -557,37 +465,6 @@ export const DemoPage: React.FC = () => {
           {error && (
             <div className="error-message">Error: {error}</div>
           )}
-        </div>
-      </div>
-
-      <div className="action-section">
-        <h2 className="demo-subtitle">Batch Sign Transactions</h2>
-        <div className="action-text">
-          Sign multiple transactions securely in an cross-origin iframe.
-          What you see is what you sign.
-        </div>
-
-        <div className={"button-with-tooltip-container"}>
-          <LoadingButton
-            onClick={handleBatchSignActions}
-            loading={batchTxLoading}
-            loadingText="Batch Signing..."
-            variant="primary"
-            size="medium"
-            disabled={batchTxLoading}
-            style={{ width: 200 }}
-          >
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              fontSize: '0.9rem',
-            }}>
-              <span style={{ display: 'inline-grid', placeItems: 'center', marginRight: 6 }}>
-                <TouchIcon width={22} height={22} strokeWidth={1.6} />
-              </span>
-              Batch Sign Actions
-            </span>
-          </LoadingButton>
         </div>
       </div>
 

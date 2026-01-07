@@ -98,6 +98,77 @@ sequenceDiagram
   Signer->>Signer: aggregate(clientShare, relayerShare) => Ed25519 signature
 ```
 
+## Protocol Math
+
+This section describes the *math* behind the 2-of-2 FROST-style Ed25519 scheme implemented in the signer worker (client) and relayer (server).
+
+Notation:
+- Scalars live in the Ed25519 scalar field `𝔽_ℓ` (mod the curve order `ℓ`).
+- `G` is the Ed25519 basepoint.
+- We use fixed participant identifiers `x₁ = 1` (client) and `x₂ = 2` (relayer).
+
+### Keygen Math
+
+The system uses a “scaffolding” keygen (not a full DKG): each party has a long-lived scalar share, and the *group secret* is the Lagrange interpolation at `x=0` of the 2-point polynomial through those shares.
+
+1. Client derives its signing share scalar `s₁` deterministically from `WrapKeySeed` and `nearAccountId` via HKDF, then computes its verifying share `V₁ = s₁·G`.
+2. Relayer chooses/derives its signing share scalar `s₂`, then computes its verifying share `V₂ = s₂·G`.
+
+Given the signer set `{1,2}`, the Lagrange coefficients at `x=0` are:
+- `λ₁ = 2`
+- `λ₂ = −1`
+
+So the (never-materialized) group secret scalar is:
+
+`s = λ₁·s₁ + λ₂·s₂ = 2s₁ − s₂  (mod ℓ)`
+
+And the on-chain public key is:
+
+`Y = s·G = 2V₁ − V₂`
+
+Code references:
+- Client share derivation + verifying share: `sdk/src/wasm_signer_worker/src/threshold/threshold_client_share.rs:11` (`derive_threshold_client_share_scalar_v1`, `derive_threshold_client_verifying_share_bytes_v1`)
+- Relayer derived-share HKDF construction: `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs:37` (`derive_threshold_relayer_share_scalar_v1`)
+- Relayer random-share generation: `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs:110`
+- Group public key from `{V₁,V₂}` using `λ₁=2, λ₂=-1`: `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs:129`
+
+### Signing Math (Two-Round FROST)
+
+Threshold signing produces a standard 64-byte Ed25519 signature `(R, z)` that verifies with:
+
+`z·G = R + c·Y`
+
+where `c = H(R, Y, m)` and `m` is the 32-byte signing digest (the SDK always signs digests, not raw transactions).
+
+**Round 1 (commitments):**
+
+Each party samples two fresh random nonces `(dᵢ, eᵢ)` and publishes two nonce commitments:
+- `Dᵢ = dᵢ·G` (hiding)
+- `Eᵢ = eᵢ·G` (binding)
+
+**Round 2 (signature shares):**
+
+The coordinator computes binding factors `ρᵢ = H(i, m, all commitments)` and the group commitment:
+
+`R = Σ (Dᵢ + ρᵢ·Eᵢ)`
+
+Then each party returns a signature share:
+
+`zᵢ = dᵢ + ρᵢ·eᵢ + λᵢ·sᵢ·c   (mod ℓ)`
+
+Finally the coordinator aggregates:
+
+`z = Σ zᵢ  (mod ℓ)`
+
+and returns `(R, z)`.
+
+Code references:
+- Client round1 commit + send commitments: `sdk/src/wasm_signer_worker/src/threshold/signer_backend.rs:567`
+- Relayer round1 commit helper (WASM): `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs:235`
+- Client round2 signature share + finalize: `sdk/src/wasm_signer_worker/src/threshold/signer_backend.rs:617`
+- Relayer round2 signature share helper (WASM): `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs:296`
+- Aggregation into final Ed25519 signature: `sdk/src/wasm_signer_worker/src/threshold/signer_backend.rs:656`
+
 ## Threshold Sessions
 
 To avoid running `/authorize` with WebAuthn+VRF on every signature, the SDK can mint a short-lived, limited-use threshold session:

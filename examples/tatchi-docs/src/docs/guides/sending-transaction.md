@@ -203,43 +203,37 @@ This uses the same `confirmationConfig`, `onEvent`, and `onError` semantics, but
 
 ## 6. React button component
 
-`SendTxButtonWithTooltip` wraps `executeAction` with a pre‑built button + tooltip UI:
+Render your own button UI and call `tatchi.executeAction(...)` or `tatchi.signAndSendTransactions(...)` from your click handler:
 
 ```tsx
-import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react/embedded'
+import { useTatchi, TxExecutionStatus } from '@tatchi-xyz/sdk/react'
 import { ActionType } from '@tatchi-xyz/sdk'
 
-<SendTxButtonWithTooltip
-  nearAccountId="alice.testnet"
-  txSigningRequests={[
-    {
-      receiverId: 'token.testnet',
-      actions: [{
-        type: ActionType.FunctionCall,
-        methodName: 'ft_transfer',
-        args: { receiver_id: 'bob.testnet', amount: '1000000000000000000' },
-        gas: '50000000000000',
-        deposit: '1',
-      }],
-    },
-  ]}
-  options={{
-    onEvent: (event) => console.log('[button]', event),
-    onError: (error) => console.error(error),
-    afterCall: (success, result) => {
-      if (success) console.log('Tx hash:', result?.transactionId)
-    },
-    confirmationConfig: {
-      uiMode: 'drawer',
-      behavior: 'requireClick',
-    },
-  }}
->
-  Send Token
-</SendTxButtonWithTooltip>
-```
+export function SendTokenButton() {
+  const { tatchi, loginState } = useTatchi()
+  if (!loginState.isLoggedIn || !loginState.nearAccountId) return null
 
-If you pass both a top‑level `onEvent` prop and `options.onEvent`, the component prioritizes the top‑level prop; `options.onEvent` is ignored.
+  return (
+    <button
+      onClick={async () => {
+        await tatchi.signAndSendTransactions({
+          nearAccountId: loginState.nearAccountId,
+          transactions: [{
+            receiverId: 'token.testnet',
+            actions: [{ type: ActionType.Transfer, amount: '1000000000000000000' }],
+          }],
+          options: {
+            confirmationConfig: { uiMode: 'drawer', behavior: 'requireClick' },
+            waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
+          },
+        })
+      }}
+    >
+      Send Token
+    </button>
+  )
+}
+```
 
 
 
