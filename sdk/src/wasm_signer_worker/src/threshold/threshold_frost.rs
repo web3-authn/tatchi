@@ -518,6 +518,7 @@ mod tests {
 
     #[test]
     fn two_of_two_signature_from_derived_shares_verifies() {
+        // Step 0 (test setup): fixed inputs for deterministic share derivation (client + relayer)
         let master_secret = [99u8; 32];
         let near_account_id = "alice.near";
         let rp_id = "example.com";
@@ -526,6 +527,7 @@ mod tests {
             wrap_key_salt: base64_url_encode(&[8u8; 32]),
         };
 
+        // Step 1 (client): derive the client signing share (secret scalar) and verifying share (public point)
         let client_signing_share_bytes =
             crate::threshold::threshold_client_share::derive_threshold_client_signing_share_bytes_v1(
                 &wrap_key,
@@ -539,6 +541,7 @@ mod tests {
             )
             .expect("client verifying share should derive");
 
+        // Step 2 (relayer): derive the relayer signing share deterministically and compute its verifying share
         let relayer_scalar = derive_threshold_relayer_share_scalar_v1(
             &master_secret,
             near_account_id,
@@ -551,17 +554,37 @@ mod tests {
             .compress()
             .to_bytes();
 
-        // groupPk = (2 * clientPk) - relayerPk
+        // Step 3a (relayer): compute the 2-of-2 group public key via Lagrange interpolation at x=0
+        //
+        // For participant identifiers {1,2}, Lagrange coefficients at x=0 are:
+        //   λ1 = 2, λ2 = -1
+        //
+        // Since Pi = si·B, the group public key is:
+        //   PK = λ1·P1 + λ2·P2 = 2·P1 - P2
         let client_point = CompressedEdwardsY(client_verifying_share_bytes)
             .decompress()
             .expect("client verifying share must decompress");
         let relayer_point = CompressedEdwardsY(relayer_verifying_share_bytes)
             .decompress()
             .expect("relayer verifying share must decompress");
-        let group_pk_bytes = (client_point + client_point - relayer_point)
+        let group_pk_bytes_relayer = (client_point + client_point - relayer_point)
             .compress()
             .to_bytes();
 
+        // Step 3b (client): independently compute the expected group public key (should match relayer output)
+        let client_point = CompressedEdwardsY(client_verifying_share_bytes)
+            .decompress()
+            .expect("client verifying share must decompress");
+        let relayer_point = CompressedEdwardsY(relayer_verifying_share_bytes)
+            .decompress()
+            .expect("relayer verifying share must decompress");
+        let group_pk_bytes_client = (client_point + client_point - relayer_point)
+            .compress()
+            .to_bytes();
+        assert_eq!(group_pk_bytes_client, group_pk_bytes_relayer);
+        let group_pk_bytes = group_pk_bytes_client;
+
+        // Step 4a (client): build the client's FROST key package using the shared group verifying key
         let verifying_key = frost_ed25519::VerifyingKey::deserialize(&group_pk_bytes)
             .expect("group verifying key must deserialize");
         let client_identifier: frost_ed25519::Identifier =
@@ -575,13 +598,6 @@ mod tests {
         let client_verifying_share =
             frost_ed25519::keys::VerifyingShare::deserialize(&client_verifying_share_bytes)
                 .expect("client verifying share must deserialize");
-        let relayer_signing_share =
-            frost_ed25519::keys::SigningShare::deserialize(&relayer_signing_share_bytes)
-                .expect("relayer signing share must deserialize");
-        let relayer_verifying_share =
-            frost_ed25519::keys::VerifyingShare::deserialize(&relayer_verifying_share_bytes)
-                .expect("relayer verifying share must deserialize");
-
         let client_key_package = frost_ed25519::keys::KeyPackage::new(
             client_identifier,
             client_signing_share,
@@ -589,6 +605,14 @@ mod tests {
             verifying_key.clone(),
             2,
         );
+
+        // Step 4b (relayer): build the relayer's FROST key package using the shared group verifying key
+        let relayer_signing_share =
+            frost_ed25519::keys::SigningShare::deserialize(&relayer_signing_share_bytes)
+                .expect("relayer signing share must deserialize");
+        let relayer_verifying_share =
+            frost_ed25519::keys::VerifyingShare::deserialize(&relayer_verifying_share_bytes)
+                .expect("relayer verifying share must deserialize");
         let relayer_key_package = frost_ed25519::keys::KeyPackage::new(
             relayer_identifier,
             relayer_signing_share,
@@ -597,29 +621,39 @@ mod tests {
             2,
         );
 
-        // Sign a 32-byte digest (mirrors worker behavior).
+        // Step 5 (client): choose the 32-byte digest to be signed (both signers must sign the exact same bytes)
         let msg_digest: [u8; 32] = Sha256::digest(b"test message")
             .as_slice()
             .try_into()
             .expect("sha256 digest must be 32 bytes");
 
+        // Step 6a (client): Round 1 (commit), generate nonces + public commitments
         let mut rng = frost_ed25519::rand_core::OsRng;
-        let (client_nonces, client_commitments) =
-            frost_ed25519::round1::commit(client_key_package.signing_share(), &mut rng);
-        let (relayer_nonces, relayer_commitments) =
-            frost_ed25519::round1::commit(relayer_key_package.signing_share(), &mut rng);
+        let (
+            client_nonces,
+            client_commitments
+        ) = frost_ed25519::round1::commit(client_key_package.signing_share(), &mut rng);
+        // Step 6b (relayer): Round 1 (commit), generate nonces + public commitments
+        let (
+            relayer_nonces,
+            relayer_commitments
+        ) = frost_ed25519::round1::commit(relayer_key_package.signing_share(), &mut rng);
 
+        // Step 7 (client/coordinator): form the signing package from commitments + message digest
         let mut commitments_map = BTreeMap::new();
         commitments_map.insert(client_identifier, client_commitments);
         commitments_map.insert(relayer_identifier, relayer_commitments);
         let signing_package = frost_ed25519::SigningPackage::new(commitments_map, &msg_digest);
 
+        // Step 8 (client + relayer): Round 2 (sign), each signer produces a signature share
+        // Step 8a (client): produce the client's signature share.
         let client_sig_share = frost_ed25519::round2::sign(
             &signing_package,
             &client_nonces,
             &client_key_package,
         )
         .expect("client round2 sign should succeed");
+        // Step 8b (relayer): produce the relayer's signature share.
         let relayer_sig_share = frost_ed25519::round2::sign(
             &signing_package,
             &relayer_nonces,
@@ -627,24 +661,32 @@ mod tests {
         )
         .expect("relayer round2 sign should succeed");
 
+        // Step 9 (client/coordinator): collect the verify shares into a public key package
+        //  for validating shares + aggregating signature shares
         let mut verifying_shares = BTreeMap::new();
         verifying_shares.insert(client_identifier, client_verifying_share);
         verifying_shares.insert(relayer_identifier, relayer_verifying_share);
-        let pubkey_package =
-            frost_ed25519::keys::PublicKeyPackage::new(verifying_shares, verifying_key);
+        let pubkey_package = frost_ed25519::keys::PublicKeyPackage::new(
+            verifying_shares,
+            verifying_key
+        );
 
+        // Step 10 (client/coordinator): aggregate signature shares into a single Ed25519 signature
         let mut signature_shares = BTreeMap::new();
         signature_shares.insert(client_identifier, client_sig_share);
         signature_shares.insert(relayer_identifier, relayer_sig_share);
 
-        let group_signature =
-            frost_ed25519::aggregate(&signing_package, &signature_shares, &pubkey_package)
-                .expect("aggregate should succeed");
+        let group_signature = frost_ed25519::aggregate(
+            &signing_package,
+            &signature_shares,
+            &pubkey_package
+        ).expect("aggregate should succeed");
         let sig_bytes = group_signature
             .serialize()
             .expect("signature serialization should succeed");
         assert_eq!(sig_bytes.len(), 64);
 
+        // Step 11 (any verifier; typically the client and/or the chain): verify the aggregated signature
         let vk = ed25519_dalek::VerifyingKey::from_bytes(&group_pk_bytes)
             .expect("ed25519 group pk must be valid");
         let sig: [u8; 64] = sig_bytes
