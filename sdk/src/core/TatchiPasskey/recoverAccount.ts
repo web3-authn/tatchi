@@ -16,6 +16,7 @@ import { WebAuthnManager } from '../WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { VRFInputData } from '../types/vrf-worker';
 import type { OriginPolicyInput, UserVerificationPolicy } from '../types/authenticatorOptions';
+import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 import {
   getCredentialIdsContractCall,
   syncAuthenticatorsContractCall
@@ -587,6 +588,15 @@ async function performAccountRecovery({
       message: 'Restored Passkey authenticator...',
     });
 
+    // Activate threshold enrollment for this device by ensuring threshold key
+    // material is available locally (and AddKey if needed).
+    await activateThresholdEnrollment({
+      context,
+      accountId,
+      deviceNumber,
+      credential,
+    });
+
     // 5. Unlock VRF keypair in memory for immediate use
     console.debug('Unlocking VRF keypair in memory after account recovery');
     const unlockResult = await webAuthnManager.unlockVRFKeypair({
@@ -756,5 +766,36 @@ async function restoreAuthenticators({
       vrfPublicKey,
       deviceNumber // Pass the device number from contract data
     });
+  }
+}
+
+async function activateThresholdEnrollment(args: {
+  context: PasskeyManagerContext;
+  accountId: AccountId;
+  deviceNumber: number;
+  credential: WebAuthnAuthenticationCredential;
+}): Promise<void> {
+  const deviceNumber = parseDeviceNumber(args.deviceNumber, { min: 1 });
+  if (deviceNumber === null) {
+    throw new Error(`Invalid deviceNumber for threshold enrollment: ${String(args.deviceNumber)}`);
+  }
+
+  // Ensure WebAuthn allowCredentials selection prefers this device's passkey
+  // when multiple authenticators exist for the account.
+  try {
+    await args.context.webAuthnManager.setLastUser(args.accountId, deviceNumber);
+  } catch {}
+
+  const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(args.accountId, deviceNumber);
+  if (existing) return;
+
+	  const enrollment = await args.context.webAuthnManager.enrollThresholdEd25519Key({
+	    credential: args.credential,
+	    nearAccountId: args.accountId,
+	    deviceNumber,
+	  });
+
+  if (!enrollment.success) {
+    throw new Error(enrollment.error || 'Threshold enrollment failed');
   }
 }

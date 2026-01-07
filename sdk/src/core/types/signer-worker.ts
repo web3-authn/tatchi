@@ -89,6 +89,23 @@ export interface ThresholdSignerConfig {
    * When omitted, the signer worker will call `/threshold-ed25519/authorize` on-demand per signature.
    */
   mpcSessionId?: string;
+  /**
+   * Optional session policy JSON (serialized) used to mint a relayer threshold session token.
+   * When provided alongside a VRF challenge that includes `sessionPolicyDigest32`,
+   * the signer worker may call `/threshold-ed25519/session` to obtain a JWT/cookie for session-style signing.
+   */
+  thresholdSessionPolicyJson?: string;
+  /**
+   * Optional bearer token returned by `POST /threshold-ed25519/session`.
+   * When present, the signer worker uses it to authenticate `/threshold-ed25519/authorize` requests.
+   */
+  thresholdSessionJwt?: string;
+  /**
+   * Preferred session token delivery mechanism for `/threshold-ed25519/session`.
+   * - `jwt` (default): return token in JSON and use Authorization: Bearer on subsequent requests.
+   * - `cookie`: set HttpOnly cookie (same-site only).
+   */
+  thresholdSessionKind?: 'jwt' | 'cookie';
 }
 
 export interface TransactionPayload {

@@ -464,7 +464,6 @@ export class TatchiPasskey {
     return await this.webAuthnManager.enrollThresholdEd25519KeyPostRegistration({
       nearAccountId: toAccountId(nearAccountId),
       deviceNumber: options?.deviceNumber,
-      relayerUrl: options?.relayerUrl,
     });
   }
 
@@ -476,7 +475,6 @@ export class TatchiPasskey {
     nearAccountId: string,
     options?: {
       deviceNumber?: number;
-      relayerUrl?: string;
     }
   ): Promise<{
     success: boolean;
@@ -502,7 +500,6 @@ export class TatchiPasskey {
     return await this.webAuthnManager.rotateThresholdEd25519KeyPostRegistration({
       nearAccountId: toAccountId(nearAccountId),
       deviceNumber: options?.deviceNumber,
-      relayerUrl: options?.relayerUrl,
     });
   }
 

@@ -639,7 +639,6 @@ export class WalletIframeRouter {
     nearAccountId: string;
     options?: {
       deviceNumber?: number;
-      relayerUrl?: string;
     };
   }): Promise<{
     success: boolean;
@@ -674,7 +673,6 @@ export class WalletIframeRouter {
     nearAccountId: string;
     options?: {
       deviceNumber?: number;
-      relayerUrl?: string;
     };
   }): Promise<{
     success: boolean;

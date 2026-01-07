@@ -1,5 +1,6 @@
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
 import { MinimalNearClient, SignedTransaction, type AccessKeyList } from '../../core/NearClient';
+import type { FinalExecutionOutcome } from '@near-js/types';
 import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
 import { createAuthServiceConfig } from './config';
 import { formatGasToTGas, formatYoctoToNear } from './utils';
@@ -67,6 +68,25 @@ function getSignerWasmUrls(logger: NormalizedLogger): URL[] {
   return resolved;
 }
 
+function summarizeThresholdEd25519Config(cfg: AuthServiceConfig['thresholdEd25519KeyStore']): string {
+  if (!cfg) return 'thresholdEd25519: not configured';
+
+  const c = cfg as Record<string, unknown>;
+  const shareMode = typeof c.THRESHOLD_ED25519_SHARE_MODE === 'string'
+    ? String(c.THRESHOLD_ED25519_SHARE_MODE || '').trim()
+    : 'auto';
+  const masterSecretSet = typeof c.THRESHOLD_ED25519_MASTER_SECRET_B64U === 'string'
+    && String(c.THRESHOLD_ED25519_MASTER_SECRET_B64U || '').trim().length > 0;
+  const upstashUrl = typeof c.UPSTASH_REDIS_REST_URL === 'string' ? String(c.UPSTASH_REDIS_REST_URL || '').trim() : '';
+  const upstashToken = typeof c.UPSTASH_REDIS_REST_TOKEN === 'string' ? String(c.UPSTASH_REDIS_REST_TOKEN || '').trim() : '';
+  const redisUrl = typeof c.REDIS_URL === 'string' ? String(c.REDIS_URL || '').trim() : '';
+  const store = (upstashUrl || upstashToken) ? 'upstash' : (redisUrl ? 'redis' : 'in-memory');
+
+  const parts = [`thresholdEd25519: configured`, `shareMode=${shareMode || 'auto'}`, `store=${store}`];
+  if (masterSecretSet) parts.push('masterSecret=set');
+  return parts.join(' ');
+}
+
 /**
  * Framework-agnostic NEAR account service
  * Core business logic for account creation and registration operations
@@ -124,11 +144,7 @@ export class AuthService {
         ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...`
         : '• shamir: not configured'
     }
-    ${
-      this.config.thresholdEd25519KeyStore
-        ? `• ${this.config.thresholdEd25519KeyStore}...\n`
-        : '• Threshold ed25519 signer: not configured'
-    }
+    • ${summarizeThresholdEd25519Config(this.config.thresholdEd25519KeyStore)}
     ${
       this.config.zkEmailProver?.baseUrl
         ? `• zkEmailProver: ${this.config.zkEmailProver.baseUrl}`
@@ -148,6 +164,15 @@ export class AuthService {
   async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
     await this._ensureSignerAndRelayerAccount();
     return this.nearClient.viewAccessKeyList(accountId);
+  }
+
+  getWebAuthnContractId(): string {
+    return this.config.webAuthnContractId;
+  }
+
+  async txStatus(txHash: string, senderAccountId: string): Promise<FinalExecutionOutcome> {
+    await this._ensureSignerAndRelayerAccount();
+    return this.nearClient.txStatus(txHash, senderAccountId);
   }
 
   /**
@@ -476,6 +501,17 @@ export class AuthService {
           code: 'invalid_intent_digest',
           message: 'Missing or invalid vrf_data.intent_digest_32 (expected 32 bytes)',
         };
+      }
+      const sessionPolicyDigest32 = (request?.vrf_data as { session_policy_digest_32?: unknown })?.session_policy_digest_32;
+      if (sessionPolicyDigest32 !== undefined) {
+        if (!Array.isArray(sessionPolicyDigest32) || sessionPolicyDigest32.length !== 32) {
+          return {
+            success: false,
+            verified: false,
+            code: 'invalid_session_policy_digest',
+            message: 'Invalid vrf_data.session_policy_digest_32 (expected 32 bytes when present)',
+          };
+        }
       }
 
       const args = {

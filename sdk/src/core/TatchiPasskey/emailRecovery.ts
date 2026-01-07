@@ -1235,6 +1235,10 @@ export class EmailRecoveryFlow {
 
       await this.updateNonceBestEffort(nonceManager, signedTx);
 
+      // Activate threshold enrollment for this device by ensuring threshold key
+      // material is available locally (and AddKey if needed).
+      await this.activateThresholdEnrollment(accountId, rec);
+
       this.emitAutoLoginEvent(EmailRecoveryStatus.PROGRESS, 'Attempting auto-login with recovered device...', {
         autoLogin: 'progress',
       });
@@ -1273,6 +1277,34 @@ export class EmailRecoveryFlow {
       const err = this.emitError(5, original);
       await this.options?.afterCall?.(false);
       throw err;
+    }
+  }
+
+  private async activateThresholdEnrollment(accountId: AccountId, rec: PendingEmailRecovery): Promise<void> {
+    const deviceNumber = parseDeviceNumber(rec.deviceNumber, { min: 1 });
+    if (deviceNumber === null) {
+      throw new Error(`Invalid deviceNumber for threshold enrollment: ${String(rec.deviceNumber)}`);
+    }
+
+    // Ensure WebAuthn allowCredentials selection prefers this device's passkey
+    // when multiple authenticators exist for the account.
+    try {
+      await this.context.webAuthnManager.setLastUser(accountId, deviceNumber);
+    } catch {}
+
+    const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(accountId, deviceNumber);
+    if (existing) {
+      return;
+    }
+
+    const enrollment = await this.context.webAuthnManager.enrollThresholdEd25519Key({
+      credential: rec.credential,
+      nearAccountId: accountId,
+      deviceNumber,
+    });
+
+    if (!enrollment.success) {
+      throw new Error(enrollment.error || 'Threshold enrollment failed');
     }
   }
 

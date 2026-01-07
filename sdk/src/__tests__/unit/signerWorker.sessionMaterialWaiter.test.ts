@@ -45,15 +45,15 @@ test.describe('signer worker – session material waiters', () => {
         });
       });
 
-      worker.postMessage({
-        type: WorkerRequestType.SignTransactionsWithActions,
-        payload: {
-          sessionId,
-          signerMode: { mode: 'local-signer' },
-          rpcCall: { contractId: 'c', nearRpcUrl: 'u', nearAccountId: 'a' },
-          createdAt: Date.now(),
-          decryption: { encryptedPrivateKeyData: 'AA', encryptedPrivateKeyChacha20NonceB64u: 'AA' },
-          txSigningRequests: [{ nearAccountId: 'a', receiverId: 'b', actions: [] }],
+	      worker.postMessage({
+	        type: WorkerRequestType.SignTransactionsWithActions,
+	        payload: {
+	          sessionId,
+	          signerMode: 'local-signer',
+	          rpcCall: { contractId: 'c', nearRpcUrl: 'u', nearAccountId: 'a' },
+	          createdAt: Date.now(),
+	          decryption: { encryptedPrivateKeyData: 'AA', encryptedPrivateKeyChacha20NonceB64u: 'AA' },
+	          txSigningRequests: [{ nearAccountId: 'a', receiverId: 'b', actions: [] }],
           intentDigest: 'intent',
           transactionContext: {
             nearPublicKeyStr: 'pk',
@@ -109,15 +109,15 @@ test.describe('signer worker – session material waiters', () => {
       });
 
       const t0 = performance.now();
-      worker.postMessage({
-        type: WorkerRequestType.SignTransactionsWithActions,
-        payload: {
-          sessionId,
-          signerMode: { mode: 'local-signer' },
-          rpcCall: { contractId: 'c', nearRpcUrl: 'u', nearAccountId: 'a' },
-          createdAt: Date.now(),
-          decryption: { encryptedPrivateKeyData: 'AA', encryptedPrivateKeyChacha20NonceB64u: 'AA' },
-          txSigningRequests: [{ nearAccountId: 'a', receiverId: 'b', actions: [] }],
+	      worker.postMessage({
+	        type: WorkerRequestType.SignTransactionsWithActions,
+	        payload: {
+	          sessionId,
+	          signerMode: 'local-signer',
+	          rpcCall: { contractId: 'c', nearRpcUrl: 'u', nearAccountId: 'a' },
+	          createdAt: Date.now(),
+	          decryption: { encryptedPrivateKeyData: 'AA', encryptedPrivateKeyChacha20NonceB64u: 'AA' },
+	          txSigningRequests: [{ nearAccountId: 'a', receiverId: 'b', actions: [] }],
           intentDigest: 'intent',
           transactionContext: {
             nearPublicKeyStr: 'pk',

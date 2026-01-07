@@ -70,6 +70,7 @@ export interface SignerWorkerManagerContext {
   indexedDB: UnifiedIndexedDBManager;
   userPreferencesManager: UserPreferencesManager;
   nonceManager: NonceManager;
+  relayerUrl: string;
   rpIdOverride?: string;
   nearExplorerUrl?: string;
   vrfWorkerManager?: VrfWorkerManager;
@@ -98,6 +99,7 @@ export class SignerWorkerManager {
   private nearClient: NearClient;
   private userPreferencesManager: UserPreferencesManager;
   private nonceManager: NonceManager;
+  private relayerUrl: string;
   private workerBaseOrigin: string | undefined;
   private nearExplorerUrl?: string;
 
@@ -106,6 +108,7 @@ export class SignerWorkerManager {
     nearClient: NearClient,
     userPreferencesManager: UserPreferencesManager,
     nonceManager: NonceManager,
+    relayerUrl: string,
     rpIdOverride?: string,
     enableSafariGetWebauthnRegistrationFallback: boolean = true,
     nearExplorerUrl?: string,
@@ -116,6 +119,7 @@ export class SignerWorkerManager {
     this.nearClient = nearClient;
     this.userPreferencesManager = userPreferencesManager;
     this.nonceManager = nonceManager;
+    this.relayerUrl = relayerUrl;
     this.nearExplorerUrl = nearExplorerUrl;
   }
 
@@ -134,6 +138,7 @@ export class SignerWorkerManager {
       nonceManager: this.nonceManager,
       rpIdOverride: this.touchIdPrompt.getRpId(),
       nearExplorerUrl: this.nearExplorerUrl,
+      relayerUrl: this.relayerUrl,
     };
   }
 
@@ -630,7 +635,6 @@ export class SignerWorkerManager {
     transactions: TransactionInputWasm[],
     rpcCall: RpcCallPayload,
     signerMode: SignerMode,
-    relayerUrl?: string,
     onEvent?: (update: onProgressEvents) => void,
     confirmationConfigOverride?: Partial<ConfirmationConfig>,
     title?: string;
@@ -651,7 +655,6 @@ export class SignerWorkerManager {
     delegate: DelegateActionInput;
     rpcCall: RpcCallPayload;
     signerMode: SignerMode;
-    relayerUrl?: string;
     onEvent?: (update: onProgressEvents) => void;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
     title?: string;
@@ -724,7 +727,6 @@ export class SignerWorkerManager {
     state: string | null;
     accountId: string;
     signerMode: SignerMode;
-    relayerUrl?: string;
     title?: string;
     body?: string;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;

@@ -7,6 +7,7 @@ import {
   SecureConfirmationType,
   type SecureConfirmRequest,
   type SignTransactionPayload,
+  type SigningAuthMode,
   type TransactionSummary,
   type SerializableCredential,
 } from '../confirmTxFlow/types';
@@ -19,6 +20,19 @@ export interface ConfirmAndPrepareSigningSessionBaseParams {
   ctx: VrfWorkerManagerContext;
   sessionId: string;
   confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  /**
+   * Optional override for signing auth mode.
+   * When omitted, the VRF worker may auto-select `warmSession` when a session is available.
+   *
+   * Threshold signing should force `webauthn` to ensure a fresh VRF challenge + WebAuthn assertion
+   * is available for relayer authorization.
+   */
+  signingAuthMode?: SigningAuthMode;
+  /**
+   * Optional base64url-encoded 32-byte digest to bind a relayer session policy into the VRF input hash (v4+ only).
+   * When provided, it is forwarded to the VRF worker for inclusion in VRF input derivation.
+   */
+  sessionPolicyDigest32?: string;
 }
 
 export interface ConfirmAndPrepareSigningSessionTransactionParams extends ConfirmAndPrepareSigningSessionBaseParams {
@@ -112,6 +126,8 @@ export async function confirmAndPrepareSigningSession(
           txSigningRequests,
           intentDigest,
           rpcCall: params.rpcCall,
+          ...(params.sessionPolicyDigest32 ? { sessionPolicyDigest32: params.sessionPolicyDigest32 } : {}),
+          ...(params.signingAuthMode ? { signingAuthMode: params.signingAuthMode } : {}),
         },
         confirmationConfig: params.confirmationConfigOverride,
         intentDigest,
@@ -122,13 +138,13 @@ export async function confirmAndPrepareSigningSession(
       const txSigningRequests: TransactionInputWasm[] = [{
         receiverId: params.delegate.receiverId,
         actions: params.delegate.actions,
-      } as TransactionInputWasm];
+      }];
 
       intentDigest = await computeUiIntentDigestFromTxs(
         txSigningRequests.map(tx => ({
           receiverId: tx.receiverId,
           actions: tx.actions.map(orderActionForDigest),
-        })) as TransactionInputWasm[]
+        }))
       );
 
       const summary: TransactionSummary = {
@@ -155,6 +171,8 @@ export async function confirmAndPrepareSigningSession(
           txSigningRequests,
           intentDigest,
           rpcCall: params.rpcCall,
+          ...(params.sessionPolicyDigest32 ? { sessionPolicyDigest32: params.sessionPolicyDigest32 } : {}),
+          ...(params.signingAuthMode ? { signingAuthMode: params.signingAuthMode } : {}),
         },
         confirmationConfig: params.confirmationConfigOverride,
         intentDigest,
@@ -180,8 +198,10 @@ export async function confirmAndPrepareSigningSession(
           nearAccountId: params.nearAccountId,
           message: params.message,
           recipient: params.recipient,
+          ...(params.sessionPolicyDigest32 ? { sessionPolicyDigest32: params.sessionPolicyDigest32 } : {}),
           ...(params.contractId ? { contractId: params.contractId } : {}),
           ...(params.nearRpcUrl ? { nearRpcUrl: params.nearRpcUrl } : {}),
+          ...(params.signingAuthMode ? { signingAuthMode: params.signingAuthMode } : {}),
         },
         confirmationConfig: params.confirmationConfigOverride,
         intentDigest,

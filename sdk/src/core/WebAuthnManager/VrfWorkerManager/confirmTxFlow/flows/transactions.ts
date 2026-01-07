@@ -28,8 +28,7 @@ function getSigningAuthMode(request: SigningSecureConfirmRequest): SigningAuthMo
     return getSignTransactionPayload(request).signingAuthMode ?? 'webauthn';
   }
   if (request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE) {
-    const p = request.payload as any;
-    return (p?.signingAuthMode as SigningAuthMode | undefined) ?? 'webauthn';
+    return request.payload.signingAuthMode ?? 'webauthn';
   }
   return 'webauthn';
 }
@@ -57,25 +56,26 @@ export async function handleTransactionSigningFlow(
     : request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE
       ? await computeUiIntentDigestFromNep413({
         nearAccountId,
-        recipient: (request.payload as any)?.recipient ?? '',
-        message: (request.payload as any)?.message ?? '',
+        recipient: request.payload.recipient,
+        message: request.payload.message,
       })
       : undefined;
+  const sessionPolicyDigest32 = request.payload.sessionPolicyDigest32;
 
   // 1) NEAR context + nonce reservation
   const nearRpc = await adapters.near.fetchNearContext({ nearAccountId, txCount: usesNeeded, reserveNonces: true });
-  if (nearRpc.error && !nearRpc.transactionContext) {
+  if (!nearRpc.transactionContext) {
     // eslint-disable-next-line no-console
     console.error('[SigningFlow] fetchNearContext failed', { error: nearRpc.error, details: nearRpc.details });
     return session.confirmAndCloseModal({
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
-      error: `${ERROR_MESSAGES.nearRpcFailed}: ${nearRpc.details}`,
+      error: nearRpc.details ? `${ERROR_MESSAGES.nearRpcFailed}: ${nearRpc.details}` : ERROR_MESSAGES.nearRpcFailed,
     });
   }
   session.setReservedNonces(nearRpc.reservedNonces);
-  let transactionContext = nearRpc.transactionContext as TransactionContext;
+  let transactionContext: TransactionContext = nearRpc.transactionContext;
 
   // 2) Security context shown in the confirmer (rpId + block height).
   // For warmSession signing we still want to show this context even though
@@ -100,6 +100,7 @@ export async function handleTransactionSigningFlow(
         blockHeight: transactionContext.txBlockHeight,
         blockHash: transactionContext.txBlockHash,
         ...(vrfIntentDigestB64u ? { intentDigest: vrfIntentDigestB64u } : {}),
+        ...(sessionPolicyDigest32 ? { sessionPolicyDigest32 } : {}),
       },
       request.requestId,
     );
@@ -192,11 +193,9 @@ export async function handleTransactionSigningFlow(
         contractId = payload?.rpcCall?.contractId;
         nearRpcUrl = payload?.rpcCall?.nearRpcUrl;
       } else if (request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE) {
-        const payload = request.payload as any;
-        contractId = payload?.contractId
-          || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId;
-        nearRpcUrl = payload?.nearRpcUrl
-          || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl;
+        const payload = request.payload;
+        contractId = payload.contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId;
+        nearRpcUrl = payload.nearRpcUrl || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl;
       }
 
       await adapters.vrf.mintSessionKeysAndSendToSigner({

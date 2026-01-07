@@ -3,6 +3,7 @@ import {
   AuthService,
   parseBool,
   requireEnvVar,
+  createThresholdEd25519ServiceFromAuthService,
 } from '@tatchi-xyz/sdk/server';
 import { createRelayRouter, startKeyRotationCronjob } from '@tatchi-xyz/sdk/server/router/express';
 
@@ -19,6 +20,20 @@ const config = {
   rotateEveryMinutes: Number(env.ROTATE_EVERY) || 60, // minutes between automatic key rotations
 };
 
+const thresholdEd25519KeyStore = {
+  // Share mode + deterministic relayer share derivation (optional)
+  THRESHOLD_ED25519_SHARE_MODE: env.THRESHOLD_ED25519_SHARE_MODE,
+  THRESHOLD_ED25519_MASTER_SECRET_B64U: env.THRESHOLD_ED25519_MASTER_SECRET_B64U,
+  // Optional persistence for sessions/shares (recommended for prod)
+  UPSTASH_REDIS_REST_URL: env.UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN: env.UPSTASH_REDIS_REST_TOKEN,
+  REDIS_URL: env.REDIS_URL,
+  // Optional key prefixes (useful when sharing a Redis instance)
+  THRESHOLD_ED25519_KEYSTORE_PREFIX: env.THRESHOLD_ED25519_KEYSTORE_PREFIX,
+  THRESHOLD_ED25519_SESSION_PREFIX: env.THRESHOLD_ED25519_SESSION_PREFIX,
+  THRESHOLD_ED25519_AUTH_PREFIX: env.THRESHOLD_ED25519_AUTH_PREFIX,
+} as const;
+
 const authService = new AuthService({
   // new accounts with be created with this account: e.g. bob.{relayer-account-id}.near
   // you can make it the same account as the webauthn contract id.
@@ -30,16 +45,24 @@ const authService = new AuthService({
   networkId: env.NETWORK_ID,
   accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE,
   createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS,
-  zkEmailProver: {
-    ZK_EMAIL_PROVER_BASE_URL: env.ZK_EMAIL_PROVER_BASE_URL,
-    ZK_EMAIL_PROVER_TIMEOUT_MS: env.ZK_EMAIL_PROVER_TIMEOUT_MS,
-  },
+  logger: console,
+  thresholdEd25519KeyStore,
   shamir: {
     SHAMIR_P_B64U: env.SHAMIR_P_B64U,
     SHAMIR_E_S_B64U: env.SHAMIR_E_S_B64U,
     SHAMIR_D_S_B64U: env.SHAMIR_D_S_B64U,
     SHAMIR_GRACE_KEYS_FILE: env.SHAMIR_GRACE_KEYS_FILE,
   },
+  zkEmailProver: {
+    ZK_EMAIL_PROVER_BASE_URL: env.ZK_EMAIL_PROVER_BASE_URL,
+    ZK_EMAIL_PROVER_TIMEOUT_MS: env.ZK_EMAIL_PROVER_TIMEOUT_MS,
+  },
+});
+
+const threshold = createThresholdEd25519ServiceFromAuthService({
+  authService,
+  thresholdEd25519KeyStore,
+  logger: console,
 });
 
 const app: Express = express();
@@ -59,6 +82,8 @@ app.use('/', createRelayRouter(authService, {
   corsOrigins: [config.expectedOrigin, config.expectedWalletOrigin],
   signedDelegate: { route: '/signed-delegate' },
   session: jwtSession,
+  threshold,
+  logger: console,
 }));
 
 const server = app.listen(config.port, () => {

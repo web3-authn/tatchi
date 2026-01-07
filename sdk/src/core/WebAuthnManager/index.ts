@@ -116,6 +116,7 @@ export class WebAuthnManager {
       nearClient,
       this.userPreferencesManager,
       this.nonceManager,
+      this.tatchiPasskeyConfigs.relayer.url,
       tatchiPasskeyConfigs.iframeWallet?.rpIdOverride,
       true,
       tatchiPasskeyConfigs.nearExplorerUrl,
@@ -642,7 +643,7 @@ export class WebAuthnManager {
   }: {
     nearAccountId: AccountId;
     encryptedVrfKeypair: EncryptedVRFKeypair;
-    credential: WebAuthnAuthenticationCredential;
+    credential: WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential;
   }): Promise<{ success: boolean; error?: string }> {
     try {
       const unlockResult = await this.vrfWorkerManager.unlockVrfKeypair({
@@ -756,39 +757,79 @@ export class WebAuthnManager {
    * - This method does not initiate a WebAuthn prompt.
    * - Contract verification is optional and only performed when `contractId` + `nearRpcUrl` are provided.
    */
-  async mintSigningSessionFromCredential(args: {
-    nearAccountId: AccountId;
-    credential: WebAuthnAuthenticationCredential;
-    remainingUses?: number;
-    ttlMs?: number;
-    contractId?: string;
-    nearRpcUrl?: string;
-  }): Promise<{
-    sessionId: string;
-    status: 'active' | 'exhausted' | 'expired' | 'not_found';
-    remainingUses?: number;
-    expiresAtMs?: number;
-    createdAtMs?: number;
-  }> {
-    const nearAccountId = toAccountId(args.nearAccountId);
-    const sessionId = this.getOrCreateActiveSigningSessionId(nearAccountId);
+	  async mintSigningSessionFromCredential(args: {
+	    nearAccountId: AccountId;
+	    credential: WebAuthnAuthenticationCredential;
+	    remainingUses?: number;
+	    ttlMs?: number;
+	    contractId?: string;
+	    nearRpcUrl?: string;
+	  }): Promise<{
+	    sessionId: string;
+	    status: 'active' | 'exhausted' | 'expired' | 'not_found';
+	    remainingUses?: number;
+	    expiresAtMs?: number;
+	    createdAtMs?: number;
+	  }> {
+	    const nearAccountId = toAccountId(args.nearAccountId);
+	    const sessionId = this.getOrCreateActiveSigningSessionId(nearAccountId);
 
-    // Ensure VRF keypair is active and bound to the same account.
-    const vrfStatus = await this.vrfWorkerManager.checkVrfStatus();
-    if (!vrfStatus.active) {
-      throw new Error('VRF keypair not active in memory. Please log in again.');
-    }
-    if (!vrfStatus.nearAccountId || String(vrfStatus.nearAccountId) !== String(nearAccountId)) {
-      throw new Error('VRF keypair active but bound to a different account. Please log in again.');
-    }
+	    // Ensure VRF keypair is active and bound to the same account.
+	    const vrfStatus = await this.vrfWorkerManager.checkVrfStatus();
+	    if (!vrfStatus.active) {
+	      throw new Error('VRF keypair not active in memory. Please log in again.');
+	    }
+	    if (!vrfStatus.nearAccountId || String(vrfStatus.nearAccountId) !== String(nearAccountId)) {
+	      throw new Error('VRF keypair active but bound to a different account. Please log in again.');
+	    }
 
-    // Fetch wrapKeySalt from vault so the derived WrapKeySeed can decrypt the stored NEAR keys.
-    const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB);
-    const keyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber);
-    if (!keyMaterial) {
-      throw new Error(`No key material found for account ${nearAccountId} device ${deviceNumber}`);
-    }
-    const wrapKeySalt = keyMaterial.wrapKeySalt;
+	    const credentialRawId = String(args.credential?.rawId || '').trim();
+	    const authenticators = await this.getAuthenticatorsByUser(nearAccountId).catch(() => []);
+
+	    // Fetch wrapKeySalt from vault so the derived WrapKeySeed can decrypt the stored NEAR keys.
+	    let deviceNumber: number;
+	    try {
+	      deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB);
+	    } catch (err) {
+	      // Fallback: if lastUser was not set (e.g., cross-origin flows), infer the deviceNumber
+	      // from the credential rawId so we can still mint a session for the selected passkey.
+	      if (credentialRawId) {
+	        const matched = authenticators.find((a) => a.credentialId === credentialRawId);
+	        const inferred =
+	          matched && typeof matched.deviceNumber === 'number' && Number.isFinite(matched.deviceNumber)
+	            ? matched.deviceNumber
+	            : null;
+	        if (inferred !== null) {
+	          deviceNumber = inferred;
+	          // Best-effort: align lastUser to the passkey that was actually used.
+	          await this.setLastUser(nearAccountId, inferred).catch(() => undefined);
+	        } else {
+	          throw err;
+	        }
+	      } else {
+	        throw err;
+	      }
+	    }
+
+	    // If multiple passkeys exist, ensure the credential used for session minting matches
+	    // the currently selected/last-user device. This avoids deriving a WrapKeySeed that
+	    // cannot decrypt the expected vault entry.
+	    if (credentialRawId && authenticators.length > 1) {
+	      const { wrongPasskeyError } = await IndexedDBManager.clientDB.ensureCurrentPasskey(
+	        nearAccountId,
+	        authenticators,
+	        credentialRawId,
+	      );
+	      if (wrongPasskeyError) {
+	        throw new Error(wrongPasskeyError);
+	      }
+	    }
+
+	    const keyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber);
+	    if (!keyMaterial) {
+	      throw new Error(`No key material found for account ${nearAccountId} device ${deviceNumber}`);
+	    }
+	    const wrapKeySalt = keyMaterial.wrapKeySalt;
     if (!wrapKeySalt) {
       throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
     }
@@ -1130,7 +1171,6 @@ export class WebAuthnManager {
           transactions,
           rpcCall,
           signerMode,
-          relayerUrl: this.tatchiPasskeyConfigs.relayer.url,
           confirmationConfigOverride,
           title,
           body,
@@ -1276,7 +1316,6 @@ export class WebAuthnManager {
             delegate,
             rpcCall: normalizedRpcCall,
             signerMode,
-            relayerUrl: this.tatchiPasskeyConfigs.relayer.url,
             confirmationConfigOverride,
             title,
             body,
@@ -1317,7 +1356,7 @@ export class WebAuthnManager {
       const result = await this.withSigningSession({
         sessionId: activeSessionId,
         handler: (sessionId) =>
-          this.signerWorkerManager.signNep413Message({ ...payload, sessionId, contractId, nearRpcUrl, relayerUrl: this.tatchiPasskeyConfigs.relayer.url }),
+          this.signerWorkerManager.signNep413Message({ ...payload, sessionId, contractId, nearRpcUrl }),
       });
       if (result.success) {
         return result;
@@ -1598,7 +1637,6 @@ export class WebAuthnManager {
   async enrollThresholdEd25519KeyPostRegistration(args: {
     nearAccountId: AccountId | string;
     deviceNumber?: number;
-    relayerUrl?: string;
   }): Promise<{
     success: boolean;
     publicKey: string;
@@ -1640,7 +1678,6 @@ export class WebAuthnManager {
         credential: authCredential,
         nearAccountId,
         deviceNumber: args.deviceNumber,
-        relayerUrl: args.relayerUrl,
       });
     } catch (error: unknown) {
       const message = String((error as { message?: unknown })?.message ?? error);
@@ -1660,7 +1697,6 @@ export class WebAuthnManager {
   async rotateThresholdEd25519KeyPostRegistration(args: {
     nearAccountId: AccountId | string;
     deviceNumber?: number;
-    relayerUrl?: string;
   }): Promise<{
     success: boolean;
     oldPublicKey: string;
@@ -1724,7 +1760,6 @@ export class WebAuthnManager {
         credential: authCredential,
         nearAccountId,
         deviceNumber: resolvedDeviceNumber,
-        relayerUrl: args.relayerUrl,
       });
       if (!enrollment.success) {
         throw new Error(enrollment.error || 'Threshold keygen/enrollment failed');
@@ -1949,7 +1984,6 @@ export class WebAuthnManager {
     credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
     nearAccountId: AccountId | string;
     deviceNumber?: number;
-    relayerUrl?: string;
   }): Promise<{
     success: boolean;
     publicKey: string;
@@ -1958,7 +1992,7 @@ export class WebAuthnManager {
     error?: string;
   }> {
     const nearAccountId = toAccountId(args.nearAccountId);
-    const relayerUrl = args.relayerUrl ?? this.tatchiPasskeyConfigs.relayer.url;
+    const relayerUrl = this.tatchiPasskeyConfigs.relayer.url;
 
     try {
       if (!relayerUrl) throw new Error('Missing relayer url (configs.relayer.url)');

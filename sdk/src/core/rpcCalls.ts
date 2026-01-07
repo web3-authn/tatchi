@@ -21,7 +21,7 @@ import type {
 
 import { ActionPhase, DeviceLinkingPhase, DeviceLinkingStatus } from './types/sdkSentEvents';
 import { ActionType, type ActionArgs } from './types/actions';
-import { VRFChallenge } from './types/vrf-worker';
+import { createRandomVRFChallenge, type VRFChallenge } from './types/vrf-worker';
 import { DEFAULT_WAIT_STATUS, TransactionContext } from './types/rpc';
 import type { AuthenticatorOptions } from './types/authenticatorOptions';
 import type { ConfirmationConfig } from './types/signer-worker';
@@ -220,20 +220,19 @@ export async function executeDeviceLinkingContractCalls({
   signedDeleteKeyTransaction: SignedTransaction
 }> {
 
-  // Sign three transactions with one PRF authentication
-  const signedTransactions = await context.webAuthnManager.signTransactionsWithActions({
+  const signTransactions = () => context.webAuthnManager.signTransactionsWithActions({
     rpcCall: {
       contractId: context.webAuthnManager.tatchiPasskeyConfigs.contractId,
       nearRpcUrl: context.webAuthnManager.tatchiPasskeyConfigs.nearRpcUrl,
       nearAccountId: device1AccountId
     },
-	    // Prefer threshold signing when available; fall back to local signing if the account
-	    // is not enrolled with threshold key material.
-	    signerMode: { mode: 'threshold-signer', behavior: 'fallback' },
-	    confirmationConfigOverride,
-	    title: confirmerText?.title,
-	    body: confirmerText?.body,
-	    transactions: [
+    // Prefer threshold signing when available; fall back to local signing if the account
+    // is not enrolled with threshold key material.
+    signerMode: { mode: 'threshold-signer', behavior: 'fallback' },
+    confirmationConfigOverride,
+    title: confirmerText?.title,
+    body: confirmerText?.body,
+    transactions: [
       // Transaction 1: AddKey - Add Device2's key to Device1's account
       {
         receiverId: device1AccountId,
@@ -289,6 +288,35 @@ export async function executeDeviceLinkingContractCalls({
       }
     }
   });
+
+  // Sign three transactions with one PRF authentication
+  let signedTransactions: Array<{ signedTransaction: SignedTransaction }> = [];
+  try {
+    signedTransactions = await signTransactions();
+  } catch (e: unknown) {
+    if (!isVrfSessionPasskeyMismatchError(e)) throw e;
+
+    // This happens when:
+    // - the VRF worker is unlocked for a different device's VRF keypair, but
+    // - IndexedDB `lastUser` (and thus allowCredentials) points at another device.
+    // Fix by re-unlocking the VRF keypair for the current deviceNumber, then retry once.
+    onEvent?.({
+      step: 3,
+      phase: DeviceLinkingPhase.STEP_3_AUTHORIZATION,
+      status: DeviceLinkingStatus.PROGRESS,
+      message: 'Session mismatch detected; re-authenticating with TouchID...'
+    });
+
+    await repairVrfSessionForCurrentDevice({
+      context,
+      nearAccountId: device1AccountId,
+      // Needs to cover 3 txs in a single batch.
+      remainingUses: 3,
+      ttlMs: 2 * 60 * 1000,
+    });
+
+    signedTransactions = await signTransactions();
+  }
 
   if (!signedTransactions[0].signedTransaction) {
     throw new Error('AddKey transaction signing failed');
@@ -354,6 +382,65 @@ export async function executeDeviceLinkingContractCalls({
     storeDeviceLinkingTxResult,
     signedDeleteKeyTransaction: signedTransactions[2].signedTransaction
   };
+}
+
+function isVrfSessionPasskeyMismatchError(err: unknown): boolean {
+  const msg = errorMessage(err) || String(err || '');
+  return msg.includes('different passkey/VRF session than the current device');
+}
+
+async function repairVrfSessionForCurrentDevice(args: {
+  context: PasskeyManagerContext;
+  nearAccountId: AccountId;
+  ttlMs?: number;
+  remainingUses?: number;
+}): Promise<void> {
+  const { context, nearAccountId } = args;
+  const lastUser = await context.webAuthnManager.getLastUser();
+  if (!lastUser || lastUser.nearAccountId !== nearAccountId) {
+    throw new Error('Cannot repair VRF session: no lastUser for this account. Please log in again.');
+  }
+  const deviceNumber = lastUser.deviceNumber;
+  if (!Number.isFinite(deviceNumber) || deviceNumber < 1) {
+    throw new Error('Cannot repair VRF session: invalid lastUser.deviceNumber');
+  }
+
+  const authenticators = await context.webAuthnManager.getAuthenticatorsByUser(nearAccountId);
+  const credentialIdsForDevice = authenticators
+    .filter((a) => a.deviceNumber === deviceNumber)
+    .map((a) => a.credentialId);
+
+  const credentialIds = credentialIdsForDevice.length > 0
+    ? credentialIdsForDevice
+    : authenticators.map((a) => a.credentialId);
+
+  if (credentialIds.length === 0) {
+    throw new Error(`Cannot repair VRF session: no authenticators found for ${nearAccountId}`);
+  }
+
+  const challenge = createRandomVRFChallenge();
+  const credential = await context.webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
+    nearAccountId,
+    challenge: challenge as VRFChallenge,
+    credentialIds,
+  });
+
+  const unlockResult = await context.webAuthnManager.unlockVRFKeypair({
+    nearAccountId,
+    encryptedVrfKeypair: lastUser.encryptedVrfKeypair,
+    credential: credential as WebAuthnAuthenticationCredential,
+  });
+  if (!unlockResult.success) {
+    throw new Error(unlockResult.error || 'Failed to re-unlock VRF keypair for current device');
+  }
+
+  // Restore a minimal warm signing session so the retried batch can run without a second TouchID prompt.
+  await context.webAuthnManager.mintSigningSessionFromCredential({
+    nearAccountId,
+    credential: credential as WebAuthnAuthenticationCredential,
+    ttlMs: args.ttlMs,
+    remainingUses: args.remainingUses,
+  });
 }
 
 // ===========================
@@ -674,6 +761,12 @@ export async function checkCanRegisterUserContractCall({
     if (intent_digest_32.length !== 32) {
       throw new Error('Missing or invalid vrfChallenge.intentDigest (expected base64url-encoded 32 bytes)');
     }
+    const session_policy_digest_32 = vrfChallenge.sessionPolicyDigest32
+      ? Array.from(base64UrlDecode(vrfChallenge.sessionPolicyDigest32))
+      : [];
+    if (session_policy_digest_32.length !== 0 && session_policy_digest_32.length !== 32) {
+      throw new Error('Invalid vrfChallenge.sessionPolicyDigest32 (expected base64url-encoded 32 bytes)');
+    }
     const vrfData = {
       vrf_input_data: Array.from(base64UrlDecode(vrfChallenge.vrfInput)),
       vrf_output: Array.from(base64UrlDecode(vrfChallenge.vrfOutput)),
@@ -684,6 +777,7 @@ export async function checkCanRegisterUserContractCall({
       block_height: Number(vrfChallenge.blockHeight),
       block_hash: Array.from(base64UrlDecode(vrfChallenge.blockHash)),
       intent_digest_32,
+      ...(session_policy_digest_32.length ? { session_policy_digest_32 } : {}),
     };
 
     const args = {
@@ -745,6 +839,10 @@ export async function verifyAuthenticationResponse(
     if (intent_digest_32.length !== 32) {
       throw new Error('Missing or invalid vrfChallenge.intentDigest (expected base64url-encoded 32 bytes)');
     }
+    const session_policy_digest_32 = toBytes(vrfChallenge.sessionPolicyDigest32);
+    if (session_policy_digest_32.length !== 0 && session_policy_digest_32.length !== 32) {
+      throw new Error('Invalid vrfChallenge.sessionPolicyDigest32 (expected base64url-encoded 32 bytes)');
+    }
     const vrf_data = {
       vrf_input_data: toBytes(vrfChallenge.vrfInput),
       vrf_output: toBytes(vrfChallenge.vrfOutput),
@@ -755,6 +853,7 @@ export async function verifyAuthenticationResponse(
       block_height: Number(vrfChallenge.blockHeight || 0),
       block_hash: toBytes(vrfChallenge.blockHash),
       intent_digest_32,
+      ...(session_policy_digest_32.length ? { session_policy_digest_32 } : {}),
     };
 
     // Normalize authenticatorAttachment and userHandle to null for server schema
@@ -811,6 +910,7 @@ export async function authorizeThresholdEd25519(
   webauthnAuthentication: WebAuthnAuthenticationCredential,
   args: {
     relayerKeyId: string;
+    clientVerifyingShareB64u: string;
     purpose: string;
     /**
      * Exact 32-byte digest that will be co-signed (tx hash / delegate hash / NEP-413 hash).
@@ -848,6 +948,11 @@ export async function authorizeThresholdEd25519(
       intent_digest_32,
     };
 
+    const clientVerifyingShareBytes = toBytes(args.clientVerifyingShareB64u);
+    if (clientVerifyingShareBytes.length !== 32) {
+      throw new Error('Missing or invalid args.clientVerifyingShareB64u (expected base64url-encoded 32 bytes)');
+    }
+
     // Strip extension results before sending to the relay (never send PRF outputs).
     const webauthn_authentication = {
       ...webauthnAuthentication,
@@ -868,6 +973,7 @@ export async function authorizeThresholdEd25519(
       credentials: 'include',
       body: JSON.stringify({
         relayerKeyId: args.relayerKeyId,
+        clientVerifyingShareB64u: args.clientVerifyingShareB64u,
         purpose: args.purpose,
         signing_digest_32: (() => {
           const d = args.signingDigest32;
@@ -987,5 +1093,65 @@ export async function thresholdEd25519Keygen(
     };
   } catch (error: any) {
     return { ok: false, error: error?.message || 'Failed to keygen threshold-ed25519' };
+  }
+}
+
+export async function thresholdEd25519KeygenFromRegistrationTx(
+  relayServerUrl: string,
+  args: {
+    clientVerifyingShareB64u: string;
+    nearAccountId: string;
+    registrationTxHash: string;
+  },
+): Promise<{
+  ok: boolean;
+  relayerKeyId?: string;
+  publicKey?: string;
+  relayerVerifyingShareB64u?: string;
+  code?: string;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const base = String(relayServerUrl || '').trim().replace(/\/$/, '');
+    if (!base) throw new Error('Missing relayServerUrl');
+
+    const clientVerifyingShareB64u = String(args.clientVerifyingShareB64u || '').trim();
+    if (!clientVerifyingShareB64u) throw new Error('Missing clientVerifyingShareB64u');
+
+    const nearAccountId = String(args.nearAccountId || '').trim();
+    if (!nearAccountId) throw new Error('Missing nearAccountId');
+
+    const registrationTxHash = String(args.registrationTxHash || '').trim();
+    if (!registrationTxHash) throw new Error('Missing registrationTxHash');
+
+    const url = `${base}/threshold-ed25519/keygen`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        clientVerifyingShareB64u,
+        nearAccountId,
+        registrationTxHash,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { ok: false, error: `HTTP ${response.status}: ${errorText}` };
+    }
+
+    const json = await response.json();
+    return {
+      ok: !!json?.ok,
+      relayerKeyId: json?.relayerKeyId,
+      publicKey: json?.publicKey,
+      relayerVerifyingShareB64u: json?.relayerVerifyingShareB64u,
+      code: json?.code,
+      message: json?.message,
+    };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || 'Failed to keygen threshold-ed25519 from registration tx' };
   }
 }

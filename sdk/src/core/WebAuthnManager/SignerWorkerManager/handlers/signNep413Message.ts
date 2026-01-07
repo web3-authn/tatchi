@@ -1,11 +1,28 @@
-
-import { type SignerMode, WorkerRequestType, isSignNep413MessageSuccess } from '../../../types/signer-worker';
-import type { ConfirmationConfig } from '../../../types/signer-worker';
-import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
-import { SignerWorkerManagerContext } from '..';
-import { isObject } from '../../../WalletIframe/validation';
-import { generateSessionId } from '../sessionHandshake.js';
+import {
+  WorkerRequestType,
+  isSignNep413MessageSuccess,
+  isWorkerError,
+  type ConfirmationConfig,
+  type SignerMode,
+  type WorkerSuccessResponse,
+} from '../../../types/signer-worker';
+import type { WebAuthnAuthenticationCredential } from '../../../types';
+import { removePrfOutputGuard } from '../../credentialsHelpers';
 import { resolveSignerModeForThresholdSigning } from '../../../threshold/thresholdEd25519RelayerHealth';
+import type {
+  LocalNearSkV3Material,
+  ThresholdEd25519_2p_V1Material,
+} from '../../../IndexedDBManager/passkeyNearKeysDB';
+import type { VRFChallenge } from '../../../types/vrf-worker';
+import {
+  clearCachedThresholdEd25519AuthSession,
+  getCachedThresholdEd25519AuthSessionJwt,
+  makeThresholdEd25519AuthSessionCacheKey,
+} from '../../../threshold/thresholdEd25519AuthSession';
+import { isThresholdSessionAuthUnavailableError } from '../../../threshold/thresholdSessionPolicy';
+import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
+import { generateSessionId } from '../sessionHandshake.js';
+import { SignerWorkerManagerContext } from '..';
 
 /**
  * Sign a NEP-413 message using the user's passkey-derived private key
@@ -15,17 +32,16 @@ import { resolveSignerModeForThresholdSigning } from '../../../threshold/thresho
  */
 export async function signNep413Message({ ctx, payload }: {
   ctx: SignerWorkerManagerContext;
-	  payload: {
-	    message: string;
-	    recipient: string;
-	    nonce: string;
-	    state: string | null;
-	    accountId: string;
-	    signerMode: SignerMode;
-	    relayerUrl?: string;
-	    title?: string;
-	    body?: string;
-	    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  payload: {
+    message: string;
+    recipient: string;
+    nonce: string;
+    state: string | null;
+    accountId: string;
+    signerMode: SignerMode;
+    title?: string;
+    body?: string;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
     sessionId?: string;
     contractId?: string;
     nearRpcUrl?: string;
@@ -39,43 +55,48 @@ export async function signNep413Message({ ctx, payload }: {
   error?: string;
 }> {
   try {
-    const requestedSignerMode = payload.signerMode;
-    const relayerUrl = String(payload.relayerUrl || '').trim();
-    if (!requestedSignerMode) {
-      throw new Error("Missing signerMode; must be explicitly set to 'local-signer' or 'threshold-signer'");
-    }
+    const sessionId = payload.sessionId ?? generateSessionId();
+    const relayerUrl = ctx.relayerUrl;
+    const nearAccountId = payload.accountId;
 
-    const deviceNumber = await getLastLoggedInDeviceNumber(payload.accountId, ctx.indexedDB.clientDB);
+    const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
     const [localKeyMaterial, thresholdKeyMaterial] = await Promise.all([
-      ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(payload.accountId, deviceNumber),
-      ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(payload.accountId, deviceNumber),
+      ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber),
+      ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(nearAccountId, deviceNumber),
     ]);
     if (!localKeyMaterial) {
-      throw new Error(`No local key material found for account: ${payload.accountId}`);
+      throw new Error(`No local key material found for account: ${nearAccountId}`);
     }
 
-	    const resolvedSignerMode = await resolveSignerModeForThresholdSigning({
-	      nearAccountId: payload.accountId,
-	      signerMode: requestedSignerMode,
-	      relayerUrl,
-	      hasThresholdKeyMaterial: !!thresholdKeyMaterial,
-	    });
-    const keyMaterial = resolvedSignerMode === 'threshold-signer'
-      ? thresholdKeyMaterial!
-      : localKeyMaterial;
+    const resolvedSignerMode = await resolveSignerModeForThresholdSigning({
+      nearAccountId,
+      signerMode: payload.signerMode,
+      relayerUrl,
+      hasThresholdKeyMaterial: !!thresholdKeyMaterial,
+    });
 
-    // Expect caller (SignerWorkerManager) to reserve a session and wire ports; just use provided sessionId
-    const sessionId = payload.sessionId ?? generateSessionId();
-
-    if (!ctx.vrfWorkerManager) {
+    const vrfWorkerManager = ctx.vrfWorkerManager;
+    if (!vrfWorkerManager) {
       throw new Error('VrfWorkerManager not available for NEP-413 signing');
     }
 
-    const confirmation = await ctx.vrfWorkerManager.confirmAndPrepareSigningSession({
+    const signingContext = validateAndPrepareNep413SigningContext({
+      nearAccountId,
+      resolvedSignerMode,
+      relayerUrl,
+      rpId: ctx.touchIdPrompt.getRpId(),
+      localKeyMaterial,
+      thresholdKeyMaterial,
+    });
+
+    const confirmation = await vrfWorkerManager.confirmAndPrepareSigningSession({
       ctx,
       sessionId,
       kind: 'nep413',
-      nearAccountId: payload.accountId,
+      ...(signingContext.threshold && !signingContext.threshold.thresholdSessionJwt
+        ? { signingAuthMode: 'webauthn' }
+        : {}),
+      nearAccountId,
       message: payload.message,
       recipient: payload.recipient,
       title: payload.title,
@@ -85,87 +106,98 @@ export async function signNep413Message({ ctx, payload }: {
       nearRpcUrl: payload.nearRpcUrl,
     });
 
-    const vrfChallenge = confirmation.vrfChallenge;
-    // Never forward PRF outputs to the relayer; strip extension results.
-    const credential = confirmation.credential
-      ? JSON.stringify({
-        ...(confirmation.credential as any),
-        authenticatorAttachment: (confirmation.credential as any).authenticatorAttachment ?? null,
-        response: {
-          ...((confirmation.credential as any).response || {}),
-          userHandle: (confirmation.credential as any)?.response?.userHandle ?? null,
-        },
-        clientExtensionResults: null,
-      })
-      : undefined;
+    let { vrfChallenge, credential } = extractSigningEvidenceFromConfirmation(confirmation);
 
-    const { decryption, threshold } = await (async (): Promise<{
-      decryption: { encryptedPrivateKeyData: string; encryptedPrivateKeyChacha20NonceB64u: string };
-      threshold?: { relayerUrl: string; relayerKeyId: string };
-    }> => {
-      if (resolvedSignerMode === 'local-signer') {
-        return {
-          decryption: {
-            encryptedPrivateKeyData: localKeyMaterial.encryptedSk,
-            encryptedPrivateKeyChacha20NonceB64u: localKeyMaterial.chacha20NonceB64u,
-          },
-        };
-      }
+    const requestPayload = {
+      signerMode: signingContext.resolvedSignerMode,
+      message: payload.message,
+      recipient: payload.recipient,
+      nonce: payload.nonce,
+      state: payload.state || undefined,
+      accountId: nearAccountId,
+      nearPublicKey: signingContext.nearPublicKey,
+      decryption: signingContext.decryption,
+      threshold: signingContext.threshold
+        ? {
+          relayerUrl: signingContext.threshold.relayerUrl,
+          relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
+          thresholdSessionKind: 'jwt' as const,
+          thresholdSessionJwt: signingContext.threshold.thresholdSessionJwt,
+        }
+        : undefined,
+      vrfChallenge,
+      credential,
+    };
 
-      // threshold-signer
-      if (!thresholdKeyMaterial) throw new Error(`Missing threshold key material for ${payload.accountId}`);
-      if (!relayerUrl) {
-        throw new Error('Missing payload.relayerUrl (required for signerMode=threshold-signer)');
-      }
-      if (!confirmation.credential || !vrfChallenge) {
-        throw new Error('Missing WebAuthn credential or VRF challenge for threshold-signer authorization');
-      }
+    if (!signingContext.threshold) {
+      const response = await ctx.sendMessage<typeof WorkerRequestType.SignNep413Message>({
+        sessionId,
+        message: { type: WorkerRequestType.SignNep413Message, payload: requestPayload },
+      });
+      const okResponse = requireOkSignNep413MessageResponse(response);
+
       return {
-        // threshold signer does not require an encrypted local secret key
-        decryption: { encryptedPrivateKeyData: '', encryptedPrivateKeyChacha20NonceB64u: '' },
-        threshold: {
-          relayerUrl,
-          relayerKeyId: thresholdKeyMaterial.relayerKeyId,
-        },
+        success: true,
+        accountId: okResponse.payload.accountId,
+        publicKey: okResponse.payload.publicKey,
+        signature: okResponse.payload.signature,
+        state: okResponse.payload.state || undefined,
       };
-    })();
+    }
 
-    const response = await ctx.sendMessage<WorkerRequestType.SignNep413Message>({
-      sessionId,
-      message: {
-        type: WorkerRequestType.SignNep413Message,
-        payload: {
-          signerMode: resolvedSignerMode,
+    let okResponse: WorkerSuccessResponse<typeof WorkerRequestType.SignNep413Message>;
+    try {
+      const response = await ctx.sendMessage<typeof WorkerRequestType.SignNep413Message>({
+        sessionId,
+        message: { type: WorkerRequestType.SignNep413Message, payload: requestPayload },
+      });
+      okResponse = requireOkSignNep413MessageResponse(response);
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      if (!isThresholdSessionAuthUnavailableError(err)) throw err;
+
+      clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
+      signingContext.threshold.thresholdSessionJwt = undefined;
+      requestPayload.threshold!.thresholdSessionJwt = undefined;
+
+      if (!credential || !vrfChallenge) {
+        const refreshed = await vrfWorkerManager.confirmAndPrepareSigningSession({
+          ctx,
           sessionId,
+          kind: 'nep413',
+          signingAuthMode: 'webauthn',
+          nearAccountId,
           message: payload.message,
           recipient: payload.recipient,
-          nonce: payload.nonce,
-          state: payload.state || undefined,
-          accountId: payload.accountId,
-          nearPublicKey: keyMaterial.publicKey,
-          decryption,
-          threshold,
-          vrfChallenge,
-          credential,
-        }
-      },
-    });
+          title: payload.title,
+          body: payload.body,
+          confirmationConfigOverride: payload.confirmationConfigOverride,
+          contractId: payload.contractId,
+          nearRpcUrl: payload.nearRpcUrl,
+        });
 
-    if (!isSignNep413MessageSuccess(response)) {
-      console.error('SignerWorkerManager: NEP-413 signing failed:', response);
-      const payloadError = isObject(response?.payload) && (response as any)?.payload?.error;
-      throw new Error(payloadError || 'NEP-413 signing failed');
+        ({ vrfChallenge, credential } = extractSigningEvidenceFromConfirmation(refreshed));
+
+        requestPayload.vrfChallenge = vrfChallenge;
+        requestPayload.credential = credential;
+      }
+
+      const response = await ctx.sendMessage<typeof WorkerRequestType.SignNep413Message>({
+        sessionId,
+        message: { type: WorkerRequestType.SignNep413Message, payload: requestPayload },
+      });
+      okResponse = requireOkSignNep413MessageResponse(response);
     }
 
     return {
       success: true,
-      accountId: response.payload.accountId,
-      publicKey: response.payload.publicKey,
-      signature: response.payload.signature,
-      state: response.payload.state || undefined
+      accountId: okResponse.payload.accountId,
+      publicKey: okResponse.payload.publicKey,
+      signature: okResponse.payload.signature,
+      state: okResponse.payload.state || undefined,
     };
-
   } catch (error: unknown) {
+    // eslint-disable-next-line no-console
     console.error('SignerWorkerManager: NEP-413 signing error:', error);
     return {
       success: false,
@@ -177,4 +209,122 @@ export async function signNep413Message({ ctx, payload }: {
         : 'Unknown error'
     };
   }
+}
+
+type ThresholdNep413SigningContext = {
+  resolvedSignerMode: 'threshold-signer';
+  nearPublicKey: string;
+  decryption: { encryptedPrivateKeyData: string; encryptedPrivateKeyChacha20NonceB64u: string };
+  threshold: {
+    relayerUrl: string;
+    thresholdKeyMaterial: ThresholdEd25519_2p_V1Material;
+    thresholdSessionCacheKey: string;
+    thresholdSessionJwt: string | undefined;
+  };
+};
+
+type LocalNep413SigningContext = {
+  resolvedSignerMode: 'local-signer';
+  nearPublicKey: string;
+  decryption: { encryptedPrivateKeyData: string; encryptedPrivateKeyChacha20NonceB64u: string };
+  threshold: null;
+};
+
+type Nep413SigningContext = ThresholdNep413SigningContext | LocalNep413SigningContext;
+
+function validateAndPrepareNep413SigningContext(args: {
+  nearAccountId: string;
+  resolvedSignerMode: SignerMode['mode'];
+  relayerUrl: string;
+  rpId: string | null;
+  localKeyMaterial: LocalNearSkV3Material;
+  thresholdKeyMaterial: ThresholdEd25519_2p_V1Material | null;
+}): Nep413SigningContext {
+  const localPublicKey = String(args.localKeyMaterial.publicKey || '').trim();
+  if (!localPublicKey) {
+    throw new Error(`Missing local signing public key for ${args.nearAccountId}`);
+  }
+
+  if (args.resolvedSignerMode !== 'threshold-signer') {
+    return {
+      resolvedSignerMode: 'local-signer',
+      nearPublicKey: localPublicKey,
+      decryption: {
+        encryptedPrivateKeyData: args.localKeyMaterial.encryptedSk,
+        encryptedPrivateKeyChacha20NonceB64u: args.localKeyMaterial.chacha20NonceB64u,
+      },
+      threshold: null,
+    };
+  }
+
+  const thresholdKeyMaterial = args.thresholdKeyMaterial;
+  if (!thresholdKeyMaterial) {
+    throw new Error(`Missing threshold key material for ${args.nearAccountId}`);
+  }
+
+  const thresholdPublicKey = String(thresholdKeyMaterial.publicKey || '').trim();
+  if (!thresholdPublicKey) {
+    throw new Error(`Missing threshold signing public key for ${args.nearAccountId}`);
+  }
+
+  const relayerUrl = String(args.relayerUrl || '').trim();
+  if (!relayerUrl) {
+    throw new Error('Missing relayerUrl (required for threshold-signer)');
+  }
+
+  const rpId = String(args.rpId || '').trim();
+  if (!rpId) {
+    throw new Error('Missing rpId for threshold signing');
+  }
+
+  const thresholdSessionCacheKey = makeThresholdEd25519AuthSessionCacheKey({
+    nearAccountId: args.nearAccountId,
+    rpId,
+    relayerUrl,
+    relayerKeyId: thresholdKeyMaterial.relayerKeyId,
+  });
+
+  return {
+    resolvedSignerMode: 'threshold-signer',
+    nearPublicKey: thresholdPublicKey,
+    decryption: {
+      encryptedPrivateKeyData: '',
+      encryptedPrivateKeyChacha20NonceB64u: '',
+    },
+    threshold: {
+      relayerUrl,
+      thresholdKeyMaterial,
+      thresholdSessionCacheKey,
+      thresholdSessionJwt: getCachedThresholdEd25519AuthSessionJwt(thresholdSessionCacheKey),
+    },
+  };
+}
+
+function extractSigningEvidenceFromConfirmation(confirmation: {
+  vrfChallenge?: VRFChallenge;
+  credential?: unknown;
+}): {
+  vrfChallenge: VRFChallenge | undefined;
+  credential: string | undefined;
+} {
+  const credentialForRelay: WebAuthnAuthenticationCredential | undefined = confirmation.credential
+    ? removePrfOutputGuard(confirmation.credential as WebAuthnAuthenticationCredential)
+    : undefined;
+
+  return {
+    vrfChallenge: confirmation.vrfChallenge,
+    credential: credentialForRelay ? JSON.stringify(credentialForRelay) : undefined,
+  };
+}
+
+function requireOkSignNep413MessageResponse(
+  response: unknown,
+): WorkerSuccessResponse<typeof WorkerRequestType.SignNep413Message> {
+  if (!isSignNep413MessageSuccess(response as any)) {
+    if (isWorkerError(response as any)) {
+      throw new Error((response as any).payload?.error || 'NEP-413 signing failed');
+    }
+    throw new Error('NEP-413 signing failed');
+  }
+  return response as WorkerSuccessResponse<typeof WorkerRequestType.SignNep413Message>;
 }

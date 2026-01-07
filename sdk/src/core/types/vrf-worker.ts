@@ -15,7 +15,7 @@ export type WasmGenerateVrfChallengeRequest = StripFree<wasmModule.GenerateVrfCh
 export type WasmUnlockVrfKeypairRequest = Omit<StripFree<wasmModule.UnlockVrfKeypairRequest>, 'prfKey'> & {
   // Prefer forwarding the full serialized WebAuthn credential so PRF outputs do not need
   // to be extracted into separate main-thread strings.
-  credential: WebAuthnAuthenticationCredential;
+  credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
 };
 export type WasmDeriveVrfKeypairFromPrfRequest = Omit<
   StripFree<wasmModule.DeriveVrfKeypairFromPrfRequest>,
@@ -87,6 +87,11 @@ export interface VRFChallenge {
    * When present, it must decode to exactly 32 bytes on the WASM worker / contract side.
    */
   intentDigest?: string;
+  /**
+   * Optional base64url-encoded 32-byte digest that was bound into the VRF input hash for
+   * relayer session policy binding (v4+ only).
+   */
+  sessionPolicyDigest32?: string;
 }
 
 /**
@@ -114,6 +119,7 @@ export function validateVRFChallenge(vrfChallengeData: {
   blockHeight: string;
   blockHash: string;
   intentDigest?: string;
+  sessionPolicyDigest32?: string;
 }): VRFChallenge {
   if (!vrfChallengeData.vrfInput || typeof vrfChallengeData.vrfInput !== 'string') {
     throw new Error('vrfInput must be a non-empty string');
@@ -150,6 +156,7 @@ export function validateVRFChallenge(vrfChallengeData: {
     blockHeight: vrfChallengeData.blockHeight,
     blockHash: vrfChallengeData.blockHash,
     ...(vrfChallengeData.intentDigest ? { intentDigest: vrfChallengeData.intentDigest } : {}),
+    ...(vrfChallengeData.sessionPolicyDigest32 ? { sessionPolicyDigest32: vrfChallengeData.sessionPolicyDigest32 } : {}),
   };
 }
 
@@ -206,6 +213,10 @@ export interface VRFInputData {
    * This is intended for transaction/delegate signing flows (e.g. the UI intent digest).
    */
   intentDigest?: string;
+  /**
+   * Optional base64url-encoded 32-byte digest to bind a relayer session policy into the VRF input hash (v4+ only).
+   */
+  sessionPolicyDigest32?: string;
 }
 
 export interface VRFWorkerMessage<T extends WasmVrfWorkerRequestType> {

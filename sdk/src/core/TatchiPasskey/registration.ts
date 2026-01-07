@@ -111,7 +111,7 @@ export async function registerPasskeyInternal(
           step: 3,
           phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK,
           status: RegistrationStatus.PROGRESS,
-          message: `Pre-check: ${progress.message}`
+          message: `${progress.message}`
         });
       },
     });
@@ -604,7 +604,7 @@ async function activateThresholdEnrollmentPostRegistration(opts: {
       step: 6,
       phase: RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION,
       status: RegistrationStatus.PROGRESS,
-      message: 'Activating threshold access key (AddKey) on-chain...'
+      message: 'Activating threshold access key onchain...'
     });
 
     // Prepare a single AddKey transaction signed with the local key (no extra TouchID prompt).

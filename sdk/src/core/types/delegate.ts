@@ -41,8 +41,11 @@ export interface DelegateActionInput {
    */
   maxBlockHeight: bigint | string | number;
   /**
-   * Public key of the delegating device; must match the decrypted key used
-   * to sign the delegate. This is not the relayer’s key.
+   * Public key of the signer used to sign the delegate action.
+   * - `local-signer`: the local device key
+   * - `threshold-signer`: the threshold/group key
+   *
+   * Must match the key used to produce the delegate signature.
    */
   publicKey: string | PublicKey;
 }
