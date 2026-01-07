@@ -24,6 +24,9 @@ export const App: React.FC = () => {
       config={{
         // Prefer reliable NEAR RPCs with fallback. You can override via VITE_NEAR_RPC_URL.
         nearRpcUrl: env.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
+        // Demo default: exercise threshold signing when available.
+        // Uses fallback so the demo still works against relayers that haven't enabled threshold routes yet.
+        signerMode: { mode: 'threshold-signer', behavior: 'fallback' },
         relayer: {
           url: env.VITE_RELAYER_URL!,
         },

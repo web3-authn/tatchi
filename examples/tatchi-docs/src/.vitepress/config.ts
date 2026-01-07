@@ -201,6 +201,16 @@ export default defineConfig({
             ],
           },
           {
+            text: 'Threshold Signing',
+            link: '/docs/concepts/threshold-signing',
+            items: [
+              { text: 'Key Material', link: '/docs/concepts/threshold-signing#key-material' },
+              { text: 'Enrollment Flow', link: '/docs/concepts/threshold-signing#enrollment-flow' },
+              { text: 'Signing Flow', link: '/docs/concepts/threshold-signing#signing-flow' },
+              { text: 'Threshold Sessions', link: '/docs/concepts/threshold-signing#threshold-sessions' },
+            ]
+          },
+          {
             text: 'Passkey Scope',
             link: '/docs/concepts/passkey-scope',
             items: [

@@ -16,7 +16,7 @@ VRF challenges bind fresh blockchain data to prevent replay attacks. The VRF wor
 
 | Field | Purpose | Source |
 |-------|---------|--------|
-| `domain_separator` | Prevents cross-protocol collisions | Fixed constant (`"web3_authn_vrf_challenge_v1"`) |
+| `domain_separator` | Prevents cross-protocol collisions | Fixed constant (`"web3_authn_challenge_v3"`) |
 | `user_id` | Binds challenge to the NEAR account | Client (NEAR account ID) |
 | `relying_party_id` | Binds to the wallet origin | Client config (wallet origin / rpId) |
 | `block_height` | Enforces freshness window | NEAR RPC |
@@ -46,6 +46,10 @@ Traditional WebAuthn requires a server to mint and track challenges. VRF challen
 **Stateless Verification**
 - Traditional: Server validates signed challenge matches the stored one
 - VRF: Contract recomputes the VRF input and verifies the proof; no storage required.
+
+Relayer can make a single contract view `verify_authentication_response`; no DB of "issued challenges" is needed.
+
+This is why VRF+contract verification works as a stateless replacement for WebAuthn challenge/response.
 
 **Replay Attack Prevention**
 - Traditional: Server marks used challenges to prevent reuse
