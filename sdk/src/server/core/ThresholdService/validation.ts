@@ -1,13 +1,10 @@
 import type { AccessKeyList } from '../../../core/NearClient';
 import { alphabetizeStringify, sha256BytesUtf8 } from '../../../utils/digests';
+import { ensureEd25519Prefix, toOptionalString } from '../../../utils/validation';
 
 export type ThresholdValidationOk = { ok: true };
 export type ThresholdValidationErr = { ok: false; code: string; message: string };
 export type ThresholdValidationResult = ThresholdValidationOk | ThresholdValidationErr;
-
-export function normalizeOptionalString(v: unknown): string {
-  return typeof v === 'string' ? v : '';
-}
 
 export function isObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -17,22 +14,22 @@ export function isValidNumber(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
 }
 
-export function normalizePrefix(prefix: unknown, defaultPrefix: string): string {
-  const p = normalizeOptionalString(prefix);
+export function toPrefixWithColon(prefix: unknown, defaultPrefix: string): string {
+  const p = toOptionalString(prefix);
   if (!p) return defaultPrefix;
   return p.endsWith(':') ? p : `${p}:`;
 }
 
-export function normalizeThresholdEd25519KeyPrefix(prefix: unknown): string {
-  return normalizePrefix(prefix, 'w3a:threshold-ed25519:key:');
+export function toThresholdEd25519KeyPrefix(prefix: unknown): string {
+  return toPrefixWithColon(prefix, 'w3a:threshold-ed25519:key:');
 }
 
-export function normalizeThresholdEd25519SessionPrefix(prefix: unknown): string {
-  return normalizePrefix(prefix, 'w3a:threshold-ed25519:sess:');
+export function toThresholdEd25519SessionPrefix(prefix: unknown): string {
+  return toPrefixWithColon(prefix, 'w3a:threshold-ed25519:sess:');
 }
 
-export function normalizeThresholdEd25519AuthPrefix(prefix: unknown): string {
-  return normalizePrefix(prefix, 'w3a:threshold-ed25519:auth:');
+export function toThresholdEd25519AuthPrefix(prefix: unknown): string {
+  return toPrefixWithColon(prefix, 'w3a:threshold-ed25519:auth:');
 }
 
 export type ParsedThresholdEd25519KeyRecord = {
@@ -43,9 +40,9 @@ export type ParsedThresholdEd25519KeyRecord = {
 
 export function parseThresholdEd25519KeyRecord(raw: unknown): ParsedThresholdEd25519KeyRecord | null {
   if (!isObject(raw)) return null;
-  const publicKey = normalizeOptionalString(raw.publicKey);
-  const relayerSigningShareB64u = normalizeOptionalString(raw.relayerSigningShareB64u);
-  const relayerVerifyingShareB64u = normalizeOptionalString(raw.relayerVerifyingShareB64u);
+  const publicKey = toOptionalString(raw.publicKey);
+  const relayerSigningShareB64u = toOptionalString(raw.relayerSigningShareB64u);
+  const relayerVerifyingShareB64u = toOptionalString(raw.relayerVerifyingShareB64u);
   if (!publicKey || !relayerSigningShareB64u || !relayerVerifyingShareB64u) return null;
   return { publicKey, relayerSigningShareB64u, relayerVerifyingShareB64u };
 }
@@ -54,8 +51,8 @@ export type ParsedThresholdEd25519Commitments = { hiding: string; binding: strin
 
 export function parseThresholdEd25519Commitments(raw: unknown): ParsedThresholdEd25519Commitments | null {
   if (!isObject(raw)) return null;
-  const hiding = normalizeOptionalString(raw.hiding);
-  const binding = normalizeOptionalString(raw.binding);
+  const hiding = toOptionalString(raw.hiding);
+  const binding = toOptionalString(raw.binding);
   if (!hiding || !binding) return null;
   return { hiding, binding };
 }
@@ -74,13 +71,13 @@ export type ParsedThresholdEd25519MpcSessionRecord = {
 export function parseThresholdEd25519MpcSessionRecord(raw: unknown): ParsedThresholdEd25519MpcSessionRecord | null {
   if (!isObject(raw)) return null;
   const expiresAtMs = raw.expiresAtMs;
-  const relayerKeyId = normalizeOptionalString(raw.relayerKeyId);
-  const purpose = normalizeOptionalString(raw.purpose);
-  const intentDigestB64u = normalizeOptionalString(raw.intentDigestB64u);
-  const signingDigestB64u = normalizeOptionalString(raw.signingDigestB64u);
-  const userId = normalizeOptionalString(raw.userId);
-  const rpId = normalizeOptionalString(raw.rpId);
-  const clientVerifyingShareB64u = normalizeOptionalString(raw.clientVerifyingShareB64u);
+  const relayerKeyId = toOptionalString(raw.relayerKeyId);
+  const purpose = toOptionalString(raw.purpose);
+  const intentDigestB64u = toOptionalString(raw.intentDigestB64u);
+  const signingDigestB64u = toOptionalString(raw.signingDigestB64u);
+  const userId = toOptionalString(raw.userId);
+  const rpId = toOptionalString(raw.rpId);
+  const clientVerifyingShareB64u = toOptionalString(raw.clientVerifyingShareB64u);
   if (!isValidNumber(expiresAtMs)) return null;
   if (
     !relayerKeyId ||
@@ -110,15 +107,15 @@ export type ParsedThresholdEd25519SigningSessionRecord = {
 export function parseThresholdEd25519SigningSessionRecord(raw: unknown): ParsedThresholdEd25519SigningSessionRecord | null {
   if (!isObject(raw)) return null;
   const expiresAtMs = raw.expiresAtMs;
-  const mpcSessionId = normalizeOptionalString(raw.mpcSessionId);
-  const relayerKeyId = normalizeOptionalString(raw.relayerKeyId);
-  const signingDigestB64u = normalizeOptionalString(raw.signingDigestB64u);
-  const userId = normalizeOptionalString(raw.userId);
-  const rpId = normalizeOptionalString(raw.rpId);
-  const clientVerifyingShareB64u = normalizeOptionalString(raw.clientVerifyingShareB64u);
+  const mpcSessionId = toOptionalString(raw.mpcSessionId);
+  const relayerKeyId = toOptionalString(raw.relayerKeyId);
+  const signingDigestB64u = toOptionalString(raw.signingDigestB64u);
+  const userId = toOptionalString(raw.userId);
+  const rpId = toOptionalString(raw.rpId);
+  const clientVerifyingShareB64u = toOptionalString(raw.clientVerifyingShareB64u);
   const clientCommitments = parseThresholdEd25519Commitments(raw.clientCommitments);
   const relayerCommitments = parseThresholdEd25519Commitments(raw.relayerCommitments);
-  const relayerNoncesB64u = normalizeOptionalString(raw.relayerNoncesB64u);
+  const relayerNoncesB64u = toOptionalString(raw.relayerNoncesB64u);
   if (!isValidNumber(expiresAtMs)) return null;
   if (
     !mpcSessionId ||
@@ -157,9 +154,9 @@ export type ParsedThresholdEd25519AuthSessionRecord = {
 export function parseThresholdEd25519AuthSessionRecord(raw: unknown): ParsedThresholdEd25519AuthSessionRecord | null {
   if (!isObject(raw)) return null;
   const expiresAtMs = raw.expiresAtMs;
-  const relayerKeyId = normalizeOptionalString(raw.relayerKeyId);
-  const userId = normalizeOptionalString(raw.userId);
-  const rpId = normalizeOptionalString(raw.rpId);
+  const relayerKeyId = toOptionalString(raw.relayerKeyId);
+  const userId = toOptionalString(raw.userId);
+  const rpId = toOptionalString(raw.rpId);
   if (!isValidNumber(expiresAtMs)) return null;
   if (!relayerKeyId || !userId || !rpId) return null;
   return { expiresAtMs, relayerKeyId, userId, rpId };
@@ -175,12 +172,12 @@ export type ThresholdEd25519SessionClaims = {
 
 export function parseThresholdEd25519SessionClaims(raw: unknown): ThresholdEd25519SessionClaims | null {
   if (!isObject(raw)) return null;
-  const kind = normalizeOptionalString(raw.kind);
+  const kind = toOptionalString(raw.kind);
   if (kind !== 'threshold_ed25519_session_v1') return null;
-  const sub = normalizeOptionalString(raw.sub);
-  const sessionId = normalizeOptionalString(raw.sessionId);
-  const relayerKeyId = normalizeOptionalString(raw.relayerKeyId);
-  const rpId = normalizeOptionalString(raw.rpId);
+  const sub = toOptionalString(raw.sub);
+  const sessionId = toOptionalString(raw.sessionId);
+  const relayerKeyId = toOptionalString(raw.relayerKeyId);
+  const rpId = toOptionalString(raw.rpId);
   if (!sub || !sessionId || !relayerKeyId || !rpId) return null;
   return { sub, kind, sessionId, relayerKeyId, rpId };
 }
@@ -207,47 +204,45 @@ export function bytesEqual32(a: Uint8Array, b: Uint8Array): boolean {
   return true;
 }
 
-export function normalizeNearPublicKeyStr(v: unknown): string {
-  const s = normalizeOptionalString(v);
-  if (!s) return '';
-  return s.includes(':') ? s : `ed25519:${s}`;
+export function toNearPublicKeyStr(v: unknown): string {
+  return ensureEd25519Prefix(toOptionalString(v));
 }
 
 export function normalizeActionForIntentDigest(a: unknown): Record<string, unknown> {
   if (!isObject(a)) return { action_type: '' };
-  const actionType = normalizeOptionalString(a.action_type);
+  const actionType = toOptionalString(a.action_type);
   switch (actionType) {
     case 'FunctionCall':
       return {
         action_type: actionType,
-        args: normalizeOptionalString(a.args),
-        deposit: normalizeOptionalString(a.deposit),
-        gas: normalizeOptionalString(a.gas),
-        method_name: normalizeOptionalString(a.method_name),
+        args: toOptionalString(a.args),
+        deposit: toOptionalString(a.deposit),
+        gas: toOptionalString(a.gas),
+        method_name: toOptionalString(a.method_name),
       };
     case 'Transfer':
-      return { action_type: actionType, deposit: normalizeOptionalString(a.deposit) };
+      return { action_type: actionType, deposit: toOptionalString(a.deposit) };
     case 'Stake':
-      return { action_type: actionType, stake: normalizeOptionalString(a.stake), public_key: normalizeOptionalString(a.public_key) };
+      return { action_type: actionType, stake: toOptionalString(a.stake), public_key: toOptionalString(a.public_key) };
     case 'AddKey':
-      return { action_type: actionType, public_key: normalizeOptionalString(a.public_key), access_key: normalizeOptionalString(a.access_key) };
+      return { action_type: actionType, public_key: toOptionalString(a.public_key), access_key: toOptionalString(a.access_key) };
     case 'DeleteKey':
-      return { action_type: actionType, public_key: normalizeOptionalString(a.public_key) };
+      return { action_type: actionType, public_key: toOptionalString(a.public_key) };
     case 'DeleteAccount':
-      return { action_type: actionType, beneficiary_id: normalizeOptionalString(a.beneficiary_id) };
+      return { action_type: actionType, beneficiary_id: toOptionalString(a.beneficiary_id) };
     case 'DeployContract':
       return { action_type: actionType, code: Array.isArray(a.code) ? a.code : [] };
     case 'DeployGlobalContract':
       return {
         action_type: actionType,
         code: Array.isArray(a.code) ? a.code : [],
-        deploy_mode: normalizeOptionalString(a.deploy_mode),
+        deploy_mode: toOptionalString(a.deploy_mode),
       };
     case 'UseGlobalContract':
       return {
         action_type: actionType,
-        account_id: normalizeOptionalString(a.account_id) || undefined,
-        code_hash: normalizeOptionalString(a.code_hash) || undefined,
+        account_id: toOptionalString(a.account_id) || undefined,
+        code_hash: toOptionalString(a.code_hash) || undefined,
       };
     case 'CreateAccount':
     case 'SignedDelegate':
@@ -260,11 +255,11 @@ export function extractAuthorizeSigningPublicKey(purpose: string, signingPayload
   if (!isObject(signingPayload)) return '';
   if (purpose === 'near_tx') {
     const ctx = isObject(signingPayload.transactionContext) ? signingPayload.transactionContext : null;
-    return normalizeNearPublicKeyStr(ctx?.nearPublicKeyStr);
+    return toNearPublicKeyStr(ctx?.nearPublicKeyStr);
   }
   if (purpose === 'nep461_delegate') {
     const delegate = isObject(signingPayload.delegate) ? signingPayload.delegate : null;
-    return normalizeNearPublicKeyStr(delegate?.publicKey);
+    return toNearPublicKeyStr(delegate?.publicKey);
   }
   return '';
 }
@@ -275,9 +270,9 @@ export async function ensureRelayerKeyIsActiveAccessKey(input: {
   expectedSigningPublicKey?: unknown;
   viewAccessKeyList: (accountId: string) => Promise<AccessKeyList>;
 }): Promise<ThresholdValidationResult> {
-  const nearAccountId = normalizeOptionalString(input.nearAccountId);
-  const relayerPublicKey = normalizeNearPublicKeyStr(input.relayerPublicKey);
-  const expectedSigningPublicKey = normalizeNearPublicKeyStr(input.expectedSigningPublicKey);
+  const nearAccountId = toOptionalString(input.nearAccountId);
+  const relayerPublicKey = toNearPublicKeyStr(input.relayerPublicKey);
+  const expectedSigningPublicKey = toNearPublicKeyStr(input.expectedSigningPublicKey);
   if (!nearAccountId) return { ok: false, code: 'invalid_body', message: 'nearAccountId is required' };
   if (!relayerPublicKey) return { ok: false, code: 'internal', message: 'Missing relayer public key for relayerKeyId' };
 
@@ -288,7 +283,7 @@ export async function ensureRelayerKeyIsActiveAccessKey(input: {
   try {
     const list = await input.viewAccessKeyList(nearAccountId);
     const keys = list.keys || [];
-    const found = keys.some((k) => normalizeNearPublicKeyStr(k.public_key) === relayerPublicKey);
+    const found = keys.some((k) => toNearPublicKeyStr(k.public_key) === relayerPublicKey);
     if (!found) {
       return { ok: false, code: 'unauthorized', message: 'relayerKeyId public key is not an active access key for nearAccountId' };
     }
@@ -352,7 +347,7 @@ export async function verifyThresholdEd25519AuthorizeSigningPayload(input: {
     return { ok: false, code: 'invalid_body', message: 'signingPayload (object) is required for threshold authorization' };
   }
 
-  const kind = normalizeOptionalString(signingPayload.kind);
+  const kind = toOptionalString(signingPayload.kind);
   const expectedKind = purpose;
   if (kind && kind !== expectedKind) {
     return { ok: false, code: 'invalid_body', message: `signingPayload.kind must match purpose (${expectedKind})` };
@@ -365,16 +360,16 @@ export async function verifyThresholdEd25519AuthorizeSigningPayload(input: {
       const payload = signingPayload as Partial<NearTxAuthorizeSigningPayload>;
       const txs = payload.txSigningRequests;
       if (!Array.isArray(txs) || !txs.length) throw new Error('signingPayload.txSigningRequests is required');
-      const nearAccountId = normalizeOptionalString(txs[0]?.nearAccountId);
+      const nearAccountId = toOptionalString(txs[0]?.nearAccountId);
       if (!nearAccountId) throw new Error('txSigningRequests[0].nearAccountId is required');
       for (const tx of txs) {
-        if (normalizeOptionalString(tx?.nearAccountId) !== nearAccountId) {
+        if (toOptionalString(tx?.nearAccountId) !== nearAccountId) {
           throw new Error('All txSigningRequests[].nearAccountId must match');
         }
       }
       if (nearAccountId !== input.userId) throw new Error('txSigningRequests[].nearAccountId must match vrf_data.user_id');
       const txInputs = txs.map((tx) => ({
-        receiverId: normalizeOptionalString(tx?.receiverId),
+        receiverId: toOptionalString(tx?.receiverId),
         actions: Array.isArray(tx?.actions) ? tx.actions.map((a) => normalizeActionForIntentDigest(a)) : [],
       }));
       const json = alphabetizeStringify(txInputs);
@@ -383,22 +378,22 @@ export async function verifyThresholdEd25519AuthorizeSigningPayload(input: {
       const payload = signingPayload as Partial<Nep461DelegateAuthorizeSigningPayload>;
       const d = payload.delegate;
       if (!isObject(d)) throw new Error('signingPayload.delegate is required');
-      const senderId = normalizeOptionalString(d.senderId);
+      const senderId = toOptionalString(d.senderId);
       if (!senderId) throw new Error('delegate.senderId is required');
       if (senderId !== input.userId) throw new Error('delegate.senderId must match vrf_data.user_id');
       const txInputs = [{
-        receiverId: normalizeOptionalString(d.receiverId),
+        receiverId: toOptionalString(d.receiverId),
         actions: Array.isArray(d.actions) ? d.actions.map((a) => normalizeActionForIntentDigest(a)) : [],
       }];
       const json = alphabetizeStringify(txInputs);
       intentDigest32Computed = await sha256BytesUtf8(json);
     } else if (purpose === 'nep413') {
       const payload = signingPayload as Partial<Nep413AuthorizeSigningPayload>;
-      const nearAccountId = normalizeOptionalString(payload.nearAccountId);
+      const nearAccountId = toOptionalString(payload.nearAccountId);
       if (!nearAccountId) throw new Error('signingPayload.nearAccountId is required');
       if (nearAccountId !== input.userId) throw new Error('signingPayload.nearAccountId must match vrf_data.user_id');
-      const recipient = normalizeOptionalString(payload.recipient);
-      const message = normalizeOptionalString(payload.message);
+      const recipient = toOptionalString(payload.recipient);
+      const message = toOptionalString(payload.message);
       const json = alphabetizeStringify({ kind: 'nep413', nearAccountId, recipient, message });
       intentDigest32Computed = await sha256BytesUtf8(json);
     } else {
@@ -476,7 +471,7 @@ export async function verifyThresholdEd25519AuthorizeSigningPayloadSigningDigest
     return { ok: false, code: 'invalid_body', message: 'signingPayload (object) is required for threshold authorization' };
   }
 
-  const kind = normalizeOptionalString(signingPayload.kind);
+  const kind = toOptionalString(signingPayload.kind);
   const expectedKind = purpose;
   if (kind && kind !== expectedKind) {
     return { ok: false, code: 'invalid_body', message: `signingPayload.kind must match purpose (${expectedKind})` };
@@ -489,16 +484,16 @@ export async function verifyThresholdEd25519AuthorizeSigningPayloadSigningDigest
       const payload = signingPayload as Partial<NearTxAuthorizeSigningPayload>;
       const txs = payload.txSigningRequests;
       if (!Array.isArray(txs) || !txs.length) throw new Error('signingPayload.txSigningRequests is required');
-      const nearAccountId = normalizeOptionalString(txs[0]?.nearAccountId);
+      const nearAccountId = toOptionalString(txs[0]?.nearAccountId);
       if (!nearAccountId) throw new Error('txSigningRequests[0].nearAccountId is required');
       for (const tx of txs) {
-        if (normalizeOptionalString(tx?.nearAccountId) !== nearAccountId) {
+        if (toOptionalString(tx?.nearAccountId) !== nearAccountId) {
           throw new Error('All txSigningRequests[].nearAccountId must match');
         }
       }
       if (nearAccountId !== input.userId) throw new Error('txSigningRequests[].nearAccountId must match session user');
       const txInputs = txs.map((tx) => ({
-        receiverId: normalizeOptionalString(tx?.receiverId),
+        receiverId: toOptionalString(tx?.receiverId),
         actions: Array.isArray(tx?.actions) ? tx.actions.map((a) => normalizeActionForIntentDigest(a)) : [],
       }));
       const json = alphabetizeStringify(txInputs);
@@ -507,22 +502,22 @@ export async function verifyThresholdEd25519AuthorizeSigningPayloadSigningDigest
       const payload = signingPayload as Partial<Nep461DelegateAuthorizeSigningPayload>;
       const d = payload.delegate;
       if (!isObject(d)) throw new Error('signingPayload.delegate is required');
-      const senderId = normalizeOptionalString(d.senderId);
+      const senderId = toOptionalString(d.senderId);
       if (!senderId) throw new Error('delegate.senderId is required');
       if (senderId !== input.userId) throw new Error('delegate.senderId must match session user');
       const txInputs = [{
-        receiverId: normalizeOptionalString(d.receiverId),
+        receiverId: toOptionalString(d.receiverId),
         actions: Array.isArray(d.actions) ? d.actions.map((a) => normalizeActionForIntentDigest(a)) : [],
       }];
       const json = alphabetizeStringify(txInputs);
       intentDigest32Computed = await sha256BytesUtf8(json);
     } else if (purpose === 'nep413') {
       const payload = signingPayload as Partial<Nep413AuthorizeSigningPayload>;
-      const nearAccountId = normalizeOptionalString(payload.nearAccountId);
+      const nearAccountId = toOptionalString(payload.nearAccountId);
       if (!nearAccountId) throw new Error('signingPayload.nearAccountId is required');
       if (nearAccountId !== input.userId) throw new Error('signingPayload.nearAccountId must match session user');
-      const recipient = normalizeOptionalString(payload.recipient);
-      const message = normalizeOptionalString(payload.message);
+      const recipient = toOptionalString(payload.recipient);
+      const message = toOptionalString(payload.message);
       const json = alphabetizeStringify({ kind: 'nep413', nearAccountId, recipient, message });
       intentDigest32Computed = await sha256BytesUtf8(json);
     } else {

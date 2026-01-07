@@ -277,14 +277,9 @@ export function setContentType(res: any, filePath: string) {
 
 // === Shared path helpers across Vite/Next plugins ===
 
-const requireCjs = createRequire(import.meta.url)
+export { toBasePath } from '../utils/validation'
 
-export function normalizeBase(p?: string, fallback = '/sdk'): string {
-  let out = (p || fallback).trim()
-  if (!out.startsWith('/')) out = '/' + out
-  if (out.length > 1 && out.endsWith('/')) out = out.slice(0, -1)
-  return out
-}
+const requireCjs = createRequire(import.meta.url)
 
 export function resolveSdkDistRoot(explicit?: string): string {
   if (explicit) return path.resolve(explicit)

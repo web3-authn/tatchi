@@ -1,7 +1,7 @@
 import type { AuthService } from '../AuthService';
 import type { ThresholdEd25519KeyStoreConfigInput } from '../types';
 import type { Logger } from '../logger';
-import { normalizeLogger } from '../logger';
+import { coerceLogger } from '../logger';
 import { ThresholdEd25519Service } from './ThresholdEd25519Service';
 import { createThresholdEd25519AuthSessionStore } from './ThresholdEd25519AuthSessionStore';
 import { createThresholdEd25519KeyStore } from './ThresholdEd25519KeyStore';
@@ -22,7 +22,7 @@ export function createThresholdEd25519ServiceFromAuthService(input: {
   logger?: Logger | null;
   isNode?: boolean;
 }): ThresholdEd25519Service {
-  const logger = normalizeLogger(input.logger);
+  const logger = coerceLogger(input.logger);
   const isNode = input.isNode ?? isNodeEnvironment();
   const env = isNode
     ? (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env

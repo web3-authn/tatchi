@@ -1,5 +1,6 @@
 import type { NormalizedLogger } from '../logger';
 import { base64Decode, base64UrlDecode, base64UrlEncode } from '../../../utils/encoders';
+import { toOptionalTrimmedString } from '../../../utils/validation';
 import type { AccessKeyList } from '../../../core/NearClient';
 import type { FinalExecutionOutcome } from '@near-js/types';
 import type { ThresholdEd25519KeyStore } from './ThresholdEd25519KeyStore';
@@ -42,7 +43,6 @@ import {
   extractAuthorizeSigningPublicKey,
   isObject,
   normalizeByteArray32,
-  normalizeOptionalString,
   verifyThresholdEd25519AuthorizeSigningPayloadSigningDigestOnly,
   verifyThresholdEd25519AuthorizeSigningPayload,
 } from './validation';
@@ -50,8 +50,8 @@ import { alphabetizeStringify, sha256BytesUtf8 } from '../../../utils/digests';
 
 type ThresholdEd25519ShareMode = 'auto' | 'kv' | 'derived';
 
-function normalizeThresholdEd25519ShareMode(input: unknown): ThresholdEd25519ShareMode {
-  const mode = normalizeOptionalString(input);
+function coerceThresholdEd25519ShareMode(input: unknown): ThresholdEd25519ShareMode {
+  const mode = toOptionalTrimmedString(input);
   if (mode === 'kv' || mode === 'derived' || mode === 'auto') return mode;
   return 'auto';
 }
@@ -135,8 +135,8 @@ export class ThresholdEd25519Service {
     this.sessionStore = input.sessionStore;
     this.authSessionStore = input.authSessionStore;
     const cfg = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
-    this.shareMode = normalizeThresholdEd25519ShareMode(cfg.THRESHOLD_ED25519_SHARE_MODE);
-    this.relayerMasterSecretB64u = normalizeOptionalString(cfg.THRESHOLD_ED25519_MASTER_SECRET_B64U);
+    this.shareMode = coerceThresholdEd25519ShareMode(cfg.THRESHOLD_ED25519_SHARE_MODE);
+    this.relayerMasterSecretB64u = toOptionalTrimmedString(cfg.THRESHOLD_ED25519_MASTER_SECRET_B64U);
     if (this.shareMode === 'derived' && !this.relayerMasterSecretB64u) {
       throw new Error('threshold-ed25519 derived share mode requires THRESHOLD_ED25519_MASTER_SECRET_B64U');
     }
@@ -169,7 +169,7 @@ export class ThresholdEd25519Service {
     | { ok: true; publicKey: string; relayerSigningShareB64u: string; relayerVerifyingShareB64u: string }
     | { ok: false; code: string; message: string }
   > {
-    const masterSecretB64u = normalizeOptionalString(this.relayerMasterSecretB64u);
+    const masterSecretB64u = toOptionalTrimmedString(this.relayerMasterSecretB64u);
     if (!masterSecretB64u) {
       return { ok: false, code: 'missing_config', message: 'Missing THRESHOLD_ED25519_MASTER_SECRET_B64U for derived share mode' };
     }
@@ -209,7 +209,7 @@ export class ThresholdEd25519Service {
     | { ok: true; publicKey: string; relayerSigningShareB64u: string; relayerVerifyingShareB64u: string }
     | { ok: false; code: string; message: string }
   > {
-    const relayerKeyId = normalizeOptionalString(input.relayerKeyId);
+    const relayerKeyId = toOptionalTrimmedString(input.relayerKeyId);
     if (!relayerKeyId) return { ok: false, code: 'invalid_body', message: 'relayerKeyId is required' };
 
     if (this.shareMode !== 'derived') {
@@ -224,13 +224,13 @@ export class ThresholdEd25519Service {
       return { ok: false, code: 'missing_key', message: 'Unknown relayerKeyId; call /threshold-ed25519/keygen first' };
     }
 
-    const clientVerifyingShareB64u = normalizeOptionalString(input.clientVerifyingShareB64u);
+    const clientVerifyingShareB64u = toOptionalTrimmedString(input.clientVerifyingShareB64u);
     if (!clientVerifyingShareB64u) {
       return { ok: false, code: 'invalid_body', message: 'clientVerifyingShareB64u is required' };
     }
-    const nearAccountId = normalizeOptionalString(input.nearAccountId);
+    const nearAccountId = toOptionalTrimmedString(input.nearAccountId);
     if (!nearAccountId) return { ok: false, code: 'invalid_body', message: 'nearAccountId is required' };
-    const rpId = normalizeOptionalString(input.rpId);
+    const rpId = toOptionalTrimmedString(input.rpId);
     if (!rpId) return { ok: false, code: 'invalid_body', message: 'rpId is required' };
 
     return this.deriveRelayerKeyMaterial({
@@ -311,11 +311,11 @@ export class ThresholdEd25519Service {
     }
     let rpId: string | null = null;
     const tx = txUnknown as Record<string, unknown>;
-    const signerId = normalizeOptionalString(tx.signer_id ?? tx.signerId);
+    const signerId = toOptionalTrimmedString(tx.signer_id ?? tx.signerId);
     if (signerId && signerId !== expectedNearAccountId) {
       return { ok: false, code: 'unauthorized', message: 'Registration transaction signer_id mismatch' };
     }
-    const receiverId = normalizeOptionalString(tx.receiver_id ?? tx.receiverId);
+    const receiverId = toOptionalTrimmedString(tx.receiver_id ?? tx.receiverId);
     if (receiverId && receiverId !== this.webAuthnContractId) {
       return { ok: false, code: 'unauthorized', message: 'Registration transaction receiver_id mismatch' };
     }
@@ -327,12 +327,12 @@ export class ThresholdEd25519Service {
         : null)
       .filter((v): v is Record<string, unknown> => Boolean(v && typeof v === 'object'));
 
-    const linkDeviceCall = fnCalls.find((fc) => normalizeOptionalString(fc.method_name ?? fc.methodName) === 'link_device_register_user');
+    const linkDeviceCall = fnCalls.find((fc) => toOptionalTrimmedString(fc.method_name ?? fc.methodName) === 'link_device_register_user');
     if (!linkDeviceCall) {
       return { ok: false, code: 'unauthorized', message: 'Registration transaction is not link_device_register_user' };
     }
 
-    const argsB64 = normalizeOptionalString(linkDeviceCall.args);
+    const argsB64 = toOptionalTrimmedString(linkDeviceCall.args);
     if (argsB64) {
       try {
         const argsText = new TextDecoder().decode(base64Decode(argsB64));
@@ -340,11 +340,11 @@ export class ThresholdEd25519Service {
         if (parsedArgs && typeof parsedArgs === 'object') {
           const vrf = (parsedArgs as { vrf_data?: unknown }).vrf_data;
           if (vrf && typeof vrf === 'object') {
-            const userId = normalizeOptionalString((vrf as { user_id?: unknown; userId?: unknown }).user_id ?? (vrf as { userId?: unknown }).userId);
+            const userId = toOptionalTrimmedString((vrf as { user_id?: unknown; userId?: unknown }).user_id ?? (vrf as { userId?: unknown }).userId);
             if (userId && userId !== expectedNearAccountId) {
               return { ok: false, code: 'unauthorized', message: 'Registration transaction vrf_data.user_id mismatch' };
             }
-            rpId = normalizeOptionalString((vrf as { rp_id?: unknown; rpId?: unknown }).rp_id ?? (vrf as { rpId?: unknown }).rpId) || rpId;
+            rpId = toOptionalTrimmedString((vrf as { rp_id?: unknown; rpId?: unknown }).rp_id ?? (vrf as { rpId?: unknown }).rpId) || rpId;
           }
         }
       } catch {
@@ -386,22 +386,22 @@ export class ThresholdEd25519Service {
     try {
       await this.ensureReady();
       await this.ensureSignerWasm();
-      const nearAccountId = normalizeOptionalString(input.nearAccountId);
+      const nearAccountId = toOptionalTrimmedString(input.nearAccountId);
       if (!nearAccountId) {
         return { ok: false, code: 'invalid_body', message: 'nearAccountId is required' };
       }
-      const rpId = normalizeOptionalString(input.rpId);
+      const rpId = toOptionalTrimmedString(input.rpId);
       if (!rpId) {
         return { ok: false, code: 'invalid_body', message: 'rpId is required' };
       }
-      const clientVerifyingShareB64u = normalizeOptionalString(input.clientVerifyingShareB64u);
+      const clientVerifyingShareB64u = toOptionalTrimmedString(input.clientVerifyingShareB64u);
       if (!clientVerifyingShareB64u) {
         return { ok: false, code: 'invalid_body', message: 'clientVerifyingShareB64u is required' };
       }
 
       let out: ThresholdEd25519KeygenWasmOutput;
       if (this.useDerivedRelayerShares()) {
-        const masterSecretB64u = normalizeOptionalString(this.relayerMasterSecretB64u);
+        const masterSecretB64u = toOptionalTrimmedString(this.relayerMasterSecretB64u);
         if (!masterSecretB64u) {
           return { ok: false, code: 'missing_config', message: 'Missing THRESHOLD_ED25519_MASTER_SECRET_B64U for derived share mode' };
         }
@@ -442,12 +442,12 @@ export class ThresholdEd25519Service {
       // Stateless relayer mode: avoid persisting long-lived relayer signing shares.
       return;
     }
-    const relayerKeyId = normalizeOptionalString(input.relayerKeyId);
+    const relayerKeyId = toOptionalTrimmedString(input.relayerKeyId);
     if (!relayerKeyId) throw new Error('Missing relayerKeyId');
     await this.keyStore.put(relayerKeyId, {
-      publicKey: normalizeOptionalString(input.publicKey),
-      relayerSigningShareB64u: normalizeOptionalString(input.relayerSigningShareB64u),
-      relayerVerifyingShareB64u: normalizeOptionalString(input.relayerVerifyingShareB64u),
+      publicKey: toOptionalTrimmedString(input.publicKey),
+      relayerSigningShareB64u: toOptionalTrimmedString(input.relayerSigningShareB64u),
+      relayerVerifyingShareB64u: toOptionalTrimmedString(input.relayerVerifyingShareB64u),
     });
   }
 
@@ -455,18 +455,18 @@ export class ThresholdEd25519Service {
     try {
       await this.ensureReady();
 
-      const nearAccountId = normalizeOptionalString(request.nearAccountId);
+      const nearAccountId = toOptionalTrimmedString(request.nearAccountId);
       if (!nearAccountId) {
         return { ok: false, code: 'invalid_body', message: 'nearAccountId is required' };
       }
 
-      const clientVerifyingShareB64u = normalizeOptionalString(request.clientVerifyingShareB64u);
+      const clientVerifyingShareB64u = toOptionalTrimmedString(request.clientVerifyingShareB64u);
       if (!clientVerifyingShareB64u) {
         return { ok: false, code: 'invalid_body', message: 'clientVerifyingShareB64u is required' };
       }
 
       if ('registrationTxHash' in request) {
-        const registrationTxHash = normalizeOptionalString(request.registrationTxHash);
+        const registrationTxHash = toOptionalTrimmedString(request.registrationTxHash);
         if (!registrationTxHash) {
           return { ok: false, code: 'invalid_body', message: 'registrationTxHash is required' };
         }
@@ -485,11 +485,11 @@ export class ThresholdEd25519Service {
         await this.ensureSignerWasm();
         let out: ThresholdEd25519KeygenWasmOutput;
         if (this.useDerivedRelayerShares()) {
-          const masterSecretB64u = normalizeOptionalString(this.relayerMasterSecretB64u);
+          const masterSecretB64u = toOptionalTrimmedString(this.relayerMasterSecretB64u);
           if (!masterSecretB64u) {
             return { ok: false, code: 'missing_config', message: 'Missing THRESHOLD_ED25519_MASTER_SECRET_B64U for derived share mode' };
           }
-          const rpId = normalizeOptionalString(validTx.rpId);
+          const rpId = toOptionalTrimmedString(validTx.rpId);
           if (!rpId) {
             return { ok: false, code: 'invalid_body', message: 'registrationTxHash keygen requires vrf_data.rp_id in link_device_register_user args' };
           }
@@ -521,7 +521,7 @@ export class ThresholdEd25519Service {
       }
 
       const vrfData = request.vrf_data;
-      const vrfUserId = normalizeOptionalString(vrfData.user_id);
+      const vrfUserId = toOptionalTrimmedString(vrfData.user_id);
       if (!vrfUserId) {
         return { ok: false, code: 'invalid_body', message: 'vrf_data.user_id is required' };
       }
@@ -529,7 +529,7 @@ export class ThresholdEd25519Service {
         return { ok: false, code: 'unauthorized', message: 'nearAccountId must match vrf_data.user_id' };
       }
 
-      const rpId = normalizeOptionalString(vrfData.rp_id);
+      const rpId = toOptionalTrimmedString(vrfData.rp_id);
       if (!rpId) {
         return { ok: false, code: 'invalid_body', message: 'vrf_data.rp_id is required' };
       }
@@ -574,7 +574,7 @@ export class ThresholdEd25519Service {
       await this.ensureSignerWasm();
       let out: ThresholdEd25519KeygenWasmOutput;
       if (this.useDerivedRelayerShares()) {
-        const masterSecretB64u = normalizeOptionalString(this.relayerMasterSecretB64u);
+        const masterSecretB64u = toOptionalTrimmedString(this.relayerMasterSecretB64u);
         if (!masterSecretB64u) {
           return { ok: false, code: 'missing_config', message: 'Missing THRESHOLD_ED25519_MASTER_SECRET_B64U for derived share mode' };
         }
@@ -614,27 +614,27 @@ export class ThresholdEd25519Service {
     try {
       await this.ensureReady();
 
-      const relayerKeyId = normalizeOptionalString(request.relayerKeyId);
+      const relayerKeyId = toOptionalTrimmedString(request.relayerKeyId);
       if (!relayerKeyId) {
         return { ok: false, code: 'invalid_body', message: 'relayerKeyId is required' };
       }
 
-      const purpose = normalizeOptionalString(request.purpose);
+      const purpose = toOptionalTrimmedString(request.purpose);
       if (!purpose) {
         return { ok: false, code: 'invalid_body', message: 'purpose is required' };
       }
 
-      const userId = normalizeOptionalString(request.vrf_data.user_id);
+      const userId = toOptionalTrimmedString(request.vrf_data.user_id);
       if (!userId) {
         return { ok: false, code: 'invalid_body', message: 'vrf_data.user_id is required' };
       }
 
-      const rpId = normalizeOptionalString(request.vrf_data.rp_id);
+      const rpId = toOptionalTrimmedString(request.vrf_data.rp_id);
       if (!rpId) {
         return { ok: false, code: 'invalid_body', message: 'vrf_data.rp_id is required' };
       }
 
-      const clientVerifyingShareB64u = normalizeOptionalString(request.clientVerifyingShareB64u);
+      const clientVerifyingShareB64u = toOptionalTrimmedString(request.clientVerifyingShareB64u);
       if (!clientVerifyingShareB64u) {
         return { ok: false, code: 'invalid_body', message: 'clientVerifyingShareB64u is required' };
       }
@@ -736,11 +736,11 @@ export class ThresholdEd25519Service {
     try {
       await this.ensureReady();
 
-      const relayerKeyId = normalizeOptionalString(request.relayerKeyId);
+      const relayerKeyId = toOptionalTrimmedString(request.relayerKeyId);
       if (!relayerKeyId) {
         return { ok: false, code: 'invalid_body', message: 'relayerKeyId is required' };
       }
-      const clientVerifyingShareB64u = normalizeOptionalString(request.clientVerifyingShareB64u);
+      const clientVerifyingShareB64u = toOptionalTrimmedString(request.clientVerifyingShareB64u);
       if (!clientVerifyingShareB64u) {
         return { ok: false, code: 'invalid_body', message: 'clientVerifyingShareB64u is required' };
       }
@@ -749,14 +749,14 @@ export class ThresholdEd25519Service {
       if (!isObject(policyRaw)) {
         return { ok: false, code: 'invalid_body', message: 'sessionPolicy (object) is required' };
       }
-      const version = normalizeOptionalString(policyRaw.version);
+      const version = toOptionalTrimmedString(policyRaw.version);
       if (version !== 'threshold_session_v1') {
         return { ok: false, code: 'invalid_body', message: 'sessionPolicy.version must be threshold_session_v1' };
       }
-      const nearAccountId = normalizeOptionalString(policyRaw.nearAccountId);
-      const rpId = normalizeOptionalString(policyRaw.rpId);
-      const sessionId = normalizeOptionalString(policyRaw.sessionId);
-      const policyRelayerKeyId = normalizeOptionalString(policyRaw.relayerKeyId);
+      const nearAccountId = toOptionalTrimmedString(policyRaw.nearAccountId);
+      const rpId = toOptionalTrimmedString(policyRaw.rpId);
+      const sessionId = toOptionalTrimmedString(policyRaw.sessionId);
+      const policyRelayerKeyId = toOptionalTrimmedString(policyRaw.relayerKeyId);
       const ttlMsRaw = Number(policyRaw.ttlMs);
       const remainingUsesRaw = Number(policyRaw.remainingUses);
       if (!nearAccountId || !rpId || !sessionId || !policyRelayerKeyId) {
@@ -772,12 +772,12 @@ export class ThresholdEd25519Service {
         return { ok: false, code: 'invalid_body', message: 'sessionPolicy.remainingUses must be a positive number' };
       }
 
-      const userId = normalizeOptionalString(request.vrf_data.user_id);
+      const userId = toOptionalTrimmedString(request.vrf_data.user_id);
       if (!userId) return { ok: false, code: 'invalid_body', message: 'vrf_data.user_id is required' };
       if (userId !== nearAccountId) {
         return { ok: false, code: 'unauthorized', message: 'sessionPolicy.nearAccountId must match vrf_data.user_id' };
       }
-      const vrfRpId = normalizeOptionalString(request.vrf_data.rp_id);
+      const vrfRpId = toOptionalTrimmedString(request.vrf_data.rp_id);
       if (!vrfRpId) return { ok: false, code: 'invalid_body', message: 'vrf_data.rp_id is required' };
       if (vrfRpId !== rpId) {
         return { ok: false, code: 'unauthorized', message: 'sessionPolicy.rpId must match vrf_data.rp_id' };
@@ -891,9 +891,9 @@ export class ThresholdEd25519Service {
   }): Promise<ThresholdEd25519AuthorizeResponse> {
     try {
       await this.ensureReady();
-      const sessionId = normalizeOptionalString(input.sessionId);
+      const sessionId = toOptionalTrimmedString(input.sessionId);
       if (!sessionId) return { ok: false, code: 'unauthorized', message: 'Missing threshold sessionId' };
-      const userId = normalizeOptionalString(input.userId);
+      const userId = toOptionalTrimmedString(input.userId);
       if (!userId) return { ok: false, code: 'unauthorized', message: 'Missing threshold userId' };
 
       const consumed = await this.authSessionStore.consumeUse(sessionId);
@@ -906,13 +906,13 @@ export class ThresholdEd25519Service {
       }
 
       const request = input.request;
-      const relayerKeyId = normalizeOptionalString(request.relayerKeyId);
+      const relayerKeyId = toOptionalTrimmedString(request.relayerKeyId);
       if (!relayerKeyId) return { ok: false, code: 'invalid_body', message: 'relayerKeyId is required' };
       if (relayerKeyId !== sessionRecord.relayerKeyId) {
         return { ok: false, code: 'unauthorized', message: 'relayerKeyId does not match threshold session scope' };
       }
 
-      const clientVerifyingShareB64u = normalizeOptionalString(request.clientVerifyingShareB64u);
+      const clientVerifyingShareB64u = toOptionalTrimmedString(request.clientVerifyingShareB64u);
       if (!clientVerifyingShareB64u) {
         return { ok: false, code: 'invalid_body', message: 'clientVerifyingShareB64u is required' };
       }
@@ -926,7 +926,7 @@ export class ThresholdEd25519Service {
         return { ok: false, code: relayerKey.code, message: relayerKey.message };
       }
 
-      const purpose = normalizeOptionalString(request.purpose);
+      const purpose = toOptionalTrimmedString(request.purpose);
       if (!purpose) return { ok: false, code: 'invalid_body', message: 'purpose is required' };
 
       const signingDigest32 = normalizeByteArray32(request.signing_digest_32);
@@ -988,7 +988,7 @@ export class ThresholdEd25519Service {
   async thresholdEd25519SignInit(request: ThresholdEd25519SignInitRequest): Promise<ThresholdEd25519SignInitResponse> {
     try {
       await this.ensureReady();
-      const mpcSessionId = normalizeOptionalString(request.mpcSessionId);
+      const mpcSessionId = toOptionalTrimmedString(request.mpcSessionId);
       if (!mpcSessionId) {
         return { ok: false, code: 'invalid_body', message: 'mpcSessionId is required' };
       }
@@ -1000,7 +1000,7 @@ export class ThresholdEd25519Service {
         return { ok: false, code: 'unauthorized', message: 'mpcSessionId expired' };
       }
 
-      const relayerKeyId = normalizeOptionalString(request.relayerKeyId);
+      const relayerKeyId = toOptionalTrimmedString(request.relayerKeyId);
       if (!relayerKeyId) {
         return { ok: false, code: 'invalid_body', message: 'relayerKeyId is required' };
       }
@@ -1008,7 +1008,7 @@ export class ThresholdEd25519Service {
         return { ok: false, code: 'unauthorized', message: 'relayerKeyId does not match mpcSessionId scope' };
       }
 
-      const nearAccountId = normalizeOptionalString(request.nearAccountId);
+      const nearAccountId = toOptionalTrimmedString(request.nearAccountId);
       if (!nearAccountId) {
         return { ok: false, code: 'invalid_body', message: 'nearAccountId is required' };
       }
@@ -1016,7 +1016,7 @@ export class ThresholdEd25519Service {
         return { ok: false, code: 'unauthorized', message: 'nearAccountId does not match mpcSessionId scope' };
       }
 
-      const signingDigestB64u = normalizeOptionalString(request.signingDigestB64u);
+      const signingDigestB64u = toOptionalTrimmedString(request.signingDigestB64u);
       if (!signingDigestB64u) {
         return { ok: false, code: 'invalid_body', message: 'signingDigestB64u is required' };
       }
@@ -1034,8 +1034,8 @@ export class ThresholdEd25519Service {
       }
 
       const clientCommitments: ThresholdEd25519Commitments = {
-        hiding: normalizeOptionalString(request.clientCommitments?.hiding),
-        binding: normalizeOptionalString(request.clientCommitments?.binding),
+        hiding: toOptionalTrimmedString(request.clientCommitments?.hiding),
+        binding: toOptionalTrimmedString(request.clientCommitments?.binding),
       };
       if (!clientCommitments.hiding || !clientCommitments.binding) {
         return { ok: false, code: 'invalid_body', message: 'clientCommitments{hiding,binding} are required' };
@@ -1097,11 +1097,11 @@ export class ThresholdEd25519Service {
   async thresholdEd25519SignFinalize(request: ThresholdEd25519SignFinalizeRequest): Promise<ThresholdEd25519SignFinalizeResponse> {
     try {
       await this.ensureReady();
-      const signingSessionId = normalizeOptionalString(request.signingSessionId);
+      const signingSessionId = toOptionalTrimmedString(request.signingSessionId);
       if (!signingSessionId) {
         return { ok: false, code: 'invalid_body', message: 'signingSessionId is required' };
       }
-      const clientSignatureShareB64u = normalizeOptionalString(request.clientSignatureShareB64u);
+      const clientSignatureShareB64u = toOptionalTrimmedString(request.clientSignatureShareB64u);
       if (!clientSignatureShareB64u) {
         return { ok: false, code: 'invalid_body', message: 'clientSignatureShareB64u is required' };
       }

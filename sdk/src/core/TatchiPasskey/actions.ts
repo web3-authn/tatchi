@@ -9,7 +9,7 @@ import type {
 import type { ActionResult, SignTransactionResult } from '../types/tatchi';
 import type { TxExecutionStatus } from '@near-js/types';
 import type { ActionArgs, TransactionInput, TransactionInputWasm } from '../types/actions';
-import { type ConfirmationConfig, type SignerMode, normalizeSignerMode } from '../types/signer-worker';
+import { type ConfirmationConfig, type SignerMode, coerceSignerMode } from '../types/signer-worker';
 import type { PasskeyManagerContext } from './index';
 import type { SignedTransaction } from '../NearClient';
 import type { AccountId } from '../types/accountIds';
@@ -36,7 +36,7 @@ export async function executeAction(args: {
   options: ActionHooksOptions,
 }): Promise<ActionResult> {
   try {
-    const signerMode = normalizeSignerMode(args.options?.signerMode, args.context.configs.signerMode);
+    const signerMode = coerceSignerMode(args.options?.signerMode, args.context.configs.signerMode);
     // Thread optional per-call confirmation override when provided; otherwise
     // user preferences determine the confirmation behavior.
     return executeActionInternal({
@@ -124,7 +124,7 @@ export async function signAndSendTransactions(args: {
   transactionInputs: TransactionInput[],
   options: SignAndSendTransactionHooksOptions,
 }): Promise<ActionResult[]> {
-  const signerMode = normalizeSignerMode(args.options?.signerMode, args.context.configs.signerMode);
+  const signerMode = coerceSignerMode(args.options?.signerMode, args.context.configs.signerMode);
   return signAndSendTransactionsInternal({
     context: args.context,
     nearAccountId: args.nearAccountId,
@@ -151,7 +151,7 @@ export async function signTransactionsWithActions(args: {
   options: SignTransactionHooksOptions,
 }): Promise<SignTransactionResult[]> {
   try {
-    const signerMode = normalizeSignerMode(args.options?.signerMode, args.context.configs.signerMode);
+    const signerMode = coerceSignerMode(args.options?.signerMode, args.context.configs.signerMode);
     return signTransactionsWithActionsInternal({
       context: args.context,
       nearAccountId: args.nearAccountId,

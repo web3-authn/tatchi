@@ -49,7 +49,7 @@ import type {
   SignTransactionHooksOptions,
 } from '../types/sdkSentEvents';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
-    import { ConfirmationConfig, normalizeSignerMode, type SignerMode, type WasmSignedDelegate } from '../types/signer-worker';
+    import { ConfirmationConfig, coerceSignerMode, type SignerMode, type WasmSignedDelegate } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import type { DerivedAddressRecord, RecoveryEmailRecord } from '../IndexedDBManager';
@@ -949,7 +949,7 @@ export class TatchiPasskey {
           nearAccountId,
           transactions: txs,
           options: {
-            signerMode: normalizeSignerMode(options?.signerMode, this.configs.signerMode),
+            signerMode: coerceSignerMode(options?.signerMode, this.configs.signerMode),
             onEvent: options?.onEvent,
             confirmationConfig: options?.confirmationConfig,
             confirmerText: options?.confirmerText,
@@ -1058,7 +1058,7 @@ export class TatchiPasskey {
           nearAccountId,
           delegate,
           options: {
-            signerMode: normalizeSignerMode(options?.signerMode, this.configs.signerMode),
+            signerMode: coerceSignerMode(options?.signerMode, this.configs.signerMode),
             onEvent: options?.onEvent,
             confirmationConfig: options?.confirmationConfig,
             confirmerText: options?.confirmerText,
@@ -1229,7 +1229,7 @@ export class TatchiPasskey {
           recipient: args.params.recipient,
           state: args.params.state,
           options: {
-            signerMode: normalizeSignerMode(args.options?.signerMode, this.configs.signerMode),
+            signerMode: coerceSignerMode(args.options?.signerMode, this.configs.signerMode),
             onEvent: args.options?.onEvent,
             confirmerText: args.options?.confirmerText,
             confirmationConfig: args.options?.confirmationConfig,

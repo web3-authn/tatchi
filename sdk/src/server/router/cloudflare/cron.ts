@@ -1,6 +1,6 @@
 import type { AuthService } from '../../core/AuthService';
 import type { RouterLogger } from '../logger';
-import { normalizeRouterLogger } from '../logger';
+import { coerceRouterLogger } from '../logger';
 import type { CfScheduledEvent, ScheduledHandler } from './types';
 
 /**
@@ -19,7 +19,7 @@ export interface CloudflareCronOptions {
 }
 
 export function createCloudflareCron(service: AuthService, opts: CloudflareCronOptions = {}): ScheduledHandler {
-  const logger = normalizeRouterLogger(opts.logger);
+  const logger = coerceRouterLogger(opts.logger);
   const enabled = Boolean(opts.enabled);
   const doRotate = Boolean(opts.rotate);
   if (!enabled) {
@@ -45,4 +45,3 @@ export function createCloudflareCron(service: AuthService, opts: CloudflareCronO
     }
   };
 }
-

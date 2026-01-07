@@ -1,24 +1,32 @@
 /**
  * Resolve the base origin for worker scripts.
  * Priority:
- * 1) window.__W3A_WALLET_SDK_BASE__ (absolute `${walletOrigin}${sdkBasePath}/`) → take its origin
+ * 1) window.__W3A_WALLET_SDK_BASE__ (absolute `${walletOrigin}${sdkBasePath}/`) → take its origin (only if same-origin)
  * 2) window.location.origin (host/app origin)
  *
  * @returns The origin (protocol + host [+ port]) used to resolve worker script URLs.
  *          Prefers the wallet SDK base origin; falls back to the current window origin.
  */
 export function resolveWorkerBaseOrigin(): string {
-  let origin = ''
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    origin = window.location.origin
-  }
+  const currentOrigin =
+    (typeof window !== 'undefined' && window.location?.origin)
+      ? window.location.origin
+      : '';
+
+  // Only allow worker scripts to resolve from the embedded base when it matches
+  // the current origin. Cross-origin worker scripts are not reliably loadable
+  // across browsers (even for module workers) and will fail with CORS errors.
   try {
-    const embeddedBase = (window as any)?.__W3A_WALLET_SDK_BASE__ as string | undefined
+    const embeddedBase = (window as any)?.__W3A_WALLET_SDK_BASE__ as string | undefined;
     if (embeddedBase) {
-      origin = new URL(embeddedBase, origin || 'https://invalid.local').origin
+      const embeddedOrigin = new URL(embeddedBase, currentOrigin || 'https://invalid.local').origin;
+      if (embeddedOrigin === currentOrigin) {
+        return embeddedOrigin;
+      }
     }
   } catch {}
-  return origin
+
+  return currentOrigin;
 }
 
 /**

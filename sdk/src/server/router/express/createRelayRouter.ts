@@ -2,9 +2,10 @@ import type { Router as ExpressRouter } from 'express';
 import express from 'express';
 import type { AuthService } from '../../core/AuthService';
 import type { DelegateActionPolicy } from '../../delegateAction';
-import { normalizePath, type RelayRouterOptions } from '../relay';
+import { ensureLeadingSlash } from '../../../utils/validation';
+import type { RelayRouterOptions } from '../relay';
 import type { NormalizedRouterLogger } from '../logger';
-import { normalizeRouterLogger } from '../logger';
+import { coerceRouterLogger } from '../logger';
 import { installCors } from './cors';
 import { registerCreateAccountAndRegisterUser } from './routes/createAccountAndRegisterUser';
 import { registerHealthRoutes } from './routes/health';
@@ -30,12 +31,12 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   const router = express.Router();
   const mePath = opts.sessionRoutes?.auth || '/session/auth';
   const logoutPath = opts.sessionRoutes?.logout || '/session/logout';
-  const logger = normalizeRouterLogger(opts.logger);
+  const logger = coerceRouterLogger(opts.logger);
   const signedDelegatePath = (() => {
     if (!opts.signedDelegate) return '';
-    const raw = String(opts.signedDelegate.route || '').trim();
-    if (!raw) throw new Error('RelayRouterOptions.signedDelegate.route is required');
-    return normalizePath(raw);
+    const path = ensureLeadingSlash(opts.signedDelegate.route);
+    if (!path) throw new Error('RelayRouterOptions.signedDelegate.route is required');
+    return path;
   })();
   const signedDelegatePolicy = opts.signedDelegate?.policy;
 

@@ -1,8 +1,9 @@
 import type { AuthService } from '../../core/AuthService';
 import type { DelegateActionPolicy } from '../../delegateAction';
-import { normalizePath, type RelayRouterOptions } from '../relay';
+import { ensureLeadingSlash } from '../../../utils/validation';
+import type { RelayRouterOptions } from '../relay';
 import type { NormalizedRouterLogger } from '../logger';
-import { normalizeRouterLogger } from '../logger';
+import { coerceRouterLogger } from '../logger';
 import type { CfEnv, CfExecutionContext, FetchHandler } from './types';
 import { json, withCors } from './http';
 import { handleCreateAccountAndRegisterUser } from './routes/createAccountAndRegisterUser';
@@ -37,12 +38,12 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
   const notFound = () => new Response('Not Found', { status: 404 });
   const mePath = opts.sessionRoutes?.auth || '/session/auth';
   const logoutPath = opts.sessionRoutes?.logout || '/session/logout';
-  const logger = normalizeRouterLogger(opts.logger);
+  const logger = coerceRouterLogger(opts.logger);
   const signedDelegatePath = (() => {
     if (!opts.signedDelegate) return '';
-    const raw = String(opts.signedDelegate.route || '').trim();
-    if (!raw) throw new Error('RelayRouterOptions.signedDelegate.route is required');
-    return normalizePath(raw);
+    const path = ensureLeadingSlash(opts.signedDelegate.route);
+    if (!path) throw new Error('RelayRouterOptions.signedDelegate.route is required');
+    return path;
   })();
   const signedDelegatePolicy = opts.signedDelegate?.policy;
 

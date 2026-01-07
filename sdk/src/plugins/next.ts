@@ -7,7 +7,7 @@
 // - In PRODUCTION you should keep a strict CSP (no 'unsafe-eval', no inline styles, and include "style-src-attr 'none'").
 
 import { buildPermissionsPolicy, buildWalletCsp, type CspMode } from './headers'
-import { fetchRorOriginsFromNear, normalizeBase, resolveSdkDistRoot } from './plugin-utils'
+import { fetchRorOriginsFromNear, resolveSdkDistRoot, toBasePath } from './plugin-utils'
 import { emitOfflineExportAssets as emitOfflineAssetsCore } from './offline'
 import * as path from 'node:path'
 
@@ -182,7 +182,7 @@ export async function handleWellKnownRorEdge(_request: Request, opts: RorOpts = 
 
 export function nextEmitOfflineExportAssets(opts: { outDir: string; sdkBasePath?: string; sdkDistRoot?: string }): void {
   const outDir = path.resolve(opts.outDir)
-  const sdkBasePath = normalizeBase(opts.sdkBasePath, '/sdk')
+  const sdkBasePath = toBasePath(opts.sdkBasePath, '/sdk')
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
   emitOfflineAssetsCore({ outDir, sdkBasePath, sdkDistRoot })
 }

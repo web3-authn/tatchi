@@ -1,4 +1,5 @@
 import { DEVICE_LINKING_CONFIG } from '../../config';
+import { ensureEd25519Prefix } from '../../utils/validation';
 import { createNearKeypair } from '../nearCrypto';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { ActionType, type ActionArgsWasm } from '../types/actions';
@@ -13,7 +14,6 @@ import type { PasskeyManagerContext } from './index';
 import type { WebAuthnRegistrationCredential } from '../types';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
 import { getDeviceLinkingAccountContractCall, thresholdEd25519KeygenFromRegistrationTx } from "../rpcCalls";
-import { normalizeEd25519PublicKey } from '../threshold/ed25519GroupPublicKey';
 
 // Lazy-load QRCode to keep it an optional peer and reduce baseline bundle size
 async function generateQRCodeDataURL(data: string): Promise<string> {
@@ -559,7 +559,7 @@ export class LinkDeviceFlow {
       throw new Error(keygen.error || keygen.message || keygen.code || 'Threshold registration keygen failed');
     }
 
-    const thresholdPublicKey = normalizeEd25519PublicKey(keygen.publicKey || '');
+    const thresholdPublicKey = ensureEd25519Prefix(keygen.publicKey || '');
     if (!thresholdPublicKey) throw new Error('Threshold registration keygen returned empty publicKey');
     const relayerKeyId = String(keygen.relayerKeyId || '').trim();
     if (!relayerKeyId) throw new Error('Threshold registration keygen returned empty relayerKeyId');

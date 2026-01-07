@@ -9,7 +9,7 @@ import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
 import { toAccountId } from '../types/accountIds';
 import { toError } from '../../utils/errors';
-import { normalizeSignerMode } from '../types/signer-worker';
+import { coerceSignerMode } from '../types/signer-worker';
 
 
 export async function signDelegateAction(args: {
@@ -22,7 +22,7 @@ export async function signDelegateAction(args: {
   const nearAccountId = toAccountId(String(args.nearAccountId));
   const title = options?.confirmerText?.title;
   const body = options?.confirmerText?.body;
-  const signerMode = normalizeSignerMode(options.signerMode, context.configs.signerMode);
+  const signerMode = coerceSignerMode(options.signerMode, context.configs.signerMode);
 
   const resolvedDelegate: DelegateActionInput = {
     ...delegate,

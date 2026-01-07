@@ -17,7 +17,7 @@ import {
   applyCoepCorpIfNeeded,
   echoCorsFromRequest,
   fetchRorOriginsFromNear,
-  normalizeBase,
+  toBasePath,
   resolveCoepMode,
   resolveSdkDistRoot,
 } from './plugin-utils'
@@ -137,14 +137,14 @@ const WALLET_SURFACE_CSS = [
  * - Wallet server: used by /wallet-service to load wallet-iframe-host.js and related CSS/JS.
  */
 export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
-  const configuredBase = normalizeBase(opts.sdkBasePath, '/sdk')
+  const configuredBase = toBasePath(opts.sdkBasePath, '/sdk')
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
   const enableDebugRoutes = opts.enableDebugRoutes === true
   const coepMode = resolveCoepMode(opts.coepMode)
   const offlineHtml = buildOfflineExportHtml(configuredBase)
 
   // In dev we want both '/sdk' and a custom base to work.
-  const bases = Array.from(new Set([configuredBase, normalizeBase('/sdk')]))
+  const bases = Array.from(new Set([configuredBase, toBasePath('/sdk')]))
     .sort((a, b) => b.length - a.length)
     // Prefer longest base match first (e.g., '/sdk/esm/react' before '/sdk')
 
@@ -236,8 +236,8 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
  * Where it runs: wallet-iframe dev server (wallet origin). Used by tatchiWalletServer.
  */
 export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin {
-  const walletServicePath = normalizeBase(opts.walletServicePath, '/wallet-service')
-  const sdkBasePath = normalizeBase(opts.sdkBasePath, '/sdk')
+  const walletServicePath = toBasePath(opts.walletServicePath, '/wallet-service')
+  const sdkBasePath = toBasePath(opts.sdkBasePath, '/sdk')
   const coepMode = resolveCoepMode(opts.coepMode)
 
   const html = buildWalletServiceHtml(sdkBasePath)
@@ -306,8 +306,8 @@ export function tatchiWasmMime(): VitePlugin {
 export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
-  const walletServicePath = normalizeBase(opts.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
-  const sdkBasePath = normalizeBase(opts.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
+  const walletServicePath = toBasePath(opts.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
+  const sdkBasePath = toBasePath(opts.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
   const devCSPMode = (opts.devCSP ?? (process.env.VITE_WALLET_DEV_CSP as 'strict' | 'compatible' | undefined))
   const coepMode = resolveCoepMode(opts.coepMode)
 
@@ -414,8 +414,8 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
  */
 function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
   const mode: Required<Web3AuthnDevOptions>['mode'] = options.mode || 'self-contained'
-  const sdkBasePath = normalizeBase(options.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
-  const walletServicePath = normalizeBase(options.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
+  const sdkBasePath = toBasePath(options.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
+  const walletServicePath = toBasePath(options.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
   const walletOrigin = (options.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)?.trim()
   const setDevHeaders = options.setDevHeaders !== false // default true
   const enableDebugRoutes = options.enableDebugRoutes === true
@@ -463,8 +463,8 @@ function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
 export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { accessControlAllowOrigin?: string }, coepMode?: 'strict' | 'off' } = {}): VitePlugin {
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
-  const walletServicePath = normalizeBase(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
-  const sdkBasePath = normalizeBase(process.env.VITE_SDK_BASE_PATH, '/sdk')
+  const walletServicePath = toBasePath(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
+  const sdkBasePath = toBasePath(process.env.VITE_SDK_BASE_PATH, '/sdk')
   const coepMode = resolveCoepMode(opts.coepMode)
 
   // Build headers via shared helpers to avoid drift between frameworks

@@ -1,9 +1,9 @@
 import type { NormalizedLogger } from '../logger';
 import type { ThresholdEd25519KeyStoreConfigInput } from '../types';
 import { RedisTcpClient, UpstashRedisRestClient, redisGetdelJson, redisSetJson } from './kv';
+import { toOptionalTrimmedString } from '../../../utils/validation';
 import {
-  normalizeOptionalString,
-  normalizeThresholdEd25519SessionPrefix,
+  toThresholdEd25519SessionPrefix,
   parseThresholdEd25519MpcSessionRecord,
   parseThresholdEd25519SigningSessionRecord,
   isObject,
@@ -47,7 +47,7 @@ class InMemoryThresholdEd25519SessionStore implements ThresholdEd25519SessionSto
   private readonly keyPrefix: string;
 
   constructor(input: { keyPrefix?: string }) {
-    this.keyPrefix = normalizeThresholdEd25519SessionPrefix(input.keyPrefix);
+    this.keyPrefix = toThresholdEd25519SessionPrefix(input.keyPrefix);
   }
 
   private key(id: string): string {
@@ -96,12 +96,12 @@ class UpstashRedisRestThresholdEd25519SessionStore implements ThresholdEd25519Se
   private readonly keyPrefix: string;
 
   constructor(input: { url: string; token: string; keyPrefix?: string }) {
-    const url = normalizeOptionalString(input.url);
-    const token = normalizeOptionalString(input.token);
+    const url = toOptionalTrimmedString(input.url);
+    const token = toOptionalTrimmedString(input.token);
     if (!url) throw new Error('Upstash session store missing url');
     if (!token) throw new Error('Upstash session store missing token');
     this.client = new UpstashRedisRestClient({ url, token });
-    this.keyPrefix = normalizeThresholdEd25519SessionPrefix(input.keyPrefix);
+    this.keyPrefix = toThresholdEd25519SessionPrefix(input.keyPrefix);
   }
 
   private key(id: string): string {
@@ -140,10 +140,10 @@ class RedisTcpThresholdEd25519SessionStore implements ThresholdEd25519SessionSto
   private readonly keyPrefix: string;
 
   constructor(input: { redisUrl: string; keyPrefix?: string }) {
-    const url = normalizeOptionalString(input.redisUrl);
+    const url = toOptionalTrimmedString(input.redisUrl);
     if (!url) throw new Error('redis-tcp session store missing redisUrl');
     this.client = new RedisTcpClient(url);
-    this.keyPrefix = normalizeThresholdEd25519SessionPrefix(input.keyPrefix);
+    this.keyPrefix = toThresholdEd25519SessionPrefix(input.keyPrefix);
   }
 
   private key(id: string): string {
@@ -183,16 +183,16 @@ export function createThresholdEd25519SessionStore(input: {
   isNode: boolean;
 }): ThresholdEd25519SessionStore {
   const config = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
-  const envPrefix = normalizeOptionalString(config.THRESHOLD_ED25519_SESSION_PREFIX);
+  const envPrefix = toOptionalTrimmedString(config.THRESHOLD_ED25519_SESSION_PREFIX);
 
   // Explicit config object
-  const kind = normalizeOptionalString(config.kind);
+  const kind = toOptionalTrimmedString(config.kind);
   if (kind === 'in-memory') return new InMemoryThresholdEd25519SessionStore({ keyPrefix: envPrefix || undefined });
   if (kind === 'upstash-redis-rest') {
     return new UpstashRedisRestThresholdEd25519SessionStore({
-      url: normalizeOptionalString(config.url) || normalizeOptionalString(config.UPSTASH_REDIS_REST_URL),
-      token: normalizeOptionalString(config.token) || normalizeOptionalString(config.UPSTASH_REDIS_REST_TOKEN),
-      keyPrefix: normalizeOptionalString(config.keyPrefix) || envPrefix,
+      url: toOptionalTrimmedString(config.url) || toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL),
+      token: toOptionalTrimmedString(config.token) || toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN),
+      keyPrefix: toOptionalTrimmedString(config.keyPrefix) || envPrefix,
     });
   }
   if (kind === 'redis-tcp') {
@@ -201,14 +201,14 @@ export function createThresholdEd25519SessionStore(input: {
       return new InMemoryThresholdEd25519SessionStore({ keyPrefix: envPrefix || undefined });
     }
     return new RedisTcpThresholdEd25519SessionStore({
-      redisUrl: normalizeOptionalString(config.redisUrl) || normalizeOptionalString(config.REDIS_URL),
-      keyPrefix: normalizeOptionalString(config.keyPrefix) || envPrefix,
+      redisUrl: toOptionalTrimmedString(config.redisUrl) || toOptionalTrimmedString(config.REDIS_URL),
+      keyPrefix: toOptionalTrimmedString(config.keyPrefix) || envPrefix,
     });
   }
 
   // Env-shaped config: reuse UPSTASH/REDIS_URL detection like the key store.
-  const upstashUrl = normalizeOptionalString(config.UPSTASH_REDIS_REST_URL);
-  const upstashToken = normalizeOptionalString(config.UPSTASH_REDIS_REST_TOKEN);
+  const upstashUrl = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL);
+  const upstashToken = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN);
   if (upstashUrl || upstashToken) {
     if (!upstashUrl || !upstashToken) {
       throw new Error('Upstash session store enabled but UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not both set');
@@ -217,7 +217,7 @@ export function createThresholdEd25519SessionStore(input: {
     return new UpstashRedisRestThresholdEd25519SessionStore({ url: upstashUrl, token: upstashToken, keyPrefix: envPrefix || undefined });
   }
 
-  const redisUrl = normalizeOptionalString(config.REDIS_URL);
+  const redisUrl = toOptionalTrimmedString(config.REDIS_URL);
   if (redisUrl) {
     if (!input.isNode) {
       input.logger.warn('[threshold-ed25519] REDIS_URL is set but TCP Redis is not supported in this runtime; falling back to in-memory');

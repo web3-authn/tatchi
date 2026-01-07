@@ -1,10 +1,10 @@
 import type { NormalizedLogger } from '../logger';
 import type { ThresholdEd25519KeyStoreConfigInput } from '../types';
 import { RedisTcpClient, UpstashRedisRestClient, redisDel, redisGetJson, redisSetJson } from './kv';
+import { toOptionalTrimmedString } from '../../../utils/validation';
 import {
   isObject,
-  normalizeOptionalString,
-  normalizeThresholdEd25519KeyPrefix,
+  toThresholdEd25519KeyPrefix,
   parseThresholdEd25519KeyRecord,
 } from './validation';
 
@@ -47,12 +47,12 @@ class UpstashRedisRestThresholdEd25519KeyStore implements ThresholdEd25519KeySto
   private readonly keyPrefix: string;
 
   constructor(input: { url: string; token: string; keyPrefix?: string }) {
-    const url = normalizeOptionalString(input.url);
-    const token = normalizeOptionalString(input.token);
+    const url = toOptionalTrimmedString(input.url);
+    const token = toOptionalTrimmedString(input.token);
     if (!url) throw new Error('Upstash key store missing url');
     if (!token) throw new Error('Upstash key store missing token');
     this.client = new UpstashRedisRestClient({ url, token });
-    this.keyPrefix = normalizeThresholdEd25519KeyPrefix(input.keyPrefix);
+    this.keyPrefix = toThresholdEd25519KeyPrefix(input.keyPrefix);
   }
 
   private key(relayerKeyId: string): string {
@@ -84,10 +84,10 @@ class RedisTcpThresholdEd25519KeyStore implements ThresholdEd25519KeyStore {
   private readonly client: RedisTcpClient;
 
   constructor(input: { redisUrl: string; keyPrefix?: string }) {
-    const url = normalizeOptionalString(input.redisUrl);
+    const url = toOptionalTrimmedString(input.redisUrl);
     if (!url) throw new Error('redis-tcp key store missing redisUrl');
     this.client = new RedisTcpClient(url);
-    this.keyPrefix = normalizeThresholdEd25519KeyPrefix(input.keyPrefix);
+    this.keyPrefix = toThresholdEd25519KeyPrefix(input.keyPrefix);
   }
 
   private key(relayerKeyId: string): string {
@@ -120,16 +120,16 @@ export function createThresholdEd25519KeyStore(input: {
   isNode: boolean;
 }): ThresholdEd25519KeyStore {
   const config = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
-  const envPrefix = normalizeOptionalString(config.THRESHOLD_ED25519_KEYSTORE_PREFIX);
+  const envPrefix = toOptionalTrimmedString(config.THRESHOLD_ED25519_KEYSTORE_PREFIX);
 
   // Explicit config object
-  const kind = normalizeOptionalString(config.kind);
+  const kind = toOptionalTrimmedString(config.kind);
   if (kind === 'in-memory') return new InMemoryThresholdEd25519KeyStore();
   if (kind === 'upstash-redis-rest') {
     return new UpstashRedisRestThresholdEd25519KeyStore({
-      url: normalizeOptionalString(config.url) || normalizeOptionalString(config.UPSTASH_REDIS_REST_URL),
-      token: normalizeOptionalString(config.token) || normalizeOptionalString(config.UPSTASH_REDIS_REST_TOKEN),
-      keyPrefix: normalizeOptionalString(config.keyPrefix) || envPrefix,
+      url: toOptionalTrimmedString(config.url) || toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL),
+      token: toOptionalTrimmedString(config.token) || toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN),
+      keyPrefix: toOptionalTrimmedString(config.keyPrefix) || envPrefix,
     });
   }
   if (kind === 'redis-tcp') {
@@ -138,14 +138,14 @@ export function createThresholdEd25519KeyStore(input: {
       return new InMemoryThresholdEd25519KeyStore();
     }
     return new RedisTcpThresholdEd25519KeyStore({
-      redisUrl: normalizeOptionalString(config.redisUrl) || normalizeOptionalString(config.REDIS_URL),
-      keyPrefix: normalizeOptionalString(config.keyPrefix) || envPrefix,
+      redisUrl: toOptionalTrimmedString(config.redisUrl) || toOptionalTrimmedString(config.REDIS_URL),
+      keyPrefix: toOptionalTrimmedString(config.keyPrefix) || envPrefix,
     });
   }
 
   // Env-shaped config
-  const upstashUrl = normalizeOptionalString(config.UPSTASH_REDIS_REST_URL);
-  const upstashToken = normalizeOptionalString(config.UPSTASH_REDIS_REST_TOKEN);
+  const upstashUrl = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL);
+  const upstashToken = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN);
   if (upstashUrl || upstashToken) {
     if (!upstashUrl || !upstashToken) {
       throw new Error('Upstash key store enabled but UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not both set');
@@ -154,7 +154,7 @@ export function createThresholdEd25519KeyStore(input: {
     return new UpstashRedisRestThresholdEd25519KeyStore({ url: upstashUrl, token: upstashToken, keyPrefix: envPrefix || undefined });
   }
 
-  const redisUrl = normalizeOptionalString(config.REDIS_URL);
+  const redisUrl = toOptionalTrimmedString(config.REDIS_URL);
   if (redisUrl) {
     if (!input.isNode) {
       input.logger.warn('[threshold-ed25519] REDIS_URL is set but TCP Redis is not supported in this runtime; falling back to in-memory');

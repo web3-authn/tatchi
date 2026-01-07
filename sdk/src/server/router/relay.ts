@@ -17,12 +17,6 @@ import type {
 // Minimal session adapter interface expected by the routers.
 export type SessionClaims = Record<string, unknown>;
 
-export function normalizePath(path: string): string {
-  const trimmed = String(path || '').trim();
-  if (!trimmed) return '';
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-}
-
 export type SessionKind = 'cookie' | 'jwt';
 
 export function parseSessionKind(body: unknown): SessionKind {

@@ -1,11 +1,10 @@
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
 import { MinimalNearClient, SignedTransaction, type AccessKeyList } from '../../core/NearClient';
 import type { FinalExecutionOutcome } from '@near-js/types';
-import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
+import { toPublicKeyStringFromSecretKey } from './nearKeys';
 import { createAuthServiceConfig } from './config';
 import { formatGasToTGas, formatYoctoToNear } from './utils';
 import { parseContractExecutionError } from './errors';
-
 import initSignerWasm, {
   handle_signer_message,
   WorkerRequestType,
@@ -36,7 +35,7 @@ import {
   executeSignedDelegateWithRelayer,
   type DelegateActionPolicy,
 } from '../delegateAction';
-import { normalizeLogger, type NormalizedLogger } from './logger';
+import { coerceLogger, type NormalizedLogger } from './logger';
 
 // =============================
 // WASM URL CONSTANTS + HELPERS
@@ -110,7 +109,7 @@ export class AuthService {
 
   constructor(config: AuthServiceConfigInput) {
     this.config = createAuthServiceConfig(config);
-    this.logger = normalizeLogger(this.config.logger);
+    this.logger = coerceLogger(this.config.logger);
     const graceFileCandidate = (this.config.shamir?.graceShamirKeysFile || '').trim();
     this.shamirService = new ShamirService(this.config.shamir, graceFileCandidate || 'grace-keys.json');
     this.nearClient = new MinimalNearClient(this.config.nearRpcUrl);
@@ -201,8 +200,7 @@ export class AuthService {
 
     // Derive public key from configured relayer private key
     try {
-      const { seed, pub } = parseNearSecretKey(this.config.relayerPrivateKey);
-      this.relayerPublicKey = toPublicKeyString(pub);
+      this.relayerPublicKey = toPublicKeyStringFromSecretKey(this.config.relayerPrivateKey);
     } catch (e) {
       this.logger.warn('Failed to derive public key from relayerPrivateKey; ensure it is in ed25519:<base58> format');
       this.relayerPublicKey = '';

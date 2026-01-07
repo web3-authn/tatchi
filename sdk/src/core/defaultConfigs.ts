@@ -1,5 +1,5 @@
 import type { EmailRecoveryContracts, TatchiConfigs, TatchiConfigsInput } from './types/tatchi';
-import { normalizeSignerMode } from './types/signer-worker';
+import { coerceSignerMode } from './types/signer-worker';
 
 // Default SDK configs suitable for local dev.
 // Cross-origin wallet isolation is recommended; set iframeWallet in your app config when you have a dedicated origin.
@@ -77,7 +77,7 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
   // Prefer explicit override for relayer URL; fall back to default preset.
   // Used below to default VRF relayServerUrl when it is undefined.
   const relayServerUrlDefault = relayerUrl;
-  const signerMode = normalizeSignerMode(overrides.signerMode, defaults.signerMode);
+  const signerMode = coerceSignerMode(overrides.signerMode, defaults.signerMode);
 
   const merged: TatchiConfigs = {
     nearRpcUrl: overrides.nearRpcUrl ?? defaults.nearRpcUrl,

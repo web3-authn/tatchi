@@ -4,18 +4,12 @@ import { parseContractExecutionError } from '../core/errors';
 import { hashRecoveryEmailForAccount, type EmailEncryptionContext } from './emailEncryptor';
 import { parseHeaderValue, parseRecoverSubjectBindings } from './emailParsers';
 import type { EmailRecoveryResult, EmailRecoveryServiceDeps, EmailRecoveryRequest } from './types';
-
-function normalizeSingleLine(input: string): string {
-  return String(input || '')
-    .replace(/[\r\n]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+import { toSingleLine } from '../../utils/validation';
 
 function formatEmailRecoveryTxError(error: unknown, receiverId: string): string {
   const kind = typeof (error as any)?.kind === 'string' ? String((error as any).kind) : '';
   const short = typeof (error as any)?.short === 'string' ? String((error as any).short) : '';
-  const msg = normalizeSingleLine((error as any)?.message || String(error || ''));
+  const msg = toSingleLine((error as any)?.message || String(error || ''));
 
   // Non-existent target account (common when the Subject includes a typo / unknown account).
   if (

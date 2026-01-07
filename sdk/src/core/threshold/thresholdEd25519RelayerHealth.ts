@@ -1,5 +1,6 @@
 import type { SignerMode, ThresholdBehavior } from '../types/signer-worker';
 import { DEFAULT_THRESHOLD_BEHAVIOR, getThresholdBehaviorFromSignerMode } from '../types/signer-worker';
+import { stripTrailingSlashes, toTrimmedString } from '../../utils/validation';
 
 export type ThresholdEd25519HealthzResponse =
   | { ok: true; configured: true }
@@ -12,15 +13,18 @@ const DEFAULT_WARN_TTL_MS = 10 * 60_000;
 const MAX_WARN_KEYS = 1_000;
 const warnedUnsupportedRelayerByKey = new Map<string, number>();
 
-function normalizeRelayerUrl(input: string): string {
-  return String(input || '').trim().replace(/\/+$/, '');
-}
-
 export async function isRelayerThresholdEd25519Configured(
   relayerUrl: string,
   opts?: { cacheTtlMs?: number },
 ): Promise<boolean> {
-  const base = normalizeRelayerUrl(relayerUrl);
+  const base = stripTrailingSlashes(toTrimmedString(relayerUrl));
+  return isRelayerThresholdEd25519ConfiguredBase(base, opts);
+}
+
+async function isRelayerThresholdEd25519ConfiguredBase(
+  base: string,
+  opts?: { cacheTtlMs?: number },
+): Promise<boolean> {
   if (!base) return false;
   if (typeof fetch !== 'function') return false;
 
@@ -55,7 +59,7 @@ export async function isRelayerThresholdEd25519Configured(
   return req;
 }
 
-function normalizeThresholdBehavior(input?: ThresholdBehavior): ThresholdBehavior {
+function coerceThresholdBehavior(input?: ThresholdBehavior): ThresholdBehavior {
   return input === 'fallback' || input === 'strict' ? input : DEFAULT_THRESHOLD_BEHAVIOR;
 }
 
@@ -95,9 +99,9 @@ export async function fallbackToLocalSignerIfRelayerUnsupported(args: {
   const requested = args.signerMode.mode;
   if (requested !== 'threshold-signer') return requested;
 
-  const base = normalizeRelayerUrl(args.relayerUrl);
-  const behavior = normalizeThresholdBehavior(getThresholdBehaviorFromSignerMode(args.signerMode));
-  const configured = await isRelayerThresholdEd25519Configured(base, { cacheTtlMs: args.cacheTtlMs });
+  const base = stripTrailingSlashes(toTrimmedString(args.relayerUrl));
+  const behavior = coerceThresholdBehavior(getThresholdBehaviorFromSignerMode(args.signerMode));
+  const configured = await isRelayerThresholdEd25519ConfiguredBase(base, { cacheTtlMs: args.cacheTtlMs });
   if (configured) return requested;
 
   const msg = '[WebAuthnManager] signerMode=threshold-signer requested but the relayer does not support threshold signing';
@@ -123,8 +127,7 @@ export async function resolveSignerModeForThresholdSigning(args: {
   const requested = args.signerMode.mode;
   if (requested !== 'threshold-signer') return requested;
 
-  const base = normalizeRelayerUrl(args.relayerUrl);
-  const behavior = normalizeThresholdBehavior(getThresholdBehaviorFromSignerMode(args.signerMode));
+  const behavior = coerceThresholdBehavior(getThresholdBehaviorFromSignerMode(args.signerMode));
 
   if (!args.hasThresholdKeyMaterial) {
     const msg = '[WebAuthnManager] signerMode=threshold-signer requested but threshold key material is unavailable';
@@ -141,7 +144,7 @@ export async function resolveSignerModeForThresholdSigning(args: {
   return fallbackToLocalSignerIfRelayerUnsupported({
     nearAccountId: args.nearAccountId,
     signerMode: args.signerMode,
-    relayerUrl: base,
+    relayerUrl: args.relayerUrl,
     warnings: args.warnings,
     cacheTtlMs: args.cacheTtlMs,
     warnTtlMs: args.warnTtlMs,

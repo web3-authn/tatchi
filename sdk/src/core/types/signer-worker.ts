@@ -34,7 +34,7 @@ export function isThresholdBehavior(input: unknown): input is ThresholdBehavior 
   return input === 'fallback' || input === 'strict';
 }
 
-export function normalizeSignerMode(
+export function coerceSignerMode(
   input?: SignerMode | SignerMode['mode'] | null,
   fallback: SignerMode = DEFAULT_SIGNING_MODE,
 ): SignerMode {
@@ -50,6 +50,9 @@ export function normalizeSignerMode(
     ? { mode: input.mode, behavior }
     : { mode: input.mode };
 }
+
+/** @deprecated use `coerceSignerMode` */
+export const normalizeSignerMode = coerceSignerMode;
 
 export function getSignerModeString(mode: SignerMode): SignerMode['mode'] {
   return mode.mode;

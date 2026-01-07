@@ -1,6 +1,6 @@
 import type { AuthService } from '../../core/AuthService';
 import type { RouterLogger } from '../logger';
-import { normalizeRouterLogger } from '../logger';
+import { coerceRouterLogger } from '../logger';
 
 export interface KeyRotationCronOptions {
   enabled?: boolean;
@@ -13,7 +13,7 @@ export function startKeyRotationCronjob(
   service: AuthService,
   opts: KeyRotationCronOptions = {},
 ): { stop(): void } {
-  const logger = normalizeRouterLogger(opts.logger);
+  const logger = coerceRouterLogger(opts.logger);
   const enabled = Boolean(opts.enabled);
   const intervalMinutes = Math.max(1, Number(opts.intervalMinutes || 0) || 60);
   const maxGraceKeys = Math.max(0, Number(opts.maxGraceKeys ?? 0) || 0);
@@ -74,4 +74,3 @@ export function startKeyRotationCronjob(
     },
   };
 }
-

@@ -8,7 +8,7 @@ export enum EmailRecoveryModeHint {
   OnchainPublic = 'onchain-public',
 }
 
-export function normalizeRecoveryMode(raw: string | undefined | null): EmailRecoveryMode | null {
+export function parseRecoveryMode(raw: string | undefined | null): EmailRecoveryMode | null {
   if (!raw) return null;
   const value = raw.trim().toLowerCase();
   if (value === EmailRecoveryModeHint.ZkEmail) return 'zk-email';
@@ -29,7 +29,7 @@ export function extractRecoveryModeFromBody(emailBlob?: string): EmailRecoveryMo
   if (!firstNonEmptyBodyLine) return null;
 
   const candidate = firstNonEmptyBodyLine.trim();
-  const normalized = normalizeRecoveryMode(candidate);
+  const normalized = parseRecoveryMode(candidate);
   if (normalized) return normalized;
 
   const lower = candidate.toLowerCase();

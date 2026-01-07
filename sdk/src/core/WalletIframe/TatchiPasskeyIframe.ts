@@ -52,7 +52,7 @@ import type { ActionArgs, TransactionInput, TxExecutionStatus } from '../types';
 import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults } from '../types/linkDevice';
 import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types/linkDevice';
 import { EmailRecoveryFlowOptions } from '../TatchiPasskey/emailRecovery';
-import { type ConfirmationConfig, type SignerMode, DEFAULT_CONFIRMATION_CONFIG, normalizeSignerMode } from '../types/signer-worker';
+import { type ConfirmationConfig, type SignerMode, DEFAULT_CONFIRMATION_CONFIG, coerceSignerMode } from '../types/signer-worker';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
 import type { RecoveryResult, PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
@@ -324,7 +324,7 @@ export class TatchiPasskeyIframe {
         nearAccountId: args.nearAccountId,
         transactions: args.transactions,
         options: {
-          signerMode: normalizeSignerMode(args.options?.signerMode, this.configs.signerMode),
+          signerMode: coerceSignerMode(args.options?.signerMode, this.configs.signerMode),
           confirmerText: args.options?.confirmerText,
           confirmationConfig: args.options?.confirmationConfig,
           onEvent: args.options?.onEvent // Progress events: user-confirmation, webauthn-authentication, etc.
@@ -352,7 +352,7 @@ export class TatchiPasskeyIframe {
         recipient: args.params.recipient,
         state: args.params.state,
         options: {
-          signerMode: normalizeSignerMode(args.options?.signerMode, this.configs.signerMode),
+          signerMode: coerceSignerMode(args.options?.signerMode, this.configs.signerMode),
           onEvent: args.options?.onEvent,
           confirmerText: args.options?.confirmerText,
           confirmationConfig: args.options?.confirmationConfig,
@@ -380,7 +380,7 @@ export class TatchiPasskeyIframe {
         nearAccountId: args.nearAccountId,
         delegate: args.delegate,
         options: {
-          signerMode: normalizeSignerMode(options?.signerMode, this.configs.signerMode),
+          signerMode: coerceSignerMode(options?.signerMode, this.configs.signerMode),
           onEvent: options?.onEvent,
           confirmationConfig: options?.confirmationConfig,
           confirmerText: options?.confirmerText,
@@ -668,7 +668,7 @@ export class TatchiPasskeyIframe {
 	        accountId,
 	        publicKeyToDelete,
 	        options: {
-	          signerMode: normalizeSignerMode(options?.signerMode, this.configs.signerMode),
+	          signerMode: coerceSignerMode(options?.signerMode, this.configs.signerMode),
 	          onEvent: options?.onEvent,
 	        },
 	      });

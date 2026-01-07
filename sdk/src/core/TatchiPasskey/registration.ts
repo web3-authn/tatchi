@@ -1,5 +1,5 @@
 import type { NearClient } from '../NearClient';
-import { validateNearAccountId } from '../../utils/validation';
+import { ensureEd25519Prefix, validateNearAccountId } from '../../utils/validation';
 import type {
   RegistrationHooksOptions,
   RegistrationSSEEvent,
@@ -14,13 +14,12 @@ import { PasskeyManagerContext } from './index';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { VRFChallenge } from '../types/vrf-worker';
-import { type ConfirmationConfig, type SignerMode, normalizeSignerMode } from '../types/signer-worker';
+import { type ConfirmationConfig, type SignerMode, coerceSignerMode } from '../types/signer-worker';
 import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
-import { normalizeEd25519PublicKey } from '../threshold/ed25519GroupPublicKey';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
@@ -127,7 +126,7 @@ export async function registerPasskeyInternal(
       throw new Error('Failed to derive deterministic VRF keypair from PRF');
     }
 
-    const requestedSignerMode = normalizeSignerMode(options?.signerMode, configs.signerMode);
+    const requestedSignerMode = coerceSignerMode(options?.signerMode, configs.signerMode);
     const requestedSignerModeStr = requestedSignerMode.mode;
 
     // 2) Derive/enroll the local NEAR key after VRF keypair exists.
@@ -668,7 +667,7 @@ async function verifyAccountAccessKeysPresent(
   opts?: { attempts?: number; delayMs?: number },
 ): Promise<boolean> {
   const unique = Array.from(
-    new Set(expectedPublicKeys.map((k) => normalizeEd25519PublicKey(String(k || '').trim())).filter(Boolean)),
+    new Set(expectedPublicKeys.map((k) => ensureEd25519Prefix(k)).filter(Boolean)),
   );
   if (!unique.length) return false;
 
@@ -678,7 +677,7 @@ async function verifyAccountAccessKeysPresent(
   for (let i = 0; i < attempts; i++) {
     try {
       const { fullAccessKeys, functionCallAccessKeys } = await nearClient.getAccessKeys({ account: nearAccountId });
-      const keys = [...fullAccessKeys, ...functionCallAccessKeys].map((k) => normalizeEd25519PublicKey(k.public_key));
+      const keys = [...fullAccessKeys, ...functionCallAccessKeys].map((k) => ensureEd25519Prefix(k.public_key));
       const allPresent = unique.every((expected) => keys.includes(expected));
       if (allPresent) return true;
     } catch {

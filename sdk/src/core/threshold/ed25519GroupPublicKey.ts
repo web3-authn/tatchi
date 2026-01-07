@@ -1,12 +1,7 @@
 import { base64UrlDecode } from '../../utils/encoders';
+import { ensureEd25519Prefix } from '../../utils/validation';
 import bs58 from 'bs58';
 import { ed25519 } from '@noble/curves/ed25519.js';
-
-export function normalizeEd25519PublicKey(input: string): string {
-  const key = input;
-  if (!key) return '';
-  return key.startsWith('ed25519:') ? key : `ed25519:${key}`;
-}
 
 /**
  * Deterministically compute the 2-of-2 threshold group public key from verifying shares.
@@ -33,5 +28,5 @@ export function computeThresholdEd25519GroupPublicKeyFromVerifyingShares(input: 
   const relayerPoint = ed25519.Point.fromBytes(relayerBytes);
   const groupPoint = clientPoint.multiply(2n).subtract(relayerPoint);
   const pkBytes = groupPoint.toBytes();
-  return normalizeEd25519PublicKey(bs58.encode(pkBytes));
+  return ensureEd25519Prefix(bs58.encode(pkBytes));
 }

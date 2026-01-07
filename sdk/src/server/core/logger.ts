@@ -50,3 +50,4 @@ export function normalizeLogger(logger?: Logger | null): NormalizedLogger {
   };
 }
 
+export const coerceLogger = normalizeLogger;

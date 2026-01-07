@@ -1,10 +1,11 @@
 import type { AuthService } from '../../core/AuthService';
 import { parseRecoverEmailRequest } from '../../email-recovery/emailParsers';
 import type { RouterLogger } from '../logger';
-import { normalizeRouterLogger } from '../logger';
+import { coerceRouterLogger } from '../logger';
 import type { EmailHandler, CfEmailMessage } from './types';
+import { toSingleLine } from '../../../utils/validation';
 
-function normalizeEmailAddress(input: string): string {
+function toEmailAddress(input: string): string {
   const trimmed = String(input || '').trim();
   const angleStart = trimmed.indexOf('<');
   const angleEnd = trimmed.indexOf('>');
@@ -12,13 +13,6 @@ function normalizeEmailAddress(input: string): string {
     return trimmed.slice(angleStart + 1, angleEnd).trim().toLowerCase();
   }
   return trimmed.toLowerCase();
-}
-
-function normalizeRejectReason(input: unknown): string {
-  return String(input || '')
-    .replace(/[\r\n]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function toLowercaseHeaderRecord(input: unknown): Record<string, string> {
@@ -96,8 +90,8 @@ export interface CloudflareEmailHandlerOptions {
 }
 
 export function createCloudflareEmailHandler(service: AuthService, opts: CloudflareEmailHandlerOptions = {}): EmailHandler {
-  const logger = normalizeRouterLogger(opts.logger);
-  const expectedRecipient = normalizeEmailAddress(opts.expectedRecipient || '');
+  const logger = coerceRouterLogger(opts.logger);
+  const expectedRecipient = toEmailAddress(opts.expectedRecipient || '');
   const allowUnexpectedRecipient = opts.allowUnexpectedRecipient !== false;
   const verbose = Boolean(opts.verbose);
 
@@ -105,7 +99,7 @@ export function createCloudflareEmailHandler(service: AuthService, opts: Cloudfl
     try {
       const payload = await buildForwardableEmailPayloadFromCloudflareMessage(message);
 
-      const to = normalizeEmailAddress(payload.to);
+      const to = toEmailAddress(payload.to);
       if (expectedRecipient) {
         if (to !== expectedRecipient) {
           logger.warn('[email] unexpected recipient', { to, expectedRecipient });
@@ -145,7 +139,7 @@ export function createCloudflareEmailHandler(service: AuthService, opts: Cloudfl
           error: result?.error || 'unknown',
           message: result?.message,
         });
-        const reason = normalizeRejectReason(result?.message || result?.error || 'recovery failed');
+        const reason = toSingleLine(result?.message || result?.error || 'recovery failed');
         message.setReject(`Email recovery relayer rejected email: ${reason}`);
         return;
       }
@@ -157,4 +151,3 @@ export function createCloudflareEmailHandler(service: AuthService, opts: Cloudfl
     }
   };
 }
-

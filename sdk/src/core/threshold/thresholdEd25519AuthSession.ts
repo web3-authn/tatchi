@@ -1,4 +1,5 @@
 import { base64UrlDecode } from '@/utils/encoders';
+import { stripTrailingSlashes, toTrimmedString } from '@/utils/validation';
 import { removePrfOutputGuard } from '../WebAuthnManager/credentialsHelpers';
 import type { VRFChallenge } from '../types/vrf-worker';
 import type { ThresholdEd25519SessionPolicy } from './thresholdSessionPolicy';
@@ -19,17 +20,13 @@ type ThresholdEd25519AuthSessionCacheEntry = ThresholdEd25519AuthSession;
 
 const authSessionCache = new Map<string, ThresholdEd25519AuthSessionCacheEntry>();
 
-function normalizeRelayerUrl(input: string): string {
-  return String(input || '').trim().replace(/\/+$/, '');
-}
-
 export function makeThresholdEd25519AuthSessionCacheKey(args: {
   nearAccountId: string;
   rpId: string;
   relayerUrl: string;
   relayerKeyId: string;
 }): string {
-  const relayerUrl = normalizeRelayerUrl(args.relayerUrl);
+  const relayerUrl = stripTrailingSlashes(toTrimmedString(args.relayerUrl));
   return [
     String(args.nearAccountId || '').trim(),
     String(args.rpId || '').trim(),
@@ -90,7 +87,7 @@ export async function mintThresholdEd25519AuthSession(args: {
   code?: string;
   message?: string;
 }> {
-  const relayerUrl = normalizeRelayerUrl(args.relayerUrl);
+  const relayerUrl = stripTrailingSlashes(toTrimmedString(args.relayerUrl));
   if (!relayerUrl) {
     return { ok: false, code: 'invalid_args', message: 'Missing relayerUrl for threshold session mint' };
   }
