@@ -39,12 +39,8 @@ export async function isRelayerThresholdEd25519Configured(
         cache.set(base, { configured: false, expiresAtMs: now + ttlMs });
         return false;
       }
-      const data = (await res.json().catch(() => null)) as unknown;
-      const configured = !!(
-        data
-        && typeof data === 'object'
-        && (data as { configured?: unknown }).configured === true
-      );
+      const data = (await res.json().catch(() => null)) as ThresholdEd25519HealthzResponse | null;
+      const configured = data?.configured === true;
       cache.set(base, { configured, expiresAtMs: now + ttlMs });
       return configured;
     } catch {

@@ -17,6 +17,7 @@ import {
   SecureConfirmMessageType,
 } from './WebAuthnManager/VrfWorkerManager/confirmTxFlow';
 import { WorkerControlMessage } from './workerControlMessages';
+import { errorMessage } from '../utils/errors';
 
 /**
  * WASM Asset Path Resolution for VRF Worker
@@ -79,9 +80,24 @@ self.onmessage = async (event: MessageEvent) => {
       try {
         await initializeWasmModule();
         attach_wrap_key_seed_port(sessionId, port);
+        self.postMessage({
+          type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK,
+          sessionId,
+        });
       } catch (err) {
         console.error('[vrf-worker]: Failed to attach WrapKeySeed port in WASM', err);
+        self.postMessage({
+          type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
+          sessionId,
+          error: errorMessage(err),
+        });
       }
+    } else {
+      self.postMessage({
+        type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
+        sessionId: sessionId || 'unknown',
+        error: 'ATTACH_WRAP_KEY_SEED_PORT missing sessionId or MessagePort',
+      });
     }
     return;
   }

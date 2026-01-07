@@ -30,6 +30,14 @@ export async function computeThresholdEd25519KeygenIntentDigest(args: {
   return sha256Base64UrlUtf8(json);
 }
 
+export async function computeLoginIntentDigest(args: {
+  nearAccountId: string;
+  rpId: string;
+}): Promise<string> {
+  const json = alphabetizeStringify({ kind: 'login_session', ...args });
+  return sha256Base64UrlUtf8(json);
+}
+
 // Canonical intent digest for signing flows.
 // This is a UI/host validation digest derived from `{ receiverId, actions }` only; it is NOT the
 // canonical NEAR signing hash (NEAR signs `sha256(borsh(Transaction))`, computed in the WASM signer).
