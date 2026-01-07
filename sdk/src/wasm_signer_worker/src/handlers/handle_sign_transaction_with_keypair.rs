@@ -62,7 +62,9 @@ where
             #[cfg(not(target_arch = "wasm32"))]
             {
                 let _ = v;
-                Err(E::custom("Parsing actions from JSON string is not supported on native targets"))
+                Err(E::custom(
+                    "Parsing actions from JSON string is not supported on native targets",
+                ))
             }
         }
     }
