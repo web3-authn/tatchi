@@ -7,6 +7,7 @@
 
 import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
+import { autoConfirmWalletIframeUntil } from '../setup/flows';
 
 test.describe('Worker Communication Protocol', () => {
 
@@ -18,7 +19,7 @@ test.describe('Worker Communication Protocol', () => {
   // exercises full signer-worker pipeline for function call, expecting progress events even on fetch failure
   test('Progress Messages - SignTransactionsWithActions', async ({ page }) => {
     const USE_RELAY_SERVER = process.env.USE_RELAY_SERVER === '1' || process.env.USE_RELAY_SERVER === 'true';
-    const result = await page.evaluate(async ({ useServer }) => {
+    const resultPromise = page.evaluate(async ({ useServer }) => {
       try {
         // @ts-ignore - Runtime import
         const { ActionType } = await import('/sdk/esm/core/types/actions.js');
@@ -105,15 +106,15 @@ test.describe('Worker Communication Protocol', () => {
           // Check for phases that exist in the actual progress events being generated:
           hasPreparation: progressEvents.some(e => e.phase === ProgressStep.PREPARATION),
           hasWebauthnVerification: progressEvents.some(e => e.phase === ProgressStep.WEBAUTHN_VERIFICATION),
-          hasUserConfirmation: progressEvents.some(e => e.phase === ProgressStep.USER_CONFIRMATION),
-          hasAuthenticationComplete: progressEvents.some(e => e.phase === ProgressStep.AUTHENTICATION_COMPLETE),
-          hasTransactionSigningProgress: progressEvents.some(e => e.phase === ProgressStep.TRANSACTION_SIGNING_PROGRESS),
-          hasTransactionSigningComplete: progressEvents.some(e => e.phase === ProgressStep.TRANSACTION_SIGNING_COMPLETE),
-          hasError: progressEvents.some(e => e.phase === ProgressStep.ERROR),
-          // Event structure validation
-          allEventsHaveRequiredFields: progressEvents.every(e =>
-            typeof e.step === 'number' &&
-            typeof e.phase === 'string' &&
+	          hasUserConfirmation: progressEvents.some(e => e.phase === ProgressStep.USER_CONFIRMATION),
+	          hasAuthenticationComplete: progressEvents.some(e => e.phase === ProgressStep.AUTHENTICATION_COMPLETE),
+	          hasTransactionSigningProgress: progressEvents.some(e => e.phase === ProgressStep.TRANSACTION_SIGNING_PROGRESS),
+	          hasTransactionSigningComplete: progressEvents.some(e => e.phase === ProgressStep.TRANSACTION_SIGNING_COMPLETE),
+	          hasError: progressEvents.some(e => e.status === 'error'),
+	          // Event structure validation
+	          allEventsHaveRequiredFields: progressEvents.every(e =>
+	            typeof e.step === 'number' &&
+	            typeof e.phase === 'string' &&
             typeof e.status === 'string' &&
             typeof e.message === 'string'
           ),
@@ -135,6 +136,7 @@ test.describe('Worker Communication Protocol', () => {
         };
       }
     }, { useServer: USE_RELAY_SERVER });
+    const result = await autoConfirmWalletIframeUntil(page, resultPromise);
 
     // Assertions
     if (!result.success) {
@@ -224,7 +226,7 @@ test.describe('Worker Communication Protocol', () => {
 
   // verifies login emits early phases and error when account is missing (no RPC dependency)
   test('Progress Messages - Login without prior registration', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const resultPromise = page.evaluate(async () => {
       try {
         const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
@@ -259,6 +261,7 @@ test.describe('Worker Communication Protocol', () => {
         };
       }
     });
+    const result = await autoConfirmWalletIframeUntil(page, resultPromise);
 
     expect(result.loginResult.success).toBe(false);
     expect(result.capturedEvents.length).toBeGreaterThan(0);
@@ -277,7 +280,7 @@ test.describe('Worker Communication Protocol', () => {
     if (!USE_RELAY_SERVER) {
       test.skip(true, 'Requires relay server for on-chain registration verification');
     }
-    const result = await page.evaluate(async ({ useServer }) => {
+    const resultPromise = page.evaluate(async ({ useServer }) => {
       const utils = (window as any).testUtils;
       const registrationFlowUtils = utils.registrationFlowUtils;
       const restoreFetch = registrationFlowUtils?.restoreFetch?.bind(registrationFlowUtils);
@@ -336,6 +339,7 @@ test.describe('Worker Communication Protocol', () => {
         try { restoreFetch?.(); } catch {}
       }
     }, { useServer: USE_RELAY_SERVER });
+    const result = await autoConfirmWalletIframeUntil(page, resultPromise);
 
     expect(result.success).toBe(true);
     expect(result.registrationEvents.length).toBeGreaterThan(0);
@@ -348,7 +352,7 @@ test.describe('Worker Communication Protocol', () => {
 
   // captures registration + login worker events to ensure variety of phase/status pairs are emitted
   test('Progress Message Types - All Message Types', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const resultPromise = page.evaluate(async () => {
       try {
         const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
@@ -412,6 +416,7 @@ test.describe('Worker Communication Protocol', () => {
         };
       }
     });
+    const result = await autoConfirmWalletIframeUntil(page, resultPromise);
 
     if (!result.success) {
       // Handle common infrastructure errors (rate limiting, contract connectivity)
@@ -443,7 +448,7 @@ test.describe('Worker Communication Protocol', () => {
 
   // ensures malformed inputs still surface worker progress/error envelopes without network calls
   test('Worker Error Handling - Progress on Failure', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const resultPromise = page.evaluate(async () => {
       try {
         const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
         const invalidAccountId = "invalid-account-format!@#";
@@ -485,6 +490,7 @@ test.describe('Worker Communication Protocol', () => {
         };
       }
     });
+    const result = await autoConfirmWalletIframeUntil(page, resultPromise);
 
     expect(result.success).toBe(true);
     console.log('Error Handling Test Results:');

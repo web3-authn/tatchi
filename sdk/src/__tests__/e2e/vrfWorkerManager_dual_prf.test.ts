@@ -329,12 +329,20 @@ test.describe('VRF Worker Manager Integration Test', () => {
               }
             }
           } as WebAuthnAuthenticationCredential;
-        };
+	        };
 
-        // Helper: obtain a serialized WebAuthnAuthenticationCredential with PRF via setup WebAuthn mocks
-        const getCredentialForAccount = async (accountId: string): Promise<WebAuthnAuthenticationCredential> => {
-          const challenge = crypto.getRandomValues(new Uint8Array(32));
-          const cred = await (navigator as any).credentials.get({
+	        const derivePrfOutputB64u = async (label: string): Promise<string> => {
+	          const digest = await crypto.subtle.digest(
+	            'SHA-256',
+	            new TextEncoder().encode(label)
+	          );
+	          return (window as any).base64UrlEncode(digest);
+	        };
+
+	        // Helper: obtain a serialized WebAuthnAuthenticationCredential with PRF via setup WebAuthn mocks
+	        const getCredentialForAccount = async (accountId: string): Promise<WebAuthnAuthenticationCredential> => {
+	          const challenge = crypto.getRandomValues(new Uint8Array(32));
+	          const cred = await (navigator as any).credentials.get({
             publicKey: {
               challenge,
               timeout: 60000,
@@ -343,18 +351,26 @@ test.describe('VRF Worker Manager Integration Test', () => {
               extensions: {
                 prf: {
                   eval: {
-                    // Pass account id through PRF salt to keep PRF deterministic per account
-                    first: new TextEncoder().encode(`chacha20-salt:${accountId}`)
+                    // Use both PRF outputs: PRF.first (Chacha20) and PRF.second (Ed25519/VRF)
+                    first: new TextEncoder().encode(`chacha20-salt:${accountId}`),
+                    second: new TextEncoder().encode(`ed25519-salt:${accountId}`),
                   }
                 }
               },
               // allowCredentials not required for our mock path using PRF salt
             }
-          });
-          const serialized = serializeCredentialWithPrf(cred as PublicKeyCredential);
-          console.log('Serialized credential PRF results for account', accountId, serialized.clientExtensionResults?.prf?.results);
-          return serialized;
-        };
+	          });
+	          const serialized = serializeCredentialWithPrf(cred as PublicKeyCredential);
+	          serialized.clientExtensionResults = serialized.clientExtensionResults || ({} as any);
+	          (serialized.clientExtensionResults as any).prf = (serialized.clientExtensionResults as any).prf || ({ results: {} } as any);
+	          (serialized.clientExtensionResults as any).prf.results = {
+	            ...(serialized.clientExtensionResults as any).prf.results,
+	            first: await derivePrfOutputB64u(`chacha20-salt:${accountId}`),
+	            second: await derivePrfOutputB64u(`ed25519-salt:${accountId}`),
+	          };
+	          console.log('Serialized credential PRF results for account', accountId, serialized.clientExtensionResults?.prf?.results);
+	          return serialized;
+	        };
 
         // Derive deterministic VRF keypair from PRF output (used during recovery)
         console.log('Deriving VRF keypair from PRF output...');
@@ -767,8 +783,8 @@ test.describe('VRF Worker Manager Integration Test', () => {
         const buildCredential = async (salt: ArrayBuffer | null): Promise<WebAuthnAuthenticationCredential> => {
           const challenge = crypto.getRandomValues(new Uint8Array(32));
           const extensions: any = salt === null
-            ? { prf: { eval: { first: null } } }
-            : { prf: { eval: { first: salt } } };
+            ? { prf: { eval: { second: null } } }
+            : { prf: { eval: { second: salt } } };
           const cred = await (navigator as any).credentials.get({
             publicKey: {
               challenge,

@@ -142,6 +142,30 @@ test.describe('Threshold Ed25519 rotation helper', () => {
       }
 
       if (rpcMethod === 'query' && params?.request_type === 'view_access_key') {
+        const requestedPk = String(params?.public_key || '').trim();
+        const isKnown =
+          (!!requestedPk && requestedPk === localNearPublicKey)
+          || (!!requestedPk && thresholdKeysOnChain.has(requestedPk));
+
+        if (!isKnown) {
+          await route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32000,
+                message: 'Unknown Access Key',
+                data: {
+                  message: `Unknown Access Key: ${requestedPk || '<empty>'}`,
+                },
+              },
+            }),
+          });
+          return;
+        }
+
         await route.fulfill({
           status: 200,
           headers: { 'Content-Type': 'application/json', ...corsHeaders },

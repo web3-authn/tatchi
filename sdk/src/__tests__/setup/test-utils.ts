@@ -39,7 +39,7 @@ export async function setupTestUtilities(page: Page, config: PasskeyTestConfig):
     (window as any).testUtils = {
       PasskeyManager: (window as any).PasskeyManager,
       passkeyManager: (window as any).passkeyManager,
-      configs: (window as any).configs,
+      configs: (window as any).configs || setupConfig,
       confirmOverrides: {
         // VRF-centric invariants:
         // - LocalOnly decrypt flows (DECRYPT_PRIVATE_KEY_WITH_PRF) typically run with uiMode: 'skip'

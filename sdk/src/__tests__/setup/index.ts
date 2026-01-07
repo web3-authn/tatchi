@@ -75,21 +75,38 @@ export async function setupBasicPasskeyTest(
   const config: PasskeyTestConfig = { ...DEFAULT_TEST_CONFIG, ...options };
 
   // Defensive shims (test-only):
-  // 1) Pin embedded base to app origin so all SDK assets resolve same-origin (toggle: forceSameOriginSdkBase)
+  // 1) Pin embedded base to the current frame origin so SDK assets resolve same-origin (toggle: forceSameOriginSdkBase)
   // 2) Patch Worker() to rewrite cross-origin URLs to same-origin equivalents (toggle: forceSameOriginWorkers)
   // Defaults: both true unless W3A_FORCE_SAME_ORIGIN_WORKERS=0
   try {
     const appOrigin = new URL(config.frontendUrl).origin;
+    const rpId = config.rpId || '';
     const envDefault = process.env.W3A_FORCE_SAME_ORIGIN_WORKERS !== '0';
     const forceSameOriginWorkers = options.forceSameOriginWorkers ?? envDefault;
     const forceSameOriginSdkBase = options.forceSameOriginSdkBase ?? forceSameOriginWorkers;
 
-    // (1) Lock __W3A_WALLET_SDK_BASE__ to same-origin /sdk/
-    await page.addInitScript((args: { origin: string; enable: boolean }) => {
-      const { origin, enable } = args || ({} as any);
+    // Make rpId available in all frames (wallet iframe mocks run cross-origin).
+    await page.addInitScript((args: { rpId: string }) => {
+      try {
+        const v = String(args?.rpId || '').trim();
+        if (v) (window as any).__W3A_TEST_RP_ID__ = v;
+      } catch { }
+    }, { rpId });
+
+    // (1) Lock __W3A_WALLET_SDK_BASE__ to per-frame same-origin /sdk/
+    await page.addInitScript((args: { appOrigin: string; enable: boolean }) => {
+      const { appOrigin, enable } = args || ({} as any);
       if (!enable) return;
       try {
-        const base = origin.replace(/\/$/, '') + '/sdk/';
+        const frameOrigin = (() => {
+          try {
+            const o = window.location?.origin;
+            if (o && o !== 'null') return o;
+          } catch { }
+          return appOrigin || '';
+        })();
+
+        const base = String(frameOrigin || '').replace(/\/$/, '') + '/sdk/';
         Object.defineProperty(window, '__W3A_WALLET_SDK_BASE__', {
           get() { return base; },
           set() { /* ignore test overrides */ },
@@ -102,26 +119,34 @@ export async function setupBasicPasskeyTest(
           }, true);
         } catch { }
       } catch { }
-    }, { origin: appOrigin, enable: forceSameOriginSdkBase });
+    }, { appOrigin, enable: forceSameOriginSdkBase });
 
-    // (2) Patch Worker constructor to force same-origin worker URLs
-    await page.addInitScript((args: { origin: string; enable: boolean }) => {
-      const { origin, enable } = args || ({} as any);
+    // (2) Patch Worker constructor to force same-origin worker URLs (per-frame)
+    await page.addInitScript((args: { appOrigin: string; enable: boolean }) => {
+      const { appOrigin, enable } = args || ({} as any);
       if (!enable) return;
       try {
+        const frameOrigin = (() => {
+          try {
+            const o = window.location?.origin;
+            if (o && o !== 'null') return o;
+          } catch { }
+          return appOrigin || '';
+        })();
+
         const OriginalWorker = window.Worker;
         // Normalize worker URLs for both signer + VRF workers now that VRF owns SecureConfirm.
         const normalize = (url: string) => {
           try {
-            const u = new URL(url, origin);
+            const u = new URL(url, frameOrigin);
             const filename = (u.pathname.split('/').pop() || '').toLowerCase();
             if (filename === 'web3authn-vrf.worker.js' || filename === 'web3authn-signer.worker.js') {
               const patchedPath = `/sdk/workers/${filename}`;
-              return new URL(patchedPath + u.search + u.hash, origin).toString();
+              return new URL(patchedPath + u.search + u.hash, frameOrigin).toString();
             }
-            if (u.origin !== origin) {
+            if (u.origin !== frameOrigin) {
               // preserve path/query/hash but swap origin
-              return new URL(u.pathname + u.search + u.hash, origin).toString();
+              return new URL(u.pathname + u.search + u.hash, frameOrigin).toString();
             }
             return u.toString();
           } catch {
@@ -136,7 +161,7 @@ export async function setupBasicPasskeyTest(
         PatchedWorker.prototype = (OriginalWorker as any).prototype;
         Object.defineProperty(window, 'Worker', { value: PatchedWorker });
       } catch { }
-    }, { origin: appOrigin, enable: forceSameOriginWorkers });
+    }, { appOrigin, enable: forceSameOriginWorkers });
   } catch { }
 
   // Execute the 5-step sequential setup process
@@ -187,7 +212,7 @@ export async function setupRelayServerTest(
   await setupBasicPasskeyTest(page, {
     ...options,
     useRelayer: true,
-    relayServerUrl: options.relayServerUrl || 'http://localhost:3000'
+    relayServerUrl: options.relayServerUrl || 'https://relay-server.localhost'
   });
 }
 

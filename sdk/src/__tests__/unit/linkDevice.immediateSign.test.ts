@@ -122,6 +122,8 @@ test.describe('Link device → immediate sign (regression)', () => {
         const signingCtx: any = {
           indexedDB: { clientDB, nearKeysDB },
           nonceManager: { initializeUser: () => {} },
+          touchIdPrompt: { getRpId: () => 'example.localhost' },
+          relayerUrl: 'https://relay-server.localhost',
           vrfWorkerManager: {
             confirmAndPrepareSigningSession: async () => ({
               intentDigest: 'intent',
@@ -292,6 +294,8 @@ test.describe('Link device → immediate sign (regression)', () => {
         const signingCtx: any = {
           indexedDB: { clientDB, nearKeysDB },
           nonceManager: { initializeUser: () => {} },
+          touchIdPrompt: { getRpId: () => 'example.localhost' },
+          relayerUrl: 'https://relay-server.localhost',
           vrfWorkerManager: {
             confirmAndPrepareSigningSession: async () => ({
               intentDigest: 'intent',

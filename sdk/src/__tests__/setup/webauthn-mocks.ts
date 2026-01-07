@@ -1,7 +1,7 @@
 import { Page } from '@playwright/test';
 
 export async function setupWebAuthnMocks(page: Page): Promise<void> {
-  await page.evaluate(() => {
+  const install = () => {
     const baseLog = console.log.bind(console);
     const baseWarn = console.warn.bind(console);
     const baseError = console.error.bind(console);
@@ -14,6 +14,32 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
     console.error = err;
 
     log('Setting up WebAuthn Virtual Authenticator mocks...');
+
+    // Ensure base64url helpers exist in every frame (wallet iframe runs cross-origin).
+    try {
+      if (typeof (window as any).base64UrlEncode !== 'function') {
+        (window as any).base64UrlEncode = (value: ArrayBufferLike | ArrayBufferView): string => {
+          const bytes =
+            value instanceof ArrayBuffer
+              ? new Uint8Array(value)
+              : new Uint8Array((value as ArrayBufferView).buffer, (value as ArrayBufferView).byteOffset, (value as ArrayBufferView).byteLength);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        };
+      }
+      if (typeof (window as any).base64UrlDecode !== 'function') {
+        (window as any).base64UrlDecode = (value: string): Uint8Array => {
+          const padded = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+          const padding = padded.length % 4 ? 4 - (padded.length % 4) : 0;
+          const base64 = padded + '='.repeat(padding);
+          const binary = atob(base64);
+          const out = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+          return out;
+        };
+      }
+    } catch { }
 
     const loadNobleEd25519 = async () => {
       const cacheKey = '__noble_ed25519';
@@ -170,6 +196,8 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
     // === Helper utilities for RP ID resolution in tests ===
     const resolveTestRpId = (): string => {
       try {
+        const explicit = (window as any).__W3A_TEST_RP_ID__;
+        if (explicit && typeof explicit === 'string' && explicit.length > 0) return explicit;
         const fromConfig = (window as any).testUtils?.configs?.rpId;
         if (fromConfig && typeof fromConfig === 'string' && fromConfig.length > 0) return fromConfig;
         const host = (typeof window !== 'undefined' && window.location) ? window.location.hostname : '';
@@ -519,5 +547,9 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
     };
 
     console.log('Enhanced WebAuthn mock with dual PRF extension support installed');
-  });
+  };
+
+  // Apply to future frames (wallet iframe) and the current main frame.
+  await page.addInitScript(install);
+  await page.evaluate(install);
 }

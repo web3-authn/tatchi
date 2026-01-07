@@ -37,7 +37,7 @@ test.describe('Wallet iframe handshake', () => {
     expect(readyState).toBe(true);
 
     const iframeAttributes = await page.evaluate(() => {
-      const iframeEl = document.querySelector('iframe');
+      const iframeEl = document.querySelector('iframe[data-w3a-owner="tests"]') || document.querySelector('iframe');
       if (!iframeEl) return null;
       const cs = window.getComputedStyle(iframeEl as HTMLIFrameElement);
       return {

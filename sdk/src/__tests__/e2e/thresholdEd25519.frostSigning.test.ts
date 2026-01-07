@@ -300,6 +300,22 @@ test.describe('threshold-ed25519 (FROST) signing', () => {
 
         if (rpcMethod === 'query' && params?.request_type === 'view_access_key') {
           const publicKey = String(params?.public_key || '');
+          if (!keysOnChain.has(publicKey)) {
+            await route.fulfill({
+              status: 200,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                id,
+                error: {
+                  code: -32000,
+                  message: 'Unknown access key',
+                  data: { public_key: publicKey },
+                },
+              }),
+            });
+            return;
+          }
           const nonce = nonceByPublicKey.get(publicKey) ?? 0;
           await route.fulfill({
             status: 200,

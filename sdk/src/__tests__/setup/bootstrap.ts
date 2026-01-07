@@ -227,7 +227,7 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
             // Ensure VRF worker has relay server for Shamir3Pass operations
             vrfWorkerConfigs: {
               shamir3pass: {
-                relayServerUrl: (setupOptions.relayServerUrl || (setupOptions.relayer && (setupOptions.relayer as any).url) || 'http://localhost:3000'),
+                relayServerUrl: (setupOptions.relayServerUrl || (setupOptions.relayer && (setupOptions.relayer as any).url) || 'https://relay-server.localhost'),
                 applyServerLockRoute: '/vrf/apply-server-lock',
                 removeServerLockRoute: '/vrf/remove-server-lock',
               }
