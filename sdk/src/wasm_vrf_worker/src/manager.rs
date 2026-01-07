@@ -424,6 +424,34 @@ impl VRFKeyManager {
             None => None,
         };
 
+        // Optional 32-byte session policy digest (base64url) to bind into the VRF input hash.
+        // When present, it must decode to exactly 32 bytes and will be appended to the input.
+        let session_policy_digest_b64u = input_data
+            .session_policy_digest_32
+            .clone()
+            .and_then(|s| {
+                let trimmed = s.trim().to_string();
+                if trimmed.is_empty() { None } else { Some(trimmed) }
+            });
+        let session_policy_digest_bytes = match session_policy_digest_b64u.as_deref() {
+            Some(b64u) => {
+                let bytes = base64_url_decode(b64u).map_err(|e| {
+                    VrfWorkerError::invalid_format(&format!(
+                        "invalid sessionPolicyDigest32 (base64url): {}",
+                        e
+                    ))
+                })?;
+                if bytes.len() != 32 {
+                    return Err(VrfWorkerError::invalid_format(&format!(
+                        "invalid sessionPolicyDigest32 length: expected 32 bytes, got {}",
+                        bytes.len()
+                    )));
+                }
+                Some(bytes)
+            }
+            None => None,
+        };
+
         // Concatenate all input components following the test pattern
         let mut vrf_input_data = Vec::new();
         vrf_input_data.extend_from_slice(domain_separator);
@@ -432,6 +460,9 @@ impl VRFKeyManager {
         vrf_input_data.extend_from_slice(&block_height_bytes);
         vrf_input_data.extend_from_slice(&block_hash_bytes);
         if let Some(bytes) = intent_digest_bytes.as_deref() {
+            vrf_input_data.extend_from_slice(bytes);
+        }
+        if let Some(bytes) = session_policy_digest_bytes.as_deref() {
             vrf_input_data.extend_from_slice(bytes);
         }
 
@@ -462,6 +493,7 @@ impl VRFKeyManager {
             block_height: input_data.block_height,
             block_hash: base64_url_encode(&block_hash_bytes),
             intent_digest: intent_digest_b64u,
+            session_policy_digest_32: session_policy_digest_b64u,
         };
 
         Ok(result)

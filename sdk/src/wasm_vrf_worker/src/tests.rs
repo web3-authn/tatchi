@@ -93,6 +93,7 @@ fn logout_clears_cached_sessions_and_challenges() {
             block_height: "1".to_string(),
             block_hash: "h".to_string(),
             intent_digest: None,
+            session_policy_digest_32: None,
         },
     );
     mgr.upsert_session(
@@ -229,7 +230,7 @@ fn vrf_input_hash_matches_regression_vector_with_intent_digest() {
     // lockstep with the on-chain verifier (domain_sep || user_id || rp_id || block_height_le || block_hash || intent_digest_32).
     //
     // Inputs:
-    // - domain_separator: "web3_authn_challenge_v3"
+    // - domain_separator: "web3_authn_challenge_v4"
     // - user_id: "alice.near"
     // - rp_id: "example.com"
     // - block_height: 12345 (u64 LE)
@@ -237,7 +238,7 @@ fn vrf_input_hash_matches_regression_vector_with_intent_digest() {
     // - intent_digest (base64url): bytes 0..31
     //
     // Expected:
-    // - vrf_input (base64url sha256): "K8SCmbNIKVWCWaMxShfzWLSes3FVvmdPZZMy7eJqa9Q"
+    // - vrf_input (base64url sha256): "-N4GgUAlGrK6ZO5mSzcQdJ0InpsqRxWmuMlJ7rCXR04"
     let mgr = VRFKeyManager::new(None, None, None, None);
 
     let prf_output = create_test_prf_output();
@@ -251,6 +252,7 @@ fn vrf_input_hash_matches_regression_vector_with_intent_digest() {
         block_height: "12345".to_string(),
         block_hash: "11111111111111111111111111111111".to_string(),
         intent_digest: Some("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8".to_string()),
+        session_policy_digest_32: None,
     };
 
     let challenge = mgr
@@ -259,7 +261,7 @@ fn vrf_input_hash_matches_regression_vector_with_intent_digest() {
 
     assert_eq!(
         challenge.vrf_input,
-        "K8SCmbNIKVWCWaMxShfzWLSes3FVvmdPZZMy7eJqa9Q"
+        "-N4GgUAlGrK6ZO5mSzcQdJ0InpsqRxWmuMlJ7rCXR04"
     );
     assert_eq!(
         challenge.intent_digest.as_deref(),
@@ -283,6 +285,7 @@ fn test_vrf_data_structures_serialization() {
         block_height: "12345".to_string(),
         block_hash: String::from_utf8(vec![0u8; 32]).unwrap(),
         intent_digest: None,
+        session_policy_digest_32: None,
     };
 
     let js_val = serde_wasm_bindgen::to_value(&vrf_input).expect("Should serialize VRFInputData");
@@ -875,6 +878,7 @@ fn generate_vrf_keypair_bootstrap_request_allows_optional_input() {
             block_height: "1".to_string(),
             block_hash: "hash".to_string(),
             intent_digest: None,
+            session_policy_digest_32: None,
         }),
     };
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
@@ -897,6 +901,7 @@ fn generate_vrf_challenge_request_requires_input() {
             block_height: "2".to_string(),
             block_hash: "hash2".to_string(),
             intent_digest: None,
+            session_policy_digest_32: None,
         },
     };
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
