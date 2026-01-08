@@ -1,3 +1,10 @@
+/**
+ * Threshold Ed25519 (2-party) — authorization digest binding (negative tests).
+ *
+ * Validates that `/threshold-ed25519/authorize` tightly binds intent_digest_32 ↔ signing_digest_32:
+ * tampering either the signing payload or the digest is rejected by the relayer.
+ */
+
 import { test, expect } from '@playwright/test';
 import bs58 from 'bs58';
 import { setupBasicPasskeyTest } from '../setup';

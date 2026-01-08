@@ -1,3 +1,11 @@
+/**
+ * Threshold Ed25519 (2-party) — end-to-end FROST signing happy path.
+ *
+ * Validates post-registration enrollment (keygen + AddKey(threshold pk)) and the full relayer-assisted
+ * 2-round signing flow (authorize → sign/init → sign/finalize), producing a signature that verifies
+ * under the threshold group public key (and not the local key).
+ */
+
 import { test, expect } from '@playwright/test';
 import bs58 from 'bs58';
 import { ed25519 } from '@noble/curves/ed25519.js';
