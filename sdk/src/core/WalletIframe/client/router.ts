@@ -106,7 +106,7 @@ import {
 import type { DelegateActionInput } from '../../types/delegate';
 import { IframeTransport } from './IframeTransport';
 import OverlayController, { type DOMRectLike } from './overlay-controller';
-import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, isBoolean } from '../validation';
+import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, isBoolean } from '@/utils/validation';
 import type { WalletUIRegistry } from '../host/iframe-lit-element-registry';
 import { toError } from '../../../utils/errors';
 import {
@@ -1646,7 +1646,7 @@ function isEmailRecoverySSEEvent(p: ProgressPayload): p is EmailRecoverySSEEvent
 /**
  * Strips out functions as they cannot be sent over postMessage to iframe
  */
-import { stripFunctionsShallow } from '../validation';
+import { stripFunctionsShallow } from '@/utils/validation';
 
 function removeFunctionsFromOptions(options?: object): object | undefined {
   return stripFunctionsShallow(options as Record<string, unknown>);

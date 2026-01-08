@@ -4,7 +4,7 @@ import { ConfirmationConfig } from '../../../types';
 import { TransactionContext } from '../../../types/rpc';
 import { RpcCallPayload } from '../../../types/signer-worker';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../../types/webauthn';
-import { isObject, isString } from '../../../WalletIframe/validation';
+import { isObject, isString } from '@/utils/validation';
 
 // === SECURE CONFIRM TYPES (V2) ===
 

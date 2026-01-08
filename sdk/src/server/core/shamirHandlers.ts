@@ -5,7 +5,7 @@ import type {
   ShamirRemoveServerLockResponse,
 } from './types';
 import type { ShamirService } from './ShamirService';
-import { isString } from '../../core/WalletIframe/validation';
+import { isString } from '@/utils/validation';
 
 export async function handleApplyServerLock(
   service: ShamirService,

@@ -7,6 +7,10 @@ import { createThresholdEd25519AuthSessionStore } from './ThresholdEd25519AuthSe
 import { createThresholdEd25519KeyStore } from './ThresholdEd25519KeyStore';
 import { createThresholdEd25519SessionStore } from './ThresholdEd25519SessionStore';
 
+function isObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
 function isNodeEnvironment(): boolean {
   const processObj = (globalThis as unknown as { process?: { versions?: { node?: string } } }).process;
   const isNode = Boolean(processObj?.versions?.node);
@@ -35,12 +39,21 @@ export function createThresholdEd25519ServiceFromAuthService(input: {
       THRESHOLD_ED25519_KEYSTORE_PREFIX: env.THRESHOLD_ED25519_KEYSTORE_PREFIX,
       THRESHOLD_ED25519_SESSION_PREFIX: env.THRESHOLD_ED25519_SESSION_PREFIX,
       THRESHOLD_ED25519_AUTH_PREFIX: env.THRESHOLD_ED25519_AUTH_PREFIX,
+      THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID: env.THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
+      THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID: env.THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
       THRESHOLD_ED25519_MASTER_SECRET_B64U: env.THRESHOLD_ED25519_MASTER_SECRET_B64U,
       THRESHOLD_ED25519_SHARE_MODE: env.THRESHOLD_ED25519_SHARE_MODE,
+      THRESHOLD_NODE_ROLE: env.THRESHOLD_NODE_ROLE,
+      THRESHOLD_COORDINATOR_PEERS: env.THRESHOLD_COORDINATOR_PEERS,
+      THRESHOLD_COORDINATOR_SHARED_SECRET_B64U: env.THRESHOLD_COORDINATOR_SHARED_SECRET_B64U,
     }
     : null;
 
-  const config = input.thresholdEd25519KeyStore ?? envFallback;
+  // Merge explicit config over env-derived defaults so callers can set
+  // `kind: 'in-memory'` (etc) while still using env vars like THRESHOLD_NODE_ROLE.
+  const config = (isObject(envFallback) && isObject(input.thresholdEd25519KeyStore))
+    ? ({ ...envFallback, ...input.thresholdEd25519KeyStore } as ThresholdEd25519KeyStoreConfigInput)
+    : (input.thresholdEd25519KeyStore ?? envFallback);
   const keyStore = createThresholdEd25519KeyStore({ config, logger, isNode });
   const sessionStore = createThresholdEd25519SessionStore({ config, logger, isNode });
   const authSessionStore = createThresholdEd25519AuthSessionStore({ config, logger, isNode });

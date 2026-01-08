@@ -27,7 +27,7 @@
  */
 
 import type { ChildToParentEnvelope } from '../shared/messages';
-import { isObject } from '../validation';
+import { isObject } from '@/utils/validation';
 import { serializeRegistrationCredentialWithPRF, serializeAuthenticationCredentialWithPRF } from '../../WebAuthnManager/credentialsHelpers';
 import { ensureOverlayBase } from './overlay-styles';
 import { WebAuthnBridgeMessage } from '../../WebAuthnManager/WebAuthnFallbacks';

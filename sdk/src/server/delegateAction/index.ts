@@ -2,7 +2,7 @@ import type { FinalExecutionOutcome } from '@near-js/types';
 import type { NearClient, SignedTransaction } from '../../core/NearClient';
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
 import type { SignedDelegate as CoreSignedDelegate } from '../../core/types/delegate';
-import { isObject } from '../../core/WalletIframe/validation';
+import { isObject } from '@/utils/validation';
 
 export interface DelegateActionPolicy {
   /** Optional allowlist of receiver account IDs. If empty/omitted, any receiver is allowed. */

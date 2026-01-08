@@ -29,6 +29,7 @@ import {
   mintThresholdEd25519AuthSession,
   putCachedThresholdEd25519AuthSession,
 } from '../threshold/thresholdEd25519AuthSession';
+import { normalizeThresholdEd25519ParticipantIds } from '../../threshold/participants';
 
 /**
  * Core login function that handles passkey authentication without React dependencies.
@@ -129,6 +130,8 @@ export async function loginAndCreateSession(
     let thresholdSessionPolicy: Awaited<ReturnType<typeof buildThresholdSessionPolicy>> | null = null;
     let thresholdSessionCacheKey: string | null = null;
     let thresholdDeviceNumber: number | null = null;
+    let thresholdParticipantIds: number[] | null = null;
+    let normalizedThresholdParticipantIds: number[] | null = null;
 
     if (wantsThresholdSession && relayUrl) {
       try {
@@ -144,6 +147,17 @@ export async function loginAndCreateSession(
           thresholdDeviceNumber = deviceNumber;
           const thresholdKeyMaterial = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(nearAccountId, deviceNumber);
           thresholdRelayerKeyId = thresholdKeyMaterial?.relayerKeyId || null;
+          thresholdParticipantIds = thresholdKeyMaterial?.participants?.map((p) => p.id) || null;
+          normalizedThresholdParticipantIds = normalizeThresholdEd25519ParticipantIds(thresholdParticipantIds);
+        }
+
+        if (thresholdRelayerKeyId) {
+          if (normalizedThresholdParticipantIds && normalizedThresholdParticipantIds.length !== 2) {
+            console.warn(
+              `[login] multi-party threshold signing is not supported yet; skipping threshold session mint (participantIds=[${normalizedThresholdParticipantIds.join(',')}])`
+            );
+            thresholdRelayerKeyId = null;
+          }
         }
 
         if (thresholdRelayerKeyId) {
@@ -151,6 +165,7 @@ export async function loginAndCreateSession(
             nearAccountId,
             rpId,
             relayerKeyId: thresholdRelayerKeyId,
+            ...(normalizedThresholdParticipantIds?.length ? { participantIds: normalizedThresholdParticipantIds } : {}),
             ttlMs,
             remainingUses,
           });
@@ -159,6 +174,7 @@ export async function loginAndCreateSession(
             rpId,
             relayerUrl: relayUrl,
             relayerKeyId: thresholdRelayerKeyId,
+            ...(normalizedThresholdParticipantIds?.length ? { participantIds: normalizedThresholdParticipantIds } : {}),
           });
         } else {
           console.warn('[login] threshold-signer configured but no threshold key material found; skipping threshold session mint');

@@ -20,6 +20,7 @@ import {
   makeThresholdEd25519AuthSessionCacheKey,
 } from '../../../threshold/thresholdEd25519AuthSession';
 import { isThresholdSessionAuthUnavailableError } from '../../../threshold/thresholdSessionPolicy';
+import { normalizeThresholdEd25519ParticipantIds } from '../../../../threshold/participants';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { generateSessionId } from '../sessionHandshake.js';
 import { SignerWorkerManagerContext } from '..';
@@ -121,6 +122,9 @@ export async function signNep413Message({ ctx, payload }: {
         ? {
           relayerUrl: signingContext.threshold.relayerUrl,
           relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
+          clientParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find((p) => p.role === 'client')?.id,
+          relayerParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find((p) => p.role === 'relayer')?.id,
+          participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
           thresholdSessionKind: 'jwt' as const,
           thresholdSessionJwt: signingContext.threshold.thresholdSessionJwt,
         }
@@ -277,11 +281,19 @@ function validateAndPrepareNep413SigningContext(args: {
     throw new Error('Missing rpId for threshold signing');
   }
 
+  const participantIds = normalizeThresholdEd25519ParticipantIds(thresholdKeyMaterial.participants.map((p) => p.id));
+  if (!participantIds || participantIds.length !== 2) {
+    throw new Error(
+      `multi-party threshold signing is not supported yet (expected 2 participants, got [${(participantIds || []).join(',')}])`
+    );
+  }
+
   const thresholdSessionCacheKey = makeThresholdEd25519AuthSessionCacheKey({
     nearAccountId: args.nearAccountId,
     rpId,
     relayerUrl,
     relayerKeyId: thresholdKeyMaterial.relayerKeyId,
+    participantIds,
   });
 
   return {

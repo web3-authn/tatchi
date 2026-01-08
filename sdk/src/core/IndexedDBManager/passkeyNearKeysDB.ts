@@ -1,4 +1,9 @@
 import { openDB, type IDBPDatabase } from 'idb';
+import {
+  buildThresholdEd25519Participants2pV1,
+  parseThresholdEd25519ParticipantsV1,
+  type ThresholdEd25519ParticipantV1,
+} from '../../threshold/participants';
 
 const DB_CONFIG: PasskeyNearKeysDBConfig = {
   dbName: 'PasskeyNearKeys',
@@ -38,6 +43,11 @@ export interface ThresholdEd25519_2p_V1Material extends BasePasskeyNearKeyMateri
   kind: 'threshold_ed25519_2p_v1';
   relayerKeyId: string;
   clientShareDerivation: ClientShareDerivation;
+  /**
+   * Versioned participant list for future n-party support.
+   * In 2P, participants are `{id:1, role:'client'}` and `{id:2, role:'relayer', ...}`.
+   */
+  participants: ThresholdEd25519ParticipantV1[];
 }
 
 export type PasskeyNearKeyMaterial =
@@ -149,6 +159,11 @@ export class PasskeyNearKeysDBManager {
       if (!data.clientShareDerivation) {
         throw new Error('PasskeyNearKeysDB: Missing clientShareDerivation for threshold_ed25519_2p_v1');
       }
+      const parsed = parseThresholdEd25519ParticipantsV1(data.participants);
+      data.participants = parsed || buildThresholdEd25519Participants2pV1({
+        relayerKeyId: data.relayerKeyId,
+        clientShareDerivation: data.clientShareDerivation,
+      });
     }
     await db.put(this.config.storeName, data);
   }
@@ -187,6 +202,12 @@ export class PasskeyNearKeysDBManager {
 
       if (kind === 'threshold_ed25519_2p_v1') {
         if (!rec?.relayerKeyId || !rec?.clientShareDerivation) return null;
+        const participants =
+          parseThresholdEd25519ParticipantsV1(rec.participants)
+          || buildThresholdEd25519Participants2pV1({
+            relayerKeyId: rec.relayerKeyId,
+            clientShareDerivation: rec.clientShareDerivation,
+          });
         return {
           nearAccountId: rec.nearAccountId,
           deviceNumber: rec.deviceNumber,
@@ -195,6 +216,7 @@ export class PasskeyNearKeysDBManager {
           wrapKeySalt: rec.wrapKeySalt,
           relayerKeyId: rec.relayerKeyId,
           clientShareDerivation: rec.clientShareDerivation,
+          participants,
           timestamp: rec.timestamp,
         };
       }
@@ -295,6 +317,12 @@ export class PasskeyNearKeysDBManager {
 
         if (kind === 'threshold_ed25519_2p_v1') {
           if (!rec?.relayerKeyId || !rec?.clientShareDerivation) return null;
+          const participants =
+            parseThresholdEd25519ParticipantsV1(rec.participants)
+            || buildThresholdEd25519Participants2pV1({
+              relayerKeyId: rec.relayerKeyId,
+              clientShareDerivation: rec.clientShareDerivation,
+            });
           return {
             nearAccountId: rec.nearAccountId,
             deviceNumber: rec.deviceNumber,
@@ -303,6 +331,7 @@ export class PasskeyNearKeysDBManager {
             wrapKeySalt: rec.wrapKeySalt,
             relayerKeyId: rec.relayerKeyId,
             clientShareDerivation: rec.clientShareDerivation,
+            participants,
             timestamp: rec.timestamp,
           } as ThresholdEd25519_2p_V1Material;
         }

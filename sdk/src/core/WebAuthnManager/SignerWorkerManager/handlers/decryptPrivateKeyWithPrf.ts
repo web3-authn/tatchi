@@ -8,7 +8,7 @@ import { AccountId, toAccountId } from "../../../types/accountIds";
 
 import { SignerWorkerManagerContext } from '..';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
-import { isObject } from '../../../WalletIframe/validation';
+import { isObject } from '@/utils/validation';
 import { withSessionId } from './session';
 
 export async function decryptPrivateKeyWithPrf({

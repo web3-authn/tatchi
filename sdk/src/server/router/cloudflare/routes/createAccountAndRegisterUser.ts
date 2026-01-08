@@ -95,6 +95,9 @@ export async function handleCreateAccountAndRegisterUser(ctx: CloudflareRelayCon
           relayerKeyId: thresholdKeygen.relayerKeyId,
           publicKey: thresholdKeygen.publicKey,
           relayerVerifyingShareB64u: thresholdKeygen.relayerVerifyingShareB64u,
+          clientParticipantId: thresholdKeygen.clientParticipantId,
+          relayerParticipantId: thresholdKeygen.relayerParticipantId,
+          participantIds: thresholdKeygen.participantIds,
         },
       };
     } catch (e: unknown) {

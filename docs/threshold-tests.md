@@ -21,6 +21,8 @@ Important: threshold relayer endpoints are called with `credentials: 'include'`,
 - Echo `Origin` (not `*`) and
 - Set `Access-Control-Allow-Credentials: true`.
 
+Important: `/threshold-ed25519/sign/*` is **coordinator-gated**. Ensure the relayer is running as the coordinator (`THRESHOLD_NODE_ROLE=coordinator`, now the default).
+
 ## Current coverage (implemented)
 
 **Browser e2e**
@@ -96,4 +98,3 @@ Important: threshold relayer endpoints are called with `credentials: 'include'`,
   - `pnpm -C sdk exec playwright test src/__tests__/e2e/thresholdEd25519.* --reporter=line`
 - Run full e2e suite:
   - `pnpm -C sdk test:e2e`
-

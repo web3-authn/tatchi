@@ -5,6 +5,7 @@ pub mod deserializers;
 pub mod handlers;
 pub mod near;
 pub mod progress;
+pub mod participants;
 pub mod signing;
 pub mod wasm_to_json;
 pub mod webauthn;

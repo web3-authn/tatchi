@@ -1,6 +1,12 @@
 import type { AccessKeyList } from '../../../core/NearClient';
 import { alphabetizeStringify, sha256BytesUtf8 } from '../../../utils/digests';
-import { ensureEd25519Prefix, toOptionalString } from '../../../utils/validation';
+import { ensureEd25519Prefix, toOptionalString, toTrimmedString } from '../../../utils/validation';
+import {
+  THRESHOLD_ED25519_2P_PARTICIPANT_IDS,
+  THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
+  THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
+  normalizeThresholdEd25519ParticipantIds,
+} from '../../../threshold/participants';
 
 export type ThresholdValidationOk = { ok: true };
 export type ThresholdValidationErr = { ok: false; code: string; message: string };
@@ -57,6 +63,21 @@ export function parseThresholdEd25519Commitments(raw: unknown): ParsedThresholdE
   return { hiding, binding };
 }
 
+export type ParsedThresholdEd25519CommitmentsById = Record<string, ParsedThresholdEd25519Commitments>;
+
+export function parseThresholdEd25519CommitmentsById(raw: unknown): ParsedThresholdEd25519CommitmentsById | null {
+  if (!isObject(raw)) return null;
+  const out: ParsedThresholdEd25519CommitmentsById = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const key = toTrimmedString(k);
+    if (!key) return null;
+    const commitments = parseThresholdEd25519Commitments(v);
+    if (!commitments) return null;
+    out[key] = commitments;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 export type ParsedThresholdEd25519MpcSessionRecord = {
   expiresAtMs: number;
   relayerKeyId: string;
@@ -66,6 +87,7 @@ export type ParsedThresholdEd25519MpcSessionRecord = {
   userId: string;
   rpId: string;
   clientVerifyingShareB64u: string;
+  participantIds: number[];
 };
 
 export function parseThresholdEd25519MpcSessionRecord(raw: unknown): ParsedThresholdEd25519MpcSessionRecord | null {
@@ -78,6 +100,8 @@ export function parseThresholdEd25519MpcSessionRecord(raw: unknown): ParsedThres
   const userId = toOptionalString(raw.userId);
   const rpId = toOptionalString(raw.rpId);
   const clientVerifyingShareB64u = toOptionalString(raw.clientVerifyingShareB64u);
+  const participantIds = normalizeThresholdEd25519ParticipantIds(raw.participantIds)
+    || [...THRESHOLD_ED25519_2P_PARTICIPANT_IDS];
   if (!isValidNumber(expiresAtMs)) return null;
   if (
     !relayerKeyId ||
@@ -88,7 +112,17 @@ export function parseThresholdEd25519MpcSessionRecord(raw: unknown): ParsedThres
     !rpId ||
     !clientVerifyingShareB64u
   ) return null;
-  return { expiresAtMs, relayerKeyId, purpose, intentDigestB64u, signingDigestB64u, userId, rpId, clientVerifyingShareB64u };
+  return {
+    expiresAtMs,
+    relayerKeyId,
+    purpose,
+    intentDigestB64u,
+    signingDigestB64u,
+    userId,
+    rpId,
+    clientVerifyingShareB64u,
+    participantIds,
+  };
 }
 
 export type ParsedThresholdEd25519SigningSessionRecord = {
@@ -101,7 +135,9 @@ export type ParsedThresholdEd25519SigningSessionRecord = {
   clientVerifyingShareB64u: string;
   clientCommitments: ParsedThresholdEd25519Commitments;
   relayerCommitments: ParsedThresholdEd25519Commitments;
+  commitmentsById: ParsedThresholdEd25519CommitmentsById;
   relayerNoncesB64u: string;
+  participantIds: number[];
 };
 
 export function parseThresholdEd25519SigningSessionRecord(raw: unknown): ParsedThresholdEd25519SigningSessionRecord | null {
@@ -115,7 +151,11 @@ export function parseThresholdEd25519SigningSessionRecord(raw: unknown): ParsedT
   const clientVerifyingShareB64u = toOptionalString(raw.clientVerifyingShareB64u);
   const clientCommitments = parseThresholdEd25519Commitments(raw.clientCommitments);
   const relayerCommitments = parseThresholdEd25519Commitments(raw.relayerCommitments);
+  const commitmentsByIdParsed = parseThresholdEd25519CommitmentsById(raw.commitmentsById);
   const relayerNoncesB64u = toOptionalString(raw.relayerNoncesB64u);
+  const participantIds =
+    normalizeThresholdEd25519ParticipantIds(raw.participantIds)
+    || [...THRESHOLD_ED25519_2P_PARTICIPANT_IDS];
   if (!isValidNumber(expiresAtMs)) return null;
   if (
     !mpcSessionId ||
@@ -140,7 +180,95 @@ export function parseThresholdEd25519SigningSessionRecord(raw: unknown): ParsedT
     clientVerifyingShareB64u,
     clientCommitments,
     relayerCommitments,
+    commitmentsById: {
+      ...(commitmentsByIdParsed || {}),
+      [String(THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID)]: clientCommitments,
+      [String(THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID)]: relayerCommitments,
+    },
     relayerNoncesB64u,
+    participantIds,
+  };
+}
+
+export type ParsedThresholdEd25519StringById = Record<string, string>;
+
+export function parseThresholdEd25519StringById(raw: unknown): ParsedThresholdEd25519StringById | null {
+  if (!isObject(raw)) return null;
+  const out: ParsedThresholdEd25519StringById = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const key = toTrimmedString(k);
+    const value = toOptionalString(v);
+    if (!key || !value) return null;
+    out[key] = value;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+export type ParsedThresholdEd25519CoordinatorSigningSessionRecord = {
+  expiresAtMs: number;
+  mpcSessionId: string;
+  relayerKeyId: string;
+  signingDigestB64u: string;
+  userId: string;
+  rpId: string;
+  clientVerifyingShareB64u: string;
+  commitmentsById: ParsedThresholdEd25519CommitmentsById;
+  participantIds: number[];
+  peerSigningSessionIdsById: ParsedThresholdEd25519StringById;
+  peerRelayerUrlsById: ParsedThresholdEd25519StringById;
+  peerCoordinatorGrantsById: ParsedThresholdEd25519StringById;
+  relayerVerifyingSharesById: ParsedThresholdEd25519StringById;
+};
+
+export function parseThresholdEd25519CoordinatorSigningSessionRecord(raw: unknown): ParsedThresholdEd25519CoordinatorSigningSessionRecord | null {
+  if (!isObject(raw)) return null;
+  const expiresAtMs = raw.expiresAtMs;
+  const mpcSessionId = toOptionalString(raw.mpcSessionId);
+  const relayerKeyId = toOptionalString(raw.relayerKeyId);
+  const signingDigestB64u = toOptionalString(raw.signingDigestB64u);
+  const userId = toOptionalString(raw.userId);
+  const rpId = toOptionalString(raw.rpId);
+  const clientVerifyingShareB64u = toOptionalString(raw.clientVerifyingShareB64u);
+  const commitmentsById = parseThresholdEd25519CommitmentsById(raw.commitmentsById);
+  const participantIds =
+    normalizeThresholdEd25519ParticipantIds(raw.participantIds)
+    || [...THRESHOLD_ED25519_2P_PARTICIPANT_IDS];
+  const peerSigningSessionIdsById = parseThresholdEd25519StringById(raw.peerSigningSessionIdsById);
+  const peerRelayerUrlsById = parseThresholdEd25519StringById(raw.peerRelayerUrlsById);
+  const peerCoordinatorGrantsById = parseThresholdEd25519StringById(raw.peerCoordinatorGrantsById);
+  const relayerVerifyingSharesById = parseThresholdEd25519StringById(raw.relayerVerifyingSharesById);
+
+  if (!isValidNumber(expiresAtMs)) return null;
+  if (
+    !mpcSessionId ||
+    !relayerKeyId ||
+    !signingDigestB64u ||
+    !userId ||
+    !rpId ||
+    !clientVerifyingShareB64u ||
+    !commitmentsById ||
+    !peerSigningSessionIdsById ||
+    !peerRelayerUrlsById ||
+    !peerCoordinatorGrantsById ||
+    !relayerVerifyingSharesById
+  ) {
+    return null;
+  }
+
+  return {
+    expiresAtMs,
+    mpcSessionId,
+    relayerKeyId,
+    signingDigestB64u,
+    userId,
+    rpId,
+    clientVerifyingShareB64u,
+    commitmentsById,
+    participantIds,
+    peerSigningSessionIdsById,
+    peerRelayerUrlsById,
+    peerCoordinatorGrantsById,
+    relayerVerifyingSharesById,
   };
 }
 
@@ -149,6 +277,7 @@ export type ParsedThresholdEd25519AuthSessionRecord = {
   relayerKeyId: string;
   userId: string;
   rpId: string;
+  participantIds: number[];
 };
 
 export function parseThresholdEd25519AuthSessionRecord(raw: unknown): ParsedThresholdEd25519AuthSessionRecord | null {
@@ -157,9 +286,12 @@ export function parseThresholdEd25519AuthSessionRecord(raw: unknown): ParsedThre
   const relayerKeyId = toOptionalString(raw.relayerKeyId);
   const userId = toOptionalString(raw.userId);
   const rpId = toOptionalString(raw.rpId);
+  const participantIds =
+    normalizeThresholdEd25519ParticipantIds(raw.participantIds)
+    || [...THRESHOLD_ED25519_2P_PARTICIPANT_IDS];
   if (!isValidNumber(expiresAtMs)) return null;
   if (!relayerKeyId || !userId || !rpId) return null;
-  return { expiresAtMs, relayerKeyId, userId, rpId };
+  return { expiresAtMs, relayerKeyId, userId, rpId, participantIds };
 }
 
 export type ThresholdEd25519SessionClaims = {

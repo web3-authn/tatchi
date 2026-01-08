@@ -46,7 +46,7 @@ import { CONFIRM_UI_ELEMENT_SELECTORS } from '../../WebAuthnManager/LitComponent
 import { MinimalNearClient } from '../../NearClient';
 import { setupLitElemMounter } from './iframe-lit-elem-mounter';
 import type { TatchiConfigsInput } from '../../types/tatchi';
-import { isObject, isString } from '../validation';
+import { isObject, isString } from '@/utils/validation';
 import { errorMessage } from '../../../utils/errors';
 import { TatchiPasskey } from '../../TatchiPasskey';
 import { __setWalletIframeHostMode } from '../host-mode';
@@ -255,9 +255,10 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     // Configure SDK embedded asset base for Lit modal/embedded components
     const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
     // Default to serving embedded assets from this wallet origin under /sdk/
+    const safeOrigin = window.location.origin || window.location.href;
     const defaultRoot = (() => {
       try {
-        const base = new URL('/sdk/', window.location.origin).toString();
+        const base = new URL('/sdk/', safeOrigin).toString();
         return base.endsWith('/') ? base : base + '/';
       } catch {
         return '/sdk/';
@@ -265,11 +266,12 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     })();
 
     let resolvedBase = defaultRoot;
-    if (isString(assetsBaseUrl)) {
+    const assetsBaseUrlCandidate = isString(assetsBaseUrl) ? assetsBaseUrl : undefined;
+    if (assetsBaseUrlCandidate !== undefined) {
       try {
-        const u = new URL(assetsBaseUrl, window.location.origin);
+        const u = new URL(assetsBaseUrlCandidate, safeOrigin);
         // Only honor provided assetsBaseUrl if it matches this wallet origin to avoid CORS
-        if (u.origin === window.location.origin) {
+        if (u.origin === safeOrigin) {
           const norm = u.toString().endsWith('/') ? u.toString() : (u.toString() + '/');
           resolvedBase = norm;
         }

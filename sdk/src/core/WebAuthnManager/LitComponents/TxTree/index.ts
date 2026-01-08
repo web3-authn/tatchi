@@ -6,7 +6,7 @@ import type { TreeNode } from './tx-tree-utils';
 import type { TxTreeStyles } from './tx-tree-themes';
 import { TX_TREE_THEMES } from './tx-tree-themes';
 import { formatGas, formatDeposit, formatCodeSize, shortenPubkey } from '../common/formatters';
-import { isNumber, isString } from '../../../WalletIframe/validation';
+import { isNumber, isString } from '@/utils/validation';
 import { ensureExternalStyles } from '../css/css-loader';
 // Re-export for backward compatibility
 export type { TxTreeStyles } from './tx-tree-themes';

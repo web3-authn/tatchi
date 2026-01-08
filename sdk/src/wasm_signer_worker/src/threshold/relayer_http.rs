@@ -5,25 +5,15 @@ use crate::fetch::{
 use crate::types::ThresholdSignerConfig;
 use js_sys::{Object, Reflect};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use wasm_bindgen::JsValue;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct CommitmentsWire {
-    pub(super) hiding: String,
-    pub(super) binding: String,
-}
+use super::protocol::CommitmentsWire;
 
 #[derive(Debug, Clone)]
 pub(super) struct SignInitOk {
     pub(super) signing_session_id: String,
     pub(super) relayer_commitments: CommitmentsWire,
     pub(super) relayer_verifying_share_b64u: String,
-}
-
-pub(super) enum SignFinalizeOk {
-    Signature([u8; 64]),
-    RelayerSignatureShareB64u(String),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -71,9 +61,8 @@ struct SignInitResponse {
     code: Option<String>,
     message: Option<String>,
     signing_session_id: Option<String>,
-    relayer_commitments: Option<CommitmentsWire>,
-    #[serde(rename = "relayerVerifyingShareB64u")]
-    relayer_verifying_share_b64u: Option<String>,
+    commitments_by_id: Option<BTreeMap<String, CommitmentsWire>>,
+    relayer_verifying_shares_by_id: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -90,9 +79,7 @@ struct SignFinalizeResponse {
     ok: bool,
     code: Option<String>,
     message: Option<String>,
-    #[serde(rename = "relayerSignatureShareB64u")]
-    relayer_signature_share_b64u: Option<String>,
-    signature: Option<String>,
+    relayer_signature_shares_by_id: Option<BTreeMap<String, String>>,
 }
 
 fn bytes_to_js_array(bytes: &[u8]) -> js_sys::Array {
@@ -156,6 +143,34 @@ async fn post_json(
     }
 
     response_json(&resp).await
+}
+
+fn resolve_relayer_participant_id(cfg: &ThresholdSignerConfig) -> u16 {
+    if let Some(id) = cfg.relayer_participant_id {
+        return id;
+    }
+
+    let client_id = cfg.client_participant_id;
+    if let Some(ids) = cfg.participant_ids.as_ref().filter(|ids| ids.len() == 2) {
+        if let Some(cid) = client_id {
+            if let Some(other) = ids.iter().find(|id| **id != cid) {
+                return *other;
+            }
+        }
+
+        if ids[0] == 1 && ids[1] != 1 {
+            return ids[1];
+        }
+        if ids[1] == 1 && ids[0] != 1 {
+            return ids[0];
+        }
+
+        if let Some(max) = ids.iter().max() {
+            return *max;
+        }
+    }
+
+    2
 }
 
 fn build_authorize_body(
@@ -541,14 +556,9 @@ pub(super) async fn sign_init(
     };
 
     let init_body = to_json_string(&init_req)?;
-    let init_json = post_json(
-        cfg,
-        "/threshold-ed25519/sign/init",
-        &init_body,
-        "/sign/init",
-        None,
-    )
-    .await?;
+
+    let init_json = post_json(cfg, "/threshold-ed25519/sign/init", &init_body, "/sign/init", None)
+        .await?;
     let init: SignInitResponse = serde_wasm_bindgen::from_value(init_json)
         .map_err(|e| format!("threshold-signer: failed to parse /sign/init response: {e}"))?;
 
@@ -561,18 +571,28 @@ pub(super) async fn sign_init(
         }));
     }
 
-    let signing_session_id = init
-        .signing_session_id
-        .clone()
-        .ok_or_else(|| "threshold-signer: /sign/init missing signingSessionId".to_string())?;
-    let relayer_commitments = init
-        .relayer_commitments
-        .clone()
-        .ok_or_else(|| "threshold-signer: /sign/init missing relayerCommitments".to_string())?;
-    let relayer_verifying_share_b64u =
-        init.relayer_verifying_share_b64u.clone().ok_or_else(|| {
-            "threshold-signer: /sign/init missing relayerVerifyingShareB64u".to_string()
-        })?;
+    let signing_session_id = init.signing_session_id.clone().ok_or_else(|| {
+        "threshold-signer: /sign/init missing signingSessionId".to_string()
+    })?;
+    let relayer_id = resolve_relayer_participant_id(cfg).to_string();
+    let commitments_by_id = init.commitments_by_id.ok_or_else(|| {
+        "threshold-signer: /sign/init missing commitmentsById".to_string()
+    })?;
+    let relayer_commitments = commitments_by_id.get(&relayer_id).cloned().ok_or_else(|| {
+        format!(
+            "threshold-signer: /sign/init missing commitmentsById[{}]",
+            relayer_id
+        )
+    })?;
+    let verifying_by_id = init.relayer_verifying_shares_by_id.ok_or_else(|| {
+        "threshold-signer: /sign/init missing relayerVerifyingSharesById".to_string()
+    })?;
+    let relayer_verifying_share_b64u = verifying_by_id.get(&relayer_id).cloned().ok_or_else(|| {
+        format!(
+            "threshold-signer: /sign/init missing relayerVerifyingSharesById[{}]",
+            relayer_id
+        )
+    })?;
 
     Ok(SignInitOk {
         signing_session_id,
@@ -585,12 +605,13 @@ pub(super) async fn sign_finalize(
     cfg: &ThresholdSignerConfig,
     signing_session_id: &str,
     client_signature_share_b64u: &str,
-) -> Result<SignFinalizeOk, String> {
+) -> Result<String, String> {
     let finalize_req = SignFinalizeRequest {
         signing_session_id,
         client_signature_share_b64u,
     };
     let finalize_body = to_json_string(&finalize_req)?;
+
     let finalize_json = post_json(
         cfg,
         "/threshold-ed25519/sign/finalize",
@@ -611,25 +632,14 @@ pub(super) async fn sign_finalize(
         }));
     }
 
-    // Server may return the final signature (future), or a signature share (preferred non-custodial).
-    if let Some(sig_b64) = finalize.signature {
-        let sig = crate::encoders::base64_standard_decode(&sig_b64)
-            .map_err(|e| format!("threshold-signer: invalid signature base64: {e}"))?;
-        if sig.len() != 64 {
-            return Err(format!(
-                "threshold-signer: invalid signature length {}",
-                sig.len()
-            ));
-        }
-        let mut out = [0u8; 64];
-        out.copy_from_slice(&sig);
-        return Ok(SignFinalizeOk::Signature(out));
-    }
-
-    let relayer_sig_share_b64u = finalize.relayer_signature_share_b64u.ok_or_else(|| {
-        "threshold-signer: /sign/finalize missing relayerSignatureShareB64u".to_string()
+    let relayer_id = resolve_relayer_participant_id(cfg).to_string();
+    let shares_by_id = finalize.relayer_signature_shares_by_id.ok_or_else(|| {
+        "threshold-signer: /sign/finalize missing relayerSignatureSharesById".to_string()
     })?;
-    Ok(SignFinalizeOk::RelayerSignatureShareB64u(
-        relayer_sig_share_b64u,
-    ))
+    shares_by_id.get(&relayer_id).cloned().ok_or_else(|| {
+        format!(
+            "threshold-signer: /sign/finalize missing relayerSignatureSharesById[{}]",
+            relayer_id
+        )
+    })
 }

@@ -41,7 +41,7 @@ import type { ConfirmationConfig } from '../../types/signer-worker';
 import { toAccountId } from '../../types/accountIds';
 import { SignedTransaction } from '../../NearClient';
 import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
-import { isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, PlainSignedTransactionLike } from '../validation';
+import { isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, PlainSignedTransactionLike } from '@/utils/validation';
 import type { TransactionInput, ActionArgs } from '../../types';
 import type { DelegateActionInput } from '../../types/delegate';
 
@@ -206,12 +206,11 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const pm = getTatchiPasskey();
       const { signedTransaction, options } = req.payload || {};
       let st = signedTransaction;
-
-      if (isPlainSignedTransactionLike(st)) {
-        const s = st;
+      const plainCandidate = st;
+      if (plainCandidate && isPlainSignedTransactionLike(plainCandidate)) {
         try {
-          const borsh = extractBorshBytesFromPlainSignedTx(st as Parameters<typeof extractBorshBytesFromPlainSignedTx>[0]);
-          st = SignedTransaction.fromPlain({ transaction: s.transaction, signature: s.signature, borsh_bytes: borsh });
+          const borsh = extractBorshBytesFromPlainSignedTx(plainCandidate);
+          st = SignedTransaction.fromPlain({ transaction: plainCandidate.transaction, signature: plainCandidate.signature, borsh_bytes: borsh });
         } catch {
           // If conversion fails, pass through original value
         }

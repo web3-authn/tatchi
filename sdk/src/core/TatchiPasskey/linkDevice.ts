@@ -14,6 +14,7 @@ import type { PasskeyManagerContext } from './index';
 import type { WebAuthnRegistrationCredential } from '../types';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
 import { getDeviceLinkingAccountContractCall, thresholdEd25519KeygenFromRegistrationTx } from "../rpcCalls";
+import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
 
 // Lazy-load QRCode to keep it an optional peer and reduce baseline bundle size
 async function generateQRCodeDataURL(data: string): Promise<string> {
@@ -578,6 +579,8 @@ export class LinkDeviceFlow {
       transactionContext: txContext,
       thresholdPublicKey,
       relayerVerifyingShareB64u,
+      clientParticipantId: keygen.clientParticipantId,
+      relayerParticipantId: keygen.relayerParticipantId,
       deviceNumber,
     });
     const signedTx = signed?.signedTransaction;
@@ -596,6 +599,15 @@ export class LinkDeviceFlow {
       wrapKeySalt: derived.wrapKeySalt,
       relayerKeyId,
       clientShareDerivation: 'prf_first_v1',
+      participants: buildThresholdEd25519Participants2pV1({
+        clientParticipantId: keygen.clientParticipantId,
+        relayerParticipantId: keygen.relayerParticipantId,
+        relayerKeyId,
+        relayerUrl,
+        clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+        relayerVerifyingShareB64u,
+        clientShareDerivation: 'prf_first_v1',
+      }),
       timestamp: Date.now(),
     });
   }

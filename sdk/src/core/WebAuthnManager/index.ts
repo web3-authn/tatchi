@@ -6,6 +6,7 @@ import {
 } from '../IndexedDBManager';
 import { StoreUserDataInput } from '../IndexedDBManager/passkeyClientDB';
 import type { ThresholdEd25519_2p_V1Material } from '../IndexedDBManager/passkeyNearKeysDB';
+import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
 import { type NearClient, SignedTransaction } from '../NearClient';
 import { SignerWorkerManager } from './SignerWorkerManager';
 import { VrfWorkerManager } from './VrfWorkerManager';
@@ -37,7 +38,7 @@ import {
   type WasmSignedDelegate,
 } from '../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
-import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
+import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validateTransactions';
 import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../sdkPaths';
 import { DEFAULT_WAIT_STATUS, type TransactionContext } from '../types/rpc';
 import { getLastLoggedInDeviceNumber } from './SignerWorkerManager/getDeviceNumber';
@@ -1195,6 +1196,8 @@ export class WebAuthnManager {
     transactionContext: TransactionContext;
     thresholdPublicKey: string;
     relayerVerifyingShareB64u: string;
+    clientParticipantId?: number;
+    relayerParticipantId?: number;
     deviceNumber?: number;
     onEvent?: (update: onProgressEvents) => void;
   }): Promise<SignTransactionResult> {
@@ -1243,6 +1246,8 @@ export class WebAuthnManager {
               nearAccountId,
               thresholdPublicKey,
               relayerVerifyingShareB64u,
+              clientParticipantId: typeof args.clientParticipantId === 'number' ? args.clientParticipantId : undefined,
+              relayerParticipantId: typeof args.relayerParticipantId === 'number' ? args.relayerParticipantId : undefined,
             },
           },
           onEvent: args.onEvent,
@@ -1821,8 +1826,10 @@ export class WebAuthnManager {
       }
 
       const publicKey = keygen.publicKey;
+      const clientVerifyingShareB64u = keygen.clientVerifyingShareB64u;
       const relayerKeyId = keygen.relayerKeyId;
       const relayerVerifyingShareB64u = keygen.relayerVerifyingShareB64u;
+      if (!clientVerifyingShareB64u) throw new Error('Threshold keygen returned empty clientVerifyingShareB64u');
 
       // Activate threshold enrollment on-chain by submitting AddKey(publicKey) signed with the local key.
       const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber);
@@ -1845,6 +1852,8 @@ export class WebAuthnManager {
           transactionContext: txContext,
           thresholdPublicKey: publicKey,
           relayerVerifyingShareB64u,
+          clientParticipantId: keygen.clientParticipantId,
+          relayerParticipantId: keygen.relayerParticipantId,
           deviceNumber: resolvedDeviceNumber,
         });
 
@@ -1865,6 +1874,15 @@ export class WebAuthnManager {
         wrapKeySalt: keygen.wrapKeySalt,
         relayerKeyId,
         clientShareDerivation: 'prf_first_v1',
+        participants: buildThresholdEd25519Participants2pV1({
+          clientParticipantId: keygen.clientParticipantId,
+          relayerParticipantId: keygen.relayerParticipantId,
+          relayerKeyId,
+          relayerUrl,
+          clientVerifyingShareB64u,
+          relayerVerifyingShareB64u,
+          clientShareDerivation: 'prf_first_v1',
+        }),
         timestamp: Date.now(),
       };
       await IndexedDBManager.nearKeysDB.storeKeyMaterial(keyMaterial);

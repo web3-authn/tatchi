@@ -87,6 +87,12 @@ export interface ThresholdSignerConfig {
   relayerUrl: string;
   /** Identifies which relayer-held key share to use */
   relayerKeyId: string;
+  /** FROST participant identifier used for the client share (2P only, optional). */
+  clientParticipantId?: number;
+  /** FROST participant identifier used for the relayer share (2P only, optional). */
+  relayerParticipantId?: number;
+  /** Optional participant ids (signer set) associated with this threshold key/session. */
+  participantIds?: number[];
   /**
    * Optional short-lived authorization token returned by `/threshold-ed25519/authorize`.
    * When omitted, the signer worker will call `/threshold-ed25519/authorize` on-demand per signature.
@@ -152,6 +158,8 @@ export interface WasmSignAddKeyThresholdPublicKeyNoPromptRequest {
   nearAccountId: string;
   thresholdPublicKey: string;
   relayerVerifyingShareB64u: string;
+  clientParticipantId?: number;
+  relayerParticipantId?: number;
   transactionContext: TransactionContext;
 }
 

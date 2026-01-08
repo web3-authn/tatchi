@@ -6,7 +6,7 @@ import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../../digests/intentDigest';
 import { isActionArgsWasm, toActionArgsWasm, type ActionArgs, type ActionArgsWasm } from '@/core/types/actions';
-import { isObject, isString } from '../../../WalletIframe/validation';
+import { isObject, isString } from '@/utils/validation';
 import { W3A_TX_CONFIRMER_ID } from '../tags';
 import { DrawerTxConfirmerElement } from './viewer-drawer';
 import { ModalTxConfirmElement } from './viewer-modal';

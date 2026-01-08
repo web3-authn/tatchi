@@ -63,6 +63,22 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
   }
 };
 
+// Default threshold participant identifiers (2P FROST).
+// These are intentionally exported as standalone constants so apps can reuse them when wiring
+// threshold signing across client + server environments.
+export const THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID = 1 as const;
+export const THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID = 2 as const;
+export const THRESHOLD_ED25519_2P_PARTICIPANT_IDS = [
+  THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
+  THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
+] as const;
+
+// Threshold node roles.
+// Coordinator is the default because it exposes the public `/threshold-ed25519/sign/*` endpoints.
+export const THRESHOLD_NODE_ROLE_COORDINATOR = 'coordinator' as const;
+export const THRESHOLD_NODE_ROLE_PARTICIPANT = 'participant' as const;
+export const THRESHOLD_NODE_ROLE_DEFAULT = THRESHOLD_NODE_ROLE_COORDINATOR;
+
 export const DEFAULT_EMAIL_RECOVERY_CONTRACTS: EmailRecoveryContracts = {
   emailRecovererGlobalContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailRecovererGlobalContract,
   zkEmailVerifierContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.zkEmailVerifierContract,

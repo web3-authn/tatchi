@@ -56,7 +56,7 @@ export function makeAuthServiceForThreshold(
 
   const threshold = createThresholdEd25519ServiceFromAuthService({
     authService: svc,
-    thresholdEd25519KeyStore: thresholdEd25519KeyStore ?? { kind: 'in-memory' },
+    thresholdEd25519KeyStore: thresholdEd25519KeyStore ?? { THRESHOLD_NODE_ROLE: 'coordinator' },
     logger: null,
   });
 

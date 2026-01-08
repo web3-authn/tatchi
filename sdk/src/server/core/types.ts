@@ -134,6 +134,16 @@ export type ThresholdEd25519KeyStoreEnvInput = {
   THRESHOLD_ED25519_SESSION_PREFIX?: string;
   THRESHOLD_ED25519_AUTH_PREFIX?: string;
   /**
+   * Optional override for the client FROST participant identifier (u16, >= 1).
+   * Must be distinct from `THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID`.
+   */
+  THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID?: string;
+  /**
+   * Optional override for the relayer FROST participant identifier (u16, >= 1).
+   * Must be distinct from `THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID`.
+   */
+  THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID?: string;
+  /**
    * 32-byte base64url master secret used to deterministically derive relayer signing shares.
    * When set (and enabled via `THRESHOLD_ED25519_SHARE_MODE`), the relayer can be stateless for
    * long-lived threshold key material.
@@ -146,9 +156,40 @@ export type ThresholdEd25519KeyStoreEnvInput = {
    * - "auto": prefer derived when master secret is configured, otherwise kv
    */
   THRESHOLD_ED25519_SHARE_MODE?: string;
+  /**
+   * Threshold node role.
+   * - "coordinator" (default): exposes `/threshold-ed25519/sign/*` and can fan out to peers when configured.
+   * - "participant": does not expose public signing endpoints; intended for coordinator fanout peers.
+   */
+  THRESHOLD_NODE_ROLE?: string;
+  /**
+   * Optional coordinator peer list (JSON).
+   * Intended for future multi-relayer fanout mode.
+   *
+   * Example:
+   * `THRESHOLD_COORDINATOR_PEERS=[{"id":2,"relayerUrl":"https://relayer-a.example"},{"id":3,"relayerUrl":"https://relayer-b.example"}]`
+   */
+  THRESHOLD_COORDINATOR_PEERS?: string;
+  /**
+   * 32-byte base64url shared secret used to authenticate coordinator→peer calls.
+   *
+   * When set, participant relayers can expose internal endpoints that accept
+   * coordinator-signed grants (HMAC-SHA256).
+   */
+  THRESHOLD_COORDINATOR_SHARED_SECRET_B64U?: string;
 };
 
-export type ThresholdEd25519KeyStoreConfigInput = ThresholdEd25519KeyStoreConfig | ThresholdEd25519KeyStoreEnvInput;
+/**
+ * Threshold key store config input.
+ *
+ * Accepts either:
+ * - an env-shaped object (for ergonomics in server examples), or
+ * - an explicit `kind` object, optionally augmented with env-shaped overrides
+ *   (useful when wiring via code but still wanting env vars like THRESHOLD_NODE_ROLE).
+ */
+export type ThresholdEd25519KeyStoreConfigInput =
+  | ThresholdEd25519KeyStoreEnvInput
+  | (ThresholdEd25519KeyStoreConfig & Partial<ThresholdEd25519KeyStoreEnvInput>);
 
 export interface AuthServiceConfig {
   relayerAccountId: string;
@@ -285,6 +326,9 @@ export interface CreateAccountAndRegisterResult {
     relayerKeyId: string;
     publicKey: string;
     relayerVerifyingShareB64u?: string;
+    clientParticipantId?: number;
+    relayerParticipantId?: number;
+    participantIds?: number[];
   };
   error?: string;
   message?: string;
@@ -387,6 +431,8 @@ export type ThresholdEd25519SessionPolicy = {
   rpId: string;
   relayerKeyId: string;
   sessionId: string;
+  /** Optional participant ids that scope the session to a signer set. */
+  participantIds?: number[];
   ttlMs: number;
   remainingUses: number;
 };
@@ -487,6 +533,12 @@ export interface ThresholdEd25519KeygenResponse {
   ok: boolean;
   code?: string;
   message?: string;
+  /** FROST participant identifier (u16, >= 1) used for the client share. */
+  clientParticipantId?: number;
+  /** FROST participant identifier (u16, >= 1) used for the relayer share. */
+  relayerParticipantId?: number;
+  /** Convenience list of participant ids for this 2P signer set. */
+  participantIds?: number[];
   /**
    * Opaque identifier for the relayer-held share record.
    * Default: equals `publicKey` for stateless recovery.
@@ -494,14 +546,14 @@ export interface ThresholdEd25519KeygenResponse {
   relayerKeyId?: string;
   /** NEAR ed25519 public key string (`ed25519:<base58>`). */
   publicKey?: string;
-  /** Base64url-encoded 32-byte relayer verifying share (Ed25519 compressed point) for participant id=2. */
+  /** Base64url-encoded 32-byte relayer verifying share (Ed25519 compressed point). */
   relayerVerifyingShareB64u?: string;
 }
 
 export interface ThresholdEd25519SignInitRequest {
   mpcSessionId: string;
   relayerKeyId: string;
-  nearAccountId?: string;
+  nearAccountId: string;
   /**
    * Base64url-encoded message bytes (the exact digest the co-signers will sign).
    * For NEAR tx/delegate flows this is expected to be 32 bytes.
@@ -518,11 +570,12 @@ export interface ThresholdEd25519SignInitResponse {
   code?: string;
   message?: string;
   signingSessionId?: string;
-  relayerCommitments?: {
-    hiding: string;
-    binding: string;
-  };
-  relayerVerifyingShareB64u?: string;
+  /** Commitments keyed by participant id (stringified u16). */
+  commitmentsById?: Record<string, { hiding: string; binding: string }>;
+  /** Relayer verifying shares keyed by relayer participant id (stringified u16). */
+  relayerVerifyingSharesById?: Record<string, string>;
+  /** Convenience list of participant ids for this signer set. */
+  participantIds?: number[];
 }
 
 export interface ThresholdEd25519SignFinalizeRequest {
@@ -534,8 +587,50 @@ export interface ThresholdEd25519SignFinalizeResponse {
   ok: boolean;
   code?: string;
   message?: string;
+  /** Signature shares keyed by relayer participant id (stringified u16). */
+  relayerSignatureSharesById?: Record<string, string>;
+}
+
+// ==========================================
+// Threshold Ed25519 (internal coordinator RPC)
+// ==========================================
+
+/**
+ * Internal endpoint used by a coordinator node to ask a participant relayer to run
+ * round-1 commitments without requiring the participant to verify WebAuthn/VRF/session JWT.
+ */
+export interface ThresholdEd25519PeerSignInitRequest {
+  /** Coordinator-signed grant that scopes the request to `{ userId, relayerKeyId, signingDigestB64u }`. */
+  coordinatorGrant: string;
+  clientCommitments: {
+    hiding: string;
+    binding: string;
+  };
+}
+
+export interface ThresholdEd25519PeerSignInitResponse {
+  ok: boolean;
+  code?: string;
+  message?: string;
+  signingSessionId?: string;
+  relayerCommitments?: {
+    hiding: string;
+    binding: string;
+  };
+  relayerVerifyingShareB64u?: string;
+}
+
+export interface ThresholdEd25519PeerSignFinalizeRequest {
+  coordinatorGrant: string;
+  signingSessionId: string;
+  clientSignatureShareB64u: string;
+}
+
+export interface ThresholdEd25519PeerSignFinalizeResponse {
+  ok: boolean;
+  code?: string;
+  message?: string;
   relayerSignatureShareB64u?: string;
-  signature?: string;
 }
 
 export interface RefreshSessionResult {

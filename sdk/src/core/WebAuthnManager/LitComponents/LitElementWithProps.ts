@@ -21,7 +21,7 @@
  */
 
 import { LitElement } from 'lit';
-import { isObject } from '../../../core/WalletIframe/validation';
+import { isObject } from '@/utils/validation';
 
 export type CSSProperties = Record<string, string | Record<string, string> | undefined>;
 

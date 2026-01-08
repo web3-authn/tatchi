@@ -13,6 +13,7 @@ export type ThresholdEd25519AuthSessionRecord = {
   relayerKeyId: string;
   userId: string;
   rpId: string;
+  participantIds: number[];
 };
 
 export type ThresholdEd25519AuthConsumeResult =

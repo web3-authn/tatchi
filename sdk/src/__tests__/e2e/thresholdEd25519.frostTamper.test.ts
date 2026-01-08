@@ -57,12 +57,17 @@ test.describe('threshold-ed25519 FROST transcript tampering', () => {
 
       await page.route(`${srv.baseUrl}/threshold-ed25519/sign/init`, async (route) => {
         await proxyPostJsonAndMutate(route, (json) => {
-          const c = json?.relayerCommitments;
+          const commitmentsById = json?.commitmentsById;
           return {
             ...json,
-            relayerCommitments: c && typeof c === 'object'
-              ? { ...c, hiding: tamperString((c as any).hiding) }
-              : c,
+            commitmentsById: commitmentsById && typeof commitmentsById === 'object'
+              ? {
+                ...(commitmentsById as any),
+                2: ((commitmentsById as any)[2] && typeof (commitmentsById as any)[2] === 'object')
+                  ? { ...(commitmentsById as any)[2], hiding: tamperString((commitmentsById as any)[2].hiding) }
+                  : (commitmentsById as any)[2],
+              }
+              : commitmentsById,
           };
         });
       });
@@ -160,10 +165,15 @@ test.describe('threshold-ed25519 FROST transcript tampering', () => {
       });
 
       await page.route(`${srv.baseUrl}/threshold-ed25519/sign/finalize`, async (route) => {
-        await proxyPostJsonAndMutate(route, (json) => ({
-          ...json,
-          relayerSignatureShareB64u: tamperString(json?.relayerSignatureShareB64u),
-        }));
+        await proxyPostJsonAndMutate(route, (json) => {
+          const sharesById = json?.relayerSignatureSharesById;
+          return {
+            ...json,
+            relayerSignatureSharesById: sharesById && typeof sharesById === 'object'
+              ? { ...(sharesById as any), 2: tamperString((sharesById as any)[2]) }
+              : sharesById,
+          };
+        });
       });
 
       await installCreateAccountAndRegisterUserMock(page, {

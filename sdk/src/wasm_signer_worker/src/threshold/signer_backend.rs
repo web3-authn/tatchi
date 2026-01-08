@@ -1,5 +1,3 @@
-#[cfg(target_arch = "wasm32")]
-use crate::encoders::base64_url_decode;
 use crate::types::SignerMode;
 use crate::types::ThresholdSignerConfig;
 use crate::WrapKey;
@@ -14,6 +12,64 @@ use std::collections::BTreeMap;
 fn threshold_signer_not_implemented_error() -> String {
     "threshold-signer requires relayer FROST endpoints and threshold key material (client share + relayer share). Use signerMode='local-signer' for now. See docs/threshold-ed25519-near-spec.md."
         .to_string()
+}
+
+fn join_participant_ids(ids: &[u16]) -> String {
+    ids.iter()
+        .map(|n| n.to_string())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn validate_threshold_ed25519_participant_ids_2p(
+    client_id_opt: Option<u16>,
+    relayer_id_opt: Option<u16>,
+    participant_ids_norm: &[u16],
+) -> Result<(u16, u16), String> {
+    let (client_id, relayer_id) = match (client_id_opt, relayer_id_opt) {
+        (Some(c), Some(r)) => {
+            if c == r {
+                return Err(
+                    "threshold-signer: clientParticipantId must differ from relayerParticipantId"
+                        .to_string(),
+                );
+            }
+            if !participant_ids_norm.is_empty() {
+                if participant_ids_norm.len() != 2 {
+                    return Err("threshold-signer: participantIds must contain exactly 2 ids for 2-party signing".to_string());
+                }
+                let mut expected = vec![c, r];
+                expected.sort_unstable();
+                expected.dedup();
+                if participant_ids_norm != expected.as_slice() {
+                    return Err(format!(
+                        "threshold-signer: participantIds does not match clientParticipantId/relayerParticipantId (expected participantIds=[{}], got participantIds=[{}])",
+                        join_participant_ids(&expected),
+                        join_participant_ids(participant_ids_norm)
+                    ));
+                }
+            }
+            (c, r)
+        }
+        (None, None) => {
+            if participant_ids_norm.is_empty() {
+                (1u16, 2u16)
+            } else if participant_ids_norm.len() == 2 {
+                // Convention for 2P: lower id is client, higher id is relayer.
+                (participant_ids_norm[0], participant_ids_norm[1])
+            } else {
+                return Err("threshold-signer: participantIds must contain exactly 2 ids for 2-party signing".to_string());
+            }
+        }
+        _ => {
+            return Err(
+                "threshold-signer: clientParticipantId and relayerParticipantId must be set together"
+                    .to_string(),
+            );
+        }
+    };
+
+    Ok((client_id, relayer_id))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -39,12 +95,30 @@ thread_local! {
 
 #[cfg(target_arch = "wasm32")]
 fn threshold_auth_cache_key(cfg: &ThresholdSignerConfig, near_account_id: &str) -> String {
-    format!(
+    let mut out = format!(
         "{}|{}|{}",
         cfg.relayer_url.trim_end_matches('/'),
         cfg.relayer_key_id.trim(),
         near_account_id.trim()
-    )
+    );
+
+    if let Some(ids) = cfg.participant_ids.as_ref() {
+        let mut ids_norm: Vec<u16> = ids.iter().copied().filter(|n| *n > 0).collect();
+        ids_norm.sort_unstable();
+        ids_norm.dedup();
+        if !ids_norm.is_empty() {
+            out.push('|');
+            out.push_str(
+                &ids_norm
+                    .iter()
+                    .map(|n| n.to_string())
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        }
+    }
+
+    out
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -102,6 +176,7 @@ fn clear_cached_threshold_auth_session(cfg: &ThresholdSignerConfig, near_account
 
 #[cfg(target_arch = "wasm32")]
 async fn authorize_mpc_session_id_with_cached_threshold_auth_session_strict(
+    transport: &impl super::transport::ThresholdEd25519Transport,
     cfg: &ThresholdSignerConfig,
     client_verifying_share_b64u: &str,
     near_account_id: &str,
@@ -122,16 +197,14 @@ async fn authorize_mpc_session_id_with_cached_threshold_auth_session_strict(
         ThresholdAuthSessionKind::Cookie => None,
     };
 
-    match super::relayer_http::authorize_mpc_session_id_with_threshold_session(
+    match transport.authorize_mpc_session_id_with_threshold_session(
         cfg,
         client_verifying_share_b64u,
         purpose,
         signing_digest_32,
         signing_payload_json,
         bearer,
-    )
-    .await
-    {
+    ).await {
         Ok(id) => Ok(id),
         Err(e) => {
             clear_cached_threshold_auth_session(cfg, near_account_id);
@@ -142,6 +215,7 @@ async fn authorize_mpc_session_id_with_cached_threshold_auth_session_strict(
 
 #[cfg(target_arch = "wasm32")]
 async fn try_authorize_mpc_session_id_with_cached_threshold_auth_session(
+    transport: &impl super::transport::ThresholdEd25519Transport,
     cfg: &ThresholdSignerConfig,
     client_verifying_share_b64u: &str,
     near_account_id: &str,
@@ -160,16 +234,14 @@ async fn try_authorize_mpc_session_id_with_cached_threshold_auth_session(
         ThresholdAuthSessionKind::Cookie => None,
     };
 
-    match super::relayer_http::authorize_mpc_session_id_with_threshold_session(
+    match transport.authorize_mpc_session_id_with_threshold_session(
         cfg,
         client_verifying_share_b64u,
         purpose,
         signing_digest_32,
         signing_payload_json,
         bearer,
-    )
-    .await
-    {
+    ).await {
         Ok(id) => Some(id),
         Err(_e) => {
             clear_cached_threshold_auth_session(cfg, near_account_id);
@@ -180,6 +252,7 @@ async fn try_authorize_mpc_session_id_with_cached_threshold_auth_session(
 
 #[cfg(target_arch = "wasm32")]
 async fn resolve_mpc_session_id(
+    transport: &impl super::transport::ThresholdEd25519Transport,
     cfg: &ThresholdSignerConfig,
     client_verifying_share_b64u: &str,
     near_account_id: &str,
@@ -197,20 +270,21 @@ async fn resolve_mpc_session_id(
     // over any in-worker cache so session-style authorization works across one-shot signer worker
     // instances.
     if let Some(jwt) = trim_nonempty(cfg.threshold_session_jwt.as_deref()) {
-        return super::relayer_http::authorize_mpc_session_id_with_threshold_session(
-            cfg,
-            client_verifying_share_b64u,
-            purpose,
-            signing_digest_32,
-            signing_payload_json,
-            Some(jwt),
-        )
-        .await;
+        return transport
+            .authorize_mpc_session_id_with_threshold_session(
+                cfg,
+                client_verifying_share_b64u,
+                purpose,
+                signing_digest_32,
+                signing_payload_json,
+                Some(jwt),
+            ).await;
     }
 
     // Prefer a cached relayer session token/cookie when available.
     if let Some(sess) = get_cached_threshold_auth_session(cfg, near_account_id) {
         return authorize_mpc_session_id_with_cached_threshold_auth_session_strict(
+            transport,
             cfg,
             client_verifying_share_b64u,
             near_account_id,
@@ -218,8 +292,7 @@ async fn resolve_mpc_session_id(
             signing_digest_32,
             signing_payload_json,
             sess,
-        )
-        .await;
+        ).await;
     }
 
     // No cached session: require WebAuthn+VRF to mint one (if configured), then authorize per
@@ -239,7 +312,7 @@ async fn resolve_mpc_session_id(
             ThresholdAuthSessionKind::Jwt => "jwt",
         };
 
-        if let Ok(sess) = super::relayer_http::mint_threshold_session(
+        if let Ok(sess) = transport.mint_threshold_session(
             cfg,
             client_verifying_share_b64u,
             near_account_id,
@@ -247,9 +320,7 @@ async fn resolve_mpc_session_id(
             credential_json,
             policy_json,
             kind_str,
-        )
-        .await
-        {
+        ).await {
             let expires_at_ms = sess
                 .expires_at
                 .as_deref()
@@ -270,20 +341,19 @@ async fn resolve_mpc_session_id(
 
     // After session-mint attempt, prefer session authorization if token/cookie is present.
     if let Some(id) = try_authorize_mpc_session_id_with_cached_threshold_auth_session(
+        transport,
         cfg,
         client_verifying_share_b64u,
         near_account_id,
         purpose,
         signing_digest_32,
         signing_payload_json,
-    )
-    .await
-    {
+    ).await {
         return Ok(id);
     }
 
     // Fallback: authorize per signature with WebAuthn+VRF.
-    super::relayer_http::authorize_mpc_session_id(
+    transport.authorize_mpc_session_id(
         cfg,
         client_verifying_share_b64u,
         near_account_id,
@@ -292,8 +362,7 @@ async fn resolve_mpc_session_id(
         vrf_challenge,
         credential_json,
         signing_payload_json,
-    )
-    .await
+    ).await
 }
 
 pub enum Ed25519SignerBackend {
@@ -444,6 +513,20 @@ impl ThresholdEd25519RelayerSigner {
             return Err("threshold-signer: missing purpose".to_string());
         }
 
+        let mut participant_ids_norm: Vec<u16> = cfg
+            .participant_ids
+            .as_ref()
+            .map(|ids| ids.iter().copied().filter(|n| *n > 0).collect())
+            .unwrap_or_default();
+        participant_ids_norm.sort_unstable();
+        participant_ids_norm.dedup();
+        if participant_ids_norm.len() > 2 {
+            return Err(format!(
+                "threshold-signer: multi-party threshold signing is not supported yet (got participantIds=[{}])",
+                join_participant_ids(&participant_ids_norm)
+            ));
+        }
+
         let normalized_mpc_session_id = cfg
             .mpc_session_id
             .as_ref()
@@ -469,10 +552,18 @@ impl ThresholdEd25519RelayerSigner {
 
         let near_public_key_bytes = parse_near_public_key_to_bytes(near_public_key_str)?;
 
-        let client_identifier: frost_ed25519::Identifier = 1u16
+        let client_id_opt = cfg.client_participant_id.filter(|n| *n > 0);
+        let relayer_id_opt = cfg.relayer_participant_id.filter(|n| *n > 0);
+        let (client_id, relayer_id) = validate_threshold_ed25519_participant_ids_2p(
+            client_id_opt,
+            relayer_id_opt,
+            &participant_ids_norm,
+        )?;
+
+        let client_identifier: frost_ed25519::Identifier = client_id
             .try_into()
             .map_err(|_| "threshold-signer: invalid client identifier".to_string())?;
-        let relayer_identifier: frost_ed25519::Identifier = 2u16
+        let relayer_identifier: frost_ed25519::Identifier = relayer_id
             .try_into()
             .map_err(|_| "threshold-signer: invalid relayer identifier".to_string())?;
 
@@ -546,13 +637,16 @@ impl ThresholdEd25519RelayerSigner {
 
         #[cfg(target_arch = "wasm32")]
         {
-            use super::relayer_http::{self, CommitmentsWire, SignFinalizeOk};
+            use super::coordinator;
+            use super::transport::HttpThresholdEd25519Transport;
 
             let client_verifying_share_b64u = configured.client_verifying_share_b64u.as_str();
+            let transport = HttpThresholdEd25519Transport;
 
             // Prefer a provided mpcSessionId; otherwise authorize via session/cached WebAuthn.
             let signing_payload_json = authorize_signing_payload_json_opt.as_deref();
             let mpc_session_id = resolve_mpc_session_id(
+                &transport,
                 cfg,
                 client_verifying_share_b64u,
                 near_account_id,
@@ -561,113 +655,18 @@ impl ThresholdEd25519RelayerSigner {
                 signing_payload_json,
                 vrf_challenge_opt.as_ref(),
                 webauthn_authentication_json_opt.as_deref(),
-            )
-            .await?;
+            ).await?;
 
-            let mut rng = frost_ed25519::rand_core::OsRng;
-            let (client_nonces, client_commitments) =
-                frost_ed25519::round1::commit(client_key_package.signing_share(), &mut rng);
-
-            let hiding_bytes = client_commitments
-                .hiding()
-                .serialize()
-                .map_err(|e| format!("threshold-signer: serialize hiding commitment: {e}"))?;
-            let binding_bytes = client_commitments
-                .binding()
-                .serialize()
-                .map_err(|e| format!("threshold-signer: serialize binding commitment: {e}"))?;
-
-            let client_commitments_wire = CommitmentsWire {
-                hiding: crate::encoders::base64_url_encode(&hiding_bytes),
-                binding: crate::encoders::base64_url_encode(&binding_bytes),
-            };
-
-            let signing_digest_b64u = crate::encoders::base64_url_encode(message);
-
-            let init = relayer_http::sign_init(
+            coordinator::sign_ed25519_2p_v1(
+                &transport,
                 cfg,
                 &mpc_session_id,
                 near_account_id,
-                &signing_digest_b64u,
-                client_commitments_wire,
-            )
-            .await?;
-            let signing_session_id = init.signing_session_id;
-            let relayer_commitments = init.relayer_commitments;
-            let relayer_verifying_share_b64u = init.relayer_verifying_share_b64u;
-
-            let relayer_hiding = base64_url_decode(&relayer_commitments.hiding)?;
-            let relayer_binding = base64_url_decode(&relayer_commitments.binding)?;
-            let relayer_hiding = frost_ed25519::round1::NonceCommitment::deserialize(
-                &relayer_hiding,
-            )
-            .map_err(|e| format!("threshold-signer: invalid relayer hiding commitment: {e}"))?;
-            let relayer_binding = frost_ed25519::round1::NonceCommitment::deserialize(
-                &relayer_binding,
-            )
-            .map_err(|e| format!("threshold-signer: invalid relayer binding commitment: {e}"))?;
-            let relayer_commitments =
-                frost_ed25519::round1::SigningCommitments::new(relayer_hiding, relayer_binding);
-
-            let mut commitments_map = BTreeMap::new();
-            commitments_map.insert(client_identifier, client_commitments);
-            commitments_map.insert(relayer_identifier, relayer_commitments);
-            let signing_package = frost_ed25519::SigningPackage::new(commitments_map, message);
-
-            let client_sig_share =
-                frost_ed25519::round2::sign(&signing_package, &client_nonces, client_key_package)
-                    .map_err(|e| format!("threshold-signer: round2 sign failed: {e}"))?;
-            let client_sig_share_b64u =
-                crate::encoders::base64_url_encode(&client_sig_share.serialize());
-
-            let relayer_sig_share_b64u =
-                match relayer_http::sign_finalize(cfg, &signing_session_id, &client_sig_share_b64u)
-                    .await?
-                {
-                    SignFinalizeOk::Signature(signature) => return Ok(signature),
-                    SignFinalizeOk::RelayerSignatureShareB64u(b64u) => b64u,
-                };
-            let relayer_sig_share_bytes = base64_url_decode(&relayer_sig_share_b64u)?;
-            let relayer_sig_share =
-                frost_ed25519::round2::SignatureShare::deserialize(&relayer_sig_share_bytes)
-                    .map_err(|e| {
-                        format!("threshold-signer: invalid relayer signature share: {e}")
-                    })?;
-
-            let verifying_key = client_key_package.verifying_key().clone();
-            let client_verifying_share = client_key_package.verifying_share().clone();
-            let relayer_verifying_share_bytes = base64_url_decode(&relayer_verifying_share_b64u)?;
-            let relayer_verifying_share =
-                frost_ed25519::keys::VerifyingShare::deserialize(&relayer_verifying_share_bytes)
-                    .map_err(|e| {
-                        format!("threshold-signer: invalid relayer verifying share: {e}")
-                    })?;
-
-            let mut verifying_shares = BTreeMap::new();
-            verifying_shares.insert(client_identifier, client_verifying_share);
-            verifying_shares.insert(relayer_identifier, relayer_verifying_share);
-            let pubkey_package =
-                frost_ed25519::keys::PublicKeyPackage::new(verifying_shares, verifying_key);
-
-            let mut signature_shares = BTreeMap::new();
-            signature_shares.insert(client_identifier, client_sig_share);
-            signature_shares.insert(relayer_identifier, relayer_sig_share);
-
-            let group_signature =
-                frost_ed25519::aggregate(&signing_package, &signature_shares, &pubkey_package)
-                    .map_err(|e| format!("threshold-signer: aggregate failed: {e}"))?;
-            let bytes = group_signature
-                .serialize()
-                .map_err(|e| format!("threshold-signer: signature serialization failed: {e}"))?;
-            if bytes.len() != 64 {
-                return Err(format!(
-                    "threshold-signer: invalid signature length from aggregation: {}",
-                    bytes.len()
-                ));
-            }
-            let mut out = [0u8; 64];
-            out.copy_from_slice(&bytes);
-            Ok(out)
+                message,
+                client_key_package,
+                client_identifier,
+                relayer_identifier,
+            ).await
         }
     }
 }

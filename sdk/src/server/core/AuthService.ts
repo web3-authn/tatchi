@@ -5,6 +5,7 @@ import { toPublicKeyStringFromSecretKey } from './nearKeys';
 import { createAuthServiceConfig } from './config';
 import { formatGasToTGas, formatYoctoToNear } from './utils';
 import { parseContractExecutionError } from './errors';
+import { toOptionalTrimmedString } from '../../utils/validation';
 import initSignerWasm, {
   handle_signer_message,
   WorkerRequestType,
@@ -36,6 +37,10 @@ import {
   type DelegateActionPolicy,
 } from '../delegateAction';
 import { coerceLogger, type NormalizedLogger } from './logger';
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
 
 // =============================
 // WASM URL CONSTANTS + HELPERS
@@ -70,18 +75,39 @@ function getSignerWasmUrls(logger: NormalizedLogger): URL[] {
 function summarizeThresholdEd25519Config(cfg: AuthServiceConfig['thresholdEd25519KeyStore']): string {
   if (!cfg) return 'thresholdEd25519: not configured';
 
-  const c = cfg as Record<string, unknown>;
-  const shareMode = typeof c.THRESHOLD_ED25519_SHARE_MODE === 'string'
-    ? String(c.THRESHOLD_ED25519_SHARE_MODE || '').trim()
-    : 'auto';
-  const masterSecretSet = typeof c.THRESHOLD_ED25519_MASTER_SECRET_B64U === 'string'
-    && String(c.THRESHOLD_ED25519_MASTER_SECRET_B64U || '').trim().length > 0;
-  const upstashUrl = typeof c.UPSTASH_REDIS_REST_URL === 'string' ? String(c.UPSTASH_REDIS_REST_URL || '').trim() : '';
-  const upstashToken = typeof c.UPSTASH_REDIS_REST_TOKEN === 'string' ? String(c.UPSTASH_REDIS_REST_TOKEN || '').trim() : '';
-  const redisUrl = typeof c.REDIS_URL === 'string' ? String(c.REDIS_URL || '').trim() : '';
-  const store = (upstashUrl || upstashToken) ? 'upstash' : (redisUrl ? 'redis' : 'in-memory');
+  const defaultNodeRole = 'coordinator' as const;
+  const defaultShareMode = 'auto' as const;
 
-  const parts = [`thresholdEd25519: configured`, `shareMode=${shareMode || 'auto'}`, `store=${store}`];
+  const nodeRole = (() => {
+    if ('kind' in cfg) return defaultNodeRole;
+    const raw = toOptionalTrimmedString(cfg.THRESHOLD_NODE_ROLE);
+    return raw === 'participant' ? 'participant' : defaultNodeRole;
+  })();
+
+  const shareMode = (() => {
+    if ('kind' in cfg) return defaultShareMode;
+    const raw = toOptionalTrimmedString(cfg.THRESHOLD_ED25519_SHARE_MODE);
+    return (raw === 'kv' || raw === 'derived' || raw === 'auto') ? raw : defaultShareMode;
+  })();
+
+  const masterSecretSet = (() => {
+    if ('kind' in cfg) return false;
+    return Boolean(toOptionalTrimmedString(cfg.THRESHOLD_ED25519_MASTER_SECRET_B64U));
+  })();
+
+  const store = (() => {
+    if ('kind' in cfg) {
+      if (cfg.kind === 'upstash-redis-rest') return 'upstash';
+      if (cfg.kind === 'redis-tcp') return 'redis';
+      return 'in-memory';
+    }
+    const upstashUrl = toOptionalTrimmedString(cfg.UPSTASH_REDIS_REST_URL);
+    const upstashToken = toOptionalTrimmedString(cfg.UPSTASH_REDIS_REST_TOKEN);
+    const redisUrl = toOptionalTrimmedString(cfg.REDIS_URL);
+    return (upstashUrl || upstashToken) ? 'upstash' : (redisUrl ? 'redis' : 'in-memory');
+  })();
+
+  const parts = [`thresholdEd25519: configured`, `nodeRole=${nodeRole}`, `shareMode=${shareMode}`, `store=${store}`];
   if (masterSecretSet) parts.push('masterSecret=set');
   return parts.join(' ');
 }
@@ -262,10 +288,13 @@ export class AuthService {
 
   private isNodeEnvironment(): boolean {
     // Detect true Node.js, not Cloudflare Workers with nodejs_compat polyfills.
-    const isNode = Boolean((globalThis as any).process?.versions?.node);
+    const processObj = (globalThis as unknown as { process?: { versions?: { node?: string } } }).process;
+    const isNode = Boolean(processObj?.versions?.node);
     // Cloudflare Workers expose WebSocketPair and may polyfill process.
-    const isCloudflareWorker = typeof (globalThis as any).WebSocketPair !== 'undefined'
-      || (typeof navigator !== 'undefined' && (navigator as any).userAgent?.includes?.('Cloudflare-Workers'));
+    const webSocketPair = (globalThis as unknown as { WebSocketPair?: unknown }).WebSocketPair;
+    const nav = (globalThis as unknown as { navigator?: { userAgent?: unknown } }).navigator;
+    const isCloudflareWorker = typeof webSocketPair !== 'undefined'
+      || (typeof nav?.userAgent === 'string' && nav.userAgent.includes('Cloudflare-Workers'));
     return isNode && !isCloudflareWorker;
   }
 
@@ -295,10 +324,10 @@ export class AuthService {
         const filePath = fileURLToPath(url);
         const bytes = await readFile(filePath);
         // Ensure we pass an ArrayBuffer, not a Node Buffer (type mismatch)
-        const u8 = bytes instanceof Uint8Array ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) : new Uint8Array(bytes as any);
+        const u8 = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         const ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
-        const module = await WebAssembly.compile(ab as ArrayBuffer);
-        await initSignerWasm({ module_or_path: module as any });
+        const module = await WebAssembly.compile(ab);
+        await initSignerWasm({ module_or_path: module });
         return;
       } catch {} // throw at end of function
     }
@@ -307,7 +336,7 @@ export class AuthService {
     for (const url of candidates) {
       try {
         const filePath = fileURLToPath(url);
-        await initSignerWasm({ module_or_path: filePath as any });
+        await initSignerWasm({ module_or_path: filePath as unknown as InitInput });
         return;
       } catch {} // throw at end of function
     }
@@ -518,13 +547,13 @@ export class AuthService {
       };
 
       // Perform a VIEW function call (no gas) and parse the contract response
-      const contractResponse = await this.nearClient.view<typeof args, any>({
+      const contractResponse = await this.nearClient.view<typeof args, unknown>({
         account: this.config.webAuthnContractId,
         method: 'verify_authentication_response',
         args
       });
 
-      const verified = Boolean((contractResponse && (contractResponse.verified === true)));
+      const verified = isObject(contractResponse) && contractResponse.verified === true;
       if (!verified) {
         return {
           success: false,
@@ -560,9 +589,9 @@ export class AuthService {
    * Defaults: contractId = webAuthnContractId, method = 'get_allowed_origins', args = {}.
    * Returns a sanitized, deduplicated list of absolute origins.
    */
-  public async getRorOrigins(opts?: { contractId?: string; method?: string; args?: any }): Promise<string[]> {
-    const contractId = (opts?.contractId || this.config.webAuthnContractId).trim();
-    const method = (opts?.method || 'get_allowed_origins').trim();
+  public async getRorOrigins(opts?: { contractId?: string; method?: string; args?: unknown }): Promise<string[]> {
+    const contractId = toOptionalTrimmedString(opts?.contractId) || this.config.webAuthnContractId.trim();
+    const method = toOptionalTrimmedString(opts?.method) || 'get_allowed_origins';
     const args = opts?.args ?? {};
 
     const isValidOrigin = (s: unknown): string | null => {
@@ -579,13 +608,14 @@ export class AuthService {
     };
 
     try {
-      const result = await this.nearClient.view<{ } , unknown>({ account: contractId, method, args });
-      let list: string[] = [];
-      if (Array.isArray(result)) {
-        list = result as string[];
-      } else if (result && typeof result === 'object' && Array.isArray((result as any).origins)) {
-        list = (result as any).origins as string[];
-      }
+      const result = await this.nearClient.view<unknown, unknown>({ account: contractId, method, args });
+      const list: string[] = (() => {
+        if (Array.isArray(result)) return result.filter((v): v is string => typeof v === 'string');
+        if (isObject(result) && Array.isArray(result.origins)) {
+          return (result.origins as unknown[]).filter((v): v is string => typeof v === 'string');
+        }
+        return [];
+      })();
       const out = new Set<string>();
       for (const item of list) {
         const norm = isValidOrigin(item);

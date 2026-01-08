@@ -2,7 +2,7 @@ import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
 import { ClientAuthenticatorData, UnifiedIndexedDBManager } from '../../IndexedDBManager';
 import { IndexedDBManager } from '../../IndexedDBManager';
 import { SignedTransaction, type NearClient } from '../../NearClient';
-import { isObject } from '../../WalletIframe/validation';
+import { isObject } from '@/utils/validation';
 import { resolveWorkerUrl } from '../../sdkPaths';
 import {
   WorkerRequestType,

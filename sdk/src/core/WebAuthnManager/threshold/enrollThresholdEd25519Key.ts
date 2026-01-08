@@ -5,9 +5,6 @@ import type { VRFChallenge, VRFInputData } from '../../types/vrf-worker';
 import { thresholdEd25519Keygen } from '../../rpcCalls';
 import { computeThresholdEd25519KeygenIntentDigest } from '../../digests/intentDigest';
 import { ensureEd25519Prefix } from '../../../utils/validation';
-import {
-  computeThresholdEd25519GroupPublicKeyFromVerifyingShares,
-} from '../../threshold/ed25519GroupPublicKey';
 import { authenticatorsToAllowCredentials, type TouchIdPrompt } from '../touchIdPrompt';
 
 type DeriveThresholdClientShareResult = {
@@ -46,6 +43,10 @@ export async function enrollThresholdEd25519KeyHandler(
 ): Promise<{
   success: boolean;
   publicKey: string;
+  clientParticipantId?: number;
+  relayerParticipantId?: number;
+  participantIds?: number[];
+  clientVerifyingShareB64u: string;
   relayerKeyId: string;
   relayerVerifyingShareB64u: string;
   wrapKeySalt: string;
@@ -134,23 +135,22 @@ export async function enrollThresholdEd25519KeyHandler(
     const publicKey = ensureEd25519Prefix(publicKeyRaw);
     if (!publicKey) throw new Error('Threshold keygen returned empty publicKey');
 
-    const expectedGroupPk = computeThresholdEd25519GroupPublicKeyFromVerifyingShares({
-      clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
-      relayerVerifyingShareB64u,
-    });
-    if (expectedGroupPk !== publicKey) {
-      throw new Error('Threshold keygen returned publicKey that does not match the client+relayer verifying shares');
-    }
+    const clientParticipantId = typeof keygen.clientParticipantId === 'number' ? keygen.clientParticipantId : undefined;
+    const relayerParticipantId = typeof keygen.relayerParticipantId === 'number' ? keygen.relayerParticipantId : undefined;
 
     return {
       success: true,
       publicKey,
+      clientParticipantId,
+      relayerParticipantId,
+      participantIds: Array.isArray(keygen.participantIds) ? keygen.participantIds : undefined,
+      clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
       relayerKeyId,
       relayerVerifyingShareB64u,
       wrapKeySalt: derived.wrapKeySalt,
     };
   } catch (error: unknown) {
     const message = String((error as { message?: unknown })?.message ?? error);
-    return { success: false, publicKey: '', relayerKeyId: '', relayerVerifyingShareB64u: '', wrapKeySalt: '', error: message };
+    return { success: false, publicKey: '', clientVerifyingShareB64u: '', relayerKeyId: '', relayerVerifyingShareB64u: '', wrapKeySalt: '', error: message };
   }
 }

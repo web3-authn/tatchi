@@ -6,7 +6,7 @@ import { removePrfOutputGuard, serializeRegistrationCredential, normalizeRegistr
 import type { WebAuthnRegistrationCredential } from '../../types/webauthn';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import type { CreateAccountAndRegisterResult } from '../../../server/core/types';
-import { isObject } from '../../WalletIframe/validation';
+import { isObject } from '@/utils/validation';
 import { errorMessage } from '../../../utils/errors';
 
 function isSerializedRegistrationCredential(
@@ -66,7 +66,14 @@ export async function createAccountAndRegisterWithRelayServer(
 ): Promise<{
   success: boolean;
   transactionId?: string;
-  thresholdEd25519?: { publicKey: string; relayerKeyId: string; relayerVerifyingShareB64u?: string };
+  thresholdEd25519?: {
+    publicKey: string;
+    relayerKeyId: string;
+    relayerVerifyingShareB64u?: string;
+    clientParticipantId?: number;
+    relayerParticipantId?: number;
+    participantIds?: number[];
+  };
   error?: string;
 }> {
   const { configs } = context;
@@ -172,7 +179,10 @@ export async function createAccountAndRegisterWithRelayServer(
         ? {
           publicKey: result.thresholdEd25519.publicKey,
           relayerKeyId: result.thresholdEd25519.relayerKeyId,
-          relayerVerifyingShareB64u: result.thresholdEd25519.relayerVerifyingShareB64u
+          relayerVerifyingShareB64u: result.thresholdEd25519.relayerVerifyingShareB64u,
+          clientParticipantId: result.thresholdEd25519.clientParticipantId,
+          relayerParticipantId: result.thresholdEd25519.relayerParticipantId,
+          participantIds: result.thresholdEd25519.participantIds,
         }
         : undefined,
     };

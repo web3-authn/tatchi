@@ -21,6 +21,17 @@ pub struct ThresholdSignerConfig {
     pub relayer_url: String,
     /// Identifies which relayer-held key share to use.
     pub relayer_key_id: String,
+    /// Optional FROST participant identifier used for the client share (2P only for now).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_participant_id: Option<u16>,
+    /// Optional FROST participant identifier used for the relayer share (2P only for now).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relayer_participant_id: Option<u16>,
+    /// Optional participant ids (signer set) associated with this threshold key/session.
+    ///
+    /// This is used for cache scoping and future multi-party support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub participant_ids: Option<Vec<u16>>,
     /// Optional short-lived authorization token returned by `/threshold-ed25519/authorize`.
     /// When omitted, the signer worker will call `/threshold-ed25519/authorize` on-demand per signature.
     #[serde(default, skip_serializing_if = "Option::is_none")]

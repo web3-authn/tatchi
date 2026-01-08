@@ -4,6 +4,7 @@ import { removePrfOutputGuard } from '../WebAuthnManager/credentialsHelpers';
 import type { VRFChallenge } from '../types/vrf-worker';
 import type { ThresholdEd25519SessionPolicy } from './thresholdSessionPolicy';
 import type { WebAuthnAuthenticationCredential } from '../types/webauthn';
+import { normalizeThresholdEd25519ParticipantIds } from '../../threshold/participants';
 
 export type ThresholdEd25519SessionKind = 'jwt' | 'cookie';
 
@@ -25,13 +26,16 @@ export function makeThresholdEd25519AuthSessionCacheKey(args: {
   rpId: string;
   relayerUrl: string;
   relayerKeyId: string;
+  participantIds?: number[];
 }): string {
   const relayerUrl = stripTrailingSlashes(toTrimmedString(args.relayerUrl));
+  const participantIds = normalizeThresholdEd25519ParticipantIds(args.participantIds);
   return [
     String(args.nearAccountId || '').trim(),
     String(args.rpId || '').trim(),
     relayerUrl,
     String(args.relayerKeyId || '').trim(),
+    ...(participantIds ? [participantIds.join(',')] : []),
   ].join('|');
 }
 

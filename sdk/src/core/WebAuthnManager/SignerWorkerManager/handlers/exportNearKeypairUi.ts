@@ -1,4 +1,4 @@
-import { isObject } from '../../../WalletIframe/validation';
+import { isObject } from '@/utils/validation';
 import { AccountId, toAccountId } from '../../../types/accountIds';
 import {
   WorkerRequestType,

@@ -37,6 +37,7 @@ import {
   isThresholdSessionAuthUnavailableError,
   isThresholdSignerMissingKeyError,
 } from '../../../threshold/thresholdSessionPolicy';
+import { normalizeThresholdEd25519ParticipantIds } from '../../../../threshold/participants';
 
 /**
  * Sign multiple transactions with shared VRF challenge and credential
@@ -165,6 +166,9 @@ export async function signTransactionsWithActions({
       threshold: {
         relayerUrl: signingContext.threshold.relayerUrl,
         relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
+        clientParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find((p) => p.role === 'client')?.id,
+        relayerParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find((p) => p.role === 'relayer')?.id,
+        participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
         thresholdSessionKind: 'jwt' as const,
         thresholdSessionJwt: signingContext.threshold.thresholdSessionJwt,
       },
@@ -426,11 +430,19 @@ function validateAndPrepareSigningContext(args: {
     throw new Error('Missing rpId for threshold signing');
   }
 
+  const participantIds = normalizeThresholdEd25519ParticipantIds(thresholdKeyMaterial.participants.map((p) => p.id));
+  if (!participantIds || participantIds.length !== 2) {
+    throw new Error(
+      `multi-party threshold signing is not supported yet (expected 2 participants, got [${(participantIds || []).join(',')}])`
+    );
+  }
+
   const thresholdSessionCacheKey = makeThresholdEd25519AuthSessionCacheKey({
     nearAccountId: args.nearAccountId,
     rpId,
     relayerUrl,
     relayerKeyId: thresholdKeyMaterial.relayerKeyId,
+    participantIds,
   });
 
   return {

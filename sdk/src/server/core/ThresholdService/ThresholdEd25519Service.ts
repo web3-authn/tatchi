@@ -6,12 +6,16 @@ import type { FinalExecutionOutcome } from '@near-js/types';
 import type { ThresholdEd25519KeyStore } from './ThresholdEd25519KeyStore';
 import type {
   ThresholdEd25519SessionStore,
+  ThresholdEd25519MpcSessionRecord,
   ThresholdEd25519Commitments,
+  ThresholdEd25519CommitmentsById,
 } from './ThresholdEd25519SessionStore';
 import type {
   ThresholdEd25519AuthSessionStore,
   ThresholdEd25519AuthSessionRecord,
 } from './ThresholdEd25519AuthSessionStore';
+import type { ThresholdEd25519KeygenStrategy } from './keygenStrategy';
+import { ThresholdEd25519KeygenStrategyV1 } from './keygenStrategy';
 import type {
   VerifyAuthenticationRequest,
   VerifyAuthenticationResponse,
@@ -22,6 +26,10 @@ import type {
   ThresholdEd25519AuthorizeWithSessionRequest,
   ThresholdEd25519KeygenRequest,
   ThresholdEd25519KeygenResponse,
+  ThresholdEd25519PeerSignInitRequest,
+  ThresholdEd25519PeerSignInitResponse,
+  ThresholdEd25519PeerSignFinalizeRequest,
+  ThresholdEd25519PeerSignFinalizeResponse,
   ThresholdEd25519SignInitRequest,
   ThresholdEd25519SignInitResponse,
   ThresholdEd25519SignFinalizeRequest,
@@ -32,8 +40,6 @@ import {
   threshold_ed25519_compute_delegate_signing_digest,
   threshold_ed25519_compute_near_tx_signing_digests,
   threshold_ed25519_compute_nep413_signing_digest,
-  threshold_ed25519_keygen_from_client_verifying_share,
-  threshold_ed25519_keygen_from_master_secret_and_client_verifying_share,
   threshold_ed25519_round1_commit,
   threshold_ed25519_round2_sign,
 } from '../../../wasm_signer_worker/pkg/wasm_signer_worker.js';
@@ -43,10 +49,19 @@ import {
   extractAuthorizeSigningPublicKey,
   isObject,
   normalizeByteArray32,
+  parseThresholdEd25519MpcSessionRecord,
   verifyThresholdEd25519AuthorizeSigningPayloadSigningDigestOnly,
   verifyThresholdEd25519AuthorizeSigningPayload,
 } from './validation';
 import { alphabetizeStringify, sha256BytesUtf8 } from '../../../utils/digests';
+import {
+  THRESHOLD_ED25519_2P_PARTICIPANT_IDS,
+  THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
+  THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
+  areThresholdEd25519ParticipantIds2p,
+  normalizeThresholdEd25519ParticipantId,
+  normalizeThresholdEd25519ParticipantIds,
+} from '../../../threshold/participants';
 
 type ThresholdEd25519ShareMode = 'auto' | 'kv' | 'derived';
 
@@ -56,24 +71,45 @@ function coerceThresholdEd25519ShareMode(input: unknown): ThresholdEd25519ShareM
   return 'auto';
 }
 
-type ThresholdEd25519KeygenWasmOutput = {
-  relayerKeyId: string;
-  publicKey: string;
-  relayerSigningShareB64u: string;
-  relayerVerifyingShareB64u: string;
+type ThresholdNodeRole = 'participant' | 'coordinator';
+
+function coerceThresholdNodeRole(input: unknown): ThresholdNodeRole {
+  const role = toOptionalTrimmedString(input);
+  return role === 'participant' ? 'participant' : 'coordinator';
+}
+
+type ThresholdCoordinatorPeer = {
+  id: number;
+  relayerUrl: string;
 };
 
-function expectThresholdEd25519KeygenWasmOutput(out: unknown): ThresholdEd25519KeygenWasmOutput {
-  const parsed = out as ThresholdEd25519KeygenWasmOutput;
-  if (
-    !parsed?.relayerKeyId ||
-    !parsed?.publicKey ||
-    !parsed?.relayerSigningShareB64u ||
-    !parsed?.relayerVerifyingShareB64u
-  ) {
-    throw new Error('threshold-ed25519 keygen returned incomplete output');
+function parseThresholdCoordinatorPeers(input: unknown): ThresholdCoordinatorPeer[] | null {
+  const asJson = (raw: string): unknown => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+
+  const raw = typeof input === 'string' ? asJson(input) : input;
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+
+  const out: ThresholdCoordinatorPeer[] = [];
+  const seen = new Set<number>();
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    const rec = item as Record<string, unknown>;
+    const id = normalizeThresholdEd25519ParticipantId(rec.id);
+    const relayerUrl = toOptionalTrimmedString(rec.relayerUrl)?.replace(/\/+$/, '');
+    if (!id || !relayerUrl) return null;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, relayerUrl });
   }
-  return parsed;
+
+  out.sort((a, b) => a.id - b.id);
+  return out.length ? out : null;
 }
 
 type ThresholdEd25519Round1CommitWasmOutput = {
@@ -101,13 +137,33 @@ function expectThresholdEd25519Round2SignWasmOutput(out: unknown): ThresholdEd25
   return parsed;
 }
 
+type ThresholdEd25519CoordinatorGrantV1 = {
+  v: 1;
+  typ: 'threshold_ed25519_coordinator_grant_v1';
+  iat: number;
+  exp: number;
+  mpcSessionId: string;
+  peerParticipantId: number;
+  mpcSession: unknown;
+};
+
+type ParsedThresholdEd25519MpcSession = NonNullable<ReturnType<typeof parseThresholdEd25519MpcSessionRecord>>;
+
 export class ThresholdEd25519Service {
   private readonly logger: NormalizedLogger;
   private readonly keyStore: ThresholdEd25519KeyStore;
   private readonly sessionStore: ThresholdEd25519SessionStore;
   private readonly authSessionStore: ThresholdEd25519AuthSessionStore;
+  private readonly nodeRole: ThresholdNodeRole;
+  private readonly coordinatorPeers: ThresholdCoordinatorPeer[];
+  private readonly coordinatorSharedSecretBytes: Uint8Array | null;
+  private coordinatorHmacKeyPromise: Promise<CryptoKey> | null = null;
+  private readonly clientParticipantId: number;
+  private readonly relayerParticipantId: number;
+  private readonly participantIds2p: number[];
   private readonly shareMode: ThresholdEd25519ShareMode;
   private readonly relayerMasterSecretB64u: string | null;
+  private readonly keygenStrategy: ThresholdEd25519KeygenStrategy;
   private readonly ensureReady: () => Promise<void>;
   private readonly ensureSignerWasm: () => Promise<void>;
   private readonly verifyAuthenticationResponse: (
@@ -135,6 +191,46 @@ export class ThresholdEd25519Service {
     this.sessionStore = input.sessionStore;
     this.authSessionStore = input.authSessionStore;
     const cfg = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
+
+    this.nodeRole = coerceThresholdNodeRole(cfg.THRESHOLD_NODE_ROLE);
+    this.coordinatorPeers = parseThresholdCoordinatorPeers(cfg.THRESHOLD_COORDINATOR_PEERS) || [];
+
+    const coordinatorSharedSecretB64u = toOptionalTrimmedString(cfg.THRESHOLD_COORDINATOR_SHARED_SECRET_B64U);
+    if (coordinatorSharedSecretB64u) {
+      let decoded: Uint8Array;
+      try {
+        decoded = base64UrlDecode(coordinatorSharedSecretB64u);
+      } catch {
+        throw new Error('THRESHOLD_COORDINATOR_SHARED_SECRET_B64U must be valid base64url');
+      }
+      if (decoded.length !== 32) {
+        throw new Error(`THRESHOLD_COORDINATOR_SHARED_SECRET_B64U must decode to 32 bytes, got ${decoded.length}`);
+      }
+      this.coordinatorSharedSecretBytes = decoded;
+    } else {
+      this.coordinatorSharedSecretBytes = null;
+    }
+
+    const clientIdRaw = cfg.THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID;
+    const relayerIdRaw = cfg.THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID;
+    const clientId = clientIdRaw === undefined ? null : normalizeThresholdEd25519ParticipantId(clientIdRaw);
+    if (clientIdRaw !== undefined && !clientId) {
+      throw new Error('THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID must be an integer in [1,65535]');
+    }
+    const relayerId = relayerIdRaw === undefined ? null : normalizeThresholdEd25519ParticipantId(relayerIdRaw);
+    if (relayerIdRaw !== undefined && !relayerId) {
+      throw new Error('THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID must be an integer in [1,65535]');
+    }
+
+    this.clientParticipantId = clientId ?? THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID;
+    this.relayerParticipantId = relayerId ?? THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID;
+    if (this.clientParticipantId === this.relayerParticipantId) {
+      throw new Error('THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID must differ from THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID');
+    }
+    this.participantIds2p =
+      normalizeThresholdEd25519ParticipantIds([this.clientParticipantId, this.relayerParticipantId])
+      || [...THRESHOLD_ED25519_2P_PARTICIPANT_IDS];
+
     this.shareMode = coerceThresholdEd25519ShareMode(cfg.THRESHOLD_ED25519_SHARE_MODE);
     this.relayerMasterSecretB64u = toOptionalTrimmedString(cfg.THRESHOLD_ED25519_MASTER_SECRET_B64U);
     if (this.shareMode === 'derived' && !this.relayerMasterSecretB64u) {
@@ -152,6 +248,121 @@ export class ThresholdEd25519Service {
     this.viewAccessKeyList = input.viewAccessKeyList;
     this.txStatus = input.txStatus;
     this.webAuthnContractId = input.webAuthnContractId;
+    this.keygenStrategy = new ThresholdEd25519KeygenStrategyV1({
+      useDerivedShares: this.useDerivedRelayerShares(),
+      relayerMasterSecretB64u: this.relayerMasterSecretB64u,
+      clientParticipantId: this.clientParticipantId,
+      relayerParticipantId: this.relayerParticipantId,
+      ensureSignerWasm: this.ensureSignerWasm,
+    });
+  }
+
+  private async getCoordinatorHmacKey(): Promise<CryptoKey | null> {
+    if (!this.coordinatorSharedSecretBytes) return null;
+    if (!this.coordinatorHmacKeyPromise) {
+      this.coordinatorHmacKeyPromise = crypto.subtle.importKey(
+        'raw',
+        this.coordinatorSharedSecretBytes,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign'],
+      );
+    }
+    return await this.coordinatorHmacKeyPromise;
+  }
+
+  private async signCoordinatorGrant(payload: ThresholdEd25519CoordinatorGrantV1): Promise<string | null> {
+    const key = await this.getCoordinatorHmacKey();
+    if (!key) return null;
+    const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, payloadBytes));
+    return `${base64UrlEncode(payloadBytes)}.${base64UrlEncode(sig)}`;
+  }
+
+  private async verifyCoordinatorGrant(token: unknown): Promise<
+    | { ok: true; grant: ThresholdEd25519CoordinatorGrantV1; mpcSession: ParsedThresholdEd25519MpcSession }
+    | { ok: false; code: string; message: string }
+  > {
+    const key = await this.getCoordinatorHmacKey();
+    if (!key) {
+      return { ok: false, code: 'not_found', message: 'threshold-ed25519 coordinator grants are not enabled on this server' };
+    }
+
+    const raw = toOptionalTrimmedString(token);
+    if (!raw) return { ok: false, code: 'unauthorized', message: 'Missing coordinatorGrant' };
+    const parts = raw.split('.');
+    if (parts.length !== 2) {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant format' };
+    }
+    let payloadBytes: Uint8Array;
+    let sigBytes: Uint8Array;
+    try {
+      payloadBytes = base64UrlDecode(parts[0]);
+      sigBytes = base64UrlDecode(parts[1]);
+    } catch {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant encoding' };
+    }
+    if (sigBytes.length !== 32) {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant signature length' };
+    }
+
+    const expected = new Uint8Array(await crypto.subtle.sign('HMAC', key, payloadBytes));
+    if (!bytesEqual32(expected, sigBytes)) {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant signature' };
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(new TextDecoder().decode(payloadBytes)) as unknown;
+    } catch {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant JSON' };
+    }
+    if (!isObject(parsed)) {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant payload' };
+    }
+    const g = parsed as Record<string, unknown>;
+    if (g.typ !== 'threshold_ed25519_coordinator_grant_v1' || g.v !== 1) {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant type' };
+    }
+    const iat = Number(g.iat);
+    const exp = Number(g.exp);
+    if (!Number.isFinite(iat) || !Number.isFinite(exp) || exp <= 0 || exp < iat) {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant timestamps' };
+    }
+    const now = Math.floor(Date.now() / 1000);
+    if (now >= exp) {
+      return { ok: false, code: 'unauthorized', message: 'coordinatorGrant expired' };
+    }
+
+    const peerParticipantId = normalizeThresholdEd25519ParticipantId(g.peerParticipantId);
+    if (!peerParticipantId) {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant peerParticipantId' };
+    }
+    const mpcSessionId = toOptionalTrimmedString(g.mpcSessionId);
+    if (!mpcSessionId) {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant mpcSessionId' };
+    }
+    const mpcSession = parseThresholdEd25519MpcSessionRecord(g.mpcSession);
+    if (!mpcSession) {
+      return { ok: false, code: 'unauthorized', message: 'Invalid coordinatorGrant mpcSession payload' };
+    }
+    if (Date.now() > mpcSession.expiresAtMs) {
+      return { ok: false, code: 'unauthorized', message: 'coordinatorGrant mpcSession expired' };
+    }
+
+    return {
+      ok: true,
+      grant: {
+        v: 1,
+        typ: 'threshold_ed25519_coordinator_grant_v1',
+        iat,
+        exp,
+        mpcSessionId,
+        peerParticipantId,
+        mpcSession: g.mpcSession,
+      },
+      mpcSession,
+    };
   }
 
   private useDerivedRelayerShares(): boolean {
@@ -169,35 +380,7 @@ export class ThresholdEd25519Service {
     | { ok: true; publicKey: string; relayerSigningShareB64u: string; relayerVerifyingShareB64u: string }
     | { ok: false; code: string; message: string }
   > {
-    const masterSecretB64u = toOptionalTrimmedString(this.relayerMasterSecretB64u);
-    if (!masterSecretB64u) {
-      return { ok: false, code: 'missing_config', message: 'Missing THRESHOLD_ED25519_MASTER_SECRET_B64U for derived share mode' };
-    }
-
-    await this.ensureSignerWasm();
-    const out = expectThresholdEd25519KeygenWasmOutput(
-      threshold_ed25519_keygen_from_master_secret_and_client_verifying_share(
-        masterSecretB64u,
-        input.nearAccountId,
-        input.rpId,
-        input.clientVerifyingShareB64u,
-      ),
-    );
-
-    if (out.relayerKeyId !== input.expectedRelayerKeyId || out.publicKey !== input.expectedRelayerKeyId) {
-      return {
-        ok: false,
-        code: 'group_pk_mismatch',
-        message: 'clientVerifyingShareB64u does not match relayerKeyId',
-      };
-    }
-
-    return {
-      ok: true,
-      publicKey: out.publicKey,
-      relayerSigningShareB64u: out.relayerSigningShareB64u,
-      relayerVerifyingShareB64u: out.relayerVerifyingShareB64u,
-    };
+    return this.keygenStrategy.deriveRelayerKeyMaterial(input);
   }
 
   private async resolveRelayerKeyMaterial(input: {
@@ -376,6 +559,9 @@ export class ThresholdEd25519Service {
   }): Promise<
     | {
         ok: true;
+        clientParticipantId: number;
+        relayerParticipantId: number;
+        participantIds: number[];
         relayerKeyId: string;
         publicKey: string;
         relayerSigningShareB64u: string;
@@ -385,7 +571,6 @@ export class ThresholdEd25519Service {
   > {
     try {
       await this.ensureReady();
-      await this.ensureSignerWasm();
       const nearAccountId = toOptionalTrimmedString(input.nearAccountId);
       if (!nearAccountId) {
         return { ok: false, code: 'invalid_body', message: 'nearAccountId is required' };
@@ -399,32 +584,23 @@ export class ThresholdEd25519Service {
         return { ok: false, code: 'invalid_body', message: 'clientVerifyingShareB64u is required' };
       }
 
-      let out: ThresholdEd25519KeygenWasmOutput;
-      if (this.useDerivedRelayerShares()) {
-        const masterSecretB64u = toOptionalTrimmedString(this.relayerMasterSecretB64u);
-        if (!masterSecretB64u) {
-          return { ok: false, code: 'missing_config', message: 'Missing THRESHOLD_ED25519_MASTER_SECRET_B64U for derived share mode' };
-        }
-        out = expectThresholdEd25519KeygenWasmOutput(
-          threshold_ed25519_keygen_from_master_secret_and_client_verifying_share(
-            masterSecretB64u,
-            nearAccountId,
-            rpId,
-            clientVerifyingShareB64u,
-          ),
-        );
-      } else {
-        out = expectThresholdEd25519KeygenWasmOutput(
-          threshold_ed25519_keygen_from_client_verifying_share(clientVerifyingShareB64u),
-        );
-      }
+      const keygen = await this.keygenStrategy.keygenFromClientVerifyingShare({
+        nearAccountId,
+        rpId,
+        clientVerifyingShareB64u,
+      });
+      if (!keygen.ok) return keygen;
+      const { keyMaterial } = keygen;
 
       return {
         ok: true,
-        relayerKeyId: out.relayerKeyId,
-        publicKey: out.publicKey,
-        relayerSigningShareB64u: out.relayerSigningShareB64u,
-        relayerVerifyingShareB64u: out.relayerVerifyingShareB64u,
+        clientParticipantId: this.clientParticipantId,
+        relayerParticipantId: this.relayerParticipantId,
+        participantIds: [...this.participantIds2p],
+        relayerKeyId: keyMaterial.relayerKeyId,
+        publicKey: keyMaterial.publicKey,
+        relayerSigningShareB64u: keyMaterial.relayerSigningShareB64u,
+        relayerVerifyingShareB64u: keyMaterial.relayerVerifyingShareB64u,
       };
     } catch (e: unknown) {
       const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Internal error');
@@ -482,41 +658,38 @@ export class ThresholdEd25519Service {
         const validTx = this.validateLinkDeviceRegistrationTx(outcome, nearAccountId);
         if (!validTx.ok) return validTx;
 
-        await this.ensureSignerWasm();
-        let out: ThresholdEd25519KeygenWasmOutput;
         if (this.useDerivedRelayerShares()) {
-          const masterSecretB64u = toOptionalTrimmedString(this.relayerMasterSecretB64u);
-          if (!masterSecretB64u) {
-            return { ok: false, code: 'missing_config', message: 'Missing THRESHOLD_ED25519_MASTER_SECRET_B64U for derived share mode' };
-          }
           const rpId = toOptionalTrimmedString(validTx.rpId);
           if (!rpId) {
             return { ok: false, code: 'invalid_body', message: 'registrationTxHash keygen requires vrf_data.rp_id in link_device_register_user args' };
           }
-          out = expectThresholdEd25519KeygenWasmOutput(
-            threshold_ed25519_keygen_from_master_secret_and_client_verifying_share(
-              masterSecretB64u,
-              nearAccountId,
-              rpId,
-              clientVerifyingShareB64u,
-            ),
-          );
-        } else {
-          out = expectThresholdEd25519KeygenWasmOutput(
-            threshold_ed25519_keygen_from_client_verifying_share(clientVerifyingShareB64u),
-          );
-          await this.keyStore.put(out.relayerKeyId, {
-            publicKey: out.publicKey,
-            relayerSigningShareB64u: out.relayerSigningShareB64u,
-            relayerVerifyingShareB64u: out.relayerVerifyingShareB64u,
+        }
+        const keygen = await this.keygenStrategy.keygenFromClientVerifyingShare({
+          nearAccountId,
+          rpId: toOptionalTrimmedString(validTx.rpId),
+          clientVerifyingShareB64u,
+        });
+        if (!keygen.ok) return keygen;
+        const { keyMaterial } = keygen;
+        const publicKey = keyMaterial.publicKey;
+        const relayerKeyId = keyMaterial.relayerKeyId;
+
+        if (!this.useDerivedRelayerShares()) {
+          await this.keyStore.put(relayerKeyId, {
+            publicKey,
+            relayerSigningShareB64u: keyMaterial.relayerSigningShareB64u,
+            relayerVerifyingShareB64u: keyMaterial.relayerVerifyingShareB64u,
           });
         }
 
         return {
           ok: true,
-          relayerKeyId: out.relayerKeyId,
-          publicKey: out.publicKey,
-          relayerVerifyingShareB64u: out.relayerVerifyingShareB64u,
+          clientParticipantId: this.clientParticipantId,
+          relayerParticipantId: this.relayerParticipantId,
+          participantIds: [...this.participantIds2p],
+          relayerKeyId,
+          publicKey,
+          relayerVerifyingShareB64u: keyMaterial.relayerVerifyingShareB64u,
         };
       }
 
@@ -571,37 +744,32 @@ export class ThresholdEd25519Service {
         };
       }
 
-      await this.ensureSignerWasm();
-      let out: ThresholdEd25519KeygenWasmOutput;
-      if (this.useDerivedRelayerShares()) {
-        const masterSecretB64u = toOptionalTrimmedString(this.relayerMasterSecretB64u);
-        if (!masterSecretB64u) {
-          return { ok: false, code: 'missing_config', message: 'Missing THRESHOLD_ED25519_MASTER_SECRET_B64U for derived share mode' };
-        }
-        out = expectThresholdEd25519KeygenWasmOutput(
-          threshold_ed25519_keygen_from_master_secret_and_client_verifying_share(
-            masterSecretB64u,
-            nearAccountId,
-            rpId,
-            clientVerifyingShareB64u,
-          ),
-        );
-      } else {
-        out = expectThresholdEd25519KeygenWasmOutput(
-          threshold_ed25519_keygen_from_client_verifying_share(clientVerifyingShareB64u),
-        );
-        await this.keyStore.put(out.relayerKeyId, {
-          publicKey: out.publicKey,
-          relayerSigningShareB64u: out.relayerSigningShareB64u,
-          relayerVerifyingShareB64u: out.relayerVerifyingShareB64u,
+      const keygen = await this.keygenStrategy.keygenFromClientVerifyingShare({
+        nearAccountId,
+        rpId,
+        clientVerifyingShareB64u,
+      });
+      if (!keygen.ok) return keygen;
+      const { keyMaterial } = keygen;
+      const publicKey = keyMaterial.publicKey;
+      const relayerKeyId = keyMaterial.relayerKeyId;
+
+      if (!this.useDerivedRelayerShares()) {
+        await this.keyStore.put(relayerKeyId, {
+          publicKey,
+          relayerSigningShareB64u: keyMaterial.relayerSigningShareB64u,
+          relayerVerifyingShareB64u: keyMaterial.relayerVerifyingShareB64u,
         });
       }
 
       return {
         ok: true,
-        relayerKeyId: out.relayerKeyId,
-        publicKey: out.publicKey,
-        relayerVerifyingShareB64u: out.relayerVerifyingShareB64u,
+        clientParticipantId: this.clientParticipantId,
+        relayerParticipantId: this.relayerParticipantId,
+        participantIds: [...this.participantIds2p],
+        relayerKeyId,
+        publicKey,
+        relayerVerifyingShareB64u: keyMaterial.relayerVerifyingShareB64u,
       };
     } catch (e: unknown) {
       this.logger?.error?.('thresholdEd25519Keygen failed:', e);
@@ -719,6 +887,7 @@ export class ThresholdEd25519Service {
         userId,
         rpId,
         clientVerifyingShareB64u,
+        participantIds: [...this.participantIds2p],
       }, ttlMs);
 
       return {
@@ -765,6 +934,21 @@ export class ThresholdEd25519Service {
       if (policyRelayerKeyId !== relayerKeyId) {
         return { ok: false, code: 'invalid_body', message: 'sessionPolicy.relayerKeyId must match relayerKeyId' };
       }
+      const policyHasParticipantIds = Object.prototype.hasOwnProperty.call(policyRaw, 'participantIds');
+      const policyParticipantIds = normalizeThresholdEd25519ParticipantIds((policyRaw as Record<string, unknown>).participantIds);
+      if (policyHasParticipantIds && !policyParticipantIds) {
+        return { ok: false, code: 'invalid_body', message: 'sessionPolicy.participantIds must be a non-empty array of positive integers' };
+      }
+      if (policyParticipantIds) {
+        if (policyParticipantIds.length !== 2) {
+          return policyParticipantIds.length > 2
+            ? { ok: false, code: 'multi_party_not_supported', message: `multi-party threshold sessions are not supported yet (expected participantIds=[${this.participantIds2p.join(',')}])` }
+            : { ok: false, code: 'invalid_body', message: 'sessionPolicy.participantIds must contain exactly 2 participant ids for 2-party signing' };
+        }
+        if (!areThresholdEd25519ParticipantIds2p(policyParticipantIds, this.participantIds2p)) {
+          return { ok: false, code: 'unauthorized', message: `sessionPolicy.participantIds must match server signer set (expected participantIds=[${this.participantIds2p.join(',')}])` };
+        }
+      }
       if (!Number.isFinite(ttlMsRaw) || ttlMsRaw <= 0) {
         return { ok: false, code: 'invalid_body', message: 'sessionPolicy.ttlMs must be a positive number' };
       }
@@ -799,12 +983,14 @@ export class ThresholdEd25519Service {
       }
 
       const { ttlMs, remainingUses } = this.clampSessionPolicy({ ttlMs: ttlMsRaw, remainingUses: remainingUsesRaw });
+      const participantIds = policyParticipantIds || [...this.participantIds2p];
       const normalizedPolicy = {
         version: 'threshold_session_v1',
         nearAccountId,
         rpId,
         relayerKeyId,
         sessionId,
+        ...(policyParticipantIds ? { participantIds: policyParticipantIds } : {}),
         ttlMs,
         remainingUses,
       };
@@ -823,6 +1009,11 @@ export class ThresholdEd25519Service {
         }
         if (existingSession.rpId !== rpId) {
           return { ok: false, code: 'unauthorized', message: 'threshold sessionId already exists for a different rpId' };
+        }
+        const sameParticipantIds = existingSession.participantIds.length === participantIds.length
+          && existingSession.participantIds.every((id, i) => id === participantIds[i]);
+        if (!sameParticipantIds) {
+          return { ok: false, code: 'unauthorized', message: 'threshold sessionId already exists for a different participant set' };
         }
       }
 
@@ -867,6 +1058,7 @@ export class ThresholdEd25519Service {
           relayerKeyId,
           userId: nearAccountId,
           rpId,
+          participantIds,
         },
         ttlMs,
         remainingUses,
@@ -903,6 +1095,14 @@ export class ThresholdEd25519Service {
       const sessionRecord = consumed.record;
       if (sessionRecord.userId !== userId) {
         return { ok: false, code: 'unauthorized', message: 'threshold session token does not match session record user' };
+      }
+      const sessionParticipantIds =
+        normalizeThresholdEd25519ParticipantIds(sessionRecord.participantIds) || [...this.participantIds2p];
+      if (sessionParticipantIds.length !== 2) {
+        return { ok: false, code: 'multi_party_not_supported', message: `multi-party threshold signing is not supported yet (expected participantIds=[${this.participantIds2p.join(',')}])` };
+      }
+      if (!areThresholdEd25519ParticipantIds2p(sessionParticipantIds, this.participantIds2p)) {
+        return { ok: false, code: 'unauthorized', message: `threshold session token does not match server signer set (expected participantIds=[${this.participantIds2p.join(',')}])` };
       }
 
       const request = input.request;
@@ -972,6 +1172,7 @@ export class ThresholdEd25519Service {
         userId: sessionRecord.userId,
         rpId: sessionRecord.rpId,
         clientVerifyingShareB64u,
+        participantIds: [...sessionRecord.participantIds],
       }, ttlMs);
 
       return {
@@ -986,6 +1187,13 @@ export class ThresholdEd25519Service {
   }
 
   async thresholdEd25519SignInit(request: ThresholdEd25519SignInitRequest): Promise<ThresholdEd25519SignInitResponse> {
+    if (this.nodeRole !== 'coordinator') {
+      return {
+        ok: false,
+        code: 'not_found',
+        message: 'threshold-ed25519 signing endpoints are not enabled on this server (set THRESHOLD_NODE_ROLE=coordinator)',
+      };
+    }
     try {
       await this.ensureReady();
       const mpcSessionId = toOptionalTrimmedString(request.mpcSessionId);
@@ -998,6 +1206,14 @@ export class ThresholdEd25519Service {
       }
       if (Date.now() > sess.expiresAtMs) {
         return { ok: false, code: 'unauthorized', message: 'mpcSessionId expired' };
+      }
+      const participantIds =
+        normalizeThresholdEd25519ParticipantIds(sess.participantIds) || [...this.participantIds2p];
+      if (participantIds.length !== 2) {
+        return { ok: false, code: 'multi_party_not_supported', message: `multi-party threshold signing is not supported yet (expected participantIds=[${this.participantIds2p.join(',')}])` };
+      }
+      if (!areThresholdEd25519ParticipantIds2p(participantIds, this.participantIds2p)) {
+        return { ok: false, code: 'unauthorized', message: `mpcSessionId does not match server signer set (expected participantIds=[${this.participantIds2p.join(',')}])` };
       }
 
       const relayerKeyId = toOptionalTrimmedString(request.relayerKeyId);
@@ -1041,35 +1257,91 @@ export class ThresholdEd25519Service {
         return { ok: false, code: 'invalid_body', message: 'clientCommitments{hiding,binding} are required' };
       }
 
-      const key = await this.resolveRelayerKeyMaterial({
-        relayerKeyId,
-        nearAccountId: sess.userId,
-        rpId: sess.rpId,
-        clientVerifyingShareB64u: sess.clientVerifyingShareB64u,
-      });
-      if (!key.ok) {
-        return { ok: false, code: key.code, message: key.message };
+      // No peer config: act as a single relayer participant (2P).
+      if (!this.coordinatorPeers.length) {
+        const out = await this.peerSignInitFromMpcSessionRecord({ mpcSessionId, mpcSession: sess, clientCommitments });
+        if (!out.ok) return { ok: false, code: out.code, message: out.message };
+
+        const signingSessionId = toOptionalTrimmedString(out.signingSessionId);
+        const relayerCommitments = out.relayerCommitments;
+        const relayerVerifyingShareB64u = toOptionalTrimmedString(out.relayerVerifyingShareB64u);
+        if (!signingSessionId || !relayerCommitments?.hiding || !relayerCommitments?.binding || !relayerVerifyingShareB64u) {
+          return { ok: false, code: 'internal', message: 'threshold-ed25519 sign/init produced incomplete output' };
+        }
+
+        return {
+          ok: true,
+          signingSessionId,
+          commitmentsById: {
+            [String(this.clientParticipantId)]: clientCommitments,
+            [String(this.relayerParticipantId)]: relayerCommitments,
+          },
+          relayerVerifyingSharesById: {
+            [String(this.relayerParticipantId)]: relayerVerifyingShareB64u,
+          },
+          participantIds: [...participantIds],
+        };
       }
 
-      // Tighten scope: ensure relayerKeyId public key is actually an access key on nearAccountId.
-      const scope = await ensureRelayerKeyIsActiveAccessKey({
-        nearAccountId,
-        relayerPublicKey: key.publicKey,
-        viewAccessKeyList: this.viewAccessKeyList,
-      });
-      if (!scope.ok) {
-        return { ok: false, code: scope.code, message: scope.message };
+      const relayerIds = participantIds.filter((id) => id !== this.clientParticipantId);
+      if (relayerIds.length !== 1) {
+        return { ok: false, code: 'multi_party_not_supported', message: 'multi-party coordinator fanout is not supported yet' };
+      }
+      const [peerId] = relayerIds;
+
+      const peer = this.coordinatorPeers.find((p) => p.id === peerId) || null;
+      if (!peer) {
+        return { ok: false, code: 'missing_config', message: `Missing coordinator peer for participant id=${peerId}` };
+      }
+      if (this.coordinatorPeers.some((p) => p.id !== peerId)) {
+        return { ok: false, code: 'multi_party_not_supported', message: 'coordinatorPeers contains multiple participant ids (multi-party not supported yet)' };
       }
 
-      await this.ensureSignerWasm();
-      const commit = expectThresholdEd25519Round1CommitWasmOutput(
-        threshold_ed25519_round1_commit(key.relayerSigningShareB64u),
-      );
+      const now = Math.floor(Date.now() / 1000);
+      const exp = now + 60;
+      const grant = await this.signCoordinatorGrant({
+        v: 1,
+        typ: 'threshold_ed25519_coordinator_grant_v1',
+        iat: now,
+        exp,
+        mpcSessionId,
+        peerParticipantId: peerId,
+        mpcSession: sess,
+      });
+      if (!grant) {
+        return { ok: false, code: 'missing_config', message: 'THRESHOLD_COORDINATOR_SHARED_SECRET_B64U is required for coordinator peer fanout' };
+      }
+
+      const initUrl = `${peer.relayerUrl}/threshold-ed25519/internal/sign/init`;
+      const peerInit = await this.postJsonWithTimeout(initUrl, {
+        coordinatorGrant: grant,
+        clientCommitments,
+      }, 10_000);
+      if (!peerInit.ok) return peerInit;
+
+      const initJson = peerInit.json as ThresholdEd25519PeerSignInitResponse;
+      if (!initJson?.ok) {
+        return { ok: false, code: initJson?.code || 'internal', message: initJson?.message || 'peer sign/init failed' };
+      }
+      const peerSigningSessionId = toOptionalTrimmedString(initJson.signingSessionId);
+      const relayerCommitments = initJson.relayerCommitments;
+      const relayerVerifyingShareB64u = toOptionalTrimmedString(initJson.relayerVerifyingShareB64u);
+      if (!peerSigningSessionId || !relayerCommitments?.hiding || !relayerCommitments?.binding || !relayerVerifyingShareB64u) {
+        return { ok: false, code: 'internal', message: 'peer sign/init produced incomplete output' };
+      }
 
       const signingSessionId = this.createThresholdEd25519SigningSessionId();
       const ttlMs = 60_000;
       const expiresAtMs = Date.now() + ttlMs;
-      await this.sessionStore.putSigningSession(signingSessionId, {
+      const commitmentsById: Record<string, { hiding: string; binding: string }> = {
+        [String(this.clientParticipantId)]: clientCommitments,
+        [String(peerId)]: relayerCommitments,
+      };
+      const relayerVerifyingSharesById: Record<string, string> = {
+        [String(peerId)]: relayerVerifyingShareB64u,
+      };
+
+      await this.sessionStore.putCoordinatorSigningSession(signingSessionId, {
         expiresAtMs,
         mpcSessionId,
         relayerKeyId,
@@ -1077,16 +1349,26 @@ export class ThresholdEd25519Service {
         userId: sess.userId,
         rpId: sess.rpId,
         clientVerifyingShareB64u: sess.clientVerifyingShareB64u,
-        clientCommitments,
-        relayerCommitments: commit.relayerCommitments,
-        relayerNoncesB64u: commit.relayerNoncesB64u,
+        commitmentsById,
+        participantIds,
+        peerSigningSessionIdsById: {
+          [String(peerId)]: peerSigningSessionId,
+        },
+        peerRelayerUrlsById: {
+          [String(peerId)]: peer.relayerUrl,
+        },
+        peerCoordinatorGrantsById: {
+          [String(peerId)]: grant,
+        },
+        relayerVerifyingSharesById,
       }, ttlMs);
 
       return {
         ok: true,
         signingSessionId,
-        relayerCommitments: commit.relayerCommitments,
-        relayerVerifyingShareB64u: key.relayerVerifyingShareB64u,
+        commitmentsById,
+        relayerVerifyingSharesById,
+        participantIds: [...participantIds],
       };
     } catch (e: unknown) {
       const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Internal error');
@@ -1094,7 +1376,48 @@ export class ThresholdEd25519Service {
     }
   }
 
-  async thresholdEd25519SignFinalize(request: ThresholdEd25519SignFinalizeRequest): Promise<ThresholdEd25519SignFinalizeResponse> {
+  async thresholdEd25519PeerSignInit(request: ThresholdEd25519PeerSignInitRequest): Promise<ThresholdEd25519PeerSignInitResponse> {
+    try {
+      await this.ensureReady();
+      const verified = await this.verifyCoordinatorGrant(request.coordinatorGrant);
+      if (!verified.ok) {
+        return { ok: false, code: verified.code, message: verified.message };
+      }
+      const { grant, mpcSession } = verified;
+
+      if (grant.peerParticipantId !== this.relayerParticipantId) {
+        return { ok: false, code: 'unauthorized', message: 'coordinatorGrant does not match this relayer participant id' };
+      }
+
+      const participantIds =
+        normalizeThresholdEd25519ParticipantIds(mpcSession.participantIds) || [...this.participantIds2p];
+      if (participantIds.length !== 2) {
+        return { ok: false, code: 'multi_party_not_supported', message: `multi-party threshold signing is not supported yet (expected participantIds=[${this.participantIds2p.join(',')}])` };
+      }
+      if (!areThresholdEd25519ParticipantIds2p(participantIds, this.participantIds2p)) {
+        return { ok: false, code: 'unauthorized', message: `coordinatorGrant does not match server signer set (expected participantIds=[${this.participantIds2p.join(',')}])` };
+      }
+
+      const clientCommitments: ThresholdEd25519Commitments = {
+        hiding: toOptionalTrimmedString(request.clientCommitments?.hiding),
+        binding: toOptionalTrimmedString(request.clientCommitments?.binding),
+      };
+      if (!clientCommitments.hiding || !clientCommitments.binding) {
+        return { ok: false, code: 'invalid_body', message: 'clientCommitments{hiding,binding} are required' };
+      }
+
+      return await this.peerSignInitFromMpcSessionRecord({
+        mpcSessionId: grant.mpcSessionId,
+        mpcSession,
+        clientCommitments,
+      });
+    } catch (e: unknown) {
+      const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Internal error');
+      return { ok: false, code: 'internal', message: msg };
+    }
+  }
+
+  async thresholdEd25519PeerSignFinalize(request: ThresholdEd25519PeerSignFinalizeRequest): Promise<ThresholdEd25519PeerSignFinalizeResponse> {
     try {
       await this.ensureReady();
       const signingSessionId = toOptionalTrimmedString(request.signingSessionId);
@@ -1106,7 +1429,271 @@ export class ThresholdEd25519Service {
         return { ok: false, code: 'invalid_body', message: 'clientSignatureShareB64u is required' };
       }
 
-      const sess = await this.sessionStore.takeSigningSession(signingSessionId);
+      const verified = await this.verifyCoordinatorGrant(request.coordinatorGrant);
+      if (!verified.ok) {
+        return { ok: false, code: verified.code, message: verified.message };
+      }
+      const { grant, mpcSession } = verified;
+
+      if (grant.peerParticipantId !== this.relayerParticipantId) {
+        return { ok: false, code: 'unauthorized', message: 'coordinatorGrant does not match this relayer participant id' };
+      }
+
+      const participantIds =
+        normalizeThresholdEd25519ParticipantIds(mpcSession.participantIds) || [...this.participantIds2p];
+      if (participantIds.length !== 2) {
+        return { ok: false, code: 'multi_party_not_supported', message: `multi-party threshold signing is not supported yet (expected participantIds=[${this.participantIds2p.join(',')}])` };
+      }
+      if (!areThresholdEd25519ParticipantIds2p(participantIds, this.participantIds2p)) {
+        return { ok: false, code: 'unauthorized', message: `coordinatorGrant does not match server signer set (expected participantIds=[${this.participantIds2p.join(',')}])` };
+      }
+
+      return await this.peerSignFinalizeFromSigningSessionId({
+        signingSessionId,
+        clientSignatureShareB64u,
+        expectedMpcSessionId: grant.mpcSessionId,
+        expectedRelayerKeyId: mpcSession.relayerKeyId,
+        expectedSigningDigestB64u: mpcSession.signingDigestB64u,
+        expectedUserId: mpcSession.userId,
+        expectedRpId: mpcSession.rpId,
+        expectedClientVerifyingShareB64u: mpcSession.clientVerifyingShareB64u,
+      });
+    } catch (e: unknown) {
+      const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Internal error');
+      return { ok: false, code: 'internal', message: msg };
+    }
+  }
+
+  private async peerSignInitFromMpcSessionRecord(input: {
+    mpcSessionId: string;
+    mpcSession: ThresholdEd25519MpcSessionRecord;
+    clientCommitments: ThresholdEd25519Commitments;
+  }): Promise<ThresholdEd25519PeerSignInitResponse> {
+    const mpcSessionId = toOptionalTrimmedString(input.mpcSessionId);
+    if (!mpcSessionId) {
+      return { ok: false, code: 'invalid_body', message: 'mpcSessionId is required' };
+    }
+    const sess = input.mpcSession;
+    if (Date.now() > sess.expiresAtMs) {
+      return { ok: false, code: 'unauthorized', message: 'mpcSessionId expired' };
+    }
+
+    const participantIds =
+      normalizeThresholdEd25519ParticipantIds(sess.participantIds) || [...this.participantIds2p];
+    if (participantIds.length !== 2) {
+      return { ok: false, code: 'multi_party_not_supported', message: `multi-party threshold signing is not supported yet (expected participantIds=[${this.participantIds2p.join(',')}])` };
+    }
+    if (!areThresholdEd25519ParticipantIds2p(participantIds, this.participantIds2p)) {
+      return { ok: false, code: 'unauthorized', message: `mpcSessionId does not match server signer set (expected participantIds=[${this.participantIds2p.join(',')}])` };
+    }
+
+    const signingDigestB64u = toOptionalTrimmedString(sess.signingDigestB64u);
+    if (!signingDigestB64u) {
+      return { ok: false, code: 'invalid_body', message: 'signingDigestB64u is required' };
+    }
+    let signingDigestBytes: Uint8Array;
+    try {
+      signingDigestBytes = base64UrlDecode(signingDigestB64u);
+    } catch {
+      return { ok: false, code: 'invalid_body', message: 'signingDigestB64u is not valid base64url' };
+    }
+    if (signingDigestBytes.length !== 32) {
+      return { ok: false, code: 'invalid_body', message: `signingDigestB64u must decode to 32 bytes, got ${signingDigestBytes.length}` };
+    }
+
+    const key = await this.resolveRelayerKeyMaterial({
+      relayerKeyId: sess.relayerKeyId,
+      nearAccountId: sess.userId,
+      rpId: sess.rpId,
+      clientVerifyingShareB64u: sess.clientVerifyingShareB64u,
+    });
+    if (!key.ok) {
+      return { ok: false, code: key.code, message: key.message };
+    }
+
+    // Tighten scope: ensure relayerKeyId public key is actually an access key on nearAccountId.
+    const scope = await ensureRelayerKeyIsActiveAccessKey({
+      nearAccountId: sess.userId,
+      relayerPublicKey: key.publicKey,
+      viewAccessKeyList: this.viewAccessKeyList,
+    });
+    if (!scope.ok) {
+      return { ok: false, code: scope.code, message: scope.message };
+    }
+
+    await this.ensureSignerWasm();
+    const commit = expectThresholdEd25519Round1CommitWasmOutput(
+      threshold_ed25519_round1_commit(key.relayerSigningShareB64u),
+    );
+
+    const signingSessionId = this.createThresholdEd25519SigningSessionId();
+    const ttlMs = 60_000;
+    const expiresAtMs = Date.now() + ttlMs;
+    const commitmentsById: ThresholdEd25519CommitmentsById = {
+      [String(this.clientParticipantId)]: input.clientCommitments,
+      [String(this.relayerParticipantId)]: commit.relayerCommitments,
+    };
+    await this.sessionStore.putSigningSession(signingSessionId, {
+      expiresAtMs,
+      mpcSessionId,
+      relayerKeyId: sess.relayerKeyId,
+      signingDigestB64u,
+      userId: sess.userId,
+      rpId: sess.rpId,
+      clientVerifyingShareB64u: sess.clientVerifyingShareB64u,
+      clientCommitments: input.clientCommitments,
+      relayerCommitments: commit.relayerCommitments,
+      commitmentsById,
+      relayerNoncesB64u: commit.relayerNoncesB64u,
+      participantIds,
+    }, ttlMs);
+
+    return {
+      ok: true,
+      signingSessionId,
+      relayerCommitments: commit.relayerCommitments,
+      relayerVerifyingShareB64u: key.relayerVerifyingShareB64u,
+    };
+  }
+
+  private async peerSignFinalizeFromSigningSessionId(input: {
+    signingSessionId: string;
+    clientSignatureShareB64u: string;
+    expectedMpcSessionId?: string;
+    expectedRelayerKeyId?: string;
+    expectedSigningDigestB64u?: string;
+    expectedUserId?: string;
+    expectedRpId?: string;
+    expectedClientVerifyingShareB64u?: string;
+  }): Promise<ThresholdEd25519PeerSignFinalizeResponse> {
+    const signingSessionId = toOptionalTrimmedString(input.signingSessionId);
+    if (!signingSessionId) {
+      return { ok: false, code: 'invalid_body', message: 'signingSessionId is required' };
+    }
+    const clientSignatureShareB64u = toOptionalTrimmedString(input.clientSignatureShareB64u);
+    if (!clientSignatureShareB64u) {
+      return { ok: false, code: 'invalid_body', message: 'clientSignatureShareB64u is required' };
+    }
+
+    const sess = await this.sessionStore.takeSigningSession(signingSessionId);
+    if (!sess) {
+      return { ok: false, code: 'unauthorized', message: 'signingSessionId expired or invalid' };
+    }
+    if (Date.now() > sess.expiresAtMs) {
+      return { ok: false, code: 'unauthorized', message: 'signingSessionId expired' };
+    }
+
+    const restoreOnMismatch = async (): Promise<void> => {
+      const ttlMs = Math.max(0, sess.expiresAtMs - Date.now());
+      if (!ttlMs) return;
+      await this.sessionStore.putSigningSession(signingSessionId, sess, ttlMs);
+    };
+
+    const expectedMpcSessionId = toOptionalTrimmedString(input.expectedMpcSessionId);
+    if (expectedMpcSessionId && sess.mpcSessionId !== expectedMpcSessionId) {
+      await restoreOnMismatch();
+      return { ok: false, code: 'unauthorized', message: 'signingSessionId does not match coordinatorGrant scope' };
+    }
+    const expectedRelayerKeyId = toOptionalTrimmedString(input.expectedRelayerKeyId);
+    if (expectedRelayerKeyId && sess.relayerKeyId !== expectedRelayerKeyId) {
+      await restoreOnMismatch();
+      return { ok: false, code: 'unauthorized', message: 'signingSessionId does not match coordinatorGrant scope' };
+    }
+    const expectedSigningDigestB64u = toOptionalTrimmedString(input.expectedSigningDigestB64u);
+    if (expectedSigningDigestB64u && sess.signingDigestB64u !== expectedSigningDigestB64u) {
+      await restoreOnMismatch();
+      return { ok: false, code: 'unauthorized', message: 'signingSessionId does not match coordinatorGrant scope' };
+    }
+    const expectedUserId = toOptionalTrimmedString(input.expectedUserId);
+    if (expectedUserId && sess.userId !== expectedUserId) {
+      await restoreOnMismatch();
+      return { ok: false, code: 'unauthorized', message: 'signingSessionId does not match coordinatorGrant scope' };
+    }
+    const expectedRpId = toOptionalTrimmedString(input.expectedRpId);
+    if (expectedRpId && sess.rpId !== expectedRpId) {
+      await restoreOnMismatch();
+      return { ok: false, code: 'unauthorized', message: 'signingSessionId does not match coordinatorGrant scope' };
+    }
+    const expectedClientVerifyingShareB64u = toOptionalTrimmedString(input.expectedClientVerifyingShareB64u);
+    if (expectedClientVerifyingShareB64u && sess.clientVerifyingShareB64u !== expectedClientVerifyingShareB64u) {
+      await restoreOnMismatch();
+      return { ok: false, code: 'unauthorized', message: 'signingSessionId does not match coordinatorGrant scope' };
+    }
+
+    const participantIds =
+      normalizeThresholdEd25519ParticipantIds(sess.participantIds) || [...this.participantIds2p];
+    if (participantIds.length !== 2) {
+      return { ok: false, code: 'multi_party_not_supported', message: `multi-party threshold signing is not supported yet (expected participantIds=[${this.participantIds2p.join(',')}])` };
+    }
+    if (!areThresholdEd25519ParticipantIds2p(participantIds, this.participantIds2p)) {
+      return { ok: false, code: 'unauthorized', message: `signingSessionId does not match server signer set (expected participantIds=[${this.participantIds2p.join(',')}])` };
+    }
+
+    const key = await this.resolveRelayerKeyMaterial({
+      relayerKeyId: sess.relayerKeyId,
+      nearAccountId: sess.userId,
+      rpId: sess.rpId,
+      clientVerifyingShareB64u: sess.clientVerifyingShareB64u,
+    });
+    if (!key.ok) {
+      return { ok: false, code: key.code, message: key.message };
+    }
+
+    await this.ensureSignerWasm();
+    const clientCommitments = sess.commitmentsById?.[String(this.clientParticipantId)]
+      || sess.clientCommitments;
+    const relayerCommitments = sess.commitmentsById?.[String(this.relayerParticipantId)]
+      || sess.relayerCommitments;
+    const out = expectThresholdEd25519Round2SignWasmOutput(threshold_ed25519_round2_sign({
+      clientParticipantId: this.clientParticipantId,
+      relayerParticipantId: this.relayerParticipantId,
+      relayerSigningShareB64u: key.relayerSigningShareB64u,
+      relayerNoncesB64u: sess.relayerNoncesB64u,
+      groupPublicKey: key.publicKey,
+      signingDigestB64u: sess.signingDigestB64u,
+      clientCommitments,
+      relayerCommitments,
+    }));
+
+    return { ok: true, relayerSignatureShareB64u: out.relayerSignatureShareB64u };
+  }
+
+  async thresholdEd25519SignFinalize(request: ThresholdEd25519SignFinalizeRequest): Promise<ThresholdEd25519SignFinalizeResponse> {
+    if (this.nodeRole !== 'coordinator') {
+      return {
+        ok: false,
+        code: 'not_found',
+        message: 'threshold-ed25519 signing endpoints are not enabled on this server (set THRESHOLD_NODE_ROLE=coordinator)',
+      };
+    }
+    try {
+      await this.ensureReady();
+      const signingSessionId = toOptionalTrimmedString(request.signingSessionId);
+      if (!signingSessionId) {
+        return { ok: false, code: 'invalid_body', message: 'signingSessionId is required' };
+      }
+      const clientSignatureShareB64u = toOptionalTrimmedString(request.clientSignatureShareB64u);
+      if (!clientSignatureShareB64u) {
+        return { ok: false, code: 'invalid_body', message: 'clientSignatureShareB64u is required' };
+      }
+
+      // No peer config: act as a single relayer participant (2P).
+      if (!this.coordinatorPeers.length) {
+        const out = await this.peerSignFinalizeFromSigningSessionId({ signingSessionId, clientSignatureShareB64u });
+        if (!out.ok) return { ok: false, code: out.code, message: out.message };
+        const relayerSignatureShareB64u = toOptionalTrimmedString(out.relayerSignatureShareB64u);
+        if (!relayerSignatureShareB64u) {
+          return { ok: false, code: 'internal', message: 'threshold-ed25519 sign/finalize produced empty signature share' };
+        }
+        return {
+          ok: true,
+          relayerSignatureSharesById: {
+            [String(this.relayerParticipantId)]: relayerSignatureShareB64u,
+          },
+        };
+      }
+
+      const sess = await this.sessionStore.takeCoordinatorSigningSession(signingSessionId);
       if (!sess) {
         return { ok: false, code: 'unauthorized', message: 'signingSessionId expired or invalid' };
       }
@@ -1114,31 +1701,87 @@ export class ThresholdEd25519Service {
         return { ok: false, code: 'unauthorized', message: 'signingSessionId expired' };
       }
 
-      const key = await this.resolveRelayerKeyMaterial({
-        relayerKeyId: sess.relayerKeyId,
-        nearAccountId: sess.userId,
-        rpId: sess.rpId,
-        clientVerifyingShareB64u: sess.clientVerifyingShareB64u,
-      });
-      if (!key.ok) {
-        return { ok: false, code: key.code, message: key.message };
+      const participantIds =
+        normalizeThresholdEd25519ParticipantIds(sess.participantIds) || [...this.participantIds2p];
+      if (participantIds.length !== 2) {
+        return { ok: false, code: 'multi_party_not_supported', message: 'multi-party coordinator fanout is not supported yet' };
+      }
+      if (!areThresholdEd25519ParticipantIds2p(participantIds, this.participantIds2p)) {
+        return { ok: false, code: 'unauthorized', message: `signingSessionId does not match server signer set (expected participantIds=[${this.participantIds2p.join(',')}])` };
       }
 
-      await this.ensureSignerWasm();
-      const out = expectThresholdEd25519Round2SignWasmOutput(threshold_ed25519_round2_sign({
-        relayerSigningShareB64u: key.relayerSigningShareB64u,
-        relayerNoncesB64u: sess.relayerNoncesB64u,
-        groupPublicKey: key.publicKey,
-        signingDigestB64u: sess.signingDigestB64u,
-        clientCommitments: sess.clientCommitments,
-        relayerCommitments: sess.relayerCommitments,
-      }));
+      const relayerIds = participantIds.filter((id) => id !== this.clientParticipantId);
+      if (relayerIds.length !== 1) {
+        return { ok: false, code: 'multi_party_not_supported', message: 'multi-party coordinator fanout is not supported yet' };
+      }
+      const [peerId] = relayerIds;
 
-      // signature aggregation is handled by the client coordinator.
-      return { ok: true, relayerSignatureShareB64u: out.relayerSignatureShareB64u };
+      const peerSigningSessionId = toOptionalTrimmedString(sess.peerSigningSessionIdsById?.[String(peerId)]);
+      const peerRelayerUrl = toOptionalTrimmedString(sess.peerRelayerUrlsById?.[String(peerId)]);
+      const peerCoordinatorGrant = toOptionalTrimmedString(sess.peerCoordinatorGrantsById?.[String(peerId)]);
+      if (!peerSigningSessionId || !peerRelayerUrl || !peerCoordinatorGrant) {
+        return { ok: false, code: 'internal', message: 'coordinator signing session missing peer mapping' };
+      }
+
+      const finalizeUrl = `${peerRelayerUrl}/threshold-ed25519/internal/sign/finalize`;
+      const peerFinalize = await this.postJsonWithTimeout(finalizeUrl, {
+        coordinatorGrant: peerCoordinatorGrant,
+        signingSessionId: peerSigningSessionId,
+        clientSignatureShareB64u,
+      }, 10_000);
+      if (!peerFinalize.ok) return peerFinalize;
+
+      const finalizeJson = peerFinalize.json as ThresholdEd25519PeerSignFinalizeResponse;
+      if (!finalizeJson?.ok) {
+        return { ok: false, code: finalizeJson?.code || 'internal', message: finalizeJson?.message || 'peer sign/finalize failed' };
+      }
+      const relayerSignatureShareB64u = toOptionalTrimmedString(finalizeJson.relayerSignatureShareB64u);
+      if (!relayerSignatureShareB64u) {
+        return { ok: false, code: 'internal', message: 'peer sign/finalize produced empty signature share' };
+      }
+
+      return {
+        ok: true,
+        relayerSignatureSharesById: {
+          [String(peerId)]: relayerSignatureShareB64u,
+        },
+      };
     } catch (e: unknown) {
       const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Internal error');
       return { ok: false, code: 'internal', message: msg };
+    }
+  }
+
+  private async postJsonWithTimeout(
+    url: string,
+    body: unknown,
+    timeoutMs: number,
+  ): Promise<
+    | { ok: true; status: number; json: any }
+    | { ok: false; code: string; message: string }
+  > {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+    const id = controller ? setTimeout(() => controller.abort(), Math.max(0, Number(timeoutMs) || 0)) : undefined;
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body ?? {}),
+        signal: controller?.signal,
+      } as RequestInit);
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        json = {};
+      }
+      return { ok: true, status: res.status, json };
+    } catch (e: unknown) {
+      const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Network error');
+      return { ok: false, code: 'internal', message: msg };
+    } finally {
+      if (id !== undefined) clearTimeout(id);
     }
   }
 }

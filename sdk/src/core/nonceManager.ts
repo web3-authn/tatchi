@@ -2,7 +2,7 @@ import type { NearClient } from './NearClient';
 import type { AccountId } from './types/accountIds';
 import type { TransactionContext } from './types/rpc';
 import type { AccessKeyView, BlockResult } from '@near-js/types';
-import { isObject, isNumber, isString } from './WalletIframe/validation';
+import { isObject, isNumber, isString } from '@/utils/validation';
 import { errorMessage } from '../utils/errors';
 
 /**

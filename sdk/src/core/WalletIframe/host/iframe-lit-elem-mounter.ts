@@ -46,7 +46,7 @@ import type { SignAndSendTransactionHooksOptions } from '../../types/sdkSentEven
 import { BaseSSEEvent, TransactionInput, TransactionInputWasm } from '../../types';
 import { uiBuiltinRegistry, type WalletUIRegistry } from './iframe-lit-element-registry';
 import { errorMessage } from '../../../utils/errors';
-import { isObject, isString } from '../validation';
+import { isObject, isString } from '@/utils/validation';
 import { type SignerMode, coerceSignerMode } from '../../types/signer-worker';
 import { ensureHostBaseStyles, markContainer, setContainerAnchored } from './mounter-styles';
 

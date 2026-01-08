@@ -1,4 +1,4 @@
-import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
+import { isObject, isString, isBoolean } from '@/utils/validation';
 import { LitComponentEvents, type LitComponentEventDetailMap } from '../lit-events';
 import { W3A_DRAWER_ID, W3A_EXPORT_KEY_VIEWER_ID } from '../tags';
 

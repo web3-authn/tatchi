@@ -77,7 +77,7 @@ sequenceDiagram
   participant App as Wallet (iframe UI)
   participant VRF as VRF Worker
   participant Signer as Signer Worker
-  participant Relay as Relayer
+  participant Relay as Relayer (coordinator)
 
   Note over App,VRF: 1) Confirm + VRF/WebAuthn (freshness + user presence)
   App->>VRF: confirmAndPrepareSigningSession(intent)
@@ -89,14 +89,27 @@ sequenceDiagram
   Relay-->>Signer: { mpcSessionId }
 
   Note over Signer,Relay: 3) FROST round 1 (commitments)
-  Signer->>Relay: POST /threshold-ed25519/sign/init (clientCommitments)
-  Relay-->>Signer: { signingSessionId, relayerCommitments, relayerVerifyingShareB64u }
+  Signer->>Relay: POST /threshold-ed25519/sign/init (mpcSessionId + clientCommitments)
+  Relay-->>Signer: { signingSessionId, commitmentsById, relayerVerifyingSharesById, participantIds }
 
   Note over Signer,Relay: 4) FROST round 2 (signature shares)
-  Signer->>Relay: POST /threshold-ed25519/sign/finalize (clientSignatureShare)
-  Relay-->>Signer: { relayerSignatureShareB64u }
-  Signer->>Signer: aggregate(clientShare, relayerShare) => Ed25519 signature
+  Signer->>Relay: POST /threshold-ed25519/sign/finalize (clientSignatureShareB64u)
+  Relay-->>Signer: { relayerSignatureSharesById }
+  Signer->>Signer: aggregate(clientShare, relayerSharesById) => Ed25519 signature
 ```
+
+## Troubleshooting
+
+- If `/threshold-ed25519/sign/*` returns `404` with `threshold-ed25519 signing endpoints are not enabled on this server`, ensure you are calling a relayer configured as the **coordinator** (`THRESHOLD_NODE_ROLE=coordinator`).
+
+## Extending to 3+ parties
+
+The signing APIs and transcript types are already keyed by **participant id** (`commitmentsById`, `relayerVerifyingSharesById`, `relayerSignatureSharesById`). This means adding more relayer participants does not require changing the client-facing endpoints.
+
+In a multi-relayer setup:
+- The wallet always talks to a **single coordinator relayer** (`THRESHOLD_NODE_ROLE=coordinator`) for `/threshold-ed25519/sign/*`.
+- The coordinator fans out to **participant relayers** (`THRESHOLD_NODE_ROLE=participant`) via internal endpoints (`/threshold-ed25519/internal/sign/*`) authenticated by a per-signature coordinator grant (`THRESHOLD_COORDINATOR_SHARED_SECRET_B64U`).
+- Moving to true 3+ party signing also requires a multi-party key setup (e.g. DKG/dealer-split) and on-chain rotation to the new group public key.
 
 ## Protocol Math
 
@@ -105,7 +118,7 @@ This section describes the *math* behind the 2-of-2 FROST-style Ed25519 scheme i
 Notation:
 - Scalars live in the Ed25519 scalar field `𝔽_ℓ` (mod the curve order `ℓ`).
 - `G` is the Ed25519 basepoint.
-- We use fixed participant identifiers `x₁ = 1` (client) and `x₂ = 2` (relayer).
+- Participant identifiers are configurable; the defaults are `x₁ = 1` (client) and `x₂ = 2` (relayer). The worked example below assumes `{1,2}`.
 
 ### Keygen Math
 
@@ -114,7 +127,7 @@ The system uses a “scaffolding” keygen (not a full DKG): each party has a lo
 1. Client derives its signing share scalar `s₁` deterministically from `WrapKeySeed` and `nearAccountId` via HKDF, then computes its verifying share `V₁ = s₁·G`.
 2. Relayer chooses/derives its signing share scalar `s₂`, then computes its verifying share `V₂ = s₂·G`.
 
-Given the signer set `{1,2}`, the Lagrange coefficients at `x=0` are:
+Given the signer set `{1,2}` (default ids), the Lagrange coefficients at `x=0` are:
 - `λ₁ = 2`
 - `λ₂ = −1`
 
@@ -125,6 +138,8 @@ So the (never-materialized) group secret scalar is:
 And the on-chain public key is:
 
 `Y = s·G = 2V₁ − V₂`
+
+(For non-default participant ids, the Lagrange coefficients change; the implementation computes them from the configured participant ids.)
 
 Code references:
 - Client share derivation + verifying share: `sdk/src/wasm_signer_worker/src/threshold/threshold_client_share.rs:11` (`derive_threshold_client_share_scalar_v1`, `derive_threshold_client_verifying_share_bytes_v1`)

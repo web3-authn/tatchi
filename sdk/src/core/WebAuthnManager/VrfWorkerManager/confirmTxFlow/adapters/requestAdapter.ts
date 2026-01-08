@@ -1,6 +1,6 @@
 import type { SecureConfirmRequest } from '../types';
 import { SecureConfirmationType } from '../types';
-import { isObject, isString } from '@/core/WalletIframe/validation';
+import { isObject, isString } from '@/utils/validation';
 
 /**
  * Validates secure-confirm requests (V2 only).

@@ -1100,6 +1100,9 @@ export async function thresholdEd25519Keygen(
   },
 ): Promise<{
   ok: boolean;
+  clientParticipantId?: number;
+  relayerParticipantId?: number;
+  participantIds?: number[];
   relayerKeyId?: string;
   publicKey?: string;
   relayerVerifyingShareB64u?: string;
@@ -1169,6 +1172,9 @@ export async function thresholdEd25519Keygen(
     const json = await response.json();
     return {
       ok: !!json?.ok,
+      clientParticipantId: json?.clientParticipantId,
+      relayerParticipantId: json?.relayerParticipantId,
+      participantIds: json?.participantIds,
       relayerKeyId: json?.relayerKeyId,
       publicKey: json?.publicKey,
       relayerVerifyingShareB64u: json?.relayerVerifyingShareB64u,
@@ -1189,6 +1195,9 @@ export async function thresholdEd25519KeygenFromRegistrationTx(
   },
 ): Promise<{
   ok: boolean;
+  clientParticipantId?: number;
+  relayerParticipantId?: number;
+  participantIds?: number[];
   relayerKeyId?: string;
   publicKey?: string;
   relayerVerifyingShareB64u?: string;
@@ -1229,6 +1238,9 @@ export async function thresholdEd25519KeygenFromRegistrationTx(
     const json = await response.json();
     return {
       ok: !!json?.ok,
+      clientParticipantId: json?.clientParticipantId,
+      relayerParticipantId: json?.relayerParticipantId,
+      participantIds: json?.participantIds,
       relayerKeyId: json?.relayerKeyId,
       publicKey: json?.publicKey,
       relayerVerifyingShareB64u: json?.relayerVerifyingShareB64u,

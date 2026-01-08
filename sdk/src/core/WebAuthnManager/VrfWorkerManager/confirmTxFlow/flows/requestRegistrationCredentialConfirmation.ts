@@ -10,7 +10,7 @@ import {
 import {
   parseAndValidateRegistrationCredentialConfirmationPayload,
   type RegistrationCredentialConfirmationPayload,
-} from '../../../SignerWorkerManager/handlers/validation';
+} from '../../../SignerWorkerManager/handlers/validateTransactions';
 
 export async function requestRegistrationCredentialConfirmation({
   ctx,

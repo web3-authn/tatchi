@@ -9,7 +9,7 @@ import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
 import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import { errorMessage } from '@/utils/errors';
-import { isObject, isString } from '../../../WalletIframe/validation';
+import { isObject, isString } from '@/utils/validation';
 
 
 export async function checkCanRegisterUser({

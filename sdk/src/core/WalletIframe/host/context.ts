@@ -4,7 +4,7 @@ import { __setWalletIframeHostMode } from '../host-mode';
 import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import type { TatchiConfigsInput } from '../../types/tatchi';
 import type { PMSetConfigPayload } from '../shared/messages';
-import { isString } from '../validation';
+import { isString } from '@/utils/validation';
 import { setEmbeddedBase } from '../../sdkPaths';
 import { assertWalletHostConfigsNoNestedIframeWallet, sanitizeWalletHostConfigs } from './config-guards';
 
@@ -95,19 +95,21 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
   // Configure SDK embedded asset base for Lit modal/embedded components
   try {
     const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
+    const safeOrigin = window.location.origin || window.location.href;
     const defaultRoot = (() => {
       try {
-        const base = new URL('/sdk/', window.location.origin).toString();
+        const base = new URL('/sdk/', safeOrigin).toString();
         return base.endsWith('/') ? base : base + '/';
       } catch {
         return '/sdk/';
       }
     })();
     let resolvedBase = defaultRoot;
-    if (isString(assetsBaseUrl)) {
+    const assetsBaseUrlCandidate = isString(assetsBaseUrl) ? assetsBaseUrl : undefined;
+    if (assetsBaseUrlCandidate !== undefined) {
       try {
-        const u = new URL(assetsBaseUrl, window.location.origin);
-        if (u.origin === window.location.origin) {
+        const u = new URL(assetsBaseUrlCandidate, safeOrigin);
+        if (u.origin === safeOrigin) {
           const norm = u.toString().endsWith('/') ? u.toString() : u.toString() + '/';
           resolvedBase = norm;
         }

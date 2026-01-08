@@ -20,6 +20,7 @@ import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
+import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
@@ -242,6 +243,8 @@ export async function registerPasskeyInternal(
       nearPublicKey,
       thresholdPublicKey,
       relayerKeyId,
+      clientParticipantId: accountAndRegistrationResult?.thresholdEd25519?.clientParticipantId,
+      relayerParticipantId: accountAndRegistrationResult?.thresholdEd25519?.relayerParticipantId,
       thresholdClientVerifyingShareB64u,
       relayerVerifyingShareB64u: String(
         accountAndRegistrationResult?.thresholdEd25519?.relayerVerifyingShareB64u || '',
@@ -576,6 +579,8 @@ async function activateThresholdEnrollmentPostRegistration(opts: {
   nearPublicKey: string;
   thresholdPublicKey: string;
   relayerKeyId: string;
+  clientParticipantId?: number;
+  relayerParticipantId?: number;
   thresholdClientVerifyingShareB64u: string | null;
   relayerVerifyingShareB64u: string;
   credential: WebAuthnRegistrationCredential;
@@ -622,6 +627,8 @@ async function activateThresholdEnrollmentPostRegistration(opts: {
       transactionContext: txContext,
       thresholdPublicKey,
       relayerVerifyingShareB64u,
+      clientParticipantId: opts.clientParticipantId,
+      relayerParticipantId: opts.relayerParticipantId,
     });
 
     const signedTx = signed?.signedTransaction;
@@ -646,6 +653,15 @@ async function activateThresholdEnrollmentPostRegistration(opts: {
       wrapKeySalt: opts.wrapKeySalt,
       relayerKeyId,
       clientShareDerivation: 'prf_first_v1',
+      participants: buildThresholdEd25519Participants2pV1({
+        clientParticipantId: opts.clientParticipantId,
+        relayerParticipantId: opts.relayerParticipantId,
+        relayerKeyId,
+        relayerUrl: opts.webAuthnManager.tatchiPasskeyConfigs?.relayer?.url,
+        clientVerifyingShareB64u,
+        relayerVerifyingShareB64u,
+        clientShareDerivation: 'prf_first_v1',
+      }),
       timestamp: Date.now(),
     });
 
@@ -687,5 +703,3 @@ async function verifyAccountAccessKeysPresent(
   }
   return false;
 }
-
-// group PK helpers live in `core/threshold/ed25519GroupPublicKey.ts`

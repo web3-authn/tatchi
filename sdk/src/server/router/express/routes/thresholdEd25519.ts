@@ -2,6 +2,8 @@ import type { Request, Response, Router as ExpressRouter } from 'express';
 import type { ExpressRelayContext } from '../createRelayRouter';
 import type {
   ThresholdEd25519KeygenRequest,
+  ThresholdEd25519PeerSignFinalizeRequest,
+  ThresholdEd25519PeerSignInitRequest,
   ThresholdEd25519SignFinalizeRequest,
   ThresholdEd25519SignInitRequest,
   ThresholdEd25519SessionRequest,
@@ -191,6 +193,41 @@ export function registerThresholdEd25519Routes(router: ExpressRouter, ctx: Expre
         return { ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' };
       }
       return threshold.thresholdEd25519SignFinalize(body);
+    });
+  });
+
+  // Internal coordinator → peer route (feature-gated by shared secret).
+  router.post('/threshold-ed25519/internal/sign/init', async (req: Request, res: Response) => {
+    const body = (req.body || {}) as ThresholdEd25519PeerSignInitRequest;
+    await handle(ctx, req, res, '/threshold-ed25519/internal/sign/init', {
+      coordinatorGrant_len: typeof body.coordinatorGrant === 'string' ? body.coordinatorGrant.length : undefined,
+    }, async () => {
+      const threshold = ctx.opts.threshold;
+      if (!threshold) {
+        return { ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' };
+      }
+      if (!threshold.thresholdEd25519PeerSignInit) {
+        return { ok: false, code: 'not_found', message: 'threshold-ed25519 peer endpoints are not enabled on this server' };
+      }
+      return threshold.thresholdEd25519PeerSignInit(body);
+    });
+  });
+
+  router.post('/threshold-ed25519/internal/sign/finalize', async (req: Request, res: Response) => {
+    const body = (req.body || {}) as ThresholdEd25519PeerSignFinalizeRequest;
+    await handle(ctx, req, res, '/threshold-ed25519/internal/sign/finalize', {
+      coordinatorGrant_len: typeof body.coordinatorGrant === 'string' ? body.coordinatorGrant.length : undefined,
+      signingSessionId: typeof body.signingSessionId === 'string' ? body.signingSessionId : undefined,
+      clientSignatureShareB64u_len: typeof body.clientSignatureShareB64u === 'string' ? body.clientSignatureShareB64u.length : undefined,
+    }, async () => {
+      const threshold = ctx.opts.threshold;
+      if (!threshold) {
+        return { ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' };
+      }
+      if (!threshold.thresholdEd25519PeerSignFinalize) {
+        return { ok: false, code: 'not_found', message: 'threshold-ed25519 peer endpoints are not enabled on this server' };
+      }
+      return threshold.thresholdEd25519PeerSignFinalize(body);
     });
   });
 }

@@ -24,7 +24,7 @@ import { base64Encode, base64Decode } from "../utils";
 import { errorMessage } from "../utils/errors";
 import { NearRpcError } from "./NearRpcError";
 import { DEFAULT_WAIT_STATUS, RpcResponse } from "./types/rpc";
-import { isFunction } from './WalletIframe/validation';
+import { isFunction } from '@/utils/validation';
 import {
   WasmTransaction,
   WasmSignature,

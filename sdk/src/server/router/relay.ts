@@ -6,12 +6,16 @@ import type {
   ThresholdEd25519AuthorizeResponse,
   ThresholdEd25519KeygenRequest,
   ThresholdEd25519KeygenResponse,
+  ThresholdEd25519PeerSignFinalizeRequest,
+  ThresholdEd25519PeerSignFinalizeResponse,
   ThresholdEd25519SessionRequest,
   ThresholdEd25519SessionResponse,
   ThresholdEd25519SignFinalizeRequest,
   ThresholdEd25519SignFinalizeResponse,
   ThresholdEd25519SignInitRequest,
   ThresholdEd25519SignInitResponse,
+  ThresholdEd25519PeerSignInitRequest,
+  ThresholdEd25519PeerSignInitResponse,
 } from '../core/types';
 
 // Minimal session adapter interface expected by the routers.
@@ -38,6 +42,9 @@ export interface SessionAdapter {
 export type ThresholdEd25519RegistrationKeygenResult =
   | {
       ok: true;
+      clientParticipantId: number;
+      relayerParticipantId: number;
+      participantIds: number[];
       relayerKeyId: string;
       publicKey: string;
       relayerSigningShareB64u: string;
@@ -67,6 +74,12 @@ export interface ThresholdSigningAdapter {
   thresholdEd25519Session(request: ThresholdEd25519SessionRequest): Promise<ThresholdEd25519SessionResponse>;
   thresholdEd25519SignInit(request: ThresholdEd25519SignInitRequest): Promise<ThresholdEd25519SignInitResponse>;
   thresholdEd25519SignFinalize(request: ThresholdEd25519SignFinalizeRequest): Promise<ThresholdEd25519SignFinalizeResponse>;
+  /**
+   * Internal coordinator→peer signing API (optional).
+   * When omitted, coordinator fanout mode is unsupported.
+   */
+  thresholdEd25519PeerSignInit?: (request: ThresholdEd25519PeerSignInitRequest) => Promise<ThresholdEd25519PeerSignInitResponse>;
+  thresholdEd25519PeerSignFinalize?: (request: ThresholdEd25519PeerSignFinalizeRequest) => Promise<ThresholdEd25519PeerSignFinalizeResponse>;
 }
 
 export interface RelayRouterOptions {

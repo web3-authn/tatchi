@@ -1,6 +1,6 @@
 import type { TransactionSummary, SecureConfirmDecision } from '../types';
 import { SecureConfirmMessageType } from '../types';
-import { isObject, isFunction, isString } from '../../../../WalletIframe/validation';
+import { isObject, isFunction, isString } from '@/utils/validation';
 import { toError, isTouchIdCancellationError } from '../../../../../utils/errors';
 
 export function parseTransactionSummary(summaryData: unknown): TransactionSummary {
