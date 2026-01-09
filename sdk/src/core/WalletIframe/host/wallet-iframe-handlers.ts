@@ -10,7 +10,6 @@ import type {
   PMStopEmailRecoveryPayload,
 } from '../shared/messages';
 import type { TatchiPasskey, PasskeyManagerContext, RecoveryResult } from '../../TatchiPasskey';
-import type { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import { OFFLINE_EXPORT_FALLBACK, EXPORT_NEAR_KEYPAIR_CANCELLED, WALLET_UI_CLOSED } from '../../OfflineExport/messages';
 import { isTouchIdCancellationError } from '../../../utils/errors';
 import type {
@@ -49,7 +48,7 @@ type Req<T extends ParentToChildType> = Extract<ParentToChildEnvelope, { type: T
 type HandlerMap = { [K in ParentToChildType]: (req: Extract<ParentToChildEnvelope, { type: K }>) => Promise<void> };
 
 export interface HandlerDeps {
-  getTatchiPasskey(): TatchiPasskey | TatchiPasskeyIframe;
+  getTatchiPasskey(): TatchiPasskey;
   post(msg: ChildToParentEnvelope): void;
   postProgress(requestId: string | undefined, payload: ProgressPayload): void;
   postToParent?(msg: unknown): void;
@@ -374,15 +373,28 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
           .catch(() => undefined);
       }
       const base: ConfirmationConfig = pm.getConfirmationConfig();
-      if (typeof pm.setConfirmationConfig === 'function') {
-        pm.setConfirmationConfig({ ...base, ...patch });
-      }
+      pm.setConfirmationConfig({ ...base, ...patch });
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
     PM_GET_CONFIRMATION_CONFIG: async (req: Req<'PM_GET_CONFIRMATION_CONFIG'>) => {
       const pm = getTatchiPasskey();
       const result = pm.getConfirmationConfig();
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_SET_SIGNER_MODE: async (req: Req<'PM_SET_SIGNER_MODE'>) => {
+      const pm = getTatchiPasskey();
+      const { signerMode } = req.payload!;
+      try {
+        pm.setSignerMode(signerMode);
+      } catch {}
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+    },
+
+    PM_GET_SIGNER_MODE: async (req: Req<'PM_GET_SIGNER_MODE'>) => {
+      const pm = getTatchiPasskey();
+      const result = pm.getSignerMode();
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 

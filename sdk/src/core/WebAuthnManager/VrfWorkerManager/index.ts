@@ -33,7 +33,7 @@ import {
 import type { TransactionInputWasm } from '../../types/actions';
 import type { RpcCallPayload, ConfirmationConfig } from '../../types/signer-worker';
 import type { TransactionContext } from '../../types/rpc';
-import type { RegistrationCredentialConfirmationPayload } from '../SignerWorkerManager/handlers/validateTransactions';
+import type { RegistrationCredentialConfirmationPayload } from '../SignerWorkerManager/handlers/validation';
 import type { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types/webauthn';
 import { handlePromptUserConfirmInJsMainThread } from './confirmTxFlow';
 import type { VrfWorkerManagerHandlerContext } from './handlers/types';

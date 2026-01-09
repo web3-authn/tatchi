@@ -54,6 +54,53 @@ export function coerceSignerMode(
 /** @deprecated use `coerceSignerMode` */
 export const normalizeSignerMode = coerceSignerMode;
 
+/**
+ * Merge a mode-only override onto a base signer mode.
+ *
+ * This is intentionally "partial override" semantics:
+ * - override sets `mode` when provided
+ * - override sets `behavior` only when explicitly provided
+ * - if override switches to `threshold-signer` without specifying `behavior`,
+ *   preserve `base.behavior` when base is already `threshold-signer`
+ */
+export function mergeSignerMode(
+  base: SignerMode,
+  override?: SignerMode | SignerMode['mode'] | null,
+): SignerMode {
+  const baseNormalized = coerceSignerMode(base, DEFAULT_SIGNING_MODE);
+  if (override == null) return baseNormalized;
+
+  // Shorthand: string overrides only switch mode
+  if (typeof override === 'string') {
+    if (!isSignerMode(override)) return baseNormalized;
+    if (override === 'local-signer') return { mode: 'local-signer' };
+    // override === 'threshold-signer'
+    if (baseNormalized.mode === 'threshold-signer') {
+      const behavior = (baseNormalized as { behavior?: unknown }).behavior;
+      return isThresholdBehavior(behavior)
+        ? { mode: 'threshold-signer', behavior }
+        : { mode: 'threshold-signer' };
+    }
+    return { mode: 'threshold-signer' };
+  }
+
+  if (typeof override !== 'object') return baseNormalized;
+
+  const mode = (override as { mode?: unknown }).mode;
+  if (mode === 'local-signer') return { mode: 'local-signer' };
+  if (mode !== 'threshold-signer') return baseNormalized;
+
+  const behavior = (override as { behavior?: unknown }).behavior;
+  if (isThresholdBehavior(behavior)) return { mode: 'threshold-signer', behavior };
+
+  // Preserve base threshold behavior when override didn't specify it
+  if (baseNormalized.mode === 'threshold-signer') {
+    const baseBehavior = (baseNormalized as { behavior?: unknown }).behavior;
+    if (isThresholdBehavior(baseBehavior)) return { mode: 'threshold-signer', behavior: baseBehavior };
+  }
+  return { mode: 'threshold-signer' };
+}
+
 export function getSignerModeString(mode: SignerMode): SignerMode['mode'] {
   return mode.mode;
 }

@@ -14,7 +14,7 @@ import { PasskeyManagerContext } from './index';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { VRFChallenge } from '../types/vrf-worker';
-import { type ConfirmationConfig, type SignerMode, coerceSignerMode } from '../types/signer-worker';
+import { type ConfirmationConfig, type SignerMode, mergeSignerMode } from '../types/signer-worker';
 import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
@@ -127,7 +127,8 @@ export async function registerPasskeyInternal(
       throw new Error('Failed to derive deterministic VRF keypair from PRF');
     }
 
-    const requestedSignerMode = coerceSignerMode(options?.signerMode, configs.signerMode);
+    const baseSignerMode = webAuthnManager.getUserPreferences().getSignerMode();
+    const requestedSignerMode = mergeSignerMode(baseSignerMode, options?.signerMode);
     const requestedSignerModeStr = requestedSignerMode.mode;
 
     // 2) Derive/enroll the local NEAR key after VRF keypair exists.

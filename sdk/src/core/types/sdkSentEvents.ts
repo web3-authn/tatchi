@@ -609,6 +609,14 @@ export interface LoginHooksOptions {
   onEvent?: EventCallback<LoginSSEvent>;
   onError?: (error: Error) => void;
   afterCall?: AfterCall<LoginAndCreateSessionResult>;
+  /**
+   * Optional: passkey deviceNumber hint.
+   *
+   * When multiple passkeys exist for the same `nearAccountId`, providing this hint lets
+   * the login flow prioritize the matching `credentialId` when presenting the TouchID
+   * (WebAuthn) prompt.
+   */
+  deviceNumber?: number;
   // Optional: request a server session (JWT in body or HttpOnly cookie)
   session?: {
     // 'jwt' returns the token in the JSON body; 'cookie' sets HttpOnly cookie

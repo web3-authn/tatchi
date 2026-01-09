@@ -32,7 +32,7 @@ import { normalizeThresholdEd25519ParticipantIds } from '../../../../threshold/p
 import { SignerWorkerManagerContext } from '..';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { generateSessionId } from '../sessionHandshake.js';
-import { ensureEd25519Prefix, toPublicKeyString } from './validateTransactions';
+import { ensureEd25519Prefix, toPublicKeyString } from './validation';
 
 export async function signDelegateAction({
   ctx,

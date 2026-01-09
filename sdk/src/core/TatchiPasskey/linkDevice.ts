@@ -3,7 +3,7 @@ import { ensureEd25519Prefix } from '../../utils/validation';
 import { createNearKeypair } from '../nearCrypto';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { ActionType, type ActionArgsWasm } from '../types/actions';
-import { toAccountId, type AccountId } from '../types/accountIds';
+import { type AccountId } from '../types/accountIds';
 import {
   VRFChallenge,
   type EncryptedVRFKeypair,
@@ -15,6 +15,15 @@ import type { WebAuthnRegistrationCredential } from '../types';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
 import { getDeviceLinkingAccountContractCall, thresholdEd25519KeygenFromRegistrationTx } from "../rpcCalls";
 import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
+import type {
+  DeviceLinkingQRData,
+  DeviceLinkingSession,
+  StartDeviceLinkingOptionsDevice2
+} from '../types/linkDevice';
+import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
+import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents';
+import type { DeviceLinkingSSEEvent } from '../types/sdkSentEvents';
+import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 
 // Lazy-load QRCode to keep it an optional peer and reduce baseline bundle size
 async function generateQRCodeDataURL(data: string): Promise<string> {
@@ -29,17 +38,6 @@ async function generateQRCodeDataURL(data: string): Promise<string> {
     errorCorrectionLevel: 'M'
   });
 }
-import type {
-  DeviceLinkingQRData,
-  DeviceLinkingSession,
-  StartDeviceLinkingOptionsDevice2
-} from '../types/linkDevice';
-import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
-import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents';
-import type { DeviceLinkingSSEEvent } from '../types/sdkSentEvents';
-import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
-import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
-
 
 /**
  * Device linking flow class - manages the complete device linking process

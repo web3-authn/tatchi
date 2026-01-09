@@ -49,7 +49,7 @@ import type {
   SignTransactionHooksOptions,
 } from '../types/sdkSentEvents';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
-    import { ConfirmationConfig, coerceSignerMode, type SignerMode, type WasmSignedDelegate } from '../types/signer-worker';
+import { ConfirmationConfig, type SignerMode, type WasmSignedDelegate } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import type { DerivedAddressRecord, RecoveryEmailRecord } from '../IndexedDBManager';
@@ -86,7 +86,7 @@ import {
 } from '../EmailRecovery';
 import type { DelegateActionInput } from '../types/delegate';
 import { buildConfigsFromEnv } from '../defaultConfigs';
-import { EmailRecoveryFlowOptions } from './emailRecovery';
+import type { EmailRecoveryFlowOptions } from '../types/emailRecovery';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -133,6 +133,16 @@ export class TatchiPasskey {
     // Use provided client or create default one
     this.nearClient = nearClient || new MinimalNearClient(this.configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(this.configs, this.nearClient);
+    // Wallet-iframe mode: delegate signerMode persistence to the wallet host.
+    // Non-iframe mode: ensure any previous writer is cleared (UserPreferences is a singleton).
+    this.userPreferences.configureWalletIframeSignerModeWriter(
+      this.shouldUseWalletIframe()
+        ? async (next) => {
+            const router = await this.requireWalletIframeRouter();
+            await router.setSignerMode(next);
+          }
+        : null
+    );
     // VRF worker initializes automatically in the constructor
   }
 
@@ -239,6 +249,13 @@ export class TatchiPasskey {
           confirmationConfig: cfg,
         });
       }
+      const signerMode = await this.iframeRouter.getSignerMode?.({ timeoutMs: 1000 }).catch(() => null);
+      if (signerMode) {
+        this.userPreferences.applyWalletHostSignerMode?.({
+          nearAccountId: nearAccountId ? toAccountId(nearAccountId) : null,
+          signerMode,
+        });
+      }
     }
 
     await this.getLoginSession(nearAccountId);
@@ -258,6 +275,12 @@ export class TatchiPasskey {
         nearAccountId,
         confirmationConfig: payload?.confirmationConfig,
       });
+      if (payload?.signerMode) {
+        this.userPreferences.applyWalletHostSignerMode?.({
+          nearAccountId,
+          signerMode: payload.signerMode,
+        });
+      }
     });
     this.walletIframePrefsUnsubscribe = unsubscribe ?? null;
   }
@@ -522,6 +545,7 @@ export class TatchiPasskey {
           nearAccountId,
           options: {
             onEvent: options?.onEvent,
+            deviceNumber: options?.deviceNumber,
             // Pass through session so the wallet host calls relay to mint JWT/cookie sessions
             session: options?.session,
             signingSession: options?.signingSession,
@@ -633,6 +657,10 @@ export class TatchiPasskey {
     this.webAuthnManager.getUserPreferences().setUserTheme(theme);
   }
 
+  setSignerMode(signerMode: SignerMode | SignerMode['mode']): void {
+    this.webAuthnManager.getUserPreferences().setSignerMode(signerMode);
+  }
+
   /**
    * Get the current confirmation configuration
    */
@@ -641,6 +669,10 @@ export class TatchiPasskey {
     // Note: synchronous signature; returns last-known local value if iframe reply is async
     // Callers needing fresh remote value should use TatchiPasskeyIframe directly.
     return this.webAuthnManager.getUserPreferences().getConfirmationConfig();
+  }
+
+  getSignerMode(): SignerMode {
+    return this.webAuthnManager.getUserPreferences().getSignerMode();
   }
 
   /**
@@ -949,10 +981,10 @@ export class TatchiPasskey {
           nearAccountId,
           transactions: txs,
           options: {
-            signerMode: coerceSignerMode(options?.signerMode, this.configs.signerMode),
-            onEvent: options?.onEvent,
-            confirmationConfig: options?.confirmationConfig,
-            confirmerText: options?.confirmerText,
+            signerMode: options.signerMode,
+            onEvent: options.onEvent,
+            confirmationConfig: options.confirmationConfig,
+            confirmerText: options.confirmerText,
           },
         });
         const arr: SignTransactionResult[] = Array.isArray(result) ? result : [];
@@ -1058,10 +1090,10 @@ export class TatchiPasskey {
           nearAccountId,
           delegate,
           options: {
-            signerMode: coerceSignerMode(options?.signerMode, this.configs.signerMode),
-            onEvent: options?.onEvent,
-            confirmationConfig: options?.confirmationConfig,
-            confirmerText: options?.confirmerText,
+            signerMode: options.signerMode,
+            onEvent: options.onEvent,
+            confirmationConfig: options.confirmationConfig,
+            confirmerText: options.confirmerText,
           }
         }) as SignDelegateActionResult;
         await options?.afterCall?.(true, result);
@@ -1229,10 +1261,10 @@ export class TatchiPasskey {
           recipient: args.params.recipient,
           state: args.params.state,
           options: {
-            signerMode: coerceSignerMode(args.options?.signerMode, this.configs.signerMode),
-            onEvent: args.options?.onEvent,
-            confirmerText: args.options?.confirmerText,
-            confirmationConfig: args.options?.confirmationConfig,
+            signerMode: args.options.signerMode,
+            onEvent: args.options.onEvent,
+            confirmerText: args.options.confirmerText,
+            confirmationConfig: args.options.confirmationConfig,
           }
         });
         await args.options?.afterCall?.(true, result);

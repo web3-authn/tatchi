@@ -50,7 +50,6 @@ import { isObject, isString } from '@/utils/validation';
 import { errorMessage } from '../../../utils/errors';
 import { TatchiPasskey } from '../../TatchiPasskey';
 import { __setWalletIframeHostMode } from '../host-mode';
-import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import type { ProgressPayload } from '../shared/messages';
 import { WalletIframeDomEvents } from '../events';
 import { assertWalletHostConfigsNoNestedIframeWallet, sanitizeWalletHostConfigs } from './config-guards';
@@ -67,7 +66,7 @@ let parentOrigin: string | null = null;
 let port: MessagePort | null = null;
 let walletConfigs: TatchiConfigsInput | null = null;
 let nearClient: MinimalNearClient | null = null;
-let tatchiPasskey: TatchiPasskeyIframe | TatchiPasskey | null = null;
+let tatchiPasskey: TatchiPasskey | null = null;
 let themeUnsubscribe: (() => void) | null = null;
 let prefsUnsubscribe: (() => void) | null = null;
 
@@ -129,25 +128,31 @@ function ensureTatchiPasskey(): void {
 
     // Bridge wallet-host preferences to the parent app so app UI can mirror wallet host state.
     prefsUnsubscribe?.();
-    const emitPreferencesChanged = (confirmationConfig: PreferencesChangedPayload['confirmationConfig']) => {
+    const emitPreferencesChanged = () => {
       const id = String(up.getCurrentUserAccountId?.() || '').trim();
       const nearAccountId = id ? id : null;
       post({
         type: 'PREFERENCES_CHANGED',
         payload: {
           nearAccountId,
-          confirmationConfig,
+          confirmationConfig: up.getConfirmationConfig(),
+          signerMode: up.getSignerMode(),
           updatedAt: Date.now(),
         } satisfies PreferencesChangedPayload,
       });
     };
-    prefsUnsubscribe = up.onConfirmationConfigChange?.((cfg) => emitPreferencesChanged(cfg)) || null;
+    const unsubCfg = up.onConfirmationConfigChange?.(() => emitPreferencesChanged()) || null;
+    const unsubSignerMode = up.onSignerModeChange?.(() => emitPreferencesChanged()) || null;
+    prefsUnsubscribe = () => {
+      try { unsubCfg?.(); } catch {}
+      try { unsubSignerMode?.(); } catch {}
+    };
     // Emit a best-effort snapshot as soon as the host is ready.
-    Promise.resolve().then(() => emitPreferencesChanged(up.getConfirmationConfig())).catch(() => {});
+    Promise.resolve().then(() => emitPreferencesChanged()).catch(() => {});
   }
 }
 
-function getTatchiPasskey(): TatchiPasskey | TatchiPasskeyIframe {
+function getTatchiPasskey(): TatchiPasskey {
   ensureTatchiPasskey();
   return tatchiPasskey!;
 }

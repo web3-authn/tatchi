@@ -49,6 +49,8 @@ export type ParentToChildType =
   | 'PM_SET_CONFIRM_BEHAVIOR'
   | 'PM_SET_CONFIRMATION_CONFIG'
   | 'PM_GET_CONFIRMATION_CONFIG'
+  | 'PM_SET_SIGNER_MODE'
+  | 'PM_GET_SIGNER_MODE'
   | 'PM_SET_THEME'
   | 'PM_HAS_PASSKEY'
   | 'PM_VIEW_ACCESS_KEYS'
@@ -91,6 +93,7 @@ export interface ReadyPayload {
 export interface PreferencesChangedPayload {
   nearAccountId: string | null;
   confirmationConfig: ConfirmationConfig;
+  signerMode: SignerMode;
   updatedAt: number;
 }
 
@@ -227,6 +230,8 @@ export interface PMSetConfirmationConfigPayload { config: Record<string, unknown
 
 export interface PMGetLoginSessionPayload { nearAccountId?: string }
 
+export interface PMSetSignerModePayload { signerMode: SignerMode; nearAccountId?: string }
+
 export interface PMSetThemePayload { theme: 'dark' | 'light' }
 
 export interface PMHasPasskeyPayload { nearAccountId: string }
@@ -337,6 +342,8 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_SET_CONFIRM_BEHAVIOR', PMSetConfirmBehaviorPayload>
   | RpcEnvelope<'PM_SET_CONFIRMATION_CONFIG', PMSetConfirmationConfigPayload>
   | RpcEnvelope<'PM_GET_CONFIRMATION_CONFIG'>
+  | RpcEnvelope<'PM_SET_SIGNER_MODE', PMSetSignerModePayload>
+  | RpcEnvelope<'PM_GET_SIGNER_MODE'>
   | RpcEnvelope<'PM_SET_THEME', PMSetThemePayload>
   | RpcEnvelope<'PM_HAS_PASSKEY', PMHasPasskeyPayload>
   | RpcEnvelope<'PM_VIEW_ACCESS_KEYS', PMViewAccessKeysPayload>

@@ -51,8 +51,8 @@ import type {
 import type { ActionArgs, TransactionInput, TxExecutionStatus } from '../types';
 import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults } from '../types/linkDevice';
 import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types/linkDevice';
-import { EmailRecoveryFlowOptions } from '../TatchiPasskey/emailRecovery';
-import { type ConfirmationConfig, type SignerMode, DEFAULT_CONFIRMATION_CONFIG, coerceSignerMode } from '../types/signer-worker';
+import type { EmailRecoveryFlowOptions } from '../types/emailRecovery';
+import { type ConfirmationConfig, type SignerMode, DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
 import type { RecoveryResult, PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
@@ -276,6 +276,7 @@ export class TatchiPasskeyIframe {
         nearAccountId,
         options: {
           onEvent: options?.onEvent,
+          deviceNumber: options?.deviceNumber,
           session: options?.session,
           signingSession: options?.signingSession,
         } // Progress events flow back to parent
@@ -324,7 +325,7 @@ export class TatchiPasskeyIframe {
         nearAccountId: args.nearAccountId,
         transactions: args.transactions,
         options: {
-          signerMode: coerceSignerMode(args.options?.signerMode, this.configs.signerMode),
+          signerMode: args.options?.signerMode,
           confirmerText: args.options?.confirmerText,
           confirmationConfig: args.options?.confirmationConfig,
           onEvent: args.options?.onEvent // Progress events: user-confirmation, webauthn-authentication, etc.
@@ -352,7 +353,7 @@ export class TatchiPasskeyIframe {
         recipient: args.params.recipient,
         state: args.params.state,
         options: {
-          signerMode: coerceSignerMode(args.options?.signerMode, this.configs.signerMode),
+          signerMode: args.options?.signerMode,
           onEvent: args.options?.onEvent,
           confirmerText: args.options?.confirmerText,
           confirmationConfig: args.options?.confirmationConfig,
@@ -380,7 +381,7 @@ export class TatchiPasskeyIframe {
         nearAccountId: args.nearAccountId,
         delegate: args.delegate,
         options: {
-          signerMode: coerceSignerMode(options?.signerMode, this.configs.signerMode),
+          signerMode: options?.signerMode,
           onEvent: options?.onEvent,
           confirmationConfig: options?.confirmationConfig,
           confirmerText: options?.confirmerText,
@@ -662,16 +663,16 @@ export class TatchiPasskeyIframe {
   async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
     return this.router.viewAccessKeyList(accountId);
   }
-	  async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options: ActionHooksOptions): Promise<ActionResult> {
-	    try {
-	      const res = await this.router.deleteDeviceKey({
-	        accountId,
-	        publicKeyToDelete,
-	        options: {
-	          signerMode: coerceSignerMode(options?.signerMode, this.configs.signerMode),
-	          onEvent: options?.onEvent,
-	        },
-	      });
+  async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options: ActionHooksOptions): Promise<ActionResult> {
+    try {
+      const res = await this.router.deleteDeviceKey({
+        accountId,
+        publicKeyToDelete,
+        options: {
+          signerMode: options?.signerMode,
+          onEvent: options?.onEvent,
+        },
+      });
       await options?.afterCall?.(true, res);
       return res;
     } catch (err: unknown) {

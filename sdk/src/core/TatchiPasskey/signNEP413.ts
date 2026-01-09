@@ -2,7 +2,7 @@ import type { PasskeyManagerContext } from './index';
 import type { SignNEP413HooksOptions } from '../types/sdkSentEvents';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
 import type { AccountId } from '../types/accountIds';
-import { coerceSignerMode } from '../types/signer-worker';
+import { mergeSignerMode } from '../types/signer-worker';
 import { base64Encode } from '../../utils/encoders';
 
 /**
@@ -65,7 +65,8 @@ export async function signNEP413Message(args: {
   const confirmerText = options?.confirmerText;
   const confirmationConfigOverride = options?.confirmationConfig;
   const { webAuthnManager } = context;
-  const signerMode = coerceSignerMode(options.signerMode, context.configs.signerMode);
+  const baseSignerMode = webAuthnManager.getUserPreferences().getSignerMode();
+  const signerMode = mergeSignerMode(baseSignerMode, options.signerMode);
 
   try {
     // Emit preparation event

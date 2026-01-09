@@ -2,7 +2,13 @@ import { openDB, type IDBPDatabase } from 'idb';
 import { type ValidationResult, validateNearAccountId } from '../../utils/validation';
 import type { AccountId } from '../types/accountIds';
 import { toAccountId } from '../types/accountIds';
-import { ConfirmationConfig, DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker'
+import {
+  ConfirmationConfig,
+  DEFAULT_CONFIRMATION_CONFIG,
+  type SignerMode,
+  DEFAULT_SIGNING_MODE,
+  coerceSignerMode,
+} from '../types/signer-worker'
 
 
 export interface ClientUserData {
@@ -64,6 +70,7 @@ export interface UserPreferences {
   useRelayer: boolean;
   useNetwork: 'testnet' | 'mainnet';
   confirmationConfig: ConfirmationConfig;
+  signerMode?: SignerMode;
   // User preferences can be extended here as needed
 }
 
@@ -866,6 +873,23 @@ export class PasskeyClientDBManager {
   async getThemeOrDefault(nearAccountId: AccountId): Promise<'dark' | 'light'> {
     const theme = await this.getTheme(nearAccountId);
     return theme || 'dark';
+  }
+
+  /**
+   * Get user's signer mode preference from IndexedDB
+   */
+  async getSignerMode(nearAccountId: AccountId): Promise<SignerMode> {
+    const user = await this.getUser(nearAccountId);
+    const raw = user?.preferences?.signerMode as SignerMode | SignerMode['mode'] | null | undefined;
+    return coerceSignerMode(raw, DEFAULT_SIGNING_MODE);
+  }
+
+  /**
+   * Set user's signer mode preference in IndexedDB
+   */
+  async setSignerMode(nearAccountId: AccountId, signerMode: SignerMode | SignerMode['mode']): Promise<void> {
+    const next = coerceSignerMode(signerMode, DEFAULT_SIGNING_MODE);
+    await this.updatePreferences(nearAccountId, { signerMode: next });
   }
 
   /**

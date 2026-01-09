@@ -38,7 +38,7 @@ import {
   type WasmSignedDelegate,
 } from '../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
-import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validateTransactions';
+import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
 import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../sdkPaths';
 import { DEFAULT_WAIT_STATUS, type TransactionContext } from '../types/rpc';
 import { getLastLoggedInDeviceNumber } from './SignerWorkerManager/getDeviceNumber';
@@ -90,9 +90,9 @@ export class WebAuthnManager {
     );
     this.userPreferencesManager = UserPreferencesInstance;
     // Apply integrator-provided default UI theme (in-memory only; user preferences may override later).
-    try {
-      this.userPreferencesManager.configureWalletTheme?.(tatchiPasskeyConfigs.walletTheme);
-    } catch { }
+    this.userPreferencesManager.configureWalletTheme?.(tatchiPasskeyConfigs.walletTheme);
+    // Apply integrator-provided default signer mode (in-memory only; user preferences may override later).
+    this.userPreferencesManager.configureDefaultSignerMode?.(tatchiPasskeyConfigs.signerMode);
     this.nonceManager = NonceManagerInstance;
     const { vrfWorkerConfigs } = tatchiPasskeyConfigs;
     // Group VRF worker configuration and pass context
@@ -1840,9 +1840,7 @@ export class WebAuthnManager {
       // If the key is already present, skip AddKey and just persist local threshold metadata.
       const alreadyActive = await hasAccessKey(this.nearClient, nearAccountId, publicKey, { attempts: 1, delayMs: 0 });
       if (!alreadyActive) {
-        try {
-          this.nonceManager.initializeUser(nearAccountId, localKeyMaterial.publicKey);
-        } catch { }
+        this.nonceManager.initializeUser(nearAccountId, localKeyMaterial.publicKey);
         const txContext = await this.nonceManager.getNonceBlockHashAndHeight(this.nearClient, { force: true });
 
         const signed = await this.signAddKeyThresholdPublicKeyNoPrompt({

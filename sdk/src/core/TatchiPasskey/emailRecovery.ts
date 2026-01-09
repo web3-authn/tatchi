@@ -7,19 +7,14 @@ import {
   EmailRecoveryPhase,
   EmailRecoveryStatus,
   type EmailRecoverySSEEvent,
-  type EventCallback,
-  type AfterCall,
 } from '../types/sdkSentEvents';
 import type { TatchiConfigs } from '../types/tatchi';
 import {
   createRandomVRFChallenge,
-  type EncryptedVRFKeypair,
-  type ServerEncryptedVrfKeypair,
   type VRFChallenge,
 } from '../types/vrf-worker';
 import type { FinalExecutionOutcome } from '@near-js/types';
 import type { StoredAuthenticator, WebAuthnRegistrationCredential } from '../types';
-import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 import { getLoginSession } from './login';
@@ -29,7 +24,22 @@ import {
   parseLinkDeviceRegisterUserResponse,
   type PendingStore,
 } from '../EmailRecovery';
-import { EmailRecoveryError, EmailRecoveryErrorCode } from '../types/emailRecovery';
+import {
+  EmailRecoveryError,
+  EmailRecoveryErrorCode,
+  generateEmailRecoveryRequestId,
+  type EmailRecoveryFlowOptions,
+  type PendingEmailRecovery,
+  type PendingEmailRecoveryStatus,
+  type PollTickResult,
+  type PollUntilResult,
+  type VerificationOutcome,
+  type AutoLoginResult,
+  type StoreUserDataPayload,
+  type AccountViewLike,
+  type CollectedRecoveryCredential,
+  type DerivedRecoveryKeys,
+} from '../types/emailRecovery';
 import {
   syncAuthenticatorsContractCall,
   getEmailRecoveryAttempt,
@@ -38,105 +48,6 @@ import {
 import { ensureEd25519Prefix } from '../nearCrypto';
 import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
 
-export type PendingEmailRecoveryStatus =
-  | 'awaiting-email'
-  | 'awaiting-add-key'
-  | 'finalizing'
-  | 'complete'
-  | 'error';
-
-export type PendingEmailRecovery = {
-  accountId: AccountId;
-  deviceNumber: number;
-  nearPublicKey: string;
-  requestId: string;
-  encryptedVrfKeypair: EncryptedVRFKeypair;
-  serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-  vrfPublicKey: string;
-  credential: WebAuthnRegistrationCredential;
-  vrfChallenge?: VRFChallenge;
-  createdAt: number;
-  status: PendingEmailRecoveryStatus;
-};
-
-type PollTickResult<T> = { done: false } | { done: true; value: T };
-
-type PollUntilResult<T> =
-  | { status: 'completed'; value: T; elapsedMs: number; pollCount: number }
-  | { status: 'timedOut'; elapsedMs: number; pollCount: number }
-  | { status: 'cancelled'; elapsedMs: number; pollCount: number };
-
-type VerificationOutcome =
-  | { outcome: 'verified' }
-  | { outcome: 'failed'; errorMessage: string };
-
-type AutoLoginResult =
-  | { success: true; method: 'shamir' | 'touchid' }
-  | { success: false; reason: string };
-
-type StoreUserDataPayload = Parameters<PasskeyManagerContext['webAuthnManager']['storeUserData']>[0];
-
-type AccountViewLike = {
-  amount: bigint | string;
-  locked: bigint | string;
-  storage_usage: number | bigint;
-};
-
-type CollectedRecoveryCredential = {
-  credential: WebAuthnRegistrationCredential;
-  vrfChallenge?: VRFChallenge;
-};
-
-type DerivedRecoveryKeys = {
-  encryptedVrfKeypair: EncryptedVRFKeypair;
-  serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-  vrfPublicKey: string;
-  nearPublicKey: string;
-};
-
-export interface EmailRecoveryFlowOptions {
-  onEvent?: EventCallback<EmailRecoverySSEEvent>;
-  onError?: (error: Error) => void;
-  afterCall?: AfterCall<void>;
-  pendingStore?: PendingStore;
-  confirmerText?: { title?: string; body?: string };
-  confirmationConfig?: Partial<ConfirmationConfig>;
-}
-
-function getEmailRecoveryConfig(configs: TatchiConfigs): {
-  minBalanceYocto: string;
-  pollingIntervalMs: number;
-  maxPollingDurationMs: number;
-  pendingTtlMs: number;
-  mailtoAddress: string;
-} {
-  const relayerEmailCfg = configs.relayer.emailRecovery;
-  const minBalanceYocto = String(relayerEmailCfg.minBalanceYocto);
-  const pollingIntervalMs = Number(relayerEmailCfg.pollingIntervalMs);
-  const maxPollingDurationMs = Number(relayerEmailCfg.maxPollingDurationMs);
-  const pendingTtlMs = Number(relayerEmailCfg.pendingTtlMs);
-  const mailtoAddress = String(relayerEmailCfg.mailtoAddress);
-  return {
-    minBalanceYocto,
-    pollingIntervalMs,
-    maxPollingDurationMs,
-    pendingTtlMs,
-    mailtoAddress,
-  };
-}
-
-export function generateEmailRecoveryRequestId(): string {
-  // 6-character A–Z0–9 identifier, suitable for short-lived correlation.
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const length = 6;
-  const bytes = new Uint8Array(length);
-  (globalThis.crypto || window.crypto).getRandomValues(bytes);
-  let out = '';
-  for (let i = 0; i < length; i++) {
-    out += alphabet[bytes[i] % alphabet.length];
-  }
-  return out;
-}
 
 export class EmailRecoveryFlow {
   private context: PasskeyManagerContext;
@@ -233,7 +144,14 @@ export class EmailRecoveryFlow {
   }
 
   private getConfig() {
-    return getEmailRecoveryConfig(this.context.configs);
+    const relayConfig = this.context.configs.relayer.emailRecovery;
+    return {
+      minBalanceYocto: String(relayConfig.minBalanceYocto),
+      pollingIntervalMs: Number(relayConfig.pollingIntervalMs),
+      maxPollingDurationMs: Number(relayConfig.maxPollingDurationMs),
+      pendingTtlMs: Number(relayConfig.pendingTtlMs),
+      mailtoAddress: String(relayConfig.mailtoAddress),
+    };
   }
 
   private toBigInt(value: bigint | number | string | null | undefined): bigint {
