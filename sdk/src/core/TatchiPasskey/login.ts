@@ -16,13 +16,14 @@ import type { PasskeyManagerContext } from './index';
 import type { AccountId } from '../types/accountIds';
 import type { WebAuthnAuthenticationCredential } from '../types/webauthn';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
-import { createRandomVRFChallenge, ServerEncryptedVrfKeypair, VRFChallenge } from '../types/vrf-worker';
+import { createRandomVRFChallenge, VRFChallenge } from '../types/vrf-worker';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { ClientAuthenticatorData, ClientUserData } from '../IndexedDBManager';
 import { verifyAuthenticationResponse } from '../rpcCalls';
 import { computeLoginIntentDigest } from '../digests/intentDigest';
 import { buildThresholdSessionPolicy } from '../threshold/thresholdSessionPolicy';
+import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 import {
   clearAllCachedThresholdEd25519AuthSessions,
   makeThresholdEd25519AuthSessionCacheKey,
@@ -30,6 +31,17 @@ import {
   putCachedThresholdEd25519AuthSession,
 } from '../threshold/thresholdEd25519AuthSession';
 import { normalizeThresholdEd25519ParticipantIds } from '../../threshold/participants';
+
+type WarmSigningSessionPolicy = { ttlMs: number; remainingUses: number };
+
+type ThresholdSessionPlan = {
+  sessionKind: 'jwt';
+  relayerUrl: string;
+  relayerKeyId: string;
+  cacheKey: string;
+  policy: Awaited<ReturnType<typeof buildThresholdSessionPolicy>>;
+  deviceNumber: number;
+};
 
 /**
  * Core login function that handles passkey authentication without React dependencies.
@@ -48,7 +60,6 @@ export async function loginAndCreateSession(
   nearAccountId: AccountId,
   options?: LoginHooksOptions
 ): Promise<LoginAndCreateSessionResult> {
-
   const { onEvent, onError, afterCall } = options || {};
   const { webAuthnManager } = context;
 
@@ -75,21 +86,20 @@ export async function loginAndCreateSession(
     // Validation
     if (!window.isSecureContext) {
       const errorMessage = 'Passkey operations require a secure context (HTTPS or localhost).';
-      const error = new Error(errorMessage);
-      onError?.(error);
-      onEvent?.({
-        step: 0,
-        phase: LoginPhase.LOGIN_ERROR,
-        status: LoginStatus.ERROR,
+      return await finalizeLoginError({
         message: errorMessage,
-        error: errorMessage
+        error: new Error(errorMessage),
+        rollbackVrfOnFailure,
+        onEvent,
+        onError,
+        afterCall,
+        callAfterCall: false,
       });
-      const result = { success: false, error: errorMessage };
-      return result;
     }
 
-    // Handle login and unlock VRF keypair in VRF WASM worker for WebAuthn challenge generation
-    const wantsSession = options?.session?.kind == 'jwt' || options?.session?.kind == 'cookie';
+    const session = options?.session;
+    const wantsServerSession = session !== undefined;
+    const deviceNumberHint = parseDeviceNumber(options?.deviceNumber, { min: 1 });
     const base = await handleLoginUnlockVRF(
       context,
       nearAccountId,
@@ -97,307 +107,481 @@ export async function loginAndCreateSession(
       onError,
       afterCall,
       // Defer final 'login-complete' event & afterCall until warm signing session is minted
-      true
+      true,
+      deviceNumberHint
     );
     // If base login failed, just return
-    if (!base.result.success) return base.result;
-
-    const attachSigningSession = async (result: LoginResult): Promise<LoginAndCreateSessionResult> => {
-      if (!result?.success) return result;
-      try {
-        const signingSession: SigningSessionStatus = await webAuthnManager.getWarmSigningSessionStatus(nearAccountId);
-        return { ...result, signingSession };
-      } catch {
-        return result;
-      }
-    };
-
-    // Resolve default warm signing session policy from configs.
-    const ttlMsDefault = context.configs.signingSessionDefaults.ttlMs;
-    const remainingUsesDefault = context.configs.signingSessionDefaults.remainingUses;
-    const ttlMs = options?.signingSession?.ttlMs ?? ttlMsDefault;
-    const remainingUses = options?.signingSession?.remainingUses ?? remainingUsesDefault;
-
-    const wantsServerSession = wantsSession;
-
-    // Threshold session-style signing: mint a relayer auth session during login so signing flows can be warm-session-capable.
-    const wantsThresholdSession = context.configs?.signerMode?.mode === 'threshold-signer';
-    const thresholdSessionKind = 'jwt' as const;
-    const relayUrl = (options?.session?.relayUrl || context.configs.relayer.url).trim();
-    const verifyRoute = (options?.session?.route || '/verify-authentication-response').trim();
-
-    let thresholdRelayerKeyId: string | null = null;
-    let thresholdSessionPolicy: Awaited<ReturnType<typeof buildThresholdSessionPolicy>> | null = null;
-    let thresholdSessionCacheKey: string | null = null;
-    let thresholdDeviceNumber: number | null = null;
-    let thresholdParticipantIds: number[] | null = null;
-    let normalizedThresholdParticipantIds: number[] | null = null;
-
-    if (wantsThresholdSession && relayUrl) {
-      try {
-        const rpId = webAuthnManager.getRpId();
-        if (!rpId) throw new Error('Missing rpId for threshold session');
-
-        const lastUser = await webAuthnManager.getLastUser();
-        const deviceNumber = lastUser?.nearAccountId === nearAccountId
-          ? lastUser.deviceNumber
-          : (await IndexedDBManager.clientDB.getLastDBUpdatedUser(nearAccountId))?.deviceNumber;
-
-        if (typeof deviceNumber === 'number' && Number.isFinite(deviceNumber)) {
-          thresholdDeviceNumber = deviceNumber;
-          const thresholdKeyMaterial = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(nearAccountId, deviceNumber);
-          thresholdRelayerKeyId = thresholdKeyMaterial?.relayerKeyId || null;
-          thresholdParticipantIds = thresholdKeyMaterial?.participants?.map((p) => p.id) || null;
-          normalizedThresholdParticipantIds = normalizeThresholdEd25519ParticipantIds(thresholdParticipantIds);
-        }
-
-        if (thresholdRelayerKeyId) {
-          if (normalizedThresholdParticipantIds && normalizedThresholdParticipantIds.length !== 2) {
-            console.warn(
-              `[login] multi-party threshold signing is not supported yet; skipping threshold session mint (participantIds=[${normalizedThresholdParticipantIds.join(',')}])`
-            );
-            thresholdRelayerKeyId = null;
-          }
-        }
-
-        if (thresholdRelayerKeyId) {
-          thresholdSessionPolicy = await buildThresholdSessionPolicy({
-            nearAccountId,
-            rpId,
-            relayerKeyId: thresholdRelayerKeyId,
-            ...(normalizedThresholdParticipantIds?.length ? { participantIds: normalizedThresholdParticipantIds } : {}),
-            ttlMs,
-            remainingUses,
-          });
-          thresholdSessionCacheKey = makeThresholdEd25519AuthSessionCacheKey({
-            nearAccountId,
-            rpId,
-            relayerUrl: relayUrl,
-            relayerKeyId: thresholdRelayerKeyId,
-            ...(normalizedThresholdParticipantIds?.length ? { participantIds: normalizedThresholdParticipantIds } : {}),
-          });
-        } else {
-          console.warn('[login] threshold-signer configured but no threshold key material found; skipping threshold session mint');
-        }
-      } catch (e: any) {
-        console.warn('[login] failed to prepare threshold session policy; skipping threshold session mint:', e?.message || e);
-        thresholdRelayerKeyId = null;
-        thresholdSessionPolicy = null;
-        thresholdSessionCacheKey = null;
-      }
+    if (!base.result.success) {
+      return base.result;
     }
 
-    const wantsRelayerSession = wantsServerSession || !!thresholdSessionPolicy;
-    if (wantsRelayerSession) {
-      if (!relayUrl) {
-        console.warn('[login] No relayUrl provided for session-style signing');
-        await mintWarmSigningSession({
-          context,
-          nearAccountId,
-          onEvent,
-          credential: base.unlockCredential,
-          ttlMs,
-          remainingUses,
-        });
+    const preferredDeviceNumber = deviceNumberHint ?? base.activeDeviceNumber;
+    const warmPolicy = resolveWarmSigningSessionPolicy(context, options);
 
-        const finalResult = await attachSigningSession(base.result);
-        onEvent?.({
-          step: 4,
-          phase: LoginPhase.STEP_4_LOGIN_COMPLETE,
-          status: LoginStatus.SUCCESS,
-          message: 'Login completed successfully',
-          nearAccountId: nearAccountId,
-          clientNearPublicKey: base.result?.clientNearPublicKey || ''
-        } as unknown as LoginSSEvent);
-        await afterCall?.(true, finalResult);
-        return finalResult;
-      }
+    const wantsThresholdSession =
+      webAuthnManager.getUserPreferences().getSignerMode().mode === 'threshold-signer';
+    const relayUrl = (session?.relayUrl || context.configs.relayer.url).trim();
+    const verifyRoute = (session?.route || '/verify-authentication-response').trim();
 
-      const rpId = webAuthnManager.getRpId();
-      if (!rpId) {
-        throw new Error('Missing rpId for VRF challenge generation during login');
-      }
+    const thresholdPlan = await prepareThresholdSessionPlan({
+      context,
+      nearAccountId,
+      preferredDeviceNumber,
+      relayUrl,
+      ttlMs: warmPolicy.ttlMs,
+      remainingUses: warmPolicy.remainingUses,
+      wantsThresholdSession,
+    });
 
-      try {
-        // Build a fresh VRF challenge using current block. Bind a stable login intent digest (v4 requires intent_digest_32).
-        const blockInfo = await context.nearClient.viewBlock({ finality: 'final' });
-        const txBlockHash = blockInfo?.header?.hash;
-        const txBlockHeight = String(blockInfo.header?.height ?? '');
-        const intentDigest = await computeLoginIntentDigest({ nearAccountId, rpId });
-        const vrfChallenge = await webAuthnManager.generateVrfChallengeOnce({
-          userId: nearAccountId,
-          rpId,
-          blockHash: txBlockHash,
-          blockHeight: txBlockHeight,
-          intentDigest,
-          ...(thresholdSessionPolicy ? { sessionPolicyDigest32: thresholdSessionPolicy.sessionPolicyDigest32 } : {}),
-        });
-
-        let effectiveLoginResult: LoginResult = base.result;
-
-        const authenticators = await webAuthnManager.getAuthenticatorsByUser(nearAccountId);
-        const credential = await webAuthnManager.getAuthenticationCredentialsSerialized({
-          nearAccountId,
-          challenge: vrfChallenge,
-          allowCredentials: authenticatorsToAllowCredentials(authenticators),
-        });
-
-        effectiveLoginResult = await bindVrfToSelectedLoginPasskeyDevice({
-          webAuthnManager,
-          nearAccountId,
-          authenticators,
-          credential,
-          baseUnlockCredential: base.unlockCredential,
-          baseLoginResult: effectiveLoginResult,
-        });
-
-        // Mint/refresh the warm signing session using the same prompt used for relayer session verification.
-        await mintWarmSigningSession({
-          context,
-          nearAccountId,
-          onEvent,
-          credential,
-          ttlMs,
-          remainingUses,
-        });
-
-        // Optional: server session (/verify-authentication-response).
-        let serverSessionJwt: string | undefined;
-        if (wantsServerSession) {
-          const { kind } = options!.session!;
-          const v = await verifyAuthenticationResponse(relayUrl, verifyRoute, kind as 'jwt' | 'cookie', vrfChallenge, credential);
-          if (!v.success || !v.verified) {
-            const errMsg = v.error || 'Session verification failed';
-            await rollbackVrfOnFailure();
-            onEvent?.({
-              step: 0,
-              phase: LoginPhase.LOGIN_ERROR,
-              status: LoginStatus.ERROR,
-              message: errMsg,
-              error: errMsg
-            } as unknown as LoginSSEvent);
-            await afterCall?.(false as any);
-            return { success: false, error: errMsg };
-          }
-          serverSessionJwt = v.jwt;
-        }
-
-        // Optional: threshold session (/threshold-ed25519/session). Best-effort; never blocks login.
-        if (thresholdSessionPolicy && thresholdRelayerKeyId && thresholdSessionCacheKey) {
-          let clientVerifyingShareB64u: string | null = null;
-          try {
-            if (typeof thresholdDeviceNumber === 'number' && Number.isFinite(thresholdDeviceNumber)) {
-              const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, thresholdDeviceNumber);
-              const wrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
-              if (wrapKeySalt) {
-                const derived = await webAuthnManager.deriveThresholdEd25519ClientVerifyingShareFromCredential({
-                  credential: credential as WebAuthnAuthenticationCredential,
-                  nearAccountId,
-                  wrapKeySalt,
-                });
-                if (derived.success && derived.clientVerifyingShareB64u) {
-                  clientVerifyingShareB64u = derived.clientVerifyingShareB64u;
-                }
-              }
-            }
-          } catch (e: any) {
-            console.warn('[login] failed to derive clientVerifyingShareB64u for threshold session mint:', e?.message || e);
-          }
-
-          if (!clientVerifyingShareB64u) {
-            console.warn('[login] threshold session mint skipped: missing clientVerifyingShareB64u');
-          } else {
-            const minted = await mintThresholdEd25519AuthSession({
-              relayerUrl: relayUrl,
-              sessionKind: thresholdSessionKind,
-              relayerKeyId: thresholdRelayerKeyId,
-              clientVerifyingShareB64u,
-              sessionPolicy: thresholdSessionPolicy.policy,
-              vrfChallenge,
-              webauthnAuthentication: credential as WebAuthnAuthenticationCredential,
-            });
-
-            if (minted.ok && minted.jwt) {
-              putCachedThresholdEd25519AuthSession(thresholdSessionCacheKey, {
-                sessionKind: thresholdSessionKind,
-                policy: thresholdSessionPolicy.policy,
-                policyJson: thresholdSessionPolicy.policyJson,
-                sessionPolicyDigest32: thresholdSessionPolicy.sessionPolicyDigest32,
-                jwt: minted.jwt,
-                ...(minted.expiresAtMs ? { expiresAtMs: minted.expiresAtMs } : {}),
-              });
-            } else if (!minted.ok) {
-              console.warn('[login] threshold session mint failed:', minted.code || minted.message || 'unknown error');
-            }
-          }
-        }
-
-        const finalResult = await attachSigningSession({ ...effectiveLoginResult, ...(serverSessionJwt ? { jwt: serverSessionJwt } : {}) });
-        onEvent?.({
-          step: 4,
-          phase: LoginPhase.STEP_4_LOGIN_COMPLETE,
-          status: LoginStatus.SUCCESS,
-          message: 'Login completed successfully',
-          nearAccountId: nearAccountId,
-          clientNearPublicKey: effectiveLoginResult?.clientNearPublicKey || ''
-        } as unknown as LoginSSEvent);
-        await afterCall?.(true, finalResult);
-        return finalResult;
-      } catch (e: any) {
-        console.error("Failed to start session: ", e);
-        const errMsg = getUserFriendlyErrorMessage(e, 'login') || (e?.message || 'Session verification failed');
-        await rollbackVrfOnFailure();
-        onError?.(e);
-        onEvent?.({
-          step: 0,
-          phase: LoginPhase.LOGIN_ERROR,
-          status: LoginStatus.ERROR,
-          message: errMsg,
-          error: errMsg
-        } as unknown as LoginSSEvent);
-        await afterCall?.(false as any);
-        return { success: false, error: errMsg };
-      }
+    const wantsRelayerSession = wantsServerSession || thresholdPlan !== null;
+    if (wantsRelayerSession && !relayUrl) {
+      console.warn('[login] No relayUrl provided for session-style signing');
     }
 
-    // No relayer session requested: mint/refresh the warm signing session.
+    if (wantsRelayerSession && relayUrl) {
+      return await runRelayerSessionFlow({
+        context,
+        nearAccountId,
+        baseLoginResult: base.result,
+        baseUnlockCredential: base.unlockCredential,
+        preferredDeviceNumber,
+        session,
+        relayUrl,
+        verifyRoute,
+        thresholdPlan,
+        warmPolicy,
+        rollbackVrfOnFailure,
+        onEvent,
+        onError,
+        afterCall,
+      });
+    }
+
+    // No relayer session requested (or relayUrl missing): mint/refresh warm signing session only.
     await mintWarmSigningSession({
       context,
       nearAccountId,
       onEvent,
       credential: base.unlockCredential,
+      ttlMs: warmPolicy.ttlMs,
+      remainingUses: warmPolicy.remainingUses,
+    });
+    return await finalizeLoginSuccess({
+      webAuthnManager,
+      nearAccountId,
+      loginResult: base.result,
+      onEvent,
+      afterCall,
+    });
+  } catch (err: any) {
+    const errorMessage =
+      getUserFriendlyErrorMessage(err, 'login') || err?.message || 'Login failed';
+    return await finalizeLoginError({
+      message: errorMessage,
+      error: err,
+      rollbackVrfOnFailure,
+      onEvent,
+      onError,
+      afterCall,
+    });
+  }
+}
+
+function resolveWarmSigningSessionPolicy(
+  context: PasskeyManagerContext,
+  options?: LoginHooksOptions
+): WarmSigningSessionPolicy {
+  const defaults = context.configs.signingSessionDefaults;
+  return {
+    ttlMs: options?.signingSession?.ttlMs ?? defaults.ttlMs,
+    remainingUses: options?.signingSession?.remainingUses ?? defaults.remainingUses,
+  };
+}
+
+async function attachSigningSessionStatus(args: {
+  webAuthnManager: PasskeyManagerContext['webAuthnManager'];
+  nearAccountId: AccountId;
+  loginResult: LoginResult;
+}): Promise<LoginAndCreateSessionResult> {
+  const { webAuthnManager, nearAccountId, loginResult } = args;
+  if (!loginResult.success) return loginResult;
+  try {
+    const signingSession: SigningSessionStatus =
+      await webAuthnManager.getWarmSigningSessionStatus(nearAccountId);
+    return { ...loginResult, signingSession };
+  } catch {
+    return loginResult;
+  }
+}
+
+async function finalizeLoginSuccess(args: {
+  webAuthnManager: PasskeyManagerContext['webAuthnManager'];
+  nearAccountId: AccountId;
+  loginResult: LoginResult;
+  onEvent?: (event: LoginSSEvent) => void;
+  afterCall?: AfterCall<LoginAndCreateSessionResult>;
+}): Promise<LoginAndCreateSessionResult> {
+  const { webAuthnManager, nearAccountId, loginResult, onEvent, afterCall } = args;
+  const finalResult = await attachSigningSessionStatus({
+    webAuthnManager,
+    nearAccountId,
+    loginResult,
+  });
+  onEvent?.({
+    step: 4,
+    phase: LoginPhase.STEP_4_LOGIN_COMPLETE,
+    status: LoginStatus.SUCCESS,
+    message: 'Login completed successfully',
+    nearAccountId,
+    clientNearPublicKey: loginResult.clientNearPublicKey ?? '',
+  });
+  await afterCall?.(true, finalResult);
+  return finalResult;
+}
+
+async function finalizeLoginError(args: {
+  message: string;
+  error?: unknown;
+  rollbackVrfOnFailure: () => Promise<void>;
+  onEvent?: (event: LoginSSEvent) => void;
+  onError?: (error: Error) => void;
+  afterCall?: AfterCall<LoginAndCreateSessionResult>;
+  callOnError?: boolean;
+  callAfterCall?: boolean;
+}): Promise<LoginAndCreateSessionResult> {
+  const {
+    message,
+    error,
+    rollbackVrfOnFailure,
+    onEvent,
+    onError,
+    afterCall,
+    callOnError = true,
+    callAfterCall = true,
+  } = args;
+
+  try { await rollbackVrfOnFailure(); } catch {}
+
+  if (callOnError) {
+    onError?.(error as any);
+  }
+
+  onEvent?.({
+    step: 0,
+    phase: LoginPhase.LOGIN_ERROR,
+    status: LoginStatus.ERROR,
+    message,
+    error: message,
+  });
+
+  if (callAfterCall) {
+    await afterCall?.(false);
+  }
+  return { success: false, error: message };
+}
+
+async function prepareThresholdSessionPlan(args: {
+  context: PasskeyManagerContext;
+  nearAccountId: AccountId;
+  preferredDeviceNumber: number | null;
+  relayUrl: string;
+  ttlMs: number;
+  remainingUses: number;
+  wantsThresholdSession: boolean;
+}): Promise<ThresholdSessionPlan | null> {
+  const {
+    context,
+    nearAccountId,
+    preferredDeviceNumber,
+    relayUrl,
+    ttlMs,
+    remainingUses,
+    wantsThresholdSession,
+  } = args;
+  if (!wantsThresholdSession || !relayUrl) return null;
+
+  const { webAuthnManager } = context;
+
+  try {
+    const rpId = webAuthnManager.getRpId();
+    if (!rpId) throw new Error('Missing rpId for threshold session');
+
+    const lastUser = await webAuthnManager.getLastUser();
+    const deviceNumber = preferredDeviceNumber ??
+      (lastUser?.nearAccountId === nearAccountId
+        ? lastUser.deviceNumber
+        : (await IndexedDBManager.clientDB.getLastDBUpdatedUser(nearAccountId))
+            ?.deviceNumber ?? null);
+
+    if (deviceNumber === null) {
+      console.warn('[login] threshold-signer configured but no threshold key material found; skipping threshold session');
+      return null;
+    }
+
+    const thresholdKeyMaterial = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(
+      nearAccountId,
+      deviceNumber
+    );
+    const relayerKeyId = thresholdKeyMaterial?.relayerKeyId || null;
+    const participantIds = thresholdKeyMaterial?.participants?.map((p) => p.id) || null;
+    const normalizedParticipantIds = normalizeThresholdEd25519ParticipantIds(participantIds);
+
+    if (!relayerKeyId) {
+      console.warn('[login] threshold-signer configured but no threshold key material found; skipping threshold session');
+      return null;
+    }
+
+    if (normalizedParticipantIds && normalizedParticipantIds.length !== 2) {
+      console.warn(`[login] multi-party threshold signing is not supported yet; skipping threshold session mint`);
+      return null;
+    }
+
+    const policy = await buildThresholdSessionPolicy({
+      nearAccountId,
+      rpId,
+      relayerKeyId,
+      ...(normalizedParticipantIds?.length ? { participantIds: normalizedParticipantIds } : {}),
       ttlMs,
       remainingUses,
     });
 
-    const finalResult = await attachSigningSession(base.result);
-    // Fire completion event and afterCall since we deferred them.
-    onEvent?.({
-      step: 4,
-      phase: LoginPhase.STEP_4_LOGIN_COMPLETE,
-      status: LoginStatus.SUCCESS,
-      message: 'Login completed successfully',
-      nearAccountId: nearAccountId,
-      clientNearPublicKey: base.result?.clientNearPublicKey || ''
-    } as unknown as LoginSSEvent);
-    await afterCall?.(true, finalResult);
-    return finalResult;
-
-  } catch (err: any) {
-
-    await rollbackVrfOnFailure();
-    onError?.(err);
-    const errorMessage = getUserFriendlyErrorMessage(err, 'login') || err?.message || 'Login failed';
-    onEvent?.({
-      step: 0,
-      phase: LoginPhase.LOGIN_ERROR,
-      status: LoginStatus.ERROR,
-      message: errorMessage,
-      error: errorMessage
+    const cacheKey = makeThresholdEd25519AuthSessionCacheKey({
+      nearAccountId,
+      rpId,
+      relayerUrl: relayUrl,
+      relayerKeyId,
+      ...(normalizedParticipantIds?.length ? { participantIds: normalizedParticipantIds } : {}),
     });
-    const result = { success: false, error: errorMessage };
-    afterCall?.(false);
-    return result;
+
+    return {
+      sessionKind: 'jwt',
+      relayerUrl: relayUrl,
+      relayerKeyId,
+      cacheKey,
+      policy,
+      deviceNumber,
+    };
+  } catch (e: any) {
+    console.warn(
+      '[login] failed to prepare threshold session policy; skipping threshold session mint:',
+      e?.message || e
+    );
+    return null;
+  }
+}
+
+async function mintThresholdSessionBestEffort(args: {
+  context: PasskeyManagerContext;
+  nearAccountId: AccountId;
+  plan: ThresholdSessionPlan;
+  vrfChallenge: VRFChallenge;
+  credential: WebAuthnAuthenticationCredential;
+}): Promise<void> {
+  const { context, nearAccountId, plan, vrfChallenge, credential } = args;
+  const { webAuthnManager } = context;
+
+  let clientVerifyingShareB64u: string | null = null;
+  try {
+    const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(
+      nearAccountId,
+      plan.deviceNumber
+    );
+    const wrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
+    if (wrapKeySalt) {
+      const derived =
+        await webAuthnManager.deriveThresholdEd25519ClientVerifyingShareFromCredential({
+          credential,
+          nearAccountId,
+          wrapKeySalt,
+        });
+      if (derived.success && derived.clientVerifyingShareB64u) {
+        clientVerifyingShareB64u = derived.clientVerifyingShareB64u;
+      }
+    }
+  } catch (e: any) {
+    console.warn(
+      '[login] failed to derive clientVerifyingShareB64u for threshold session mint:',
+      e?.message || e
+    );
+  }
+
+  if (!clientVerifyingShareB64u) {
+    console.warn(
+      '[login] threshold session mint skipped: missing clientVerifyingShareB64u'
+    );
+    return;
+  }
+
+  const minted = await mintThresholdEd25519AuthSession({
+    relayerUrl: plan.relayerUrl,
+    sessionKind: plan.sessionKind,
+    relayerKeyId: plan.relayerKeyId,
+    clientVerifyingShareB64u,
+    sessionPolicy: plan.policy.policy,
+    vrfChallenge,
+    webauthnAuthentication: credential,
+  });
+
+  if (minted.ok && minted.jwt) {
+    putCachedThresholdEd25519AuthSession(plan.cacheKey, {
+      sessionKind: plan.sessionKind,
+      policy: plan.policy.policy,
+      policyJson: plan.policy.policyJson,
+      sessionPolicyDigest32: plan.policy.sessionPolicyDigest32,
+      jwt: minted.jwt,
+      ...(minted.expiresAtMs ? { expiresAtMs: minted.expiresAtMs } : {}),
+    });
+    return;
+  }
+
+  if (!minted.ok) {
+    console.warn(
+      '[login] threshold session mint failed:',
+      minted.code || minted.message || 'unknown error'
+    );
+  }
+}
+
+async function runRelayerSessionFlow(args: {
+  context: PasskeyManagerContext;
+  nearAccountId: AccountId;
+  baseLoginResult: LoginResult;
+  baseUnlockCredential?: WebAuthnAuthenticationCredential;
+  preferredDeviceNumber: number | null;
+  session: LoginHooksOptions['session'] | undefined;
+  relayUrl: string;
+  verifyRoute: string;
+  thresholdPlan: ThresholdSessionPlan | null;
+  warmPolicy: WarmSigningSessionPolicy;
+  rollbackVrfOnFailure: () => Promise<void>;
+  onEvent?: (event: LoginSSEvent) => void;
+  onError?: (error: Error) => void;
+  afterCall?: AfterCall<LoginAndCreateSessionResult>;
+}): Promise<LoginAndCreateSessionResult> {
+  const {
+    context,
+    nearAccountId,
+    baseLoginResult,
+    baseUnlockCredential,
+    preferredDeviceNumber,
+    session,
+    relayUrl,
+    verifyRoute,
+    thresholdPlan,
+    warmPolicy,
+    rollbackVrfOnFailure,
+    onEvent,
+    onError,
+    afterCall,
+  } = args;
+
+  const { webAuthnManager } = context;
+
+  try {
+    const rpId = webAuthnManager.getRpId();
+    if (!rpId) {
+      throw new Error('Missing rpId for VRF challenge generation during login');
+    }
+
+    const blockInfo = await context.nearClient.viewBlock({ finality: 'final' });
+    const txBlockHash = blockInfo?.header?.hash;
+    const txBlockHeight = String(blockInfo.header?.height ?? '');
+    const intentDigest = await computeLoginIntentDigest({ nearAccountId, rpId });
+    const vrfChallenge = await webAuthnManager.generateVrfChallengeOnce({
+      userId: nearAccountId,
+      rpId,
+      blockHash: txBlockHash,
+      blockHeight: txBlockHeight,
+      intentDigest,
+      ...(thresholdPlan ? { sessionPolicyDigest32: thresholdPlan.policy.sessionPolicyDigest32 } : {}),
+    });
+
+    const authenticators = await webAuthnManager.getAuthenticatorsByUser(nearAccountId);
+    const authenticatorsForPrompt = prioritizeAuthenticatorsByDeviceNumber(
+      authenticators,
+      preferredDeviceNumber
+    );
+    const credential = await webAuthnManager.getAuthenticationCredentialsSerialized({
+      nearAccountId,
+      challenge: vrfChallenge,
+      allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
+    });
+
+    const effectiveLoginResult = await bindVrfToSelectedLoginPasskeyDevice({
+      webAuthnManager,
+      nearAccountId,
+      authenticators,
+      credential,
+      baseUnlockCredential,
+      baseLoginResult: baseLoginResult,
+    });
+
+    await mintWarmSigningSession({
+      context,
+      nearAccountId,
+      onEvent,
+      credential,
+      ttlMs: warmPolicy.ttlMs,
+      remainingUses: warmPolicy.remainingUses,
+    });
+
+    let serverSessionJwt: string | undefined;
+    if (session) {
+      const v = await verifyAuthenticationResponse(
+        relayUrl,
+        verifyRoute,
+        session.kind,
+        vrfChallenge,
+        credential
+      );
+      if (!v.success || !v.verified) {
+        const errMsg = v.error || 'Session verification failed';
+        return await finalizeLoginError({
+          message: errMsg,
+          rollbackVrfOnFailure,
+          onEvent,
+          afterCall,
+          callOnError: false,
+        });
+      }
+      serverSessionJwt = v.jwt;
+    }
+
+    if (thresholdPlan) {
+      await mintThresholdSessionBestEffort({
+        context,
+        nearAccountId,
+        plan: thresholdPlan,
+        vrfChallenge,
+        credential,
+      });
+    }
+
+    const loginResult: LoginResult = serverSessionJwt
+      ? { ...effectiveLoginResult, jwt: serverSessionJwt }
+      : effectiveLoginResult;
+
+    return await finalizeLoginSuccess({
+      webAuthnManager,
+      nearAccountId,
+      loginResult,
+      onEvent,
+      afterCall,
+    });
+  } catch (e: any) {
+    console.error('[login] Failed to start session:', e);
+    const errMsg =
+      getUserFriendlyErrorMessage(e, 'login') ||
+      e?.message ||
+      'Session verification failed';
+    return await finalizeLoginError({
+      message: errMsg,
+      error: e,
+      rollbackVrfOnFailure,
+      onEvent,
+      onError,
+      afterCall,
+    });
   }
 }
 
@@ -435,8 +619,7 @@ async function bindVrfToSelectedLoginPasskeyDevice(args: {
 
   const rawId = credential.rawId;
   const matched = authenticators.find((a) => a.credentialId === rawId);
-  const selectedDeviceNumber =
-    matched && typeof matched.deviceNumber === 'number' ? matched.deviceNumber : null;
+  const selectedDeviceNumber = matched?.deviceNumber ?? null;
 
   if (selectedDeviceNumber === null) {
     return effectiveLoginResult;
@@ -562,26 +745,36 @@ async function handleLoginUnlockVRF(
   nearAccountId: AccountId,
   onEvent?: (event: LoginSSEvent) => void,
   onError?: (error: Error) => void,
-  afterCall?: AfterCall<any>,
+  afterCall?: AfterCall<LoginAndCreateSessionResult>,
   deferCompletionHooks?: boolean,
+  deviceNumberHint: number | null = null,
 ): Promise<{
   result: LoginResult;
   usedFallbackTouchId: boolean;
   unlockCredential?: WebAuthnAuthenticationCredential;
+  activeDeviceNumber: number | null;
 }> {
   const { webAuthnManager } = context;
 
   try {
     // Step 1: Get VRF credentials and authenticators, and validate them
-    const [lastUser, latestByAccount, authenticators] = await Promise.all([
+    const hintUserPromise: Promise<ClientUserData | null> =
+      deviceNumberHint !== null
+        ? webAuthnManager.getUserByDevice(nearAccountId, deviceNumberHint).catch(() => null)
+        : Promise.resolve(null);
+
+    const [hintUser, lastUser, latestByAccount, authenticators] = await Promise.all([
+      hintUserPromise,
       webAuthnManager.getLastUser(),
       IndexedDBManager.clientDB.getLastDBUpdatedUser(nearAccountId),
       webAuthnManager.getAuthenticatorsByUser(nearAccountId),
     ]);
 
     // Prefer the most recently updated record for this account; fall back to lastUser pointer.
-    let userData = null as (typeof lastUser) | null;
-    if (latestByAccount && latestByAccount.nearAccountId === nearAccountId) {
+    let userData: ClientUserData | null = null;
+    if (hintUser && hintUser.nearAccountId === nearAccountId) {
+      userData = hintUser;
+    } else if (latestByAccount && latestByAccount.nearAccountId === nearAccountId) {
       userData = latestByAccount;
     } else if (lastUser && lastUser.nearAccountId === nearAccountId) {
       userData = lastUser;
@@ -622,13 +815,12 @@ async function handleLoginUnlockVRF(
     // May be switched when multiple devices exist and the user picks a different passkey.
     let effectiveUserData = userData;
 
-    const hasServerEncrypted = !!userData.serverEncryptedVrfKeypair;
+    const shamir = userData.serverEncryptedVrfKeypair;
     const relayerUrl = context.configs.relayer?.url;
-    const useShamir3PassVRFKeyUnlock = hasServerEncrypted && !!relayerUrl && !!userData.serverEncryptedVrfKeypair?.serverKeyId;
+    const useShamir3PassVRFKeyUnlock = !!relayerUrl && !!shamir?.serverKeyId;
 
-    if (useShamir3PassVRFKeyUnlock) {
+    if (useShamir3PassVRFKeyUnlock && shamir) {
       try {
-        const shamir = userData.serverEncryptedVrfKeypair as ServerEncryptedVrfKeypair;
         if (!shamir.ciphertextVrfB64u || !shamir.kek_s_b64u) {
           throw new Error('Missing Shamir3Pass fields (ciphertextVrfB64u/kek_s_b64u)');
         }
@@ -660,10 +852,11 @@ async function handleLoginUnlockVRF(
 
     // Fallback to TouchID if Shamir3Pass decryption failed
     if (!unlockResult.success) {
+      const authenticatorsForPrompt = prioritizeAuthenticatorsByDeviceNumber(authenticators, deviceNumberHint);
       const fallback = await fallbackUnlockVrfKeypairWithTouchId({
         webAuthnManager,
         nearAccountId,
-        authenticators,
+        authenticators: authenticatorsForPrompt,
         userData,
         onEvent,
       });
@@ -682,7 +875,7 @@ async function handleLoginUnlockVRF(
       step: 3,
       phase: LoginPhase.STEP_3_VRF_UNLOCK,
       status: LoginStatus.SUCCESS,
-      message: 'VRF keypair unlocked successfully'
+      message: 'VRF keypair unlocked...'
     });
 
     // Proactive refresh: if Shamir3Pass failed and we used TouchID, re-encrypt under current server key
@@ -699,11 +892,7 @@ async function handleLoginUnlockVRF(
     // Step 3: Update local data and return success
     // Ensure last-user deviceNumber reflects the passkey actually used for login.
     try {
-      if (typeof activeDeviceNumber === 'number' && Number.isFinite(activeDeviceNumber)) {
-        await webAuthnManager.setLastUser(nearAccountId, activeDeviceNumber);
-      } else if (typeof userData.deviceNumber === 'number') {
-        await webAuthnManager.setLastUser(nearAccountId, userData.deviceNumber);
-      }
+      await webAuthnManager.setLastUser(nearAccountId, activeDeviceNumber);
     } catch {
       // Non-fatal; continue even if last-user update fails.
     }
@@ -714,7 +903,7 @@ async function handleLoginUnlockVRF(
       loggedInNearAccountId: nearAccountId,
       // Ensure the clientNearPublicKey reflects the device whose VRF credentials
       // are actually active for this login.
-      clientNearPublicKey: effectiveUserData?.clientNearPublicKey!, // non-null, validated above
+      clientNearPublicKey: effectiveUserData.clientNearPublicKey,
       nearAccountId: nearAccountId
     };
 
@@ -725,11 +914,11 @@ async function handleLoginUnlockVRF(
         status: LoginStatus.SUCCESS,
         message: 'Login completed successfully',
         nearAccountId: nearAccountId,
-        clientNearPublicKey: effectiveUserData?.clientNearPublicKey || ''
+        clientNearPublicKey: effectiveUserData.clientNearPublicKey
       });
       afterCall?.(true, result);
     }
-    return { result, usedFallbackTouchId, unlockCredential };
+    return { result, usedFallbackTouchId, unlockCredential, activeDeviceNumber };
 
   } catch (error: any) {
     // Use centralized error handling
@@ -746,7 +935,7 @@ async function handleLoginUnlockVRF(
 
     const result: LoginResult = { success: false, error: errorMessage };
     afterCall?.(false);
-    return { result, usedFallbackTouchId: false };
+    return { result, usedFallbackTouchId: false, activeDeviceNumber: null };
   }
 }
 
@@ -941,4 +1130,16 @@ export async function logoutAndClearSession(context: PasskeyManagerContext): Pro
   await webAuthnManager.clearVrfSession();
   try { webAuthnManager.getNonceManager().clear(); } catch {}
   try { clearAllCachedThresholdEd25519AuthSessions(); } catch {}
+}
+
+function prioritizeAuthenticatorsByDeviceNumber(
+  authenticators: ClientAuthenticatorData[],
+  deviceNumber: number | null
+): ClientAuthenticatorData[] {
+  if (authenticators.length <= 1) return authenticators;
+  if (deviceNumber === null) return authenticators;
+  const preferred = authenticators.filter((a) => a.deviceNumber === deviceNumber);
+  if (preferred.length === 0) return authenticators;
+  const rest = authenticators.filter((a) => a.deviceNumber !== deviceNumber);
+  return [...preferred, ...rest];
 }
