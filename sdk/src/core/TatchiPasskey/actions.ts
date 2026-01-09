@@ -9,13 +9,12 @@ import type {
 import type { ActionResult, SignTransactionResult } from '../types/tatchi';
 import type { TxExecutionStatus } from '@near-js/types';
 import type { ActionArgs, TransactionInput, TransactionInputWasm } from '../types/actions';
-import { type ConfirmationConfig, type SignerMode, coerceSignerMode } from '../types/signer-worker';
+import { type ConfirmationConfig, type SignerMode, mergeSignerMode } from '../types/signer-worker';
 import type { PasskeyManagerContext } from './index';
 import type { SignedTransaction } from '../NearClient';
 import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus, type ActionSSEEvent, type onProgressEvents } from '../types/sdkSentEvents';
 import { toError, getNearShortErrorMessage } from '../../utils/errors';
-
 
 /**
  * executeAction signs a single transaction (with actions[]) to a single receiver.
@@ -36,7 +35,7 @@ export async function executeAction(args: {
   options: ActionHooksOptions,
 }): Promise<ActionResult> {
   try {
-    const signerMode = coerceSignerMode(args.options?.signerMode, args.context.configs.signerMode);
+    const signerMode = mergeSignerMode(getBaseSignerMode(args.context), args.options?.signerMode);
     // Thread optional per-call confirmation override when provided; otherwise
     // user preferences determine the confirmation behavior.
     return executeActionInternal({
@@ -53,60 +52,10 @@ export async function executeAction(args: {
   }
 }
 
-// Helper: parallel broadcast with per-item stagger. Keeps UI snappy while avoiding RPC bursts.
-async function sendTransactionsParallelStaggered({
-  context,
-  signedTxs,
-  options,
-  staggerMs,
-}: {
-  context: PasskeyManagerContext,
-  signedTxs: SignTransactionResult[],
-  options?: SignAndSendTransactionHooksOptions,
-  staggerMs: number,
-}): Promise<ActionResult[]> {
-  return Promise.all(signedTxs.map(async (tx, i) => {
-    if (i > 0 && staggerMs > 0) {
-      await new Promise(r => setTimeout(r, i * staggerMs));
-    }
-    return sendTransaction({
-      context,
-      signedTransaction: tx.signedTransaction,
-      options: {
-        onEvent: options?.onEvent,
-        waitUntil: options?.waitUntil,
-      }
-    });
-  }));
-}
-
 // Execution plan types for broadcasting multiple transactions
-interface SequentialExecutionPlan {
-  mode: 'sequential';
-  waitUntil?: TxExecutionStatus;
-}
-interface ParallelStaggeredExecutionPlan {
-  mode: 'parallelStaggered';
-  staggerMs: number;
-}
-type ExecutionPlan = SequentialExecutionPlan | ParallelStaggeredExecutionPlan;
-
-// Helper: parse executionWait into a clear execution plan
-function parseExecutionWait(options?: SignAndSendTransactionHooksOptions): ExecutionPlan {
-  const ew = options?.executionWait as ExecutionWaitOption | undefined;
-  if (!ew) {
-    return { mode: 'sequential', waitUntil: options?.waitUntil };
-  }
-  if ('mode' in ew) {
-    if (ew.mode === 'sequential') {
-      return { mode: 'sequential', waitUntil: ew.waitUntil };
-    }
-    // parallelStaggered
-    const ms = Math.max(0, Number(ew.staggerMs ?? 75));
-    return { mode: 'parallelStaggered', staggerMs: ms };
-  }
-  // Fallback: treat unknown shapes as sequential using provided waitUntil
-  return { mode: 'sequential', waitUntil: options?.waitUntil };
+// Helper: parse executionWait (only sequential for now)
+function parseExecutionWait(options?: SignAndSendTransactionHooksOptions): { waitUntil?: TxExecutionStatus } {
+  return { waitUntil: options?.waitUntil };
 }
 
 /**
@@ -124,7 +73,7 @@ export async function signAndSendTransactions(args: {
   transactionInputs: TransactionInput[],
   options: SignAndSendTransactionHooksOptions,
 }): Promise<ActionResult[]> {
-  const signerMode = coerceSignerMode(args.options?.signerMode, args.context.configs.signerMode);
+  const signerMode = mergeSignerMode(getBaseSignerMode(args.context), args.options?.signerMode);
   return signAndSendTransactionsInternal({
     context: args.context,
     nearAccountId: args.nearAccountId,
@@ -151,7 +100,7 @@ export async function signTransactionsWithActions(args: {
   options: SignTransactionHooksOptions,
 }): Promise<SignTransactionResult[]> {
   try {
-    const signerMode = coerceSignerMode(args.options?.signerMode, args.context.configs.signerMode);
+    const signerMode = mergeSignerMode(getBaseSignerMode(args.context), args.options?.signerMode);
     return signTransactionsWithActionsInternal({
       context: args.context,
       nearAccountId: args.nearAccountId,
@@ -410,32 +359,21 @@ export async function signAndSendTransactionsInternal({
       confirmationConfigOverride
     });
 
-    // Determine execution strategy from the new executionWait option.
     const plan = parseExecutionWait(options);
-    if (plan.mode === 'sequential') {
-      const txResults: ActionResult[] = [];
-      for (let i = 0; i < signedTxs.length; i++) {
-        const tx = signedTxs[i];
-        const txResult = await sendTransaction({
-          context,
-          signedTransaction: tx.signedTransaction,
-          options: {
-            onEvent: options?.onEvent,
-            waitUntil: plan.waitUntil ?? options?.waitUntil,
-          }
-        });
-        txResults.push(txResult);
-      }
-      return txResults;
+    const txResults: ActionResult[] = [];
+    for (let i = 0; i < signedTxs.length; i++) {
+      const tx = signedTxs[i];
+      const txResult = await sendTransaction({
+        context,
+        signedTransaction: tx.signedTransaction,
+        options: {
+          onEvent: options?.onEvent,
+          waitUntil: plan.waitUntil ?? options?.waitUntil,
+        }
+      });
+      txResults.push(txResult);
     }
-
-    // Parallel execution with configurable staggering to reduce transient RPC failures
-    return await sendTransactionsParallelStaggered({
-      context,
-      signedTxs,
-      options,
-      staggerMs: plan.staggerMs
-    });
+    return txResults;
   } catch (error: unknown) {
     // If signing fails, release all reserved nonces
     context.webAuthnManager.getNonceManager().releaseAllNonces();
@@ -581,9 +519,6 @@ export async function signTransactionsWithActionsInternal({
   }
 }
 
-/**
- * 1. Input Validation - Validates inputs without fetching NEAR data
- */
 async function validateInputsOnly(
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
@@ -619,5 +554,13 @@ async function validateInputsOnly(
         throw new Error('Missing required parameter for transfer: amount');
       }
     }
+  }
+}
+
+function getBaseSignerMode(context: PasskeyManagerContext): SignerMode {
+  try {
+    return context.webAuthnManager.getUserPreferences().getSignerMode();
+  } catch {
+    return context.configs.signerMode;
   }
 }
