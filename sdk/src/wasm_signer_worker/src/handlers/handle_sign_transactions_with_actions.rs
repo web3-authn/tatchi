@@ -239,7 +239,9 @@ pub async fn handle_sign_transactions_with_actions(
             SignerMode::LocalSigner,
             &wrap_key,
             &tx_batch_request.decryption.encrypted_private_key_data,
-            &tx_batch_request.decryption.encrypted_private_key_chacha20_nonce_b64u,
+            &tx_batch_request
+                .decryption
+                .encrypted_private_key_chacha20_nonce_b64u,
         )?,
         SignerMode::ThresholdSigner => {
             let cfg = tx_batch_request

@@ -4,17 +4,17 @@ export {
   createThresholdEd25519KeyStore,
   type ThresholdEd25519KeyStore,
   type ThresholdEd25519KeyRecord,
-} from './ThresholdEd25519KeyStore';
+} from './stores/KeyStore';
 export {
   createThresholdEd25519SessionStore,
   type ThresholdEd25519SessionStore,
   type ThresholdEd25519MpcSessionRecord,
   type ThresholdEd25519SigningSessionRecord,
   type ThresholdEd25519Commitments,
-} from './ThresholdEd25519SessionStore';
+} from './stores/SessionStore';
 
 export {
   createThresholdEd25519AuthSessionStore,
   type ThresholdEd25519AuthSessionStore,
   type ThresholdEd25519AuthSessionRecord,
-} from './ThresholdEd25519AuthSessionStore';
+} from './stores/AuthSessionStore';

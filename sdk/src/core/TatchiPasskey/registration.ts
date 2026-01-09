@@ -634,7 +634,7 @@ async function activateThresholdEnrollmentPostRegistration(opts: {
     const signedTx = signed?.signedTransaction;
     if (!signedTx) throw new Error('Failed to sign AddKey(thresholdPublicKey) transaction');
 
-    await opts.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.linkDeviceAddKey);
+    await opts.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.thresholdAddKey);
 
     const thresholdKeyVerified = await verifyAccountAccessKeysPresent(
       opts.nearClient,

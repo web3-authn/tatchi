@@ -3,13 +3,10 @@ import type { ThresholdEd25519KeyStoreConfigInput } from '../types';
 import type { Logger } from '../logger';
 import { coerceLogger } from '../logger';
 import { ThresholdEd25519Service } from './ThresholdEd25519Service';
-import { createThresholdEd25519AuthSessionStore } from './ThresholdEd25519AuthSessionStore';
-import { createThresholdEd25519KeyStore } from './ThresholdEd25519KeyStore';
-import { createThresholdEd25519SessionStore } from './ThresholdEd25519SessionStore';
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
+import { createThresholdEd25519AuthSessionStore } from './stores/AuthSessionStore';
+import { createThresholdEd25519KeyStore } from './stores/KeyStore';
+import { createThresholdEd25519SessionStore } from './stores/SessionStore';
+import { isObject } from '../../../utils/validation';
 
 function isNodeEnvironment(): boolean {
   const processObj = (globalThis as unknown as { process?: { versions?: { node?: string } } }).process;

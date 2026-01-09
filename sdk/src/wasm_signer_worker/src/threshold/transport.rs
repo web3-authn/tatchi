@@ -168,6 +168,7 @@ impl ThresholdEd25519Transport for HttpThresholdEd25519Transport {
         signing_session_id: &str,
         client_signature_share_b64u: &str,
     ) -> Result<String, String> {
-        super::relayer_http::sign_finalize(cfg, signing_session_id, client_signature_share_b64u).await
+        super::relayer_http::sign_finalize(cfg, signing_session_id, client_signature_share_b64u)
+            .await
     }
 }

@@ -588,7 +588,7 @@ export class LinkDeviceFlow {
 
     await this.context.nearClient.sendTransaction(
       signedTx,
-      DEFAULT_WAIT_STATUS.linkDeviceAddKey,
+      DEFAULT_WAIT_STATUS.thresholdAddKey,
     );
 
     await IndexedDBManager.nearKeysDB.storeKeyMaterial({

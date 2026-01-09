@@ -1,3 +1,8 @@
+use super::participant_ids::{
+    ensure_2p_participant_ids, normalize_participant_ids,
+    validate_threshold_ed25519_participant_ids_2p,
+};
+use super::protocol::CommitmentsWire;
 use crate::fetch::{
     build_json_post_init, fetch_with_init, response_json, response_ok, response_status,
     response_status_text, response_text,
@@ -7,7 +12,6 @@ use js_sys::{Object, Reflect};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use wasm_bindgen::JsValue;
-use super::protocol::CommitmentsWire;
 
 #[derive(Debug, Clone)]
 pub(super) struct SignInitOk {
@@ -37,6 +41,25 @@ pub(super) struct ThresholdSessionResponse {
     pub(super) expires_at: Option<String>,
     pub(super) remaining_uses: Option<u32>,
     pub(super) jwt: Option<String>,
+}
+
+fn format_threshold_response_error(
+    label: &str,
+    code: Option<&str>,
+    message: Option<&str>,
+) -> String {
+    let code = code.unwrap_or_default().trim();
+    let message = message.unwrap_or_default().trim();
+    if !message.is_empty() && !code.is_empty() {
+        return format!("{code}: {message}");
+    }
+    if !message.is_empty() {
+        return message.to_string();
+    }
+    if !code.is_empty() {
+        return format!("threshold-signer: {label} failed ({code})");
+    }
+    format!("threshold-signer: {label} failed")
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -136,6 +159,29 @@ async fn post_json(
         let status = response_status(&resp).unwrap_or(0);
         let status_text = response_status_text(&resp).unwrap_or_default();
         let body = response_text(&resp).await.unwrap_or_default();
+        if let Ok(json_val) = js_sys::JSON::parse(&body) {
+            let ok_val = Reflect::get(&json_val, &JsValue::from_str("ok")).ok();
+            if ok_val.as_ref().and_then(|v| v.as_bool()) == Some(false) {
+                let message = Reflect::get(&json_val, &JsValue::from_str("message"))
+                    .ok()
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty());
+                let code = Reflect::get(&json_val, &JsValue::from_str("code"))
+                    .ok()
+                    .and_then(|v| v.as_string())
+                    .unwrap_or_default();
+                return Err(format_threshold_response_error(
+                    label,
+                    if code.trim().is_empty() {
+                        None
+                    } else {
+                        Some(code.trim())
+                    },
+                    message.as_deref(),
+                ));
+            }
+        }
         return Err(format!(
             "threshold-signer: {label} HTTP {} {}: {}",
             status, status_text, body
@@ -145,32 +191,18 @@ async fn post_json(
     response_json(&resp).await
 }
 
-fn resolve_relayer_participant_id(cfg: &ThresholdSignerConfig) -> u16 {
-    if let Some(id) = cfg.relayer_participant_id {
-        return id;
-    }
+fn resolve_relayer_participant_id(cfg: &ThresholdSignerConfig) -> Result<u16, String> {
+    let participant_ids_norm = normalize_participant_ids(cfg.participant_ids.as_ref());
+    ensure_2p_participant_ids(&participant_ids_norm)?;
 
-    let client_id = cfg.client_participant_id;
-    if let Some(ids) = cfg.participant_ids.as_ref().filter(|ids| ids.len() == 2) {
-        if let Some(cid) = client_id {
-            if let Some(other) = ids.iter().find(|id| **id != cid) {
-                return *other;
-            }
-        }
-
-        if ids[0] == 1 && ids[1] != 1 {
-            return ids[1];
-        }
-        if ids[1] == 1 && ids[0] != 1 {
-            return ids[0];
-        }
-
-        if let Some(max) = ids.iter().max() {
-            return *max;
-        }
-    }
-
-    2
+    let client_id_opt = cfg.client_participant_id.filter(|n| *n > 0);
+    let relayer_id_opt = cfg.relayer_participant_id.filter(|n| *n > 0);
+    let (_client_id, relayer_id) = validate_threshold_ed25519_participant_ids_2p(
+        client_id_opt,
+        relayer_id_opt,
+        &participant_ids_norm,
+    )?;
+    Ok(relayer_id)
 }
 
 fn build_authorize_body(
@@ -194,7 +226,9 @@ fn build_authorize_body(
         &JsValue::from_str("clientVerifyingShareB64u"),
         &JsValue::from_str(client_verifying_share_b64u.trim()),
     )
-    .map_err(|_| "threshold-signer: failed to set authorize.clientVerifyingShareB64u".to_string())?;
+    .map_err(|_| {
+        "threshold-signer: failed to set authorize.clientVerifyingShareB64u".to_string()
+    })?;
     Reflect::set(
         &auth_obj,
         &JsValue::from_str("purpose"),
@@ -397,12 +431,11 @@ pub(super) async fn authorize_mpc_session_id(
         .map_err(|e| format!("threshold-signer: failed to parse /authorize response: {e}"))?;
 
     if !auth.ok {
-        let mut msg = auth.message.clone().unwrap_or_else(|| {
-            format!(
-                "threshold-signer: /authorize failed ({})",
-                auth.code.unwrap_or_default()
-            )
-        });
+        let mut msg = format_threshold_response_error(
+            "/authorize",
+            auth.code.as_deref(),
+            auth.message.as_deref(),
+        );
         if let Some(expires) = auth.expires_at {
             msg = format!("{msg} (expiresAt={expires})");
         }
@@ -443,12 +476,11 @@ pub(super) async fn authorize_mpc_session_id_with_threshold_session(
         .map_err(|e| format!("threshold-signer: failed to parse /authorize response: {e}"))?;
 
     if !auth.ok {
-        let mut msg = auth.message.clone().unwrap_or_else(|| {
-            format!(
-                "threshold-signer: /authorize failed ({})",
-                auth.code.unwrap_or_default()
-            )
-        });
+        let mut msg = format_threshold_response_error(
+            "/authorize",
+            auth.code.as_deref(),
+            auth.message.as_deref(),
+        );
         if let Some(expires) = auth.expires_at {
             msg = format!("{msg} (expiresAt={expires})");
         }
@@ -529,12 +561,11 @@ pub(super) async fn mint_threshold_session(
         .map_err(|e| format!("threshold-signer: failed to parse /session response: {e}"))?;
 
     if !resp.ok {
-        return Err(resp.message.clone().unwrap_or_else(|| {
-            format!(
-                "threshold-signer: /session failed ({})",
-                resp.code.unwrap_or_default()
-            )
-        }));
+        return Err(format_threshold_response_error(
+            "/session",
+            resp.code.as_deref(),
+            resp.message.as_deref(),
+        ));
     }
 
     Ok(resp)
@@ -557,27 +588,33 @@ pub(super) async fn sign_init(
 
     let init_body = to_json_string(&init_req)?;
 
-    let init_json = post_json(cfg, "/threshold-ed25519/sign/init", &init_body, "/sign/init", None)
-        .await?;
+    let init_json = post_json(
+        cfg,
+        "/threshold-ed25519/sign/init",
+        &init_body,
+        "/sign/init",
+        None,
+    )
+    .await?;
     let init: SignInitResponse = serde_wasm_bindgen::from_value(init_json)
         .map_err(|e| format!("threshold-signer: failed to parse /sign/init response: {e}"))?;
 
     if !init.ok {
-        return Err(init.message.clone().unwrap_or_else(|| {
-            format!(
-                "threshold-signer: /sign/init failed ({})",
-                init.code.unwrap_or_default()
-            )
-        }));
+        return Err(format_threshold_response_error(
+            "/sign/init",
+            init.code.as_deref(),
+            init.message.as_deref(),
+        ));
     }
 
-    let signing_session_id = init.signing_session_id.clone().ok_or_else(|| {
-        "threshold-signer: /sign/init missing signingSessionId".to_string()
-    })?;
-    let relayer_id = resolve_relayer_participant_id(cfg).to_string();
-    let commitments_by_id = init.commitments_by_id.ok_or_else(|| {
-        "threshold-signer: /sign/init missing commitmentsById".to_string()
-    })?;
+    let signing_session_id = init
+        .signing_session_id
+        .clone()
+        .ok_or_else(|| "threshold-signer: /sign/init missing signingSessionId".to_string())?;
+    let relayer_id = resolve_relayer_participant_id(cfg)?.to_string();
+    let commitments_by_id = init
+        .commitments_by_id
+        .ok_or_else(|| "threshold-signer: /sign/init missing commitmentsById".to_string())?;
     let relayer_commitments = commitments_by_id.get(&relayer_id).cloned().ok_or_else(|| {
         format!(
             "threshold-signer: /sign/init missing commitmentsById[{}]",
@@ -587,12 +624,13 @@ pub(super) async fn sign_init(
     let verifying_by_id = init.relayer_verifying_shares_by_id.ok_or_else(|| {
         "threshold-signer: /sign/init missing relayerVerifyingSharesById".to_string()
     })?;
-    let relayer_verifying_share_b64u = verifying_by_id.get(&relayer_id).cloned().ok_or_else(|| {
-        format!(
-            "threshold-signer: /sign/init missing relayerVerifyingSharesById[{}]",
-            relayer_id
-        )
-    })?;
+    let relayer_verifying_share_b64u =
+        verifying_by_id.get(&relayer_id).cloned().ok_or_else(|| {
+            format!(
+                "threshold-signer: /sign/init missing relayerVerifyingSharesById[{}]",
+                relayer_id
+            )
+        })?;
 
     Ok(SignInitOk {
         signing_session_id,
@@ -624,15 +662,14 @@ pub(super) async fn sign_finalize(
         .map_err(|e| format!("threshold-signer: failed to parse /sign/finalize response: {e}"))?;
 
     if !finalize.ok {
-        return Err(finalize.message.clone().unwrap_or_else(|| {
-            format!(
-                "threshold-signer: /sign/finalize failed ({})",
-                finalize.code.unwrap_or_default()
-            )
-        }));
+        return Err(format_threshold_response_error(
+            "/sign/finalize",
+            finalize.code.as_deref(),
+            finalize.message.as_deref(),
+        ));
     }
 
-    let relayer_id = resolve_relayer_participant_id(cfg).to_string();
+    let relayer_id = resolve_relayer_participant_id(cfg)?.to_string();
     let shares_by_id = finalize.relayer_signature_shares_by_id.ok_or_else(|| {
         "threshold-signer: /sign/finalize missing relayerSignatureSharesById".to_string()
     })?;

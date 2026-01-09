@@ -55,7 +55,8 @@ pub(super) async fn sign_ed25519_2p_v1<T: ThresholdEd25519Transport>(
 
     let verifying_key = client_key_package.verifying_key().clone();
     let client_verifying_share = client_key_package.verifying_share().clone();
-    let relayer_verifying_share = protocol::verifying_share_from_b64u(&relayer_verifying_share_b64u)?;
+    let relayer_verifying_share =
+        protocol::verifying_share_from_b64u(&relayer_verifying_share_b64u)?;
 
     let mut verifying_shares_by_id = BTreeMap::new();
     verifying_shares_by_id.insert(client_identifier, client_verifying_share);

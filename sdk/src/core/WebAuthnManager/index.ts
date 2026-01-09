@@ -1860,7 +1860,7 @@ export class WebAuthnManager {
         const signedTx = signed?.signedTransaction;
         if (!signedTx) throw new Error('Failed to sign AddKey(thresholdPublicKey) transaction');
 
-        await this.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.linkDeviceAddKey);
+        await this.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.thresholdAddKey);
 
         const activated = await hasAccessKey(this.nearClient, nearAccountId, publicKey);
         if (!activated) throw new Error('Threshold access key not found on-chain after AddKey');

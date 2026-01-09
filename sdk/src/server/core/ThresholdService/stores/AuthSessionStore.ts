@@ -1,12 +1,12 @@
-import type { NormalizedLogger } from '../logger';
-import type { ThresholdEd25519KeyStoreConfigInput } from '../types';
-import { RedisTcpClient, UpstashRedisRestClient, redisGetJson, redisSetJson } from './kv';
-import { toOptionalTrimmedString } from '../../../utils/validation';
+import type { NormalizedLogger } from '../../logger';
+import type { ThresholdEd25519KeyStoreConfigInput } from '../../types';
+import { RedisTcpClient, UpstashRedisRestClient, redisGetJson, redisSetJson } from '../kv';
+import { toOptionalTrimmedString } from '../../../../utils/validation';
 import {
   isObject,
   toThresholdEd25519AuthPrefix,
   parseThresholdEd25519AuthSessionRecord,
-} from './validation';
+} from '../validation';
 
 export type ThresholdEd25519AuthSessionRecord = {
   expiresAtMs: number;

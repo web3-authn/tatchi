@@ -1,12 +1,18 @@
-import type { NormalizedLogger } from '../logger';
-import type { ThresholdEd25519KeyStoreConfigInput } from '../types';
-import { RedisTcpClient, UpstashRedisRestClient, redisDel, redisGetJson, redisSetJson } from './kv';
-import { toOptionalTrimmedString } from '../../../utils/validation';
+import type { NormalizedLogger } from '../../logger';
+import type { ThresholdEd25519KeyStoreConfigInput } from '../../types';
+import {
+  RedisTcpClient,
+  UpstashRedisRestClient,
+  redisDel,
+  redisGetJson,
+  redisSetJson,
+} from '../kv';
+import { toOptionalTrimmedString } from '../../../../utils/validation';
 import {
   isObject,
   toThresholdEd25519KeyPrefix,
   parseThresholdEd25519KeyRecord,
-} from './validation';
+} from '../validation';
 
 export type ThresholdEd25519KeyRecord = {
   publicKey: string;

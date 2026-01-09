@@ -1,14 +1,14 @@
-import type { NormalizedLogger } from '../logger';
-import type { ThresholdEd25519KeyStoreConfigInput } from '../types';
-import { RedisTcpClient, UpstashRedisRestClient, redisGetdelJson, redisSetJson } from './kv';
-import { toOptionalTrimmedString } from '../../../utils/validation';
+import type { NormalizedLogger } from '../../logger';
+import type { ThresholdEd25519KeyStoreConfigInput } from '../../types';
+import { RedisTcpClient, UpstashRedisRestClient, redisGetdelJson, redisSetJson } from '../kv';
+import { toOptionalTrimmedString } from '../../../../utils/validation';
 import {
   toThresholdEd25519SessionPrefix,
   parseThresholdEd25519MpcSessionRecord,
   parseThresholdEd25519CoordinatorSigningSessionRecord,
   parseThresholdEd25519SigningSessionRecord,
   isObject,
-} from './validation';
+} from '../validation';
 
 export type ThresholdEd25519Commitments = { hiding: string; binding: string };
 
@@ -34,8 +34,6 @@ export type ThresholdEd25519SigningSessionRecord = {
   userId: string;
   rpId: string;
   clientVerifyingShareB64u: string;
-  clientCommitments: ThresholdEd25519Commitments;
-  relayerCommitments: ThresholdEd25519Commitments;
   commitmentsById: ThresholdEd25519CommitmentsById;
   relayerNoncesB64u: string;
   participantIds: number[];

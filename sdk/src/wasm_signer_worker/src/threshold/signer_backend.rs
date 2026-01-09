@@ -1,3 +1,7 @@
+use crate::threshold::participant_ids::{
+    ensure_2p_participant_ids, normalize_participant_ids,
+    validate_threshold_ed25519_participant_ids_2p,
+};
 use crate::types::SignerMode;
 use crate::types::ThresholdSignerConfig;
 use crate::WrapKey;
@@ -12,64 +16,6 @@ use std::collections::BTreeMap;
 fn threshold_signer_not_implemented_error() -> String {
     "threshold-signer requires relayer FROST endpoints and threshold key material (client share + relayer share). Use signerMode='local-signer' for now. See docs/threshold-ed25519-near-spec.md."
         .to_string()
-}
-
-fn join_participant_ids(ids: &[u16]) -> String {
-    ids.iter()
-        .map(|n| n.to_string())
-        .collect::<Vec<_>>()
-        .join(",")
-}
-
-fn validate_threshold_ed25519_participant_ids_2p(
-    client_id_opt: Option<u16>,
-    relayer_id_opt: Option<u16>,
-    participant_ids_norm: &[u16],
-) -> Result<(u16, u16), String> {
-    let (client_id, relayer_id) = match (client_id_opt, relayer_id_opt) {
-        (Some(c), Some(r)) => {
-            if c == r {
-                return Err(
-                    "threshold-signer: clientParticipantId must differ from relayerParticipantId"
-                        .to_string(),
-                );
-            }
-            if !participant_ids_norm.is_empty() {
-                if participant_ids_norm.len() != 2 {
-                    return Err("threshold-signer: participantIds must contain exactly 2 ids for 2-party signing".to_string());
-                }
-                let mut expected = vec![c, r];
-                expected.sort_unstable();
-                expected.dedup();
-                if participant_ids_norm != expected.as_slice() {
-                    return Err(format!(
-                        "threshold-signer: participantIds does not match clientParticipantId/relayerParticipantId (expected participantIds=[{}], got participantIds=[{}])",
-                        join_participant_ids(&expected),
-                        join_participant_ids(participant_ids_norm)
-                    ));
-                }
-            }
-            (c, r)
-        }
-        (None, None) => {
-            if participant_ids_norm.is_empty() {
-                (1u16, 2u16)
-            } else if participant_ids_norm.len() == 2 {
-                // Convention for 2P: lower id is client, higher id is relayer.
-                (participant_ids_norm[0], participant_ids_norm[1])
-            } else {
-                return Err("threshold-signer: participantIds must contain exactly 2 ids for 2-party signing".to_string());
-            }
-        }
-        _ => {
-            return Err(
-                "threshold-signer: clientParticipantId and relayerParticipantId must be set together"
-                    .to_string(),
-            );
-        }
-    };
-
-    Ok((client_id, relayer_id))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -197,14 +143,17 @@ async fn authorize_mpc_session_id_with_cached_threshold_auth_session_strict(
         ThresholdAuthSessionKind::Cookie => None,
     };
 
-    match transport.authorize_mpc_session_id_with_threshold_session(
-        cfg,
-        client_verifying_share_b64u,
-        purpose,
-        signing_digest_32,
-        signing_payload_json,
-        bearer,
-    ).await {
+    match transport
+        .authorize_mpc_session_id_with_threshold_session(
+            cfg,
+            client_verifying_share_b64u,
+            purpose,
+            signing_digest_32,
+            signing_payload_json,
+            bearer,
+        )
+        .await
+    {
         Ok(id) => Ok(id),
         Err(e) => {
             clear_cached_threshold_auth_session(cfg, near_account_id);
@@ -234,14 +183,17 @@ async fn try_authorize_mpc_session_id_with_cached_threshold_auth_session(
         ThresholdAuthSessionKind::Cookie => None,
     };
 
-    match transport.authorize_mpc_session_id_with_threshold_session(
-        cfg,
-        client_verifying_share_b64u,
-        purpose,
-        signing_digest_32,
-        signing_payload_json,
-        bearer,
-    ).await {
+    match transport
+        .authorize_mpc_session_id_with_threshold_session(
+            cfg,
+            client_verifying_share_b64u,
+            purpose,
+            signing_digest_32,
+            signing_payload_json,
+            bearer,
+        )
+        .await
+    {
         Ok(id) => Some(id),
         Err(_e) => {
             clear_cached_threshold_auth_session(cfg, near_account_id);
@@ -278,7 +230,8 @@ async fn resolve_mpc_session_id(
                 signing_digest_32,
                 signing_payload_json,
                 Some(jwt),
-            ).await;
+            )
+            .await;
     }
 
     // Prefer a cached relayer session token/cookie when available.
@@ -292,7 +245,8 @@ async fn resolve_mpc_session_id(
             signing_digest_32,
             signing_payload_json,
             sess,
-        ).await;
+        )
+        .await;
     }
 
     // No cached session: require WebAuthn+VRF to mint one (if configured), then authorize per
@@ -312,15 +266,18 @@ async fn resolve_mpc_session_id(
             ThresholdAuthSessionKind::Jwt => "jwt",
         };
 
-        if let Ok(sess) = transport.mint_threshold_session(
-            cfg,
-            client_verifying_share_b64u,
-            near_account_id,
-            vrf_challenge,
-            credential_json,
-            policy_json,
-            kind_str,
-        ).await {
+        if let Ok(sess) = transport
+            .mint_threshold_session(
+                cfg,
+                client_verifying_share_b64u,
+                near_account_id,
+                vrf_challenge,
+                credential_json,
+                policy_json,
+                kind_str,
+            )
+            .await
+        {
             let expires_at_ms = sess
                 .expires_at
                 .as_deref()
@@ -348,21 +305,25 @@ async fn resolve_mpc_session_id(
         purpose,
         signing_digest_32,
         signing_payload_json,
-    ).await {
+    )
+    .await
+    {
         return Ok(id);
     }
 
     // Fallback: authorize per signature with WebAuthn+VRF.
-    transport.authorize_mpc_session_id(
-        cfg,
-        client_verifying_share_b64u,
-        near_account_id,
-        purpose,
-        signing_digest_32,
-        vrf_challenge,
-        credential_json,
-        signing_payload_json,
-    ).await
+    transport
+        .authorize_mpc_session_id(
+            cfg,
+            client_verifying_share_b64u,
+            near_account_id,
+            purpose,
+            signing_digest_32,
+            vrf_challenge,
+            credential_json,
+            signing_payload_json,
+        )
+        .await
 }
 
 pub enum Ed25519SignerBackend {
@@ -513,19 +474,8 @@ impl ThresholdEd25519RelayerSigner {
             return Err("threshold-signer: missing purpose".to_string());
         }
 
-        let mut participant_ids_norm: Vec<u16> = cfg
-            .participant_ids
-            .as_ref()
-            .map(|ids| ids.iter().copied().filter(|n| *n > 0).collect())
-            .unwrap_or_default();
-        participant_ids_norm.sort_unstable();
-        participant_ids_norm.dedup();
-        if participant_ids_norm.len() > 2 {
-            return Err(format!(
-                "threshold-signer: multi-party threshold signing is not supported yet (got participantIds=[{}])",
-                join_participant_ids(&participant_ids_norm)
-            ));
-        }
+        let participant_ids_norm = normalize_participant_ids(cfg.participant_ids.as_ref());
+        ensure_2p_participant_ids(&participant_ids_norm)?;
 
         let normalized_mpc_session_id = cfg
             .mpc_session_id
@@ -655,7 +605,8 @@ impl ThresholdEd25519RelayerSigner {
                 signing_payload_json,
                 vrf_challenge_opt.as_ref(),
                 webauthn_authentication_json_opt.as_deref(),
-            ).await?;
+            )
+            .await?;
 
             coordinator::sign_ed25519_2p_v1(
                 &transport,
@@ -666,7 +617,8 @@ impl ThresholdEd25519RelayerSigner {
                 client_key_package,
                 client_identifier,
                 relayer_identifier,
-            ).await
+            )
+            .await
         }
     }
 }

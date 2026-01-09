@@ -52,4 +52,3 @@ pub struct ThresholdEd25519ParticipantSetV1 {
     pub group_public_key: String,
     pub participants: Vec<ThresholdEd25519ParticipantV1>,
 }
-

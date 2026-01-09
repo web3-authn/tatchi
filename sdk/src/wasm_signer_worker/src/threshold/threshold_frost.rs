@@ -4,8 +4,8 @@ use curve25519_dalek::edwards::CompressedEdwardsY;
 use curve25519_dalek::edwards::EdwardsPoint;
 use curve25519_dalek::scalar::Scalar as CurveScalar;
 use hkdf::Hkdf;
-use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
 
@@ -179,8 +179,9 @@ pub fn threshold_ed25519_keygen_from_client_verifying_share(
         client_verifying_share_b64u: String,
     }
 
-    let args: ThresholdEd25519KeygenFromClientVerifyingShareArgs = serde_wasm_bindgen::from_value(args)
-        .map_err(|e| JsValue::from_str(&format!("Invalid args: {e}")))?;
+    let args: ThresholdEd25519KeygenFromClientVerifyingShareArgs =
+        serde_wasm_bindgen::from_value(args)
+            .map_err(|e| JsValue::from_str(&format!("Invalid args: {e}")))?;
 
     let client_participant_id = args.client_participant_id.unwrap_or(1);
     let relayer_participant_id = args.relayer_participant_id.unwrap_or(2);
@@ -276,8 +277,11 @@ pub fn threshold_ed25519_keygen_from_master_secret_and_client_verifying_share(
     let client_participant_id = args.client_participant_id.unwrap_or(1);
     let relayer_participant_id = args.relayer_participant_id.unwrap_or(2);
 
-    let master_secret_bytes = base64_url_decode(args.master_secret_b64u.trim())
-        .map_err(|e| JsValue::from_str(&format!("Invalid THRESHOLD_ED25519_MASTER_SECRET_B64U: {e}")))?;
+    let master_secret_bytes = base64_url_decode(args.master_secret_b64u.trim()).map_err(|e| {
+        JsValue::from_str(&format!(
+            "Invalid THRESHOLD_ED25519_MASTER_SECRET_B64U: {e}"
+        ))
+    })?;
     if master_secret_bytes.len() != 32 {
         return Err(JsValue::from_str(&format!(
             "THRESHOLD_ED25519_MASTER_SECRET_B64U must be 32 bytes, got {}",
@@ -662,7 +666,8 @@ mod tests {
             near_account_id,
             rp_id,
             &client_verifying_share_bytes,
-        ).expect("relayer share should derive");
+        )
+        .expect("relayer share should derive");
         let relayer_signing_share_bytes = relayer_scalar.to_bytes();
         let relayer_verifying_share_bytes = (ED25519_BASEPOINT_POINT * relayer_scalar)
             .compress()
@@ -757,10 +762,8 @@ mod tests {
         // Step 6a (client): Round 1 (commit), generate nonces + public commitments.
         // In production, the client computes these locally *before* calling `/threshold-ed25519/sign/init`.
         let mut rng = frost_ed25519::rand_core::OsRng;
-        let (
-            client_nonces,
-            client_commitments
-        ) = frost_ed25519::round1::commit(client_key_package.signing_share(), &mut rng);
+        let (client_nonces, client_commitments) =
+            frost_ed25519::round1::commit(client_key_package.signing_share(), &mut rng);
 
         // Step 6a.1 (client -> relayer): Round 1 HTTP call (commitments exchange).
         //
@@ -770,10 +773,8 @@ mod tests {
 
         // Step 6b (relayer): Round 1 (commit), generate nonces + public commitments (performed on the server
         // while handling `/threshold-ed25519/sign/init`).
-        let (
-            relayer_nonces,
-            relayer_commitments
-        ) = frost_ed25519::round1::commit(relayer_key_package.signing_share(), &mut rng);
+        let (relayer_nonces, relayer_commitments) =
+            frost_ed25519::round1::commit(relayer_key_package.signing_share(), &mut rng);
 
         // Step 7 (client): form the signing package from commitments + message digest.
         // The digest is communicated to the relayer earlier so both parties sign the same bytes:
@@ -786,12 +787,9 @@ mod tests {
 
         // Step 8 (client + relayer): Round 2 (sign), each signer produces a signature share.
         // Step 8a (client): produce the client's signature share.
-        let client_sig_share = frost_ed25519::round2::sign(
-            &signing_package,
-            &client_nonces,
-            &client_key_package,
-        )
-        .expect("client round2 sign should succeed");
+        let client_sig_share =
+            frost_ed25519::round2::sign(&signing_package, &client_nonces, &client_key_package)
+                .expect("client round2 sign should succeed");
 
         // Step 8a.1 (client -> relayer): Round 2 HTTP call (signature share exchange / aggregation).
         //
@@ -801,22 +799,17 @@ mod tests {
 
         // Step 8b (relayer): produce the relayer's signature share (performed on the server while handling
         // `/threshold-ed25519/sign/finalize`).
-        let relayer_sig_share = frost_ed25519::round2::sign(
-            &signing_package,
-            &relayer_nonces,
-            &relayer_key_package,
-        )
-        .expect("relayer round2 sign should succeed");
+        let relayer_sig_share =
+            frost_ed25519::round2::sign(&signing_package, &relayer_nonces, &relayer_key_package)
+                .expect("relayer round2 sign should succeed");
 
         // Step 9 (client/coordinator): collect the verify shares into a public key package
         //  for validating shares + aggregating signature shares
         let mut verifying_shares = BTreeMap::new();
         verifying_shares.insert(client_identifier, client_verifying_share);
         verifying_shares.insert(relayer_identifier, relayer_verifying_share);
-        let pubkey_package = frost_ed25519::keys::PublicKeyPackage::new(
-            verifying_shares,
-            verifying_key
-        );
+        let pubkey_package =
+            frost_ed25519::keys::PublicKeyPackage::new(verifying_shares, verifying_key);
 
         // Step 10 (client/coordinator): aggregate signature shares into a single Ed25519 signature
         let mut signature_shares = BTreeMap::new();
@@ -826,8 +819,9 @@ mod tests {
         let group_signature = frost_ed25519::aggregate(
             &signing_package, // client constructed this from collected commitments + message digest
             &signature_shares,
-            &pubkey_package
-        ).expect("aggregate should succeed");
+            &pubkey_package,
+        )
+        .expect("aggregate should succeed");
 
         let sig_bytes = group_signature
             .serialize()

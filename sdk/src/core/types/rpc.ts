@@ -3,6 +3,8 @@ import type { AccessKeyView, TxExecutionStatus } from "@near-js/types";
 export const DEFAULT_WAIT_STATUS = {
   executeAction: "EXECUTED_OPTIMISTIC" as TxExecutionStatus,
   linkDeviceAddKey: "INCLUDED_FINAL" as TxExecutionStatus,
+  // Threshold AddKey is safe to treat optimistically; finality will converge shortly after.
+  thresholdAddKey: "EXECUTED_OPTIMISTIC" as TxExecutionStatus,
   linkDeviceSwapKey: "FINAL" as TxExecutionStatus,
   linkDeviceAccountMapping: "INCLUDED_FINAL" as TxExecutionStatus,
   linkDeviceDeleteKey: "INCLUDED_FINAL" as TxExecutionStatus,

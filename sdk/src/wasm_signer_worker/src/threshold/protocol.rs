@@ -19,7 +19,8 @@ pub(super) fn client_round1_commit(
     key_package: &frost_ed25519::keys::KeyPackage,
 ) -> Result<ClientRound1State, String> {
     let mut rng = frost_ed25519::rand_core::OsRng;
-    let (nonces, commitments) = frost_ed25519::round1::commit(key_package.signing_share(), &mut rng);
+    let (nonces, commitments) =
+        frost_ed25519::round1::commit(key_package.signing_share(), &mut rng);
     let commitments_wire = commitments_to_wire(&commitments)?;
     Ok(ClientRound1State {
         nonces,
@@ -57,12 +58,17 @@ pub(super) fn commitments_from_wire(
         .map_err(|e| format!("threshold-signer: invalid hiding commitment: {e}"))?;
     let binding = frost_ed25519::round1::NonceCommitment::deserialize(&binding_bytes)
         .map_err(|e| format!("threshold-signer: invalid binding commitment: {e}"))?;
-    Ok(frost_ed25519::round1::SigningCommitments::new(hiding, binding))
+    Ok(frost_ed25519::round1::SigningCommitments::new(
+        hiding, binding,
+    ))
 }
 
 pub(super) fn build_signing_package(
     message: &[u8],
-    commitments_by_id: BTreeMap<frost_ed25519::Identifier, frost_ed25519::round1::SigningCommitments>,
+    commitments_by_id: BTreeMap<
+        frost_ed25519::Identifier,
+        frost_ed25519::round1::SigningCommitments,
+    >,
 ) -> frost_ed25519::SigningPackage {
     frost_ed25519::SigningPackage::new(commitments_by_id, message)
 }
@@ -106,9 +112,11 @@ pub(super) fn aggregate_signature(
     verifying_shares: BTreeMap<frost_ed25519::Identifier, frost_ed25519::keys::VerifyingShare>,
     signature_shares: BTreeMap<frost_ed25519::Identifier, frost_ed25519::round2::SignatureShare>,
 ) -> Result<[u8; 64], String> {
-    let pubkey_package = frost_ed25519::keys::PublicKeyPackage::new(verifying_shares, verifying_key);
-    let group_signature = frost_ed25519::aggregate(signing_package, &signature_shares, &pubkey_package)
-        .map_err(|e| format!("threshold-signer: aggregate failed: {e}"))?;
+    let pubkey_package =
+        frost_ed25519::keys::PublicKeyPackage::new(verifying_shares, verifying_key);
+    let group_signature =
+        frost_ed25519::aggregate(signing_package, &signature_shares, &pubkey_package)
+            .map_err(|e| format!("threshold-signer: aggregate failed: {e}"))?;
     let bytes = group_signature
         .serialize()
         .map_err(|e| format!("threshold-signer: signature serialization failed: {e}"))?;
@@ -122,4 +130,3 @@ pub(super) fn aggregate_signature(
     out.copy_from_slice(&bytes);
     Ok(out)
 }
-

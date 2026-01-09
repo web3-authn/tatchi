@@ -93,8 +93,8 @@ mod tests {
             wrap_key_salt: base64_url_encode(&[2u8; 32]),
         };
 
-        let err = derive_threshold_client_signing_share_bytes_v1(&wrap_key, "alice.near")
-            .unwrap_err();
+        let err =
+            derive_threshold_client_signing_share_bytes_v1(&wrap_key, "alice.near").unwrap_err();
         assert!(err.contains("expected 32 bytes"), "unexpected error: {err}");
     }
 }

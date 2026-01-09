@@ -1,6 +1,6 @@
 use crate::threshold::signer_backend::Ed25519SignerBackend;
-use crate::threshold::threshold_frost::compute_threshold_ed25519_group_public_key_2p_from_verifying_shares;
 use crate::threshold::threshold_client_share::derive_threshold_client_verifying_share_bytes_v1;
+use crate::threshold::threshold_frost::compute_threshold_ed25519_group_public_key_2p_from_verifying_shares;
 use crate::transaction::{
     build_transaction_with_actions, calculate_transaction_hash, sign_transaction,
 };
@@ -122,12 +122,13 @@ pub async fn handle_sign_add_key_threshold_public_key_no_prompt(
     // Deterministic 2-of-2 group PK from verifying shares (participant-id aware).
     let client_participant_id = request.client_participant_id.unwrap_or(1);
     let relayer_participant_id = request.relayer_participant_id.unwrap_or(2);
-    let expected_group_pk_bytes = compute_threshold_ed25519_group_public_key_2p_from_verifying_shares(
-        client_point,
-        relayer_point,
-        client_participant_id,
-        relayer_participant_id,
-    )?;
+    let expected_group_pk_bytes =
+        compute_threshold_ed25519_group_public_key_2p_from_verifying_shares(
+            client_point,
+            relayer_point,
+            client_participant_id,
+            relayer_participant_id,
+        )?;
     if expected_group_pk_bytes != threshold_pk_bytes {
         return Err("Relay returned thresholdPublicKey that does not match the client+relayer verifying shares".to_string());
     }

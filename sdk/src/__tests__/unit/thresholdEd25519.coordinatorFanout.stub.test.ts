@@ -1,63 +1,19 @@
 import { test, expect } from '@playwright/test';
-import { ThresholdEd25519Service } from '../../server/core/ThresholdService/ThresholdEd25519Service';
-import { createThresholdEd25519SessionStore } from '../../server/core/ThresholdService/ThresholdEd25519SessionStore';
-
-function silentLogger() {
-  return { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
-}
-
-async function verifyCoordinatorGrantHmac(token: string, secretB64u: string): Promise<any> {
-  const [payloadB64u, sigB64u] = token.split('.');
-  expect(payloadB64u).toBeTruthy();
-  expect(sigB64u).toBeTruthy();
-
-  const payloadBytes = Buffer.from(payloadB64u, 'base64url');
-  const sigBytes = Buffer.from(sigB64u, 'base64url');
-  expect(sigBytes.length).toBe(32);
-
-  const secretBytes = Buffer.from(secretB64u, 'base64url');
-  expect(secretBytes.length).toBe(32);
-
-  const key = await crypto.subtle.importKey(
-    'raw',
-    secretBytes,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const expected = Buffer.from(await crypto.subtle.sign('HMAC', key, payloadBytes));
-  expect(Buffer.compare(expected, sigBytes)).toBe(0);
-
-  return JSON.parse(payloadBytes.toString('utf8'));
-}
+import {
+  createThresholdEd25519ServiceForUnitTests,
+  verifyThresholdEd25519CoordinatorGrantHmac,
+} from '../helpers/thresholdEd25519TestUtils';
 
 test('threshold-ed25519 coordinator fanout (2P stub) uses coordinatorGrant + stores transcript', async () => {
-  const logger = silentLogger();
   const secretB64u = Buffer.alloc(32, 7).toString('base64url');
   const peerUrl = 'https://peer.example';
 
-  const sessionStore = createThresholdEd25519SessionStore({
-    config: { kind: 'in-memory' },
-    logger,
-    isNode: true,
-  });
-
-  const svc = new ThresholdEd25519Service({
-    logger,
-    keyStore: { get: async () => null, put: async () => {}, del: async () => {} },
-    sessionStore,
-    authSessionStore: { putSession: async () => {}, getSession: async () => null, consumeUse: async () => ({ ok: false, code: 'unauthorized', message: 'unused' }) },
+  const { svc, sessionStore } = createThresholdEd25519ServiceForUnitTests({
     config: {
       THRESHOLD_NODE_ROLE: 'coordinator',
       THRESHOLD_COORDINATOR_PEERS: JSON.stringify([{ id: 2, relayerUrl: peerUrl }]),
       THRESHOLD_COORDINATOR_SHARED_SECRET_B64U: secretB64u,
     },
-    ensureReady: async () => {},
-    ensureSignerWasm: async () => {},
-    verifyAuthenticationResponse: async () => ({ success: false }),
-    viewAccessKeyList: async () => ({ keys: [] } as any),
-    txStatus: async () => ({} as any),
-    webAuthnContractId: 'test',
   });
 
   const mpcSessionId = 'mpc-test-1';
@@ -90,7 +46,7 @@ test('threshold-ed25519 coordinator fanout (2P stub) uses coordinatorGrant + sto
       if (url === `${peerUrl}/threshold-ed25519/internal/sign/init`) {
         expect(body.clientCommitments?.hiding).toBe('h');
         expect(body.clientCommitments?.binding).toBe('b');
-        const grant = await verifyCoordinatorGrantHmac(String(body.coordinatorGrant || ''), secretB64u);
+        const grant = await verifyThresholdEd25519CoordinatorGrantHmac(String(body.coordinatorGrant || ''), secretB64u);
         expect(grant.typ).toBe('threshold_ed25519_coordinator_grant_v1');
         expect(grant.peerParticipantId).toBe(2);
         expect(grant.mpcSessionId).toBe(mpcSessionId);
@@ -106,7 +62,7 @@ test('threshold-ed25519 coordinator fanout (2P stub) uses coordinatorGrant + sto
       }
 
       if (url === `${peerUrl}/threshold-ed25519/internal/sign/finalize`) {
-        const grant = await verifyCoordinatorGrantHmac(String(body.coordinatorGrant || ''), secretB64u);
+        const grant = await verifyThresholdEd25519CoordinatorGrantHmac(String(body.coordinatorGrant || ''), secretB64u);
         expect(grant.typ).toBe('threshold_ed25519_coordinator_grant_v1');
         expect(grant.peerParticipantId).toBe(2);
         expect(grant.mpcSessionId).toBe(mpcSessionId);

@@ -30,8 +30,13 @@ import {
   type PendingStore,
 } from '../EmailRecovery';
 import { EmailRecoveryError, EmailRecoveryErrorCode } from '../types/emailRecovery';
-import { getEmailRecoveryAttempt } from '../rpcCalls';
+import {
+  syncAuthenticatorsContractCall,
+  getEmailRecoveryAttempt,
+  thresholdEd25519KeygenFromRegistrationTx
+} from '../rpcCalls';
 import { ensureEd25519Prefix } from '../nearCrypto';
+import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
 
 export type PendingEmailRecoveryStatus =
   | 'awaiting-email'
@@ -267,7 +272,6 @@ export class EmailRecoveryFlow {
 
   private async getNextDeviceNumberFromContract(nearAccountId: AccountId): Promise<number> {
     try {
-      const { syncAuthenticatorsContractCall } = await import('../rpcCalls');
       const authenticators = await syncAuthenticatorsContractCall(
         this.context.nearClient,
         this.context.configs.contractId,
@@ -958,6 +962,12 @@ export class EmailRecoveryFlow {
       if (typeof hash === 'string' && hash.length > 0) return hash;
     }
 
+    const txOutcomeId = (outcome as unknown as { transaction_outcome?: unknown })?.transaction_outcome;
+    if (txOutcomeId && typeof txOutcomeId === 'object') {
+      const id = (txOutcomeId as Record<string, unknown>).id;
+      if (typeof id === 'string' && id.length > 0) return id;
+    }
+
     const fallback = (outcome as unknown as Record<string, unknown>).transaction_hash;
     return typeof fallback === 'string' && fallback.length > 0 ? fallback : undefined;
   }
@@ -991,7 +1001,6 @@ export class EmailRecoveryFlow {
 
   private async syncAuthenticatorsBestEffort(accountId: AccountId): Promise<boolean> {
     try {
-      const { syncAuthenticatorsContractCall } = await import('../rpcCalls');
       const authenticators = await syncAuthenticatorsContractCall(
         this.context.nearClient,
         this.context.configs.contractId,
@@ -1237,7 +1246,9 @@ export class EmailRecoveryFlow {
 
       // Activate threshold enrollment for this device by ensuring threshold key
       // material is available locally (and AddKey if needed).
-      await this.activateThresholdEnrollment(accountId, rec);
+      if (txHash) {
+        await this.activateThresholdEnrollment(accountId, rec, txHash);
+      }
 
       this.emitAutoLoginEvent(EmailRecoveryStatus.PROGRESS, 'Attempting auto-login with recovered device...', {
         autoLogin: 'progress',
@@ -1280,7 +1291,11 @@ export class EmailRecoveryFlow {
     }
   }
 
-  private async activateThresholdEnrollment(accountId: AccountId, rec: PendingEmailRecovery): Promise<void> {
+  private async activateThresholdEnrollment(
+    accountId: AccountId,
+    rec: PendingEmailRecovery,
+    registrationTxHash: string,
+  ): Promise<void> {
     const deviceNumber = parseDeviceNumber(rec.deviceNumber, { min: 1 });
     if (deviceNumber === null) {
       throw new Error(`Invalid deviceNumber for threshold enrollment: ${String(rec.deviceNumber)}`);
@@ -1297,15 +1312,87 @@ export class EmailRecoveryFlow {
       return;
     }
 
-    const enrollment = await this.context.webAuthnManager.enrollThresholdEd25519Key({
+    const relayerUrl = this.context.configs.relayer.url;
+    if (!relayerUrl) {
+      throw new Error('Missing configs.relayer.url (required for threshold enrollment)');
+    }
+
+    const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(accountId, deviceNumber);
+    if (!localKeyMaterial) {
+      throw new Error(`Missing local key material for ${String(accountId)} device ${deviceNumber}`);
+    }
+
+    const derived = await this.context.webAuthnManager.deriveThresholdEd25519ClientVerifyingShareFromCredential({
       credential: rec.credential,
       nearAccountId: accountId,
+      wrapKeySalt: localKeyMaterial.wrapKeySalt,
+    });
+    if (!derived.success) {
+      throw new Error(derived.error || 'Failed to derive threshold client verifying share');
+    }
+
+    const keygen = await thresholdEd25519KeygenFromRegistrationTx(relayerUrl, {
+      nearAccountId: accountId,
+      clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+      registrationTxHash,
+    });
+    if (!keygen.ok) {
+      throw new Error(keygen.error || keygen.message || keygen.code || 'Threshold registration keygen failed');
+    }
+
+    const thresholdPublicKey = ensureEd25519Prefix(keygen.publicKey || '');
+    if (!thresholdPublicKey) throw new Error('Threshold registration keygen returned empty publicKey');
+    const relayerKeyId = String(keygen.relayerKeyId || '').trim();
+    if (!relayerKeyId) throw new Error('Threshold registration keygen returned empty relayerKeyId');
+    const relayerVerifyingShareB64u = String(keygen.relayerVerifyingShareB64u || '').trim();
+    if (!relayerVerifyingShareB64u) throw new Error('Threshold registration keygen returned empty relayerVerifyingShareB64u');
+
+    // Activate threshold enrollment on-chain by submitting AddKey(thresholdPublicKey) signed with the local key.
+    try {
+      this.context.webAuthnManager.getNonceManager().initializeUser(accountId, localKeyMaterial.publicKey);
+    } catch {}
+    const txContext = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(
+      this.context.nearClient,
+      { force: true },
+    );
+    const signed = await this.context.webAuthnManager.signAddKeyThresholdPublicKeyNoPrompt({
+      nearAccountId: accountId,
+      credential: rec.credential,
+      wrapKeySalt: localKeyMaterial.wrapKeySalt,
+      transactionContext: txContext,
+      thresholdPublicKey,
+      relayerVerifyingShareB64u,
+      clientParticipantId: keygen.clientParticipantId,
+      relayerParticipantId: keygen.relayerParticipantId,
       deviceNumber,
     });
+    const signedTx = signed?.signedTransaction;
+    if (!signedTx) throw new Error('Failed to sign AddKey(thresholdPublicKey) transaction');
 
-    if (!enrollment.success) {
-      throw new Error(enrollment.error || 'Threshold enrollment failed');
-    }
+    await this.context.nearClient.sendTransaction(
+      signedTx,
+      DEFAULT_WAIT_STATUS.thresholdAddKey,
+    );
+
+    await IndexedDBManager.nearKeysDB.storeKeyMaterial({
+      kind: 'threshold_ed25519_2p_v1',
+      nearAccountId: String(accountId),
+      deviceNumber,
+      publicKey: thresholdPublicKey,
+      wrapKeySalt: derived.wrapKeySalt,
+      relayerKeyId,
+      clientShareDerivation: 'prf_first_v1',
+      participants: buildThresholdEd25519Participants2pV1({
+        clientParticipantId: keygen.clientParticipantId,
+        relayerParticipantId: keygen.relayerParticipantId,
+        relayerKeyId,
+        relayerUrl,
+        clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+        relayerVerifyingShareB64u,
+        clientShareDerivation: 'prf_first_v1',
+      }),
+      timestamp: Date.now(),
+    });
   }
 
   private async attemptAutoLogin(rec: PendingEmailRecovery): Promise<AutoLoginResult> {

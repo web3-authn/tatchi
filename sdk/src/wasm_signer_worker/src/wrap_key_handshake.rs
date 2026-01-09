@@ -144,7 +144,10 @@ pub fn attach_wrap_key_seed_port(session_id: String, port_val: JsValue) {
     }
 }
 
-fn lookup_wrap_key_shards(session_id: &str, _request_type: WorkerRequestType) -> Result<WrapKey, JsValue> {
+fn lookup_wrap_key_shards(
+    session_id: &str,
+    _request_type: WorkerRequestType,
+) -> Result<WrapKey, JsValue> {
     let material = WRAP_KEY_SEED_SESSIONS.with(|map| map.borrow().get(session_id).cloned());
     let Some(mat) = material else {
         return Err(JsValue::from_str(&format!(
@@ -156,7 +159,10 @@ fn lookup_wrap_key_shards(session_id: &str, _request_type: WorkerRequestType) ->
     Ok(mat)
 }
 
-fn lookup_prf_second(session_id: &str, _request_type: WorkerRequestType) -> Result<String, JsValue> {
+fn lookup_prf_second(
+    session_id: &str,
+    _request_type: WorkerRequestType,
+) -> Result<String, JsValue> {
     let prf_second = SESSION_PRF_OUTPUTS.with(|map| map.borrow().get(session_id).cloned());
     let Some(prf) = prf_second else {
         return Err(JsValue::from_str(&format!(

@@ -6,6 +6,7 @@ import { createAuthServiceConfig } from './config';
 import { formatGasToTGas, formatYoctoToNear } from './utils';
 import { parseContractExecutionError } from './errors';
 import { toOptionalTrimmedString } from '../../utils/validation';
+import { coerceThresholdEd25519ShareMode, coerceThresholdNodeRole } from './ThresholdService/config';
 import initSignerWasm, {
   handle_signer_message,
   WorkerRequestType,
@@ -75,20 +76,8 @@ function getSignerWasmUrls(logger: NormalizedLogger): URL[] {
 function summarizeThresholdEd25519Config(cfg: AuthServiceConfig['thresholdEd25519KeyStore']): string {
   if (!cfg) return 'thresholdEd25519: not configured';
 
-  const defaultNodeRole = 'coordinator' as const;
-  const defaultShareMode = 'auto' as const;
-
-  const nodeRole = (() => {
-    if ('kind' in cfg) return defaultNodeRole;
-    const raw = toOptionalTrimmedString(cfg.THRESHOLD_NODE_ROLE);
-    return raw === 'participant' ? 'participant' : defaultNodeRole;
-  })();
-
-  const shareMode = (() => {
-    if ('kind' in cfg) return defaultShareMode;
-    const raw = toOptionalTrimmedString(cfg.THRESHOLD_ED25519_SHARE_MODE);
-    return (raw === 'kv' || raw === 'derived' || raw === 'auto') ? raw : defaultShareMode;
-  })();
+  const nodeRole = coerceThresholdNodeRole(cfg.THRESHOLD_NODE_ROLE);
+  const shareMode = coerceThresholdEd25519ShareMode(cfg.THRESHOLD_ED25519_SHARE_MODE);
 
   const masterSecretSet = (() => {
     if ('kind' in cfg) return false;
@@ -323,9 +312,9 @@ export class AuthService {
       try {
         const filePath = fileURLToPath(url);
         const bytes = await readFile(filePath);
-        // Ensure we pass an ArrayBuffer, not a Node Buffer (type mismatch)
-        const u8 = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        const ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+        // Ensure we pass an ArrayBuffer (not Buffer / SharedArrayBuffer) for WebAssembly.compile
+        const ab = new ArrayBuffer(bytes.byteLength);
+        new Uint8Array(ab).set(bytes);
         const module = await WebAssembly.compile(ab);
         await initSignerWasm({ module_or_path: module });
         return;

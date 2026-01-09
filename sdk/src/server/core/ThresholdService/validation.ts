@@ -3,8 +3,6 @@ import { alphabetizeStringify, sha256BytesUtf8 } from '../../../utils/digests';
 import { ensureEd25519Prefix, toOptionalString, toTrimmedString } from '../../../utils/validation';
 import {
   THRESHOLD_ED25519_2P_PARTICIPANT_IDS,
-  THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
-  THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
   normalizeThresholdEd25519ParticipantIds,
 } from '../../../threshold/participants';
 
@@ -133,8 +131,6 @@ export type ParsedThresholdEd25519SigningSessionRecord = {
   userId: string;
   rpId: string;
   clientVerifyingShareB64u: string;
-  clientCommitments: ParsedThresholdEd25519Commitments;
-  relayerCommitments: ParsedThresholdEd25519Commitments;
   commitmentsById: ParsedThresholdEd25519CommitmentsById;
   relayerNoncesB64u: string;
   participantIds: number[];
@@ -149,9 +145,7 @@ export function parseThresholdEd25519SigningSessionRecord(raw: unknown): ParsedT
   const userId = toOptionalString(raw.userId);
   const rpId = toOptionalString(raw.rpId);
   const clientVerifyingShareB64u = toOptionalString(raw.clientVerifyingShareB64u);
-  const clientCommitments = parseThresholdEd25519Commitments(raw.clientCommitments);
-  const relayerCommitments = parseThresholdEd25519Commitments(raw.relayerCommitments);
-  const commitmentsByIdParsed = parseThresholdEd25519CommitmentsById(raw.commitmentsById);
+  const commitmentsById = parseThresholdEd25519CommitmentsById(raw.commitmentsById);
   const relayerNoncesB64u = toOptionalString(raw.relayerNoncesB64u);
   const participantIds =
     normalizeThresholdEd25519ParticipantIds(raw.participantIds)
@@ -164,8 +158,7 @@ export function parseThresholdEd25519SigningSessionRecord(raw: unknown): ParsedT
     !userId ||
     !rpId ||
     !clientVerifyingShareB64u ||
-    !clientCommitments ||
-    !relayerCommitments ||
+    !commitmentsById ||
     !relayerNoncesB64u
   ) {
     return null;
@@ -178,13 +171,7 @@ export function parseThresholdEd25519SigningSessionRecord(raw: unknown): ParsedT
     userId,
     rpId,
     clientVerifyingShareB64u,
-    clientCommitments,
-    relayerCommitments,
-    commitmentsById: {
-      ...(commitmentsByIdParsed || {}),
-      [String(THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID)]: clientCommitments,
-      [String(THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID)]: relayerCommitments,
-    },
+    commitmentsById,
     relayerNoncesB64u,
     participantIds,
   };
