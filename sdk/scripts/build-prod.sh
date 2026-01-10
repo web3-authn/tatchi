@@ -55,7 +55,7 @@ print_step "Generating CSS variables from palette.json (w3a-components.css)..."
 if node ./scripts/generate-w3a-components-css.mjs; then print_success "w3a-components.css generated"; else print_error "Failed to generate w3a-components.css"; exit 1; fi
 
 print_step "Bundling with Rolldown (production)..."
-if NODE_ENV=production npx rolldown -c rolldown.config.ts; then print_success "Rolldown bundling completed"; else print_error "Rolldown bundling failed"; exit 1; fi
+if NODE_ENV=production npx rolldown -c rolldown.config.ts --minify; then print_success "Rolldown bundling completed"; else print_error "Rolldown bundling failed"; exit 1; fi
 
 print_step "Bundling workers with Bun (minified)..."
 if [ -z "$BUN_BIN" ]; then print_error "Bun not found. Install Bun or ensure it is on PATH."; exit 1; fi
