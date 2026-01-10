@@ -53,7 +53,7 @@ sequenceDiagram
 
   Note over App,Relay: 3) Keygen on relay (WebAuthn+VRF verified)
   App->>Relay: POST /threshold-ed25519/keygen
-  Relay-->>App: { publicKey=groupPk, relayerKeyId, relayerVerifyingShareB64u }
+  Relay-->>App: publicKey=groupPk, relayerKeyId, relayerVerifyingShareB64u
 
   Note over App,NEAR: 4) Activate groupPk on-chain
   App->>Signer: sign AddKey(groupPk) (no extra prompt)
@@ -82,19 +82,19 @@ sequenceDiagram
   Note over App,VRF: 1) Confirm + VRF/WebAuthn (freshness + user presence)
   App->>VRF: confirmAndPrepareSigningSession(intent)
   VRF-->>Signer: MessagePort: WrapKeySeed + wrapKeySalt
-  VRF-->>App: { intentDigest, transactionContext, vrfChallenge?, credential? }
+  VRF-->>App: intentDigest, transactionContext, vrfChallenge?, credential?
 
   Note over Signer,Relay: 2) Authorize digest + payload on relay
   Signer->>Relay: POST /threshold-ed25519/authorize (or via session token)
-  Relay-->>Signer: { mpcSessionId }
+  Relay-->>Signer: mpcSessionId
 
   Note over Signer,Relay: 3) FROST round 1 (commitments)
   Signer->>Relay: POST /threshold-ed25519/sign/init (mpcSessionId + clientCommitments)
-  Relay-->>Signer: { signingSessionId, commitmentsById, relayerVerifyingSharesById, participantIds }
+  Relay-->>Signer: signingSessionId, commitmentsById, relayerVerifyingSharesById, participantIds
 
   Note over Signer,Relay: 4) FROST round 2 (signature shares)
   Signer->>Relay: POST /threshold-ed25519/sign/finalize (clientSignatureShareB64u)
-  Relay-->>Signer: { relayerSignatureSharesById }
+  Relay-->>Signer: relayerSignatureSharesById
   Signer->>Signer: aggregate(clientShare, relayerSharesById) => Ed25519 signature
 ```
 
@@ -141,11 +141,6 @@ And the on-chain public key is:
 
 (For non-default participant ids, the Lagrange coefficients change; the implementation computes them from the configured participant ids.)
 
-Code references:
-- Client share derivation + verifying share: `sdk/src/wasm_signer_worker/src/threshold/threshold_client_share.rs:11` (`derive_threshold_client_share_scalar_v1`, `derive_threshold_client_verifying_share_bytes_v1`)
-- Relayer derived-share HKDF construction: `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs:37` (`derive_threshold_relayer_share_scalar_v1`)
-- Relayer random-share generation: `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs:110`
-- Group public key from `{V₁,V₂}` using `λ₁=2, λ₂=-1`: `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs:129`
 
 ### Signing Math (Two-Round FROST)
 
@@ -177,12 +172,6 @@ Finally the coordinator aggregates:
 
 and returns `(R, z)`.
 
-Code references:
-- Client round1 commit + send commitments: `sdk/src/wasm_signer_worker/src/threshold/signer_backend.rs:567`
-- Relayer round1 commit helper (WASM): `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs:235`
-- Client round2 signature share + finalize: `sdk/src/wasm_signer_worker/src/threshold/signer_backend.rs:617`
-- Relayer round2 signature share helper (WASM): `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs:296`
-- Aggregation into final Ed25519 signature: `sdk/src/wasm_signer_worker/src/threshold/signer_backend.rs:656`
 
 ## Threshold Sessions
 
@@ -193,12 +182,3 @@ To avoid running `/authorize` with WebAuthn+VRF on every signature, the SDK can 
 - Subsequent `/authorize` calls can use the session token instead of a fresh WebAuthn assertion.
 
 The session policy is validated server-side (TTL caps + use count caps) and is *cryptographically bound* into the VRF challenge to prevent policy tampering.
-
-## Code Pointers
-
-- Client enrollment: `sdk/src/core/WebAuthnManager/index.ts` (`enrollThresholdEd25519KeyPostRegistration`, `enrollThresholdEd25519Key`)
-- Client signing switch + payload plumbing: `sdk/src/core/WebAuthnManager/SignerWorkerManager/handlers/signTransactionsWithActions.ts`
-- Signer worker threshold backend: `sdk/src/wasm_signer_worker/src/threshold/signer_backend.rs`
-- Relayer HTTP endpoints (from WASM): `sdk/src/wasm_signer_worker/src/threshold/relayer_http.rs`
-- Relayer service implementation: `sdk/src/server/core/ThresholdService/ThresholdEd25519Service.ts`
-- Express routes: `sdk/src/server/router/express/routes/thresholdEd25519.ts`

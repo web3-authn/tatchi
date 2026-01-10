@@ -118,15 +118,15 @@ sequenceDiagram
 
     alt Warm session available (no prompt)
         UI->>VRF: DISPENSE_SESSION_KEY(sessionId, uses)
-        VRF-->>Signer: MessagePort {WrapKeySeed, wrapKeySalt}
+        VRF-->>Signer: MessagePort: WrapKeySeed + wrapKeySalt
     else Cold session (mint/refresh)
         UI->>UI: Show wallet confirm UI
         UI->>UI: WebAuthn (TouchID) → credential (PRF outputs in extensions)
         UI->>VRF: MINT_SESSION_KEYS_AND_SEND_TO_SIGNER(sessionId, credential, ttl/uses)
         VRF->>Chain: (optional) verify_authentication_response
         Chain-->>VRF: verified
-        VRF->>VRF: Derive WrapKeySeed; cache TTL/uses
-        VRF-->>Signer: MessagePort {WrapKeySeed, wrapKeySalt}
+        VRF->>VRF: Derive WrapKeySeed, cache TTL/uses
+        VRF-->>Signer: MessagePort: WrapKeySeed + wrapKeySalt
     end
 
     UI->>Signer: SIGN_* request (sessionId + vault ciphertext)
