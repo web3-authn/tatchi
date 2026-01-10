@@ -139,7 +139,7 @@ The callback chain follows this flow:
 ### 3. **wallet-iframe-host.ts** (Service Host)
 - Receives messages via MessagePort in `onPortMessage()`
 - Creates and manages the actual TatchiPasskey instance
-- Executes the requested operations (like `passkeyManager!.registerPasskey()`)
+- Executes the requested operations (like `tatchi!.registerPasskey()`)
 - Sends progress events back via `post({ type: 'PROGRESS', requestId, payload: ev })`
 - Returns results via `post({ type: 'PM_RESULT', requestId, payload: { ok: true, result } })`
 

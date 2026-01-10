@@ -12,12 +12,6 @@
  * - Bridge Configuration: Specifies how to bridge results back to parent
  * - Type Safety: Provides typed definitions for all component interactions
  *
- * Architecture:
- * - Uses declarative configuration instead of imperative code
- * - Separates component definition from mounting logic
- * - Provides extensible registry for custom components
- * - Maintains type safety across component boundaries
- *
  * Component Types:
  * - UIEventBinding: Maps DOM events to TatchiPasskey actions
  * - UIPropBinding: Maps component props to TatchiPasskey methods
@@ -28,11 +22,6 @@
  * - New components can be added to the registry
  * - Custom event/prop bindings can be defined
  * - Parent applications can register additional component types
- *
- * Security Considerations:
- * - All component definitions are validated before use
- * - Event handlers are properly bound to TatchiPasskey methods
- * - No arbitrary code execution is allowed in component definitions
  */
 
 export type PmActionName =

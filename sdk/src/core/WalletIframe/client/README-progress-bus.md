@@ -124,7 +124,7 @@ Notes:
 
 ### (i) Direct `executeAction` from SDK
 
-Even when you call `passkeyManager.executeAction(...)` directly from your app (not from a Lit component), the flow still meets activation without an extra modal click by combining:
+Even when you call `tatchi.executeAction(...)` directly from your app (not from a Lit component), the flow still meets activation without an extra modal click by combining:
 
 1) Overlay activation at the right phases
    - On `STEP_2_USER_CONFIRMATION` and `STEP_3_WEBAUTHN_AUTHENTICATION`, the `ProgressBus` instructs the router to expand the wallet iframe overlay, so the credential call happens in the wallet document.
