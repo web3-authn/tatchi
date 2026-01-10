@@ -96,7 +96,9 @@ function setupDevUnupgradedObserver(): void {
     const env = (globalThis as any)?.process?.env?.NODE_ENV;
     if (env && env !== 'production') return true;
     const h = window.location.hostname || '';
-    if (/localhost|127\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)|\.local(?:host)?$/i.test(h)) return true;
+    if (/localhost|127\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)|\.local(?:host)?$/i.test(h)) {
+      return true;
+    }
     return false;
   })();
   if (!isDev) return;

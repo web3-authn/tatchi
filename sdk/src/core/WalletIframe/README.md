@@ -167,19 +167,67 @@ So yes, your understanding is correct: **TatchiPasskeyIframe → WalletIframeRou
 
 The wallet iframe mounts as an invisible 0×0 element and temporarily expands to a full‑screen overlay when user activation (e.g., TouchID/WebAuthn) is needed. This lets the wallet host collect credentials in the same browsing context while satisfying WebAuthn requirements.
 
+### OverlayController (state owner)
+
+The OverlayController is the single owner of wallet iframe overlay state. It manages
+visibility, positioning, and sticky behavior without scattering style writes across
+router code. Styling is CSP-safe and applied via CSS classes and a shared stylesheet.
+
+#### Modes
+
+- `hidden`: no footprint, pointer-events disabled
+- `fullscreen`: fixed inset, fills viewport for WebAuthn activation
+- `anchored`: fixed rect at specific viewport coordinates
+
+#### API (current)
+
+```ts
+type DOMRectLike = { top: number; left: number; width: number; height: number };
+
+class OverlayController {
+  constructor(opts: { ensureIframe: () => HTMLIFrameElement });
+  showFullscreen(): void;
+  showAnchored(rect: DOMRectLike): void;
+  showPreferAnchored(): void;     // anchored if rect set, else fullscreen
+  setAnchoredRect(rect: DOMRectLike): void;
+  clearAnchoredRect(): void;
+  setSticky(v: boolean): void;    // hide() is ignored when sticky
+  hide(): void;
+  getState(): { visible: boolean; mode: 'hidden' | 'fullscreen' | 'anchored'; sticky: boolean; rect?: DOMRectLike };
+}
+```
+
+#### Router integration
+
+- Router owns the controller instance and is the only caller.
+- `computeOverlayIntent()` decides whether to show fullscreen before posting a request.
+- `OnEventsProgressBus` decides when to hide after completion; the controller just executes.
+- `setOverlayBounds()` anchors the iframe for inline UI overlays.
+
+#### Styling notes
+
+- Uses class-based styling from `passkey-sdk/src/core/WalletIframe/client/overlay-styles.ts` (no inline styles).
+- Anchored rects are clamped to non-negative coordinates with minimum size.
+- Default z-index is `2147483646` via `--w3a-wallet-overlay-z`.
+
+### Overlay lifecycle
+
 - Initial mount (hidden):
-  - `passkey-sdk/src/core/WalletIframe/client/IframeTransport.ts` mounts the iframe with `position: fixed`, `width/height: 0`, `opacity: 0`, and `pointer-events: none` so it is invisible yet present in the DOM.
+  - `passkey-sdk/src/core/WalletIframe/client/IframeTransport.ts` mounts the iframe with `w3a-wallet-overlay is-hidden`, `width/height: 0`, `aria-hidden`, and `tabindex=-1` so it is invisible yet present in the DOM. Base styles come from `passkey-sdk/src/core/WalletIframe/client/overlay-styles.ts`.
 
 - Expand to full‑screen during activation:
-  - `showFrameForActivation()` in `passkey-sdk/src/core/WalletIframe/client/router.ts` sets `position: fixed`, `inset: 0`, `pointer-events: auto`, `opacity: 1`, and `z-index: 2147483646` so the iframe can capture user activation without relying on 100vw/100vh.
+  - `showFrameForActivation()` in `passkey-sdk/src/core/WalletIframe/client/router.ts` ensures the iframe exists and delegates to `OverlayController.showFullscreen()`, which applies the fullscreen class (fixed inset, pointer-events enabled, z-index 2147483646).
   - This is invoked explicitly for sensitive flows (e.g., `registerPasskey()`, `loginAndCreateSession()`, device linking) and implicitly by the progress-heuristic layer described below.
 
 - Collapse back to 0×0:
-  - `hideFrameForActivation()` in the same router shrinks the iframe back to 0×0 and makes it non-interactive.
+  - `hideFrameForActivation()` in the same router delegates to `OverlayController.hide()` to restore the hidden state and make it non-interactive.
   - The router calls `hideFrameForActivation()` when a request finishes (success or error) unless the flow is marked sticky (UI-managed lifecycle).
 
+- Anchored overlays for inline UI:
+  - `setOverlayBounds()` anchors the iframe to a DOMRect via `OverlayController.showAnchored()` for UI components that must appear at a specific viewport location.
+
 - When the overlay shows/hides automatically (heuristics):
-- `passkey-sdk/src/core/WalletIframe/client/on-events-progress-bus.ts` implements `defaultPhaseHeuristics`, which inspects `payload.phase` values emitted by the host.
+  - `passkey-sdk/src/core/WalletIframe/client/on-events-progress-bus.ts` implements `defaultPhaseHeuristics`, which inspects `payload.phase` values emitted by the host.
   - Behavior (tuned to minimize blocking time):
     - Show for phases that require immediate user activation: `user-confirmation`, `webauthn-authentication`, registration `webauthn-verification`, device-linking `authorization`, device-linking `registration`, account-recovery `webauthn-authentication`, and login `webauthn-assertion`.
       - Important: `user-confirmation` must remain in the show list so the modal rendered inside the wallet iframe is visible and can capture a click when `behavior: 'requireClick'`.

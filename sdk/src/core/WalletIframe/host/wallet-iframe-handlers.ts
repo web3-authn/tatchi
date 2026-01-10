@@ -9,7 +9,7 @@ import type {
   PMFinalizeEmailRecoveryPayload,
   PMStopEmailRecoveryPayload,
 } from '../shared/messages';
-import type { TatchiPasskey, PasskeyManagerContext, RecoveryResult } from '../../TatchiPasskey';
+import type { TatchiPasskey } from '../../TatchiPasskey';
 import { OFFLINE_EXPORT_FALLBACK, EXPORT_NEAR_KEYPAIR_CANCELLED, WALLET_UI_CLOSED } from '../../OfflineExport/messages';
 import { isTouchIdCancellationError } from '../../../utils/errors';
 import type {
@@ -24,25 +24,18 @@ import type {
   SignTransactionHooksOptions,
 } from '../../types/sdkSentEvents';
 import type {
-  ActionResult,
-  GetRecentLoginsResult,
   LoginSession,
   RegistrationResult,
-  SignTransactionResult,
 } from '../../types/tatchi';
 import type {
   DeviceLinkingQRData,
   ScanAndLinkDeviceOptionsDevice1,
-  LinkDeviceResult,
-  StartDevice2LinkingFlowResults
 } from '../../types/linkDevice';
 import type { ConfirmationConfig } from '../../types/signer-worker';
 import { toAccountId } from '../../types/accountIds';
 import { SignedTransaction } from '../../NearClient';
-import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
 import { isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, PlainSignedTransactionLike } from '@/utils/validation';
-import type { TransactionInput, ActionArgs } from '../../types';
-import type { DelegateActionInput } from '../../types/delegate';
+import type { ActionArgs } from '../../types';
 
 type Req<T extends ParentToChildType> = Extract<ParentToChildEnvelope, { type: T }>;
 type HandlerMap = { [K in ParentToChildType]: (req: Extract<ParentToChildEnvelope, { type: K }>) => Promise<void> };

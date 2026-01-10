@@ -259,6 +259,7 @@ export class WalletIframeRouter {
       walletOrigin: this.opts.walletOrigin,
       servicePath: this.opts.servicePath,
       connectTimeoutMs: this.opts.connectTimeoutMs,
+      debug: this.debug,
       testOptions: {
         routerId: this.opts.testOptions.routerId,
         ownerTag: this.opts.testOptions.ownerTag,
@@ -1423,12 +1424,8 @@ export class WalletIframeRouter {
 
       try {
         // Step 6: Strip non-cloneable fields (functions) from envelope options before posting
-        const wireOptions = (options && isObject(options))
-          ? (() => {
-              const stickyVal = (options as { sticky?: unknown }).sticky;
-              return isBoolean(stickyVal) ? { sticky: stickyVal } : undefined;
-            })()
-          : undefined;
+        const stickyVal = isObject(options) ? (options as { sticky?: unknown }).sticky : undefined;
+        const wireOptions = isBoolean(stickyVal) ? { sticky: stickyVal } : undefined;
         const serializableFull = wireOptions ? { ...full, options: wireOptions } : { ...full, options: undefined };
 
         // Align overlay stickiness with request options (phase 2 will use intents)
@@ -1456,50 +1453,9 @@ export class WalletIframeRouter {
   }
 
   /**
-   * computeOverlayIntent - Preflight "Show" Decision
-   *
-   * This method makes the initial decision about whether to show the overlay
-   * BEFORE sending the request to the iframe. It's a conservative preflight
-   * check that ensures the iframe is visible in time for user activation.
-   *
-   * Key Responsibilities:
-   * - Preflight Decision: Determines overlay visibility before request is sent
-   * - User Activation Timing: Ensures iframe is visible when WebAuthn prompts appear
-   * - Conservative Approach: Only shows overlay if not already visible
-   * - Request Type Mapping: Maps message types to overlay requirements
-   *
-   * How it differs from other components:
-   *
-   * vs OnEventsProgressBus (lifecycle and close decision):
-   * - computeOverlayIntent: "SHOW" decision - runs before sending request
-   * - OnEventsProgressBus: "CLOSE" decision - runs during operation lifecycle
-   * - OnEventsProgressBus drives ongoing UI phases and manages sticky behavior
-   * - OnEventsProgressBus handles PM_RESULT/ERROR and decides when to hide overlay
-   *
-   * vs OverlayController (single executor):
-   * - computeOverlayIntent: DECIDES what to do (show/hide decision logic)
-   * - OverlayController: EXECUTES the decision (actual CSS manipulation)
-   * - OverlayController receives commands from both intent and ProgressBus
-   * - OverlayController keeps all style mutations in one place
-   *
-   * Architecture Flow:
-   * 1. computeOverlayIntent() → decides to show overlay
-   * 2. OverlayController.showFullscreen() → executes the decision
-   * 3. Request sent to iframe → operation begins
-   * 4. OnEventsProgressBus manages lifecycle → handles progress events
-   * 5. OnEventsProgressBus decides to hide → when operation completes
-   * 6. OverlayController.hide() → executes the hide decision
-   *
-   * Special Cases:
-   * - Anchored flows (UI registry with viewportRect) are message-driven
-   * - Parent sets bounds and sticky via registry messages
-   * - computeOverlayIntent returns 'hidden' for these (don't pre-show)
-   * - Some legacy paths still call showFrameForActivation() directly
-   *
-   * Future Evolution:
-   * - If host always emits early PROGRESS for a type, this can be reduced
-   * - Intent is to move toward OnEventsProgressBus-driven lifecycle management
-   * - This provides predictable, glitch-free activation without hardcoding
+   * Preflight overlay decision before sending the request.
+   * - This decides whether to show fullscreen early for user activation.
+   * - ProgressBus handles hide timing; OverlayController just executes the decision.
    */
   private computeOverlayIntent(type: ParentToChildEnvelope['type']): { mode: 'hidden' | 'fullscreen' } {
     switch (type) {
@@ -1589,8 +1545,6 @@ export class WalletIframeRouter {
     this.transport.ensureIframeMounted();
     this.overlayState.controller.showAnchored(rect as DOMRectLike);
   }
-
-  // setAnchoredOverlayBounds/clearAnchoredOverlay removed with Arrow overlay deprecation
 
   // Post a window message and surface errors in debug mode instead of silently swallowing them
   private postWindowMessage(w: Window, data: unknown, target: string): void {

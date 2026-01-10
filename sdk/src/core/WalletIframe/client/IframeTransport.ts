@@ -32,6 +32,9 @@ import { serializeRegistrationCredentialWithPRF, serializeAuthenticationCredenti
 import { ensureOverlayBase } from './overlay-styles';
 import { WebAuthnBridgeMessage } from '../../WebAuthnManager/WebAuthnFallbacks';
 
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+const WILDCARD_CONNECT_ATTEMPTS = 6;
+
 // Message constants (typed string literals, tree‑shake friendly)
 export const IframeMessage = {
   Connect: 'CONNECT',
@@ -49,6 +52,7 @@ export interface IframeTransportOptions {
   walletOrigin: string;     // e.g., https://wallet.example.com
   servicePath?: string;      // default '/wallet-service'
   connectTimeoutMs?: number; // total budget for handshake retries
+  debug?: boolean;           // enable verbose transport logging
   testOptions?: {
     routerId?: string;         // identity tag for the iframe element
     ownerTag?: string;         // e.g., 'app' | 'tests'
@@ -63,11 +67,42 @@ export class IframeTransport {
   private readonly walletServiceUrl: URL;
   private readonly walletOrigin: string;
   private readonly testOptions: { routerId?: string; ownerTag?: string };
+  private debug = false;
+  private readonly onWindowMessage = (e: MessageEvent): void => {
+    const data = e.data as unknown;
+    if (!isObject(data)) return;
+    const type = (data as { type?: unknown }).type;
+    if (type === IframeMessage.HostDebugOrigin) {
+      if (this.debug) {
+        console.debug('[IframeTransport][host-origin]', {
+          origin: (data as { origin?: unknown }).origin,
+          href: (data as { href?: unknown }).href,
+          eventOrigin: e.origin,
+        });
+      }
+      return;
+    }
+    if (e.origin !== this.walletOrigin) return;
+    if (type === IframeMessage.HostBooted) {
+      this.serviceBooted = true;
+      return;
+    }
+    if (type === IframeMessage.HostLog) {
+      if (this.debug) {
+        console.debug('[IframeTransport][wallet-log]', (data as { payload?: unknown }).payload);
+      }
+      return;
+    }
+    if (type === WebAuthnBridgeMessage.Create || type === WebAuthnBridgeMessage.Get) {
+      this.performWebAuthnBridge(type as typeof WebAuthnBridgeMessage.Create | typeof WebAuthnBridgeMessage.Get, data, e);
+    }
+  };
 
   constructor(options: IframeTransportOptions) {
     this.opts = {
       servicePath: '/wallet-service',
       connectTimeoutMs: 8000,
+      debug: false,
       ...options,
     } as Required<IframeTransportOptions>;
 
@@ -81,77 +116,66 @@ export class IframeTransport {
       routerId: options.testOptions?.routerId,
       ownerTag: options.testOptions?.ownerTag,
     };
+    this.debug = !!this.opts.debug;
 
     // Listen for a best-effort boot hint from the wallet host. Not required for correctness,
     // but helps reduce redundant CONNECT posts while the host script is still booting.
-    try {
-      window.addEventListener('message', (e) => {
-        const data = e.data as unknown;
-        if (!isObject(data)) return;
-        const type = (data as { type?: unknown }).type;
-        if (type === IframeMessage.HostBooted && e.origin === this.walletOrigin) {
-          this.serviceBooted = true;
-          return;
-        }
-        if (type === IframeMessage.HostDebugOrigin) {
-        }
-        if (type === IframeMessage.HostLog) {
-          // Only surface wallet logs when debug is enabled
-          console.debug('[IframeTransport][wallet-log]', (data as { payload?: unknown }).payload);
-        }
-        // Parent‑performed WebAuthn bridge for Safari cross‑origin scenarios.
-        // Only accept requests originating from the wallet iframe origin.
-        if (e.origin === this.walletOrigin) {
-          if (type === WebAuthnBridgeMessage.Create || type === WebAuthnBridgeMessage.Get) {
-            // Delegate to common bridge handler
-            this.performWebAuthnBridge(type as typeof WebAuthnBridgeMessage.Create | typeof WebAuthnBridgeMessage.Get, data, e);
-            return;
-          }
-        }
-      });
-    } catch {}
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', this.onWindowMessage);
+    }
   }
 
   /** Returns the underlying iframe element if it exists. */
   getIframeEl(): HTMLIFrameElement | null { return this.iframeEl; }
+
+  /** Remove global listeners created by this transport instance. */
+  dispose(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('message', this.onWindowMessage);
+    }
+  }
+
+  private isDevHost(): boolean {
+    if (typeof window === 'undefined') return false;
+    const env = (globalThis as { process?: { env?: Record<string, string | undefined> } })?.process?.env?.NODE_ENV;
+    if (env && env !== 'production') return true;
+    const h = window.location.hostname || '';
+    return /localhost|127\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)|\.local(?:host)?$/i.test(h);
+  }
+
+  private isOverlayForOrigin(el: HTMLIFrameElement): boolean {
+    const dsOrigin = (el as { dataset?: { w3aOrigin?: string } }).dataset?.w3aOrigin;
+    if (dsOrigin) return dsOrigin === this.walletOrigin;
+    try {
+      return new URL(el.src).origin === this.walletOrigin;
+    } catch {
+      return false;
+    }
+  }
 
   /**
    * Guardrail: prevent multiple overlay iframes accumulating when apps accidentally
    * create more than one WalletIframeRouter/TatchiPasskey instance.
    */
   private removeExistingOverlaysForOrigin(): void {
-    try {
-      const isDev = (() => {
-        const env = (globalThis as any)?.process?.env?.NODE_ENV;
-        if (env && env !== 'production') return true;
-        const h = window.location.hostname || '';
-        if (/localhost|127\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)|\.local(?:host)?$/i.test(h)) return true;
-        return false;
-      })();
+    if (typeof document === 'undefined') return;
+    const existing = Array.from(document.querySelectorAll('iframe.w3a-wallet-overlay')) as HTMLIFrameElement[];
+    const matches = existing.filter((el) => this.isOverlayForOrigin(el));
+    if (!matches.length) return;
 
-      const existing = Array.from(document.querySelectorAll('iframe.w3a-wallet-overlay')) as HTMLIFrameElement[];
-      const matches = existing.filter((el) => {
-        const dsOrigin = (el as any)?.dataset?.w3aOrigin as string | undefined;
-        if (dsOrigin) return dsOrigin === this.walletOrigin;
-        try { return new URL(el.src).origin === this.walletOrigin; } catch { return false; }
-      });
+    if (this.isDevHost()) {
+      const routerIds = matches
+        .map((el) => (el as { dataset?: { w3aRouterId?: string } }).dataset?.w3aRouterId)
+        .filter((v): v is string => typeof v === 'string' && v.length > 0);
+      console.warn(
+        `[IframeTransport] Found existing wallet overlay iframe(s) for ${this.walletOrigin}. This usually indicates multiple SDK instances. Removing old iframe(s) to avoid duplicates.`,
+        { count: matches.length, routerIds }
+      );
+    }
 
-      if (!matches.length) return;
-
-      if (isDev) {
-        const routerIds = matches
-          .map((el) => (el as any)?.dataset?.w3aRouterId)
-          .filter((v): v is string => typeof v === 'string' && v.length > 0);
-        console.warn(
-          `[IframeTransport] Found existing wallet overlay iframe(s) for ${this.walletOrigin}. This usually indicates multiple SDK instances. Removing old iframe(s) to avoid duplicates.`,
-          { count: matches.length, routerIds }
-        );
-      }
-
-      for (const el of matches) {
-        try { el.remove(); } catch {}
-      }
-    } catch {}
+    for (const el of matches) {
+      try { el.remove(); } catch {}
+    }
   }
 
   /** Ensure the iframe element exists and is appended to the DOM. Idempotent. */
@@ -220,89 +244,9 @@ export class IframeTransport {
       // Keep this low to avoid adding noticeable latency to the first CONNECT attempt.
       // The handshake will continue retrying regardless, so a shorter wait improves TTFB.
       const bootWaitMs = Math.min(this.opts.connectTimeoutMs / 12, 300);
-      const startBoot = Date.now();
-      while (!this.serviceBooted && (Date.now() - startBoot) < bootWaitMs) {
-        await new Promise(r => setTimeout(r, 50));
-      }
+      await this.waitForBootHint(bootWaitMs);
 
-      let resolved = false;
-      let attempt = 0;
-      let warnedNullOrigin = false;
-      const start = Date.now();
-      const overallTimeout = this.opts.connectTimeoutMs;
-
-      const port = await new Promise<MessagePort>((resolve, reject) => {
-        const tick = () => {
-          if (resolved) return;
-          const elapsed = Date.now() - start;
-          if (elapsed >= overallTimeout) {
-            console.debug('[IframeTransport] handshake timeout after %d ms', elapsed);
-            return reject(new Error('Wallet iframe READY timeout'));
-          }
-
-          attempt += 1;
-          const channel = new MessageChannel();
-          const port1 = channel.port1;
-          const port2 = channel.port2;
-          const cleanup = () => { try { port1.onmessage = null; } catch {} };
-
-          port1.onmessage = (e: MessageEvent<ChildToParentEnvelope>) => {
-            const data = e.data;
-            if (data.type === IframeMessage.Ready) {
-              resolved = true;
-              cleanup();
-              port1.start?.();
-              return resolve(port1);
-            }
-          };
-
-          // Ensure the receiving side is actively listening before we post the CONNECT
-          try { port1.start?.(); } catch {}
-
-          const cw = iframe.contentWindow;
-          if (!cw) {
-            cleanup();
-            return reject(new Error('Wallet iframe window missing'));
-          }
-          // Explicitly target the wallet origin so Chromium delivers the MessagePort
-          // transfer across origins. Using '*' can silently drop the transferable
-          // port in stricter environments, preventing the host from ever adopting it.
-          //
-          // However, some dev setups (e.g., mDNS/.local + reverse proxy ports) can
-          // result in the iframe document resolving to a slightly different serialized
-          // origin (e.g., host without the expected port). In those cases, the strict
-          // target will never deliver. As a pragmatic fallback for development, we
-          // periodically attempt with '*' so the wallet host can adopt the port and
-          // reply with READY. Subsequent communication uses MessagePort, not window.postMessage.
-          // Try strict origin first, but fall back to '*' more frequently in dev to
-          // avoid stalls when local origins serialize differently (e.g., iOS + mDNS).
-          // Using '*' here only affects this CONNECT; subsequent traffic uses MessagePort.
-          //
-          // Prefer wildcard target until we have observed SERVICE_HOST_BOOTED,
-          // which indicates the iframe has a stable, non-opaque origin and is
-          // ready to adopt a MessagePort. This avoids noisy 'null' origin
-          // warnings while still allowing strict-origin delivery as soon as
-          // the host is booted.
-          const targetOrigin = this.serviceBooted ? this.walletOrigin : '*';
-          ({ warnedNullOrigin } = this.postConnectMessage(
-            cw,
-            { type: IframeMessage.Connect },
-            port2,
-            targetOrigin,
-            warnedNullOrigin,
-            elapsed,
-            attempt,
-          ));
-
-          // Schedule next tick if not resolved yet (light backoff to reduce spam)
-          const interval = attempt < 10 ? 200 : attempt < 20 ? 400 : 800;
-          setTimeout(() => { if (!resolved) tick(); }, interval);
-        };
-
-        tick();
-      });
-
-      return port;
+      return this.handshake(iframe);
     })();
 
     try {
@@ -310,6 +254,84 @@ export class IframeTransport {
     } finally {
       this.connectInFlight = null;
     }
+  }
+
+  private async waitForBootHint(timeoutMs: number): Promise<void> {
+    if (this.serviceBooted || timeoutMs <= 0) return;
+    const start = Date.now();
+    while (!this.serviceBooted && (Date.now() - start) < timeoutMs) {
+      await sleep(50);
+    }
+  }
+
+  private async handshake(iframe: HTMLIFrameElement): Promise<MessagePort> {
+    let resolved = false;
+    let attempt = 0;
+    let warnedNullOrigin = false;
+    const start = Date.now();
+    const overallTimeout = this.opts.connectTimeoutMs;
+
+    return await new Promise<MessagePort>((resolve, reject) => {
+      const tick = () => {
+        if (resolved) return;
+        const elapsed = Date.now() - start;
+        if (elapsed >= overallTimeout) {
+          resolved = true;
+          console.debug('[IframeTransport] handshake timeout after %d ms', elapsed);
+          return reject(new Error('Wallet iframe READY timeout'));
+        }
+
+        attempt += 1;
+        const channel = new MessageChannel();
+        const port1 = channel.port1;
+        const port2 = channel.port2;
+        const cleanup = () => { try { port1.onmessage = null; } catch {} };
+
+        port1.onmessage = (e: MessageEvent<ChildToParentEnvelope>) => {
+          const data = e.data;
+          if (data.type === IframeMessage.Ready) {
+            resolved = true;
+            cleanup();
+            port1.start?.();
+            return resolve(port1);
+          }
+        };
+
+        // Ensure the receiving side is actively listening before we post the CONNECT
+        try { port1.start?.(); } catch {}
+
+        const cw = iframe.contentWindow;
+        if (!cw) {
+          resolved = true;
+          cleanup();
+          return reject(new Error('Wallet iframe window missing'));
+        }
+        // Use strict origin once the host is booted; allow a short wildcard window
+        // to tolerate opaque/unstable origins and dev mismatches until READY arrives.
+        const targetOrigin = this.getConnectTargetOrigin(attempt);
+        ({ warnedNullOrigin } = this.postConnectMessage(
+          cw,
+          { type: IframeMessage.Connect },
+          port2,
+          targetOrigin,
+          warnedNullOrigin,
+          elapsed,
+          attempt,
+        ));
+
+        // Schedule next tick if not resolved yet (light backoff to reduce spam)
+        const interval = attempt < 10 ? 200 : attempt < 20 ? 400 : 800;
+        setTimeout(() => { if (!resolved) tick(); }, interval);
+      };
+
+      tick();
+    });
+  }
+
+  private getConnectTargetOrigin(attempt: number): string {
+    if (this.serviceBooted) return this.walletOrigin;
+    if (attempt <= WILDCARD_CONNECT_ATTEMPTS) return '*';
+    return this.walletOrigin;
   }
 
   private postConnectMessage(
@@ -341,27 +363,31 @@ export class IframeTransport {
   private async waitForLoad(iframe: HTMLIFrameElement): Promise<void> {
     if (iframe._svc_loaded) return;
     await new Promise<void>((resolve) => {
-      try {
-        let timeout: number | undefined;
-        iframe.addEventListener?.('load', () => {
-          if (typeof timeout === 'number') {
-            clearTimeout(timeout);
-          }
-          resolve();
-        }, { once: true });
-        // Safety net: resolve shortly even if load listener fails to attach
-        timeout = window.setTimeout(() => {
-          console.debug('[IframeTransport] waitForLoad did not observe load event within 150ms; continuing');
-          resolve();
-        }, 150);
-      } catch {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
         resolve();
-      }
+      };
+      const timeout = window.setTimeout(() => {
+        if (!done && this.debug) {
+          console.debug('[IframeTransport] waitForLoad did not observe load event within 150ms; continuing');
+        }
+        finish();
+      }, 150);
+      iframe.addEventListener('load', () => {
+        clearTimeout(timeout);
+        finish();
+      }, { once: true });
     });
   }
 
   private buildAllowAttr(walletOrigin: string): string {
     return `publickey-credentials-get 'self' ${walletOrigin}; publickey-credentials-create 'self' ${walletOrigin}; clipboard-read; clipboard-write`;
+  }
+
+  private formatBridgeError(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
   }
 
   private postBridgeResult(
@@ -392,36 +418,50 @@ export class IframeTransport {
 
   private async handleWebAuthnCreate(req: CreateReq, e: MessageEvent): Promise<void> {
     const requestId = req?.requestId || '';
+    if (!isObject(req?.publicKey)) {
+      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, false, { error: 'publicKey options required' });
+      return;
+    }
+    if (!navigator.credentials?.create) {
+      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, false, { error: 'WebAuthn create not available' });
+      return;
+    }
     try {
-      const src = req?.publicKey || ({} as PublicKeyCredentialCreationOptions);
+      const src = req.publicKey as PublicKeyCredentialCreationOptions;
       const rpName = src.rp?.name || 'WebAuthn';
       const rpId = src.rp?.id || window.location.hostname;
       const pub: PublicKeyCredentialCreationOptions = { ...src, rp: { name: rpName, id: rpId } };
-      console.debug('[IframeTransport][bridge] CREATE received', { requestId, from: e.origin, rpId: pub.rp?.id });
       const cred = await navigator.credentials.create({ publicKey: pub }) as PublicKeyCredential;
       const serialized = serializeRegistrationCredentialWithPRF({ credential: cred, firstPrfOutput: true, secondPrfOutput: true });
       this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, true, { credential: serialized });
-      console.debug('[IframeTransport][bridge] CREATE ok', { requestId });
     } catch (err) {
-      console.warn('[IframeTransport][bridge] CREATE failed', { requestId, err: String((err as Error)?.message || err) });
-      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, false, { error: String((err as Error)?.message || err) });
+      const message = this.formatBridgeError(err);
+      console.warn('[IframeTransport][bridge] CREATE failed', { requestId, err: message });
+      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, false, { error: message });
     }
   }
 
   private async handleWebAuthnGet(req: GetReq, e: MessageEvent): Promise<void> {
     const requestId = req?.requestId || '';
+    if (!isObject(req?.publicKey)) {
+      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, false, { error: 'publicKey options required' });
+      return;
+    }
+    if (!navigator.credentials?.get) {
+      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, false, { error: 'WebAuthn get not available' });
+      return;
+    }
     try {
-      const src = req?.publicKey || ({} as PublicKeyCredentialRequestOptions);
+      const src = req.publicKey as PublicKeyCredentialRequestOptions;
       const rpId = src.rpId || window.location.hostname;
       const pub: PublicKeyCredentialRequestOptions = { ...src, rpId };
-      console.debug('[IframeTransport][bridge] GET received', { requestId, from: e.origin, rpId: pub.rpId });
       const cred = await navigator.credentials.get({ publicKey: pub }) as PublicKeyCredential;
       const serialized = serializeAuthenticationCredentialWithPRF({ credential: cred, firstPrfOutput: true, secondPrfOutput: true });
       this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, true, { credential: serialized });
-      console.debug('[IframeTransport][bridge] GET ok', { requestId });
     } catch (err) {
-      console.warn('[IframeTransport][bridge] GET failed', { requestId, err: String((err as Error)?.message || err) });
-      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, false, { error: String((err as Error)?.message || err) });
+      const message = this.formatBridgeError(err);
+      console.warn('[IframeTransport][bridge] GET failed', { requestId, err: message });
+      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, false, { error: message });
     }
   }
 }

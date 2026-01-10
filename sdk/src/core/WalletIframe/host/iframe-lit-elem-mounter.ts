@@ -113,6 +113,8 @@ type UiResultHandler = (result: StructuredValue | PmActionResult) => void;
 type UiCancelHandler = () => void;
 type UiElementProp = StructuredValue | UiActionHandler | UiResultHandler | UiCancelHandler;
 type UiElement = HTMLElement & Record<string, UiElementProp>;
+type UiComponentDef = WalletUIRegistry[string];
+type UiEventBinding = NonNullable<UiComponentDef['eventBindings']>[number];
 
 type ViewportRect = { top: number; left: number; width: number; height: number };
 
@@ -175,6 +177,110 @@ export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
     }
   };
 
+  const resolveComponentDef = (key?: string): UiComponentDef | null => {
+    if (!key) {
+      console.warn('[ElemMounter:UI] Unknown component key:', key);
+      return null;
+    }
+    const def = uiRegistry[key];
+    if (!def || !def.tag) {
+      console.warn('[ElemMounter:UI] Unknown component key:', key);
+      return null;
+    }
+    return def;
+  };
+
+  const resolveProps = (def: UiComponentDef, payload?: WalletUiMountPayload): UiProps => {
+    return { ...(def.propDefaults || {}), ...(payload?.props || {}) } as UiProps;
+  };
+
+  const resolveTargetSelector = (payload: WalletUiMountPayload | undefined, props: UiProps): string | undefined => {
+    return isString(props.targetSelector) ? props.targetSelector : payload?.targetSelector;
+  };
+
+  const resolveAnchorMode = (props: UiProps): 'iframe' | 'viewport' => {
+    return props.anchorMode === 'iframe' ? 'iframe' : 'viewport';
+  };
+
+  const buildArgsFromProps = (el: UiElement, binding: UiEventBinding): PmActionArgs => {
+    const args: PmActionArgs = {};
+    if (!binding.argsFromProps) return args;
+    for (const [argName, propKey] of Object.entries(binding.argsFromProps)) {
+      const propValue = el[propKey];
+      if (typeof propValue !== 'function') {
+        args[argName] = propValue;
+      }
+    }
+    return args;
+  };
+
+  const postActionError = (binding: UiEventBinding, id: string, err: unknown) => {
+    const type = binding.resultMessageType || 'UI_ACTION_RESULT';
+    opts.postToParent({ type, payload: { ok: false, id, error: errorMessage(err) } });
+  };
+
+  const wireEventBindings = (el: UiElement, def: UiComponentDef, componentKey: string, id: string) => {
+    if (!Array.isArray(def.eventBindings)) return;
+    for (const binding of def.eventBindings) {
+      el.addEventListener(binding.event, async () => {
+        try {
+          opts.postToParent({ type: 'WALLET_UI_EVENT', payload: { id, key: componentKey, event: binding.event } });
+          const args = buildArgsFromProps(el, binding) as PmActionArgsMap[typeof binding.action];
+          const result = await runPmAction(binding.action, args);
+          if (binding.resultMessageType) {
+            opts.postToParent({ type: binding.resultMessageType, payload: { ok: true, id, result } });
+          }
+        } catch (err) {
+          postActionError(binding, id, err);
+        }
+      });
+    }
+  };
+
+  const wirePropBindings = (el: UiElement, def: UiComponentDef) => {
+    if (!Array.isArray(def.propBindings)) return;
+    for (const binding of def.propBindings) {
+      const action = binding.action;
+      el[binding.prop] = (args: UiActionArgs) => runPmAction(action, args as PmActionArgsMap[typeof action]);
+    }
+  };
+
+  const wireBridgeProps = (el: UiElement, def: UiComponentDef, id: string) => {
+    const bridge = def.bridgeProps;
+    if (!bridge) return;
+    if (bridge.successProp) {
+      el[bridge.successProp] = (result: StructuredValue | PmActionResult) => {
+        opts.postToParent({ type: bridge.messageType, payload: { ok: true, id, result } });
+      };
+    }
+    if (bridge.cancelProp) {
+      el[bridge.cancelProp] = () => {
+        opts.postToParent({ type: bridge.messageType, payload: { ok: false, id, cancelled: true } });
+      };
+    }
+  };
+
+  const mountAnchored = (
+    el: UiElement,
+    id: string,
+    rect: ViewportRect,
+    anchorMode: 'iframe' | 'viewport',
+    root: HTMLElement
+  ): HTMLElement => {
+    const container = document.createElement('div');
+    markContainer(container);
+    setContainerAnchored(container, rect, anchorMode);
+    container.appendChild(el);
+    container.addEventListener('pointerenter', () => {
+      opts.postToParent({ type: 'WALLET_UI_ANCHOR_ENTER', payload: { id } });
+    });
+    container.addEventListener('pointerleave', () => {
+      opts.postToParent({ type: 'WALLET_UI_ANCHOR_LEAVE', payload: { id } });
+    });
+    root.appendChild(container);
+    return container;
+  };
+
   const runPmAction = async <T extends PmActionName>(
     action: T,
     args: PmActionArgsMap[T]
@@ -204,110 +310,31 @@ export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
   };
 
   const mountUiComponent = (payload?: WalletUiMountPayload) => {
-    const key = payload?.key;
-    if (!key) {
-      console.warn('[ElemMounter:UI] Unknown component key:', key);
-      return null;
-    }
-    const def = uiRegistry[key];
-    if (!def || !def.tag) {
-      console.warn('[ElemMounter:UI] Unknown component key:', key);
-      return null;
-    }
-    const id = payload?.id || `w3a-ui-${++uidCounter}`;
+    const componentKey = payload?.key;
+    const def = resolveComponentDef(componentKey);
+    if (!def || !componentKey) return null;
+    const id = payload?.id ?? `w3a-ui-${++uidCounter}`;
+    const rawProps: UiProps = payload?.props || {};
+    const props = resolveProps(def, payload);
     // If already mounted with same id, perform an update instead of mounting a duplicate
     if (mountedById.has(id)) {
-      updateUiComponent({ id, props: payload?.props || {} });
+      updateUiComponent({ id, props: rawProps });
       return id;
     }
     const el = document.createElement(def.tag) as UiElement;
     el.style.display = 'inline-block';
-    const props = { ...(def.propDefaults || {}), ...(payload?.props || {}) } as UiProps;
     applyProps(el, props);
 
-    // Wire event bindings to run pm actions and optionally post results
-    if (Array.isArray(def.eventBindings)) {
-      for (const b of def.eventBindings) {
-        el.addEventListener(b.event, async () => {
-          try {
-            // Generic bridge for other UI events if needed in the future
-            opts.postToParent({ type: 'WALLET_UI_EVENT', payload: { id, key, event: b.event } });
-
-            const args: PmActionArgs = {};
-            if (b.argsFromProps) {
-              for (const [argName, propKey] of Object.entries(b.argsFromProps)) {
-                const propValue = el[propKey];
-                if (typeof propValue !== 'function') {
-                  args[argName] = propValue;
-                }
-              }
-            }
-            const result = await runPmAction(b.action, args);
-            if (b.resultMessageType) {
-              opts.postToParent({ type: b.resultMessageType, payload: { ok: true, id, result } });
-            }
-          } catch (err) {
-            const type = b.resultMessageType || 'UI_ACTION_RESULT';
-            opts.postToParent({ type, payload: { ok: false, id, error: errorMessage(err) } });
-          }
-        });
-      }
-    }
-
-    // Wire prop bindings (e.g., externalConfirm)
-    if (Array.isArray(def.propBindings)) {
-      for (const pb of def.propBindings) {
-        el[pb.prop] = async (args: UiActionArgs) => {
-          const res = await runPmAction(pb.action, args);
-          return res;
-        };
-      }
-    }
-
-    // Bridge common success/cancel props to parent postMessage
-    if (def.bridgeProps) {
-      const { successProp, cancelProp, messageType } = def.bridgeProps;
-      if (successProp) {
-        el[successProp] = (result: StructuredValue | PmActionResult) => {
-          opts.postToParent({ type: messageType, payload: { ok: true, id, result } });
-        };
-      }
-      if (cancelProp) {
-        el[cancelProp] = () => {
-          opts.postToParent({ type: messageType, payload: { ok: false, id, cancelled: true } });
-        };
-      }
-    }
+    wireEventBindings(el, def, componentKey, id);
+    wirePropBindings(el, def);
+    wireBridgeProps(el, def, id);
 
     // Optional: viewportRect anchoring → wrap element in fixed-position container
-    const propsObj: UiProps = payload?.props || {};
-    const rect = coerceViewportRect(propsObj.viewportRect);
-    const anchorMode = propsObj.anchorMode === 'iframe' ? 'iframe' : 'viewport';
-
-    const targetSelector = isString(propsObj.targetSelector)
-      ? propsObj.targetSelector
-      : payload?.targetSelector;
-    const root = pickRoot(targetSelector);
-    if (rect) {
-      const container = document.createElement('div');
-      // Mark container and apply anchored geometry via stylesheet
-      markContainer(container);
-      setContainerAnchored(container, rect, anchorMode === 'iframe' ? 'iframe' : 'viewport');
-      container.appendChild(el);
-      // Bridge pointer enter/leave to parent so it can manage lifecycle without flicker
-      container.addEventListener('pointerenter', () => {
-        opts.postToParent({ type: 'WALLET_UI_ANCHOR_ENTER', payload: { id } });
-      });
-      container.addEventListener('pointerleave', () => {
-        opts.postToParent({ type: 'WALLET_UI_ANCHOR_LEAVE', payload: { id } });
-      });
-      root.appendChild(container);
-      mountedById.set(id, container);
-      return id;
-    }
-
-    root.appendChild(el);
-    mountedById.set(id, el);
+    const rect = coerceViewportRect(rawProps.viewportRect);
+    const anchorMode = resolveAnchorMode(rawProps);
+    const root = pickRoot(resolveTargetSelector(payload, rawProps));
+    const mountedNode = rect ? mountAnchored(el, id, rect, anchorMode, root) : (root.appendChild(el), el);
+    mountedById.set(id, mountedNode);
     return id;
   };
 

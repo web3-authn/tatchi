@@ -5,17 +5,22 @@
 
 export type DOMRectLike = { top: number; left: number; width: number; height: number };
 
+type GlobalWithNonce = typeof window & { litNonce?: string; w3aNonce?: string };
+
 const CLASS_CONTAINER = 'w3a-host-container';
 const CLASS_ANCHORED = 'is-anchored';
-
-type GlobalWithNonce = typeof window & { litNonce?: string; w3aNonce?: string };
+const BASE_CSS = `
+  html, body { background: transparent; margin: 0; padding: 0; }
+  .${CLASS_CONTAINER} { position: fixed; pointer-events: auto; background: transparent; border: 0; margin: 0; padding: 0; z-index: 2147483647; }
+`;
 
 const state: {
   baseSheet: CSSStyleSheet | null;
+  baseStyleEl: HTMLStyleElement | null;
   dynStyleEl: HTMLStyleElement | null;
-  ruleIndex: Map<string, number>;
+  ruleById: Map<string, string>;
   supportConstructable: boolean | null;
-} = { baseSheet: null, dynStyleEl: null, ruleIndex: new Map(), supportConstructable: null };
+} = { baseSheet: null, baseStyleEl: null, dynStyleEl: null, ruleById: new Map(), supportConstructable: null };
 
 function supportsConstructable(): boolean {
   if (state.supportConstructable != null) return state.supportConstructable;
@@ -28,16 +33,22 @@ function getNonce(): string | undefined {
   return w.w3aNonce || w.litNonce || undefined;
 }
 
+function createStyleEl(dataAttr?: string): HTMLStyleElement {
+  const el = document.createElement('style');
+  const nonce = getNonce();
+  if (nonce) el.setAttribute('nonce', nonce);
+  if (dataAttr) el.setAttribute(dataAttr, '');
+  return el;
+}
+
 export function ensureHostBaseStyles(): void {
-  if (state.baseSheet || state.dynStyleEl) return;
-  const css = `
-    html, body { background: transparent; margin: 0; padding: 0; }
-    .${CLASS_CONTAINER} { position: fixed; pointer-events: auto; background: transparent; border: 0; margin: 0; padding: 0; z-index: 2147483647; }
-  `;
+  if (state.baseSheet || state.baseStyleEl) {
+    return;
+  }
   if (supportsConstructable()) {
     try {
       state.baseSheet = new CSSStyleSheet();
-      state.baseSheet.replaceSync(css);
+      state.baseSheet.replaceSync(BASE_CSS);
       const current = (document.adoptedStyleSheets || []) as CSSStyleSheet[];
       document.adoptedStyleSheets = [...current, state.baseSheet];
       return;
@@ -45,72 +56,72 @@ export function ensureHostBaseStyles(): void {
       // Fallback to a regular <style> element below
     }
   }
-  const styleEl = document.createElement('style');
-  const nonce = getNonce();
-  if (nonce) styleEl.setAttribute('nonce', nonce);
-  styleEl.textContent = css;
+  const styleEl = createStyleEl();
+  styleEl.textContent = BASE_CSS;
   document.head.appendChild(styleEl);
+  state.baseStyleEl = styleEl;
 }
 
 function ensureDynStyleEl(): HTMLStyleElement {
-  if (state.dynStyleEl) return state.dynStyleEl;
-  const el = document.createElement('style');
-  const nonce = getNonce();
-  if (nonce) el.setAttribute('nonce', nonce);
-  el.setAttribute('data-w3a-host-dyn', '');
+  if (state.dynStyleEl) {
+    return state.dynStyleEl;
+  }
+  const el = createStyleEl('data-w3a-host-dyn');
   document.head.appendChild(el);
   state.dynStyleEl = el;
   return el;
 }
 
-function asId(el: HTMLElement): string {
-  if (el.id && el.id.startsWith('w3a-host-')) return el.id;
+export function markContainer(el: HTMLElement): string {
+  ensureHostBaseStyles();
+  el.classList.add(CLASS_CONTAINER);
+  el.dataset.w3aContainer = '1';
+  if (el.id && el.id.startsWith('w3a-host-')) {
+    return el.id;
+  }
   const id = `w3a-host-${Math.random().toString(36).slice(2, 9)}`;
   el.id = id;
   return id;
 }
 
-export function markContainer(el: HTMLElement): void {
-  ensureHostBaseStyles();
-  el.classList.add(CLASS_CONTAINER);
-  el.dataset.w3aContainer = '1';
+function buildDynamicCss(): string {
+  return Array.from(state.ruleById.values()).join('\n');
+}
+
+function syncConstructableRules(): boolean {
+  if (!supportsConstructable() || !state.baseSheet) {
+    return false;
+  }
+  try {
+    const dynamic = buildDynamicCss();
+    state.baseSheet.replaceSync(dynamic ? `${BASE_CSS}\n${dynamic}` : BASE_CSS);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function syncStyleElementRules(): void {
+  const elDyn = ensureDynStyleEl();
+  elDyn.textContent = buildDynamicCss();
+}
+
+function updateDynamicRule(id: string, rule: string): void {
+  state.ruleById.set(id, rule);
+  if (!syncConstructableRules()) {
+    syncStyleElementRules();
+  }
 }
 
 export function setContainerAnchored(el: HTMLElement, rect: DOMRectLike, anchorMode: 'iframe' | 'viewport'): void {
-  markContainer(el);
-  const id = asId(el);
+  const id = markContainer(el);
   const top = anchorMode === 'iframe' ? 0 : Math.max(0, Math.round(rect.top));
   const left = anchorMode === 'iframe' ? 0 : Math.max(0, Math.round(rect.left));
   const width = Math.max(1, Math.round(rect.width));
   const height = Math.max(1, Math.round(rect.height));
   const rule = `#${id}.${CLASS_ANCHORED}{ top:${top}px; left:${left}px; width:${width}px; height:${height}px; }`;
 
-  if (supportsConstructable() && state.baseSheet) {
-    const s = state.baseSheet;
-    const prev = state.ruleIndex.get(id);
-    try {
-      if (typeof prev === 'number') {
-        try { s.deleteRule(prev); } catch { /* ignore and attempt to insert new rule */ }
-      }
-      const idx = s.insertRule(rule, s.cssRules.length);
-      state.ruleIndex.set(id, idx);
-    } catch {
-      // Fallback to text-based dynamic style element if constructable rule insertion fails
-      const elDyn = ensureDynStyleEl();
-      const lines = (elDyn.textContent || '').split('\n').filter(Boolean);
-      const prefix = `#${id}.`;
-      const rest = lines.filter(l => !l.startsWith(prefix));
-      rest.push(rule);
-      elDyn.textContent = rest.join('\n');
-    }
-  } else {
-    const elDyn = ensureDynStyleEl();
-    const lines = (elDyn.textContent || '').split('\n').filter(Boolean);
-    const prefix = `#${id}.`;
-    const rest = lines.filter(l => !l.startsWith(prefix));
-    rest.push(rule);
-    elDyn.textContent = rest.join('\n');
-  }
+  updateDynamicRule(id, rule);
 
   el.classList.add(CLASS_ANCHORED);
 }

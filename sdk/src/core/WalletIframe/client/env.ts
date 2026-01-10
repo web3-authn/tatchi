@@ -1,5 +1,3 @@
-import type { WalletIframeRouterOptions } from './router';
-import { WalletIframeRouter } from './router';
 import { isString } from '@/utils/validation';
 
 type PublicEnv = Record<string, string | undefined>;
