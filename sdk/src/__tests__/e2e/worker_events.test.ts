@@ -41,6 +41,8 @@ test.describe('Worker Communication Protocol', () => {
 
         // Track all progress events
         const progressEvents: any[] = [];
+        const registrationEvents: any[] = [];
+        const actionEvents: any[] = [];
 
         // Register first to have an account (skip confirmation UI in tests)
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
@@ -48,6 +50,7 @@ test.describe('Worker Communication Protocol', () => {
         const registrationResult = await tatchi.registerPasskeyInternal(testAccountId, {
           onEvent: (event: any) => {
             progressEvents.push(event);
+            registrationEvents.push(event);
           }
         }, cfg);
 
@@ -82,14 +85,16 @@ test.describe('Worker Communication Protocol', () => {
           },
           options: {
             onEvent: (event: any) => {
-              progressEvents.push({
+              const normalized = {
                 step: event.step,
                 phase: event.phase,
                 status: event.status,
                 message: event.message,
                 timestamp: event.timestamp,
                 hasData: !!event.data
-              });
+              };
+              progressEvents.push(normalized);
+              actionEvents.push(normalized);
               console.log(`Action Progress [${event.step}]: ${event.phase} - ${event.message}`);
             }
           }
@@ -99,27 +104,29 @@ test.describe('Worker Communication Protocol', () => {
           success: true,
           actionResult,
           progressEvents,
+          registrationEvents,
+          actionEvents,
           // Analysis
-          totalEvents: progressEvents.length,
-          phases: progressEvents.map(e => e.phase),
-          uniquePhases: [...new Set(progressEvents.map(e => e.phase))],
+          totalEvents: actionEvents.length,
+          phases: actionEvents.map(e => e.phase),
+          uniquePhases: [...new Set(actionEvents.map(e => e.phase))],
           // Check for phases that exist in the actual progress events being generated:
-          hasPreparation: progressEvents.some(e => e.phase === ProgressStep.PREPARATION),
-          hasWebauthnVerification: progressEvents.some(e => e.phase === ProgressStep.WEBAUTHN_VERIFICATION),
-	          hasUserConfirmation: progressEvents.some(e => e.phase === ProgressStep.USER_CONFIRMATION),
-	          hasAuthenticationComplete: progressEvents.some(e => e.phase === ProgressStep.AUTHENTICATION_COMPLETE),
-	          hasTransactionSigningProgress: progressEvents.some(e => e.phase === ProgressStep.TRANSACTION_SIGNING_PROGRESS),
-	          hasTransactionSigningComplete: progressEvents.some(e => e.phase === ProgressStep.TRANSACTION_SIGNING_COMPLETE),
-	          hasError: progressEvents.some(e => e.status === 'error'),
-	          // Event structure validation
-	          allEventsHaveRequiredFields: progressEvents.every(e =>
-	            typeof e.step === 'number' &&
-	            typeof e.phase === 'string' &&
+          hasPreparation: actionEvents.some(e => e.phase === ProgressStep.PREPARATION),
+          hasWebauthnVerification: actionEvents.some(e => e.phase === ProgressStep.WEBAUTHN_VERIFICATION),
+          hasUserConfirmation: actionEvents.some(e => e.phase === ProgressStep.USER_CONFIRMATION),
+          hasAuthenticationComplete: actionEvents.some(e => e.phase === ProgressStep.AUTHENTICATION_COMPLETE),
+          hasTransactionSigningProgress: actionEvents.some(e => e.phase === ProgressStep.TRANSACTION_SIGNING_PROGRESS),
+          hasTransactionSigningComplete: actionEvents.some(e => e.phase === ProgressStep.TRANSACTION_SIGNING_COMPLETE),
+          hasError: actionEvents.some(e => e.status === 'error'),
+          // Event structure validation
+          allEventsHaveRequiredFields: actionEvents.every(e =>
+            typeof e.step === 'number' &&
+            typeof e.phase === 'string' &&
             typeof e.status === 'string' &&
             typeof e.message === 'string'
           ),
           // Debug: Log all captured events
-          capturedEvents: progressEvents.map(e => ({
+          capturedEvents: actionEvents.map(e => ({
             step: e.step,
             phase: e.phase,
             status: e.status,
@@ -137,6 +144,23 @@ test.describe('Worker Communication Protocol', () => {
       }
     }, { useServer: USE_RELAY_SERVER });
     const result = await autoConfirmWalletIframeUntil(page, resultPromise);
+    const assertPhaseOrder = (phases: string[], expected: string[], label: string): void => {
+      let lastIdx = -1;
+      for (const phase of expected) {
+        const idx = phases.indexOf(phase, lastIdx + 1);
+        expect(idx, `${label} missing or out-of-order phase: ${phase}`).toBeGreaterThan(lastIdx);
+        lastIdx = idx;
+      }
+    };
+    const basePhaseSequence = ['preparation', 'webauthn-verification', 'user-confirmation'];
+    const successPhaseSequence = [
+      'preparation',
+      'webauthn-verification',
+      'user-confirmation',
+      'authentication-complete',
+      'transaction-signing-progress',
+      'transaction-signing-complete'
+    ];
 
     // Assertions
     if (!result.success) {
@@ -170,6 +194,7 @@ test.describe('Worker Communication Protocol', () => {
       expect(result.hasPreparation).toBe(true);
       expect(result.hasWebauthnVerification).toBe(true);
       expect(result.hasUserConfirmation).toBe(true);
+      assertPhaseOrder(result.phases || [], basePhaseSequence, 'action failure');
       // Note: authentication-complete may not be reached if contract verification fails
       // This is expected behavior when the operation fails early
       if (result.hasAuthenticationComplete) {
@@ -197,6 +222,7 @@ test.describe('Worker Communication Protocol', () => {
       expect(result.hasPreparation).toBe(true);
       expect(result.hasWebauthnVerification).toBe(true);
       expect(result.hasUserConfirmation).toBe(true);
+      assertPhaseOrder(result.phases || [], basePhaseSequence, 'action error');
       // Note: authentication-complete may not be reached if contract verification fails
       // This is expected behavior when the operation fails early
       if (result.hasAuthenticationComplete) {
@@ -207,6 +233,11 @@ test.describe('Worker Communication Protocol', () => {
       // If verification succeeds but operation fails later, we should see verification complete
       if (result.hasTransactionSigningComplete) {
         expect(result.hasTransactionSigningProgress).toBe(true);
+        assertPhaseOrder(
+          result.phases || [],
+          ['preparation', 'webauthn-verification', 'user-confirmation', 'authentication-complete', 'transaction-signing-progress', 'transaction-signing-complete'],
+          'action error (late)'
+        );
       }
     } else {
       // Operation succeeded - check all expected phases
@@ -216,6 +247,7 @@ test.describe('Worker Communication Protocol', () => {
       expect(result.hasAuthenticationComplete).toBe(true);
       expect(result.hasTransactionSigningProgress).toBe(true);
       expect(result.hasTransactionSigningComplete).toBe(true);
+      assertPhaseOrder(result.phases || [], successPhaseSequence, 'action success');
     }
 
     // Verify event structure
@@ -269,6 +301,10 @@ test.describe('Worker Communication Protocol', () => {
     expect(result.statuses).toContain('error');
     expect(result.loginResult.error || '').toMatch(/register an account/i);
     expect(result.errorMessages.some((msg: string) => /register an account/i.test(msg))).toBe(true);
+    const progressIdx = result.statuses.findIndex((status: string) => status === 'progress');
+    const errorIdx = result.statuses.findIndex((status: string) => status === 'error');
+    expect(progressIdx).toBeGreaterThanOrEqual(0);
+    expect(errorIdx).toBeGreaterThan(progressIdx);
   });
 
   // happy-path login: seed registration via relay mock and assert full login phase progression
@@ -348,6 +384,13 @@ test.describe('Worker Communication Protocol', () => {
       expect.arrayContaining(['preparation', 'webauthn-assertion', 'vrf-unlock', 'login-complete'])
     );
     expect(result.loginStatuses).toContain('success');
+    const loginPhaseSequence = ['preparation', 'webauthn-assertion', 'vrf-unlock', 'login-complete'];
+    let lastIdx = -1;
+    for (const phase of loginPhaseSequence) {
+      const idx = result.loginPhases.indexOf(phase, lastIdx + 1);
+      expect(idx, `login phases missing or out-of-order: ${phase}`).toBeGreaterThan(lastIdx);
+      lastIdx = idx;
+    }
   });
 
   // captures registration + login worker events to ensure variety of phase/status pairs are emitted
@@ -374,20 +417,26 @@ test.describe('Worker Communication Protocol', () => {
           // Test registration flow (should generate REGISTRATION_PROGRESS messages)
           const cfg2 = ((window as any).testUtils?.confirmOverrides?.skip)
             || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
-          await tatchi.registerPasskeyInternal(testAccountId, {
+          const registrationResult = await tatchi.registerPasskeyInternal(testAccountId, {
             onEvent: (event: any) => {
               progressEvents.push(event);
               messageTypes.add(`${event.phase}:${event.status}`);
             }
           }, cfg2);
+          if (!registrationResult?.success) {
+            throw new Error(`Registration failed: ${registrationResult?.error || 'unknown error'}`);
+          }
 
           // Test login flow (should generate various progress messages)
-          await tatchi.loginAndCreateSession(testAccountId, {
+          const loginResult = await tatchi.loginAndCreateSession(testAccountId, {
             onEvent: (event: any) => {
               progressEvents.push(event);
               messageTypes.add(`${event.phase}:${event.status}`);
             }
           });
+          if (!loginResult?.success) {
+            throw new Error(`Login failed: ${loginResult?.error || 'unknown error'}`);
+          }
 
         } finally {
           console.log = originalLog;
@@ -444,23 +493,55 @@ test.describe('Worker Communication Protocol', () => {
 
     expect(result.totalEvents).toBeGreaterThan(0);
     expect(result.messageTypes?.length || 0).toBeGreaterThan(0);
+    expect(result.progressCount).toBeGreaterThan(0);
+    expect(result.successCount).toBeGreaterThan(0);
   });
 
-  // ensures malformed inputs still surface worker progress/error envelopes without network calls
+  // ensures relay failure still surfaces worker progress/error envelopes
   test('Worker Error Handling - Progress on Failure', async ({ page }) => {
+    const relayRoute = '**/create_account_and_register_user';
+    await page.route(relayRoute, async (route) => {
+      const req = route.request();
+      const method = req.method().toUpperCase();
+      if (method === 'OPTIONS') {
+        await route.fulfill({
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST,OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+          },
+          body: '',
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST,OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        },
+        body: JSON.stringify({ success: false, error: 'forced relay failure' }),
+      });
+    });
     const resultPromise = page.evaluate(async () => {
       try {
         const { tatchi, generateTestAccountId } = (window as any).testUtils;
-        const invalidAccountId = "invalid-account-format!@#";
+        const validAccountId = generateTestAccountId();
 
         const progressEvents: any[] = [];
         const errorEvents: any[] = [];
+        let result: any = null;
+        let threw = false;
+        let thrownError = '';
 
-        // Test error handling with invalid account (should still send progress messages)
+        // Test error handling with a forced relay failure (should still send progress messages)
         try {
           const cfg3 = ((window as any).testUtils?.confirmOverrides?.skip)
             || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
-          await tatchi.registerPasskeyInternal(invalidAccountId, {
+          result = await tatchi.registerPasskeyInternal(validAccountId, {
             onEvent: (event: any) => {
               progressEvents.push(event);
               if (event.status === 'error') {
@@ -473,13 +554,21 @@ test.describe('Worker Communication Protocol', () => {
           }, cfg3);
         } catch (expectedError) {
           // This is expected to fail
+          threw = true;
+          thrownError = (expectedError as any)?.message || String(expectedError);
         }
 
         return {
           success: true,
+          resultSuccess: result?.success ?? null,
+          resultError: result?.error ?? '',
+          threw,
+          thrownError,
           progressEvents: progressEvents.length,
           errorEvents: errorEvents.length,
           hasErrorPhase: progressEvents.some(e => e.phase === 'action-error' || e.status === 'error'),
+          phases: progressEvents.map(e => e.phase),
+          statuses: progressEvents.map(e => e.status),
           lastEvent: progressEvents[progressEvents.length - 1]
         };
 
@@ -491,6 +580,7 @@ test.describe('Worker Communication Protocol', () => {
       }
     });
     const result = await autoConfirmWalletIframeUntil(page, resultPromise);
+    await page.unroute(relayRoute).catch(() => {});
 
     expect(result.success).toBe(true);
     console.log('Error Handling Test Results:');
@@ -499,7 +589,17 @@ test.describe('Worker Communication Protocol', () => {
     console.log(`   Has Error Phase: ${result.hasErrorPhase}`);
 
     // Even on failure, we should get some progress events
-    expect(result.progressEvents).toBeGreaterThanOrEqual(0);
+    expect(result.progressEvents).toBeGreaterThan(0);
+    expect(result.errorEvents).toBeGreaterThan(0);
+    expect(result.hasErrorPhase).toBe(true);
+    expect(result.resultSuccess === false || result.threw === true).toBe(true);
+    const progressIdx = result.statuses.findIndex((status: string) => status === 'progress');
+    const errorIdx = result.statuses.findIndex((status: string) => status === 'error');
+    expect(progressIdx).toBeGreaterThanOrEqual(0);
+    expect(errorIdx).toBeGreaterThan(progressIdx);
+    if (result.lastEvent?.status) {
+      expect(result.lastEvent.status).toBe('error');
+    }
   });
 
 });

@@ -26,7 +26,7 @@ This document captures design decisions and trade‑offs discussed while plannin
 
 ## 3) SDK UX Requirements
 
-This is an SDK, we should not expect the developer to manually copy html files to arbitrary locations. The current frontend file path will not necessarily exist on the developer's codebase. It must be automatically bundled and built so that the dev merely needs to simplye run `npm install` then `import passkeyManager from @web3authn/core` in their frontend code.
+This is an SDK, we should not expect the developer to manually copy html files to arbitrary locations. The current frontend file path will not necessarily exist on the developer's codebase. It must be automatically bundled and built so that the dev merely needs to simplye run `npm install` then `import tatchi from @web3authn/core` in their frontend code.
 
 The main point of this SDK is no reliance on external servers. Hosting the service page on a wallet origin you (the SDK vendor) control and host (e.g., https://wallet.web3authn.xyz/service is volates this objective.
 

@@ -205,14 +205,6 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
 
     const recovery = await recoverAccount(passkey, { accountId });
 
-    const finalState = await passkey.withTestUtils(async ({ accountId: id }) => {
-      const utils = (window as any).testUtils as TestUtils;
-      const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
-      const state = (await utils.tatchi.getLoginSession(toAccountId(id))).login;
-      const recent = await utils.tatchi.getRecentLogins();
-      return { state, recent };
-    }, { accountId });
-
     printLog('test', `registration events: ${registration.events.length}`, { indent: 1 });
     printLog('test', `login events: ${login.events.length}`, { indent: 1 });
     printLog('test', `transfer events: ${transfer.events.length}`, { indent: 1 });
@@ -223,11 +215,20 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
     expect(transfer.success).toBe(true);
 
     if (!recovery.success) {
-      printLog('test', `recovery failure tolerated: ${recovery.error ?? 'unknown error'}`, {
-        step: 'recovery',
-        indent: 1,
-      });
+      if (handleInfrastructureErrors({ success: recovery.success, error: recovery.error })) {
+        return;
+      }
+      expect(recovery.success).toBe(true);
+      return;
     }
+
+    const finalState = await passkey.withTestUtils(async ({ accountId: id }) => {
+      const utils = (window as any).testUtils as TestUtils;
+      const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
+      const state = (await utils.tatchi.getLoginSession(toAccountId(id))).login;
+      const recent = await utils.tatchi.getRecentLogins();
+      return { state, recent };
+    }, { accountId });
 
     printLog('test', `final login state: ${JSON.stringify(finalState.state)}`, { indent: 2 });
     printLog('test', `recent logins count: ${finalState.recent.accountIds.length}`, { indent: 2 });

@@ -99,7 +99,8 @@ async function ensureVrfKeypairBoundToLastUser(
   // Best-effort: find the expected VRF public key for the last-user device from the authenticator cache.
   const authenticators = await indexedDB.clientDB.getAuthenticatorsByUser(accountId).catch(() => []);
   const expectedVrfPublicKey = toTrimmedString(
-    authenticators.find((a) => a.credentialId === lastUser.passkeyCredential.rawId)?.vrfPublicKey,
+    authenticators.find(a => a.credentialId === lastUser.passkeyCredential.rawId)?.vrfPublicKey
+    ?? authenticators.find(a => a.deviceNumber === lastUserDeviceNumber)?.vrfPublicKey
   );
 
   const needsRebind = !status.active
