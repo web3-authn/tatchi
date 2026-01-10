@@ -244,11 +244,11 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
           if (!runtimeConfigs.relayerAccount) throw new Error('relayerAccount is required but not provided');
 
           // Create TatchiPasskey instance
-          const passkeyManager = new TatchiPasskey(runtimeConfigs);
+          const tatchi = new TatchiPasskey(runtimeConfigs);
 
           // Store in window for test access
           (window as any).TatchiPasskey = TatchiPasskey;
-          (window as any).passkeyManager = passkeyManager;
+          (window as any).tatchi = tatchi;
           (window as any).configs = runtimeConfigs;
 
           return { success: true, message: 'TatchiPasskey loaded successfully' };

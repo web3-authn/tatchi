@@ -90,7 +90,7 @@ export async function registerPasskey(
 
     try {
       console.log(`[flow:register] invoking registerPasskeyInternal for ${args.accountId}`);
-      return utils.passkeyManager.registerPasskeyInternal(toAccountId(args.accountId), {
+      return utils.tatchi.registerPasskeyInternal(toAccountId(args.accountId), {
         onEvent: (event: any) => {
           events.push(event);
           console.log(`[flow:register]   -> ${event.phase} | ${event.message}`);
@@ -179,7 +179,7 @@ export async function loginAndCreateSession(
 
     try {
       console.log(`[flow:login] invoking loginAndCreateSession for ${args.accountId}`);
-      return utils.passkeyManager.loginAndCreateSession(toAccountId(args.accountId), {
+      return utils.tatchi.loginAndCreateSession(toAccountId(args.accountId), {
         onEvent: (event: any) => {
           events.push(event);
           console.log(`[flow:login]   -> ${event.phase} | ${event.message}`);
@@ -251,7 +251,7 @@ export async function executeTransfer(
 
     try {
       console.log(`[flow:transfer] executing action for ${args.accountId}`);
-      return utils.passkeyManager.executeAction({
+      return utils.tatchi.executeAction({
         nearAccountId: toAccountId(args.accountId),
         receiverId: args.receiverId,
         actionArgs: {
@@ -322,7 +322,7 @@ export async function recoverAccount(
     const utils = (window as any).testUtils as TestUtils;
     const events: any[] = [];
 
-    return utils.passkeyManager.recoverAccountFlow({
+    return utils.tatchi.recoverAccountFlow({
       accountId: args.accountId,
       options: {
         onEvent: (event: any) => {

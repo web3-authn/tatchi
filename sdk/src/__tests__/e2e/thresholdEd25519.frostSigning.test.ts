@@ -74,7 +74,7 @@ test.describe('threshold-ed25519 (FROST) signing', () => {
       skipPasskeyManagerInit: true,
     });
 
-    // setupBasicPasskeyTest() skips bootstrap global fallbacks when passkeyManager init is skipped.
+    // setupBasicPasskeyTest() skips bootstrap global fallbacks when tatchi init is skipped.
     // The WebAuthn mocks expect base64UrlEncode/base64UrlDecode to exist on window.
     await page.evaluate(async () => {
       const { base64UrlEncode, base64UrlDecode } = await import('/sdk/esm/utils/base64.js');

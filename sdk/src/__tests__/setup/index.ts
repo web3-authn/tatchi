@@ -243,7 +243,7 @@ export async function setupTestnetFaucetTest(
 
 export interface TestUtils {
   PasskeyManager: typeof TatchiPasskey;
-  passkeyManager: TatchiPasskey;
+  tatchi: TatchiPasskey;
   configs: {
     nearNetwork: 'testnet';
     relayerAccount: string;

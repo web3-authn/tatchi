@@ -6,7 +6,7 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 
 const IMPORT_PATHS = {
   nearKeysDb: '/sdk/esm/core/IndexedDBManager/passkeyNearKeysDB.js',
-  passkeyManager: '/sdk/esm/core/TatchiPasskey/index.js',
+  tatchi: '/sdk/esm/core/TatchiPasskey/index.js',
 } as const;
 
 function toB64u(bytes: Uint8Array): string {
@@ -37,7 +37,7 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
       skipPasskeyManagerInit: true,
     });
 
-    // setupBasicPasskeyTest() skips bootstrap "global fallbacks" when passkeyManager init is skipped.
+    // setupBasicPasskeyTest() skips bootstrap "global fallbacks" when tatchi init is skipped.
     // WebAuthn mocks expect base64UrlEncode/base64UrlDecode to be present on window.
     await page.evaluate(async () => {
       const { base64UrlEncode, base64UrlDecode } = await import('/sdk/esm/utils/base64.js');

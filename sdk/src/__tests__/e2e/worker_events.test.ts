@@ -36,7 +36,7 @@ test.describe('Worker Communication Protocol', () => {
           ERROR: 'error',
         } as const;
 
-        const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
+        const { tatchi, generateTestAccountId } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
 
         // Track all progress events
@@ -45,7 +45,7 @@ test.describe('Worker Communication Protocol', () => {
         // Register first to have an account (skip confirmation UI in tests)
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
           || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
-        const registrationResult = await passkeyManager.registerPasskeyInternal(testAccountId, {
+        const registrationResult = await tatchi.registerPasskeyInternal(testAccountId, {
           onEvent: (event: any) => {
             progressEvents.push(event);
           }
@@ -56,7 +56,7 @@ test.describe('Worker Communication Protocol', () => {
         }
 
         // Login to activate session
-        const loginResult = await passkeyManager.loginAndCreateSession(testAccountId, {
+        const loginResult = await tatchi.loginAndCreateSession(testAccountId, {
           onEvent: (event: any) => {
             console.log(`Login [${event.step}]: ${event.phase} - ${event.message}`);
           }
@@ -70,7 +70,7 @@ test.describe('Worker Communication Protocol', () => {
         await new Promise(resolve => setTimeout(resolve, 5000));
 
         // Now test executeAction with detailed progress tracking (new SDK signature)
-        const actionResult = await passkeyManager.executeAction({
+        const actionResult = await tatchi.executeAction({
           nearAccountId: testAccountId,
           receiverId: (window as any).testUtils.configs.testReceiverAccountId, // Use centralized configuration
           actionArgs: {
@@ -228,12 +228,12 @@ test.describe('Worker Communication Protocol', () => {
   test('Progress Messages - Login without prior registration', async ({ page }) => {
     const resultPromise = page.evaluate(async () => {
       try {
-        const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
+        const { tatchi, generateTestAccountId } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
 
         const capturedEvents: Array<{ phase: string; status: string; message: string }> = [];
 
-        const loginResult = await passkeyManager.loginAndCreateSession(testAccountId, {
+        const loginResult = await tatchi.loginAndCreateSession(testAccountId, {
           onEvent: (event: any) => {
             capturedEvents.push({
               phase: event?.phase ?? '',
@@ -295,7 +295,7 @@ test.describe('Worker Communication Protocol', () => {
         const loginEvents: Array<{ phase: string; status: string; message: string }> = [];
 
         const cfg = (utils?.confirmOverrides?.skip) || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
-        const registrationResult = await utils.passkeyManager.registerPasskeyInternal(testAccountId, {
+        const registrationResult = await utils.tatchi.registerPasskeyInternal(testAccountId, {
           onEvent: (event: any) => {
             registrationEvents.push({
               phase: event?.phase ?? '',
@@ -308,7 +308,7 @@ test.describe('Worker Communication Protocol', () => {
           throw new Error(`Registration failed unexpectedly: ${registrationResult?.error}`);
         }
 
-        const loginResult = await utils.passkeyManager.loginAndCreateSession(testAccountId, {
+        const loginResult = await utils.tatchi.loginAndCreateSession(testAccountId, {
           onEvent: (event: any) => {
             loginEvents.push({
               phase: event?.phase ?? '',
@@ -354,7 +354,7 @@ test.describe('Worker Communication Protocol', () => {
   test('Progress Message Types - All Message Types', async ({ page }) => {
     const resultPromise = page.evaluate(async () => {
       try {
-        const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
+        const { tatchi, generateTestAccountId } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
 
         // Track progress message types
@@ -374,7 +374,7 @@ test.describe('Worker Communication Protocol', () => {
           // Test registration flow (should generate REGISTRATION_PROGRESS messages)
           const cfg2 = ((window as any).testUtils?.confirmOverrides?.skip)
             || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
-          await passkeyManager.registerPasskeyInternal(testAccountId, {
+          await tatchi.registerPasskeyInternal(testAccountId, {
             onEvent: (event: any) => {
               progressEvents.push(event);
               messageTypes.add(`${event.phase}:${event.status}`);
@@ -382,7 +382,7 @@ test.describe('Worker Communication Protocol', () => {
           }, cfg2);
 
           // Test login flow (should generate various progress messages)
-          await passkeyManager.loginAndCreateSession(testAccountId, {
+          await tatchi.loginAndCreateSession(testAccountId, {
             onEvent: (event: any) => {
               progressEvents.push(event);
               messageTypes.add(`${event.phase}:${event.status}`);
@@ -450,7 +450,7 @@ test.describe('Worker Communication Protocol', () => {
   test('Worker Error Handling - Progress on Failure', async ({ page }) => {
     const resultPromise = page.evaluate(async () => {
       try {
-        const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
+        const { tatchi, generateTestAccountId } = (window as any).testUtils;
         const invalidAccountId = "invalid-account-format!@#";
 
         const progressEvents: any[] = [];
@@ -460,7 +460,7 @@ test.describe('Worker Communication Protocol', () => {
         try {
           const cfg3 = ((window as any).testUtils?.confirmOverrides?.skip)
             || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
-          await passkeyManager.registerPasskeyInternal(invalidAccountId, {
+          await tatchi.registerPasskeyInternal(invalidAccountId, {
             onEvent: (event: any) => {
               progressEvents.push(event);
               if (event.status === 'error') {

@@ -20,7 +20,7 @@ test.describe('Example TatchiPasskey Usage', () => {
   test('should demonstrate TatchiPasskey access in different test file', async ({ page }) => {
     const result = await page.evaluate(async () => {
       // Access the pre-configured TatchiPasskey and utilities (safe pattern)
-      const { passkeyManager, generateTestAccountId, verifyAccountExists } = (window as any).testUtils;
+      const { tatchi, generateTestAccountId, verifyAccountExists } = (window as any).testUtils;
 
       const testAccountId = generateTestAccountId();
       console.log('Generated test account ID:', testAccountId);
@@ -28,10 +28,10 @@ test.describe('Example TatchiPasskey Usage', () => {
       // Example: Test some TatchiPasskey functionality
       // You could test login state, configuration, etc.
       try {
-        const loginState = (await passkeyManager.getLoginSession()).login;
+        const loginState = (await tatchi.getLoginSession()).login;
         return {
           success: true,
-          hasPasskeyManager: !!passkeyManager,
+          hasPasskeyManager: !!tatchi,
           hasUtilities: !!(generateTestAccountId && verifyAccountExists),
           testAccountId: testAccountId,
           loginState: loginState,
@@ -40,7 +40,7 @@ test.describe('Example TatchiPasskey Usage', () => {
       } catch (error: any) {
         return {
           success: true, // This is expected in test environment
-          hasPasskeyManager: !!passkeyManager,
+          hasPasskeyManager: !!tatchi,
           hasUtilities: !!(generateTestAccountId && verifyAccountExists),
           testAccountId: testAccountId,
           loginError: error.message,

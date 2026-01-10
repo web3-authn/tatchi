@@ -38,7 +38,7 @@ export async function setupTestUtilities(page: Page, config: PasskeyTestConfig):
 
     (window as any).testUtils = {
       PasskeyManager: (window as any).PasskeyManager,
-      passkeyManager: (window as any).passkeyManager,
+      tatchi: (window as any).tatchi,
       configs: (window as any).configs || setupConfig,
       confirmOverrides: {
         // VRF-centric invariants:
@@ -54,7 +54,7 @@ export async function setupTestUtilities(page: Page, config: PasskeyTestConfig):
       // supports it; returns null when unavailable or on error.
       vrfStatus: async () => {
         try {
-          const pm = (window as any).passkeyManager;
+          const pm = (window as any).tatchi;
           const wm = pm?.webAuthnManager;
           if (!wm || typeof wm.checkVrfStatus !== 'function') return null;
           return await wm.checkVrfStatus();
@@ -152,9 +152,9 @@ export async function setupTestUtilities(page: Page, config: PasskeyTestConfig):
           };
         },
         preventVrfSessionClearing: () => {
-          const originalClearVrfSession = (window as any).testUtils?.passkeyManager?.webAuthnManager?.clearVrfSession;
+          const originalClearVrfSession = (window as any).testUtils?.tatchi?.webAuthnManager?.clearVrfSession;
           if (originalClearVrfSession) {
-            (window as any).testUtils.passkeyManager.webAuthnManager.clearVrfSession = async () => {
+            (window as any).testUtils.tatchi.webAuthnManager.clearVrfSession = async () => {
               console.log('[TEST] Preventing VRF session clearing in test environment');
             };
           }
@@ -235,8 +235,8 @@ export async function setupTestUtilities(page: Page, config: PasskeyTestConfig):
     } catch {}
 
     try {
-      const passkeyManager = (window as any).passkeyManager;
-      const nonceManager = passkeyManager?.webAuthnManager?.getNonceManager?.();
+      const tatchi = (window as any).tatchi;
+      const nonceManager = tatchi?.webAuthnManager?.getNonceManager?.();
 
       // VRF-centric confirmTxFlow tests rely on these fallbacks when NonceManager
       // has not been initialized with a user yet (pre-login or LocalOnly decrypt).

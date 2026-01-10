@@ -132,7 +132,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
           });
         }
       })).then(async () => {
-        const loginState = (await utils.passkeyManager.getLoginSession()).login;
+        const loginState = (await utils.tatchi.getLoginSession()).login;
         return { workerResults, loginState };
       });
     }, { buildPaths: BUILD_PATHS });
@@ -188,7 +188,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
 
       while (Date.now() - start < timeoutMs) {
         try {
-          await utils.passkeyManager.getNearClient().viewAccessKey(toAccountId(id), publicKey);
+          await utils.tatchi.getNearClient().viewAccessKey(toAccountId(id), publicKey);
           console.log('[flow:recovery] Access key indexed – proceeding');
           return;
         } catch (error) {
@@ -208,8 +208,8 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
     const finalState = await passkey.withTestUtils(async ({ accountId: id }) => {
       const utils = (window as any).testUtils as TestUtils;
       const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
-      const state = (await utils.passkeyManager.getLoginSession(toAccountId(id))).login;
-      const recent = await utils.passkeyManager.getRecentLogins();
+      const state = (await utils.tatchi.getLoginSession(toAccountId(id))).login;
+      const recent = await utils.tatchi.getRecentLogins();
       return { state, recent };
     }, { accountId });
 
@@ -249,7 +249,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
 	          beneficiaryId,
 	        });
 
-	        const actionPromise = utils.passkeyManager.executeAction({
+	        const actionPromise = utils.tatchi.executeAction({
 	          nearAccountId,
 	          receiverId: nearAccountId,
 	          actionArgs: {
