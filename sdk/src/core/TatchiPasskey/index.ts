@@ -137,7 +137,7 @@ export class TatchiPasskey {
 
   /**
    * Direct access to user preferences manager for convenience
-   * Example: passkeyManager.userPreferences.onThemeChange(cb)
+   * Example: tatchi.userPreferences.onThemeChange(cb)
    */
   get userPreferences(): UserPreferencesManager {
     return this.webAuthnManager.getUserPreferences();
@@ -710,14 +710,14 @@ export class TatchiPasskey {
    * @example
    * ```typescript
    * // Basic transfer
-   * const result = await passkeyManager.executeAction('alice.near', {
+   * const result = await tatchi.executeAction('alice.near', {
    *   type: ActionType.Transfer,
    *   receiverId: 'bob.near',
    *   amount: '1000000000000000000000000' // 1 NEAR
    * });
    *
    * // Function call with gas and deposit (already available in ActionArgs)
-   * const result = await passkeyManager.executeAction('alice.near', {
+   * const result = await tatchi.executeAction('alice.near', {
    *   type: ActionType.FunctionCall,
    *   receiverId: 'contract.near',
    *   methodName: 'set_value',
@@ -727,7 +727,7 @@ export class TatchiPasskey {
    * });
    *
    * // Batched transaction
-   * const result = await passkeyManager.executeAction('alice.near', [
+   * const result = await tatchi.executeAction('alice.near', [
    *   {
    *     type: ActionType.Transfer,
    *     receiverId: 'bob.near',
@@ -796,7 +796,7 @@ export class TatchiPasskey {
    * @example
    * ```typescript
    * // Sign and send multiple transactions in a batch
-   * const results = await passkeyManager.signAndSendTransactions('alice.near', {
+   * const results = await tatchi.signAndSendTransactions('alice.near', {
    *   transactions: [
    *     {
    *       receiverId: 'bob.near',
@@ -921,7 +921,7 @@ export class TatchiPasskey {
    * @example
    * ```typescript
    * // Sign a single transaction
-   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   * const signedTransactions = await tatchi.signTransactionsWithActions('alice.near', {
    *   transactions: [{
    *     receiverId: 'bob.near',
    *     actions: [{
@@ -933,7 +933,7 @@ export class TatchiPasskey {
    * });
    *
    * // Sign multiple transactions in a batch
-   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   * const signedTransactions = await tatchi.signTransactionsWithActions('alice.near', {
    *   transactions: [
    *     {
    *       receiverId: 'bob.near',
@@ -1006,7 +1006,7 @@ export class TatchiPasskey {
    * @example
    * ```typescript
    * // Sign a transaction first
-   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   * const signedTransactions = await tatchi.signTransactionsWithActions('alice.near', {
    *   transactions: [{
    *     receiverId: 'bob.near',
    *     actions: [{
@@ -1017,7 +1017,7 @@ export class TatchiPasskey {
    * });
    *
    * // Then broadcast it
-   * const result = await passkeyManager.sendTransaction(
+   * const result = await tatchi.sendTransaction(
    *   signedTransactions[0].signedTransaction,
    *   TxExecutionStatus.FINAL
    * );
@@ -1230,7 +1230,7 @@ export class TatchiPasskey {
    *
    * @example
    * ```typescript
-   * const result = await passkeyManager.signNEP413Message('alice.near', {
+   * const result = await tatchi.signNEP413Message('alice.near', {
    *   message: 'Hello World',
    *   recipient: 'app.example.com',
    *   state: 'optional-state'
