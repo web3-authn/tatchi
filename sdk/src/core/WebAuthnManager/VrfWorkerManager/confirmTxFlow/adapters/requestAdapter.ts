@@ -18,7 +18,6 @@ export function validateSecureConfirmRequest(input: unknown): SecureConfirmReque
     summary?: unknown;
     payload?: unknown;
   };
-  if (p.schemaVersion !== 2) throw new Error('schemaVersion must be 2');
   if (!isString(p.requestId) || !p.requestId) throw new Error('missing requestId');
   if (!isString(p.type) || !p.type) throw new Error('missing type');
   if (p.summary === undefined || p.summary === null) throw new Error('missing summary');

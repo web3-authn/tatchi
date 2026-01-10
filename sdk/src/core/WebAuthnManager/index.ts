@@ -47,6 +47,7 @@ import { hasAccessKey } from '../rpcCalls';
 import { ensureEd25519Prefix } from '../../utils/validation';
 import { enrollThresholdEd25519KeyHandler } from './threshold/enrollThresholdEd25519Key';
 import { rotateThresholdEd25519KeyPostRegistrationHandler } from './threshold/rotateThresholdEd25519KeyPostRegistration';
+import { collectAuthenticationCredentialForVrfChallenge as collectAuthenticationCredentialForVrfChallengeImpl } from './collectAuthenticationCredentialForVrfChallenge';
 
 type SigningSessionOptions = {
   /** PRF-bearing credential; VRF worker extracts PRF outputs internally */
@@ -386,6 +387,30 @@ export class WebAuthnManager {
       nearAccountId,
       challenge,
       allowCredentials
+    });
+  }
+
+  async collectAuthenticationCredentialForVrfChallenge(args: {
+    nearAccountId: AccountId | string;
+    vrfChallenge: VRFChallenge;
+    onBeforePrompt?: (info: {
+      authenticators: ClientAuthenticatorData[];
+      authenticatorsForPrompt: ClientAuthenticatorData[];
+      vrfChallenge: VRFChallenge;
+    }) => void;
+    /**
+     * When true, include PRF.second in the serialized credential.
+     * Use only for explicit recovery/export flows (higher-friction paths).
+     */
+    includeSecondPrfOutput?: boolean;
+  }): Promise<WebAuthnAuthenticationCredential> {
+    return collectAuthenticationCredentialForVrfChallengeImpl({
+      indexedDB: IndexedDBManager,
+      touchIdPrompt: this.touchIdPrompt,
+      nearAccountId: args.nearAccountId,
+      vrfChallenge: args.vrfChallenge,
+      includeSecondPrfOutput: args.includeSecondPrfOutput,
+      onBeforePrompt: args.onBeforePrompt,
     });
   }
 
@@ -1674,10 +1699,10 @@ export class WebAuthnManager {
         throw new Error(`No passkey authenticators found for account ${nearAccountId}`);
       }
 
-      const authCredential = await this.getAuthenticationCredentialsSerializedDualPrf({
+      const authCredential = await this.collectAuthenticationCredentialForVrfChallenge({
         nearAccountId,
-        challenge: vrfChallenge,
-        credentialIds: authenticators.map((a) => a.credentialId),
+        vrfChallenge,
+        includeSecondPrfOutput: true,
       });
 
       return await this.enrollThresholdEd25519Key({

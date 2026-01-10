@@ -5,7 +5,8 @@ import type { VRFChallenge, VRFInputData } from '../../types/vrf-worker';
 import { thresholdEd25519Keygen } from '../../rpcCalls';
 import { computeThresholdEd25519KeygenIntentDigest } from '../../digests/intentDigest';
 import { ensureEd25519Prefix } from '../../../utils/validation';
-import { authenticatorsToAllowCredentials, type TouchIdPrompt } from '../touchIdPrompt';
+import type { TouchIdPrompt } from '../touchIdPrompt';
+import { collectAuthenticationCredentialForVrfChallenge } from '../collectAuthenticationCredentialForVrfChallenge';
 
 type DeriveThresholdClientShareResult = {
   success: boolean;
@@ -25,7 +26,10 @@ export type EnrollThresholdEd25519KeyHandlerContext = {
       nearAccountId: AccountId;
     }) => Promise<DeriveThresholdClientShareResult>;
   };
-  touchIdPrompt: Pick<TouchIdPrompt, 'getRpId' | 'getAuthenticationCredentialsSerialized'>;
+  touchIdPrompt: Pick<
+    TouchIdPrompt,
+    'getRpId' | 'getAuthenticationCredentialsSerialized' | 'getAuthenticationCredentialsSerializedDualPrf'
+  >;
   relayerUrl: string;
 };
 
@@ -93,28 +97,11 @@ export async function enrollThresholdEd25519KeyHandler(
     });
 
     // Collect a WebAuthn authentication credential with the VRF output as challenge.
-    const authenticators = await IndexedDBManager.clientDB.getAuthenticatorsByUser(nearAccountId);
-    const { authenticatorsForPrompt, wrongPasskeyError } = await IndexedDBManager.clientDB.ensureCurrentPasskey(
-      toAccountId(nearAccountId),
-      authenticators,
-    );
-    if (wrongPasskeyError) {
-      throw new Error(wrongPasskeyError);
-    }
-    if (!authenticatorsForPrompt.length) {
-      throw new Error(`No passkey authenticators found for account ${nearAccountId}`);
-    }
-    if (authenticatorsForPrompt.length === 1) {
-      const expectedVrfPublicKey = authenticatorsForPrompt[0]?.vrfPublicKey;
-      if (expectedVrfPublicKey && vrfChallenge.vrfPublicKey && expectedVrfPublicKey !== vrfChallenge.vrfPublicKey) {
-        throw new Error('VRF session is bound to a different passkey than the current device. Please log in again and retry.');
-      }
-    }
-
-    const webauthnAuthentication = await ctx.touchIdPrompt.getAuthenticationCredentialsSerialized({
+    const webauthnAuthentication = await collectAuthenticationCredentialForVrfChallenge({
+      indexedDB: IndexedDBManager,
+      touchIdPrompt: ctx.touchIdPrompt,
       nearAccountId,
-      challenge: vrfChallenge,
-      allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
+      vrfChallenge,
     });
 
     const keygen = await thresholdEd25519Keygen(relayerUrl, vrfChallenge, webauthnAuthentication, {

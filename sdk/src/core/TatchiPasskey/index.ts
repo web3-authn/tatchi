@@ -11,7 +11,7 @@ import {
   sendTransaction,
   signAndSendTransactions,
 } from './actions';
-import { AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
+import type { RecoveryResult } from './recoverAccount';
 import { registerPasskey } from './registration';
 import { registerPasskeyInternal } from './registration';
 import {
@@ -63,27 +63,16 @@ import type {
   StartDevice2LinkingFlowArgs,
   StartDevice2LinkingFlowResults
 } from '../types/linkDevice';
-import { LinkDeviceFlow } from './linkDevice';
-import { linkDeviceWithScannedQRData } from './scanDevice';
-import {
-  signNEP413Message,
-  type SignNEP413MessageParams,
-  type SignNEP413MessageResult
+import type {
+  SignNEP413MessageParams,
+  SignNEP413MessageResult
 } from './signNEP413';
-import { signDelegateAction } from './delegateAction';
 import { SignedDelegate } from '../types/delegate';
-import { sendDelegateActionViaRelayer } from './relay';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 import type { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../utils/errors';
 import { isOffline, openOfflineExport } from '../OfflineExport';
-import { buildSetRecoveryEmailsActions, getRecoveryEmailHashesContractCall } from '../rpcCalls';
-import {
-  prepareRecoveryEmails,
-  getLocalRecoveryEmails,
-  bytesToHex,
-} from '../EmailRecovery';
 import type { DelegateActionInput } from '../types/delegate';
 import { buildConfigsFromEnv } from '../defaultConfigs';
 import type { EmailRecoveryFlowOptions } from '../types/emailRecovery';
@@ -114,8 +103,8 @@ export class TatchiPasskey {
   // Wallet-iframe mode: mirror wallet-host preferences into app-origin in-memory cache.
   private walletIframePrefsUnsubscribe: (() => void) | null = null;
   // Internal active Device2 flow when running locally (not exposed)
-  private activeDeviceLinkFlow: LinkDeviceFlow | null = null;
-  private activeAccountRecoveryFlow: AccountRecoveryFlow | null = null;
+  private activeDeviceLinkFlow: import('./linkDevice').LinkDeviceFlow | null = null;
+  private activeAccountRecoveryFlow: import('./recoverAccount').AccountRecoveryFlow | null = null;
   private activeEmailRecoveryFlow: import('./emailRecovery').EmailRecoveryFlow | null = null;
 
   constructor(
@@ -138,9 +127,9 @@ export class TatchiPasskey {
     this.userPreferences.configureWalletIframeSignerModeWriter(
       this.shouldUseWalletIframe()
         ? async (next) => {
-            const router = await this.requireWalletIframeRouter();
-            await router.setSignerMode(next);
-          }
+          const router = await this.requireWalletIframeRouter();
+          await router.setSignerMode(next);
+        }
         : null
     );
     // VRF worker initializes automatically in the constructor
@@ -223,7 +212,7 @@ export class TatchiPasskey {
 
           await this.iframeRouter.init();
           // Opportunistically warm remote NonceManager
-          try { await this.iframeRouter.prefetchBlockheight(); } catch {}
+          try { await this.iframeRouter.prefetchBlockheight(); } catch { }
         })();
       }
 
@@ -235,7 +224,7 @@ export class TatchiPasskey {
     } else {
       await this.iframeRouter.init();
       // Opportunistically warm remote NonceManager
-      try { await this.iframeRouter.prefetchBlockheight(); } catch {}
+      try { await this.iframeRouter.prefetchBlockheight(); } catch { }
     }
 
     // Wallet-iframe mode: keep app-origin UI prefs in sync with the wallet host.
@@ -396,7 +385,7 @@ export class TatchiPasskey {
           }
         });
         // Opportunistically warm resources (non-blocking)
-        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
+        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch { } })();
         await options?.afterCall?.(true, res);
         return res;
       } catch (error: unknown) {
@@ -437,7 +426,7 @@ export class TatchiPasskey {
             ...(options?.confirmerText ? { confirmerText: options.confirmerText } : {})
           }
         });
-        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
+        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch { } })();
         await options?.afterCall?.(true, res);
         return res;
       } catch (error: unknown) {
@@ -552,7 +541,7 @@ export class TatchiPasskey {
           }
         });
         // Best-effort warm-up after successful login (non-blocking)
-        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
+        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch { } })();
         await options?.afterCall?.(true, res);
         return res;
       } catch (error: unknown) {
@@ -566,7 +555,7 @@ export class TatchiPasskey {
     await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient);
     const res = await loginAndCreateSession(this.getContext(), toAccountId(nearAccountId), options);
     // Best-effort warm-up after successful login (non-blocking)
-    try { void this.warmCriticalResources(nearAccountId); } catch {}
+    try { void this.warmCriticalResources(nearAccountId); } catch { }
     return res;
   }
 
@@ -577,7 +566,7 @@ export class TatchiPasskey {
     await logoutAndClearSession(this.getContext());
     // Also clear wallet-origin VRF session if service iframe is active
     if (this.iframeRouter) {
-      try { await this.iframeRouter.clearVrfSession?.(); } catch {}
+      try { await this.iframeRouter.clearVrfSession?.(); } catch { }
     }
   }
 
@@ -588,7 +577,7 @@ export class TatchiPasskey {
     if (this.shouldUseWalletIframe()) {
       const router = await this.requireWalletIframeRouter(nearAccountId);
       const session = await router.getLoginSession(nearAccountId);
-      try { await router.prefetchBlockheight(); } catch {}
+      try { await router.prefetchBlockheight(); } catch { }
       return session;
     }
     return await getLoginSession(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
@@ -620,7 +609,7 @@ export class TatchiPasskey {
         try {
           const router = await this.requireWalletIframeRouter();
           await router.setConfirmBehavior(behavior);
-        } catch {}
+        } catch { }
       })();
       return;
     }
@@ -637,7 +626,7 @@ export class TatchiPasskey {
         try {
           const router = await this.requireWalletIframeRouter();
           await router.setConfirmationConfig(config);
-        } catch {}
+        } catch { }
       })();
       return;
     }
@@ -650,7 +639,7 @@ export class TatchiPasskey {
         try {
           const router = await this.requireWalletIframeRouter();
           await router.setTheme(theme);
-        } catch {}
+        } catch { }
       })();
       return;
     }
@@ -684,7 +673,7 @@ export class TatchiPasskey {
       await this.iframeRouter.prefetchBlockheight();
       return;
     }
-    try { await this.webAuthnManager.getNonceManager().prefetchBlockheight(this.nearClient); } catch {}
+    try { await this.webAuthnManager.getNonceManager().prefetchBlockheight(this.nearClient); } catch { }
   }
 
   async getRecentLogins(): Promise<GetRecentLoginsResult> {
@@ -1106,6 +1095,7 @@ export class TatchiPasskey {
       }
     }
 
+    const { signDelegateAction } = await import('./delegateAction');
     return signDelegateAction({
       context: this.getContext(),
       nearAccountId: toAccountId(nearAccountId),
@@ -1128,6 +1118,7 @@ export class TatchiPasskey {
     const base = args.relayerUrl.replace(/\/+$/, '');
     const route = (this.configs.relayer?.delegateActionRoute || '/signed-delegate').replace(/^\/?/, '/');
     const endpoint = `${base}${route}`;
+    const { sendDelegateActionViaRelayer } = await import('./relay');
     return sendDelegateActionViaRelayer({
       url: endpoint,
       payload: {
@@ -1154,15 +1145,15 @@ export class TatchiPasskey {
 
     const signOptions: DelegateActionHooksOptions | undefined = options
       ? {
-          signerMode: options.signerMode,
-          onEvent: options.onEvent,
-          onError: options.onError,
-          waitUntil: options.waitUntil,
-          confirmationConfig: options.confirmationConfig,
-          confirmerText: options.confirmerText,
-          // suppress afterCall so we can call afterCall() once at the end of the lifecycle.
-          afterCall: () => {},
-        }
+        signerMode: options.signerMode,
+        onEvent: options.onEvent,
+        onError: options.onError,
+        waitUntil: options.waitUntil,
+        confirmationConfig: options.confirmationConfig,
+        confirmerText: options.confirmerText,
+        // suppress afterCall so we can call afterCall() once at the end of the lifecycle.
+        afterCall: () => { },
+      }
       : undefined;
 
     let signResult: SignDelegateActionResult;
@@ -1179,9 +1170,9 @@ export class TatchiPasskey {
 
     const relayOptions: DelegateRelayHooksOptions | undefined = options
       ? {
-          onEvent: options.onEvent,
-          onError: options.onError,
-        }
+        onEvent: options.onEvent,
+        onError: options.onError,
+      }
       : undefined;
 
     let relayResult: DelegateRelayResult;
@@ -1278,6 +1269,7 @@ export class TatchiPasskey {
       }
     }
 
+    const { signNEP413Message } = await import('./signNEP413');
     const res = await signNEP413Message({
       context: this.getContext(),
       nearAccountId: toAccountId(args.nearAccountId),
@@ -1411,6 +1403,10 @@ export class TatchiPasskey {
     }
     const accountId = toAccountId(nearAccountId);
 
+    // Dynamic import for rpc/email utils
+    const { getRecoveryEmailHashesContractCall } = await import('../rpcCalls');
+    const { getLocalRecoveryEmails, bytesToHex } = await import('../EmailRecovery');
+
     // Fetch on-chain recovery email hashes
     const rawHashes = await getRecoveryEmailHashesContractCall(this.nearClient, accountId);
     if (!rawHashes.length) {
@@ -1467,6 +1463,10 @@ export class TatchiPasskey {
     }
     const accountId = toAccountId(nearAccountId);
 
+    // Dynamic import
+    const { prepareRecoveryEmails } = await import('../EmailRecovery');
+    const { buildSetRecoveryEmailsActions } = await import('../rpcCalls');
+
     // Canonicalize, hash, and persist mapping locally (best-effort)
     const { hashes: recoveryEmailHashes } = await prepareRecoveryEmails(accountId, recoveryEmails);
 
@@ -1519,6 +1519,7 @@ export class TatchiPasskey {
 
     // Local orchestration using AccountRecoveryFlow for a single-call UX
     try {
+      const { AccountRecoveryFlow } = await import('./recoverAccount');
       const flow = new AccountRecoveryFlow(this.getContext(), options);
       // Phase 1: Discover available accounts
       const discovered = await flow.discover(accountIdInput || '');
@@ -1553,8 +1554,9 @@ export class TatchiPasskey {
   // === Email Recovery Flow ===
   ///////////////////////////////////////
 
-  private getEmailRecoveryFlow(options?: EmailRecoveryFlowOptions) {
-    const { EmailRecoveryFlow } = require('./emailRecovery') as typeof import('./emailRecovery');
+
+  private async ensureEmailRecoveryFlow(options?: EmailRecoveryFlowOptions) {
+    const { EmailRecoveryFlow } = await import('./emailRecovery');
     if (!this.activeEmailRecoveryFlow) {
       this.activeEmailRecoveryFlow = new EmailRecoveryFlow(this.getContext(), options);
     } else if (options) {
@@ -1591,7 +1593,7 @@ export class TatchiPasskey {
         throw e;
       }
     }
-    const flow = this.getEmailRecoveryFlow(options);
+    const flow = await this.ensureEmailRecoveryFlow(options);
     return await flow.start({ accountId });
   }
 
@@ -1618,7 +1620,7 @@ export class TatchiPasskey {
         throw e;
       }
     }
-    const flow = this.getEmailRecoveryFlow(options);
+    const flow = await this.ensureEmailRecoveryFlow(options);
     await flow.finalize({ accountId, nearPublicKey });
   }
 
@@ -1633,13 +1635,13 @@ export class TatchiPasskey {
       try {
         const router = await this.requireWalletIframeRouter();
         await router.stopEmailRecovery({ accountId, nearPublicKey });
-      } catch {}
+      } catch { }
       return;
     }
 
     try {
       await this.activeEmailRecoveryFlow?.cancelAndReset({ accountId, nearPublicKey });
-    } catch {}
+    } catch { }
     this.activeEmailRecoveryFlow = null;
   }
 
@@ -1665,6 +1667,7 @@ export class TatchiPasskey {
     }
     // Local fallback: keep internal flow reference for cancellation
     this.activeDeviceLinkFlow?.cancel();
+    const { LinkDeviceFlow } = await import('./linkDevice');
     const flow = new LinkDeviceFlow(this.getContext(), {
       cameraId: args?.cameraId,
       options: args?.options,
@@ -1682,7 +1685,7 @@ export class TatchiPasskey {
       try {
         const router = await this.requireWalletIframeRouter();
         await router.stopDevice2LinkingFlow();
-      } catch {}
+      } catch { }
       return;
     }
     if (this.iframeRouter) {
@@ -1720,6 +1723,7 @@ export class TatchiPasskey {
       });
       return res as LinkDeviceResult;
     }
+    const { linkDeviceWithScannedQRData } = await import('./scanDevice');
     return linkDeviceWithScannedQRData(this.getContext(), qrData, options);
   }
 

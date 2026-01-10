@@ -99,6 +99,7 @@ impl VrfSessionData {
 pub struct VrfStatus {
     pub active: bool,
     pub session_duration: f64,
+    pub vrf_public_key: Option<String>,
 }
 
 impl VRFKeyManager {
@@ -505,9 +506,18 @@ impl VRFKeyManager {
         } else {
             0.0
         };
+        let vrf_public_key = if self.session_active {
+            self.vrf_keypair
+                .as_ref()
+                .and_then(|kp| bincode::serialize(&kp.inner().pk).ok())
+                .map(|bytes| base64_url_encode(&bytes))
+        } else {
+            None
+        };
         VrfStatus {
             active: self.session_active,
             session_duration,
+            vrf_public_key,
         }
     }
 

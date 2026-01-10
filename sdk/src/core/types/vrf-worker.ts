@@ -196,6 +196,11 @@ export interface VRFWorkerStatus {
   active: boolean;
   nearAccountId: AccountId | null;
   sessionDuration?: number;
+  /**
+   * Base64url VRF public key currently loaded in the VRF worker (when active).
+   * Used to detect device/passkey mismatches for multi-device accounts.
+   */
+  vrfPublicKey?: string | null;
 }
 
 export interface EncryptedVRFKeypair {

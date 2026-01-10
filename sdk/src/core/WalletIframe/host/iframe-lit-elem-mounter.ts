@@ -64,8 +64,8 @@ export function setupLitElemMounter(opts: {
 
   // Generic registry for mountable components
   let uiRegistry: WalletUIRegistry = { ...uiBuiltinRegistry };
-  const mountedById = new Map<string, HTMLElement>();
   let uidCounter = 0;
+  const mountedById = new Map<string, HTMLElement>();
 
   // Ensure global host styles via stylesheet (no inline style attributes)
   ensureHostBaseStyles();

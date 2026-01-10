@@ -58,7 +58,8 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async () => ({}) as any,
+          getAuthenticationCredentialsSerialized: async () => ({ id: 'cred', rawId: 'AA', type: 'public-key', response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw' }, clientExtensionResults: { prf: { results: { first: 'BQ' } } } }) as any,
+          getAuthenticationCredentialsSerializedDualPrf: async () => ({ id: 'cred', rawId: 'AA', type: 'public-key', response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw' }, clientExtensionResults: { prf: { results: { first: 'BQ', second: 'Bg' } } } }) as any,
         },
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
@@ -264,7 +265,8 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async () => ({}) as any,
+          getAuthenticationCredentialsSerialized: async () => ({ id: 'cred', rawId: 'AA', type: 'public-key', response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw' }, clientExtensionResults: { prf: { results: { first: 'BQ' } } } }) as any,
+          getAuthenticationCredentialsSerializedDualPrf: async () => ({ id: 'cred', rawId: 'AA', type: 'public-key', response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw' }, clientExtensionResults: { prf: { results: { first: 'BQ', second: 'Bg' } } } }) as any,
         },
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
@@ -409,24 +411,24 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async ({ allowCredentials }: any) => {
+          getAuthenticationCredentialsSerialized: async () => ({ id: 'cred-new', rawId: 'cred-new', type: 'public-key', response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw' }, clientExtensionResults: { prf: { results: { first: 'BQ' } } } }) as any,
+          getAuthenticationCredentialsSerializedDualPrf: async ({ allowCredentials }: any) => {
             capturedAllow = allowCredentials;
-            // Minimal PRF-capable credential stub
             return {
               id: 'cred-new',
-              rawId: new Uint8Array([1, 2]).buffer,
               type: 'public-key',
+              rawId: 'cred-new',
               response: {
-                clientDataJSON: new ArrayBuffer(0),
-                authenticatorData: new ArrayBuffer(0),
-                signature: new ArrayBuffer(0),
-                userHandle: null,
+                clientDataJSON: 'AQ',
+                authenticatorData: 'Ag',
+                signature: 'Aw',
+                userHandle: undefined,
               },
-              getClientExtensionResults: () => ({
-                prf: { results: { first: new Uint8Array(32), second: new Uint8Array(32) } },
-              }),
+              clientExtensionResults: {
+                prf: { results: { first: 'BQ', second: 'Bg' } },
+              },
             } as any;
-          }
+          },
         }
       };
 
@@ -499,18 +501,12 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async () => ({
-            id: 'cred',
-            type: 'public-key',
-            rawId: new Uint8Array([1]).buffer,
-            response: {
-              clientDataJSON: new Uint8Array([1]).buffer,
-              authenticatorData: new Uint8Array([2]).buffer,
-              signature: new Uint8Array([3]).buffer,
-              userHandle: null,
-            },
-            getClientExtensionResults: () => ({ prf: { results: {} } }),
-          }) as any,
+          getAuthenticationCredentialsSerialized: async () => {
+            throw new Error('Missing PRF result - PRF evaluation failed: results object is empty');
+          },
+          getAuthenticationCredentialsSerializedDualPrf: async () => {
+            throw new Error('Missing PRF result - PRF evaluation failed: results object is empty');
+          },
         },
         indexedDB: {
           clientDB: {
