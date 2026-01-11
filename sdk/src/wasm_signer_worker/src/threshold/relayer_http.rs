@@ -1,6 +1,5 @@
 use super::participant_ids::{
-    ensure_2p_participant_ids, normalize_participant_ids,
-    validate_threshold_ed25519_participant_ids_2p,
+    normalize_participant_ids, validate_threshold_ed25519_participant_ids_2p,
 };
 use super::protocol::CommitmentsWire;
 use crate::fetch::{
@@ -193,7 +192,6 @@ async fn post_json(
 
 fn resolve_relayer_participant_id(cfg: &ThresholdSignerConfig) -> Result<u16, String> {
     let participant_ids_norm = normalize_participant_ids(cfg.participant_ids.as_ref());
-    ensure_2p_participant_ids(&participant_ids_norm)?;
 
     let client_id_opt = cfg.client_participant_id.filter(|n| *n > 0);
     let relayer_id_opt = cfg.relayer_participant_id.filter(|n| *n > 0);

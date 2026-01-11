@@ -49,7 +49,6 @@ import {
 } from './validation';
 import { alphabetizeStringify, sha256BytesUtf8 } from '../../../utils/digests';
 import {
-  areThresholdEd25519ParticipantIds2p,
   normalizeThresholdEd25519ParticipantIds,
 } from '../../../threshold/participants';
 import type { ThresholdEd25519ShareMode } from './config';
@@ -263,13 +262,13 @@ function parseThresholdEd25519SessionRequest(
     return { ok: false, code: 'invalid_body', message: 'sessionPolicy.participantIds must be a non-empty array of positive integers' };
   }
   if (policyParticipantIds) {
-    if (policyParticipantIds.length !== 2) {
-      return policyParticipantIds.length > 2
-        ? { ok: false, code: 'multi_party_not_supported', message: `multi-party threshold sessions are not supported yet (expected participantIds=[${participantIds2p.join(',')}])` }
-        : { ok: false, code: 'invalid_body', message: 'sessionPolicy.participantIds must contain exactly 2 participant ids for 2-party signing' };
+    if (policyParticipantIds.length < 2) {
+      return { ok: false, code: 'invalid_body', message: 'sessionPolicy.participantIds must contain at least 2 participant ids' };
     }
-    if (!areThresholdEd25519ParticipantIds2p(policyParticipantIds, participantIds2p)) {
-      return { ok: false, code: 'unauthorized', message: `sessionPolicy.participantIds must match server signer set (expected participantIds=[${participantIds2p.join(',')}])` };
+    for (const id of participantIds2p) {
+      if (!policyParticipantIds.includes(id)) {
+        return { ok: false, code: 'unauthorized', message: `sessionPolicy.participantIds must include server signer set (expected to include participantIds=[${participantIds2p.join(',')}])` };
+      }
     }
   }
 
@@ -986,13 +985,14 @@ export class ThresholdEd25519Service {
       if (sessionRecord.userId !== userId) {
         return { ok: false, code: 'unauthorized', message: 'threshold session token does not match session record user' };
       }
-      const sessionParticipantIds =
-        normalizeThresholdEd25519ParticipantIds(sessionRecord.participantIds) || [...this.participantIds2p];
-      if (sessionParticipantIds.length !== 2) {
-        return { ok: false, code: 'multi_party_not_supported', message: `multi-party threshold signing is not supported yet (expected participantIds=[${this.participantIds2p.join(',')}])` };
+      const sessionParticipantIds = normalizeThresholdEd25519ParticipantIds(sessionRecord.participantIds);
+      if (!sessionParticipantIds || sessionParticipantIds.length < 2) {
+        return { ok: false, code: 'unauthorized', message: 'threshold session token is missing a valid participantIds set' };
       }
-      if (!areThresholdEd25519ParticipantIds2p(sessionParticipantIds, this.participantIds2p)) {
-        return { ok: false, code: 'unauthorized', message: `threshold session token does not match server signer set (expected participantIds=[${this.participantIds2p.join(',')}])` };
+      for (const id of this.participantIds2p) {
+        if (!sessionParticipantIds.includes(id)) {
+          return { ok: false, code: 'unauthorized', message: `threshold session token does not include server signer set (expected to include participantIds=[${this.participantIds2p.join(',')}])` };
+        }
       }
 
       if (relayerKeyId !== sessionRecord.relayerKeyId) {

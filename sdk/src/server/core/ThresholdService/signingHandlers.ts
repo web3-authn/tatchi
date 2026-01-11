@@ -23,7 +23,6 @@ import type {
   ThresholdEd25519SessionStore,
 } from './stores/SessionStore';
 import {
-  areThresholdEd25519ParticipantIds2p,
   normalizeThresholdEd25519ParticipantIds,
 } from '../../../threshold/participants';
 import type { ThresholdCoordinatorPeer, ThresholdNodeRole } from './config';
@@ -111,22 +110,20 @@ function parseThresholdEd25519FinalizeRequest(request: {
   return { ok: true, value: { signingSessionId, clientSignatureShareB64u } };
 }
 
-function require2pParticipantIds(raw: unknown, expected2p: number[], label: string): ParseResult<number[]> {
-  const participantIds = normalizeThresholdEd25519ParticipantIds(raw) || [...expected2p];
-  if (participantIds.length !== 2) {
-    return {
-      ok: false,
-      code: 'multi_party_not_supported',
-      message: `multi-party threshold signing is not supported yet (expected participantIds=[${expected2p.join(',')}])`,
-    };
+function requireParticipantIdsIncludeSignerSet(raw: unknown, signerSet2p: number[], label: string): ParseResult<number[]> {
+  const expected = normalizeThresholdEd25519ParticipantIds(signerSet2p) || [...signerSet2p];
+  const participantIds = normalizeThresholdEd25519ParticipantIds(raw) || [...expected];
+
+  for (const id of expected) {
+    if (!participantIds.includes(id)) {
+      return {
+        ok: false,
+        code: 'unauthorized',
+        message: `${label} does not include the server signer set (expected participantIds to include [${expected.join(',')}])`,
+      };
+    }
   }
-  if (!areThresholdEd25519ParticipantIds2p(participantIds, expected2p)) {
-    return {
-      ok: false,
-      code: 'unauthorized',
-      message: `${label} does not match server signer set (expected participantIds=[${expected2p.join(',')}])`,
-    };
-  }
+
   return { ok: true, value: participantIds };
 }
 
@@ -262,9 +259,8 @@ export class ThresholdEd25519SigningHandlers {
         return { ok: false, code: 'unauthorized', message: 'mpcSessionId expired' };
       }
 
-      const participantIdsRes = require2pParticipantIds(sess.participantIds, this.participantIds2p, 'mpcSessionId');
-      if (!participantIdsRes.ok) return participantIdsRes;
-      const participantIds = participantIdsRes.value;
+      const groupParticipantIds =
+        normalizeThresholdEd25519ParticipantIds(sess.participantIds) || [...this.participantIds2p];
 
       if (relayerKeyId !== sess.relayerKeyId) {
         return { ok: false, code: 'unauthorized', message: 'relayerKeyId does not match mpcSessionId scope' };
@@ -279,6 +275,8 @@ export class ThresholdEd25519SigningHandlers {
       }
 
       if (!this.coordinatorPeers.length) {
+        const signerSetRes = requireParticipantIdsIncludeSignerSet(groupParticipantIds, this.participantIds2p, 'mpcSessionId');
+        if (!signerSetRes.ok) return signerSetRes;
         const out = await this.peerSignInitFromMpcSessionRecord({ mpcSessionId, mpcSession: sess, clientCommitments });
         if (!out.ok) return out;
 
@@ -292,23 +290,18 @@ export class ThresholdEd25519SigningHandlers {
           relayerVerifyingSharesById: {
             [String(this.relayerParticipantId)]: out.relayerVerifyingShareB64u,
           },
-          participantIds: [...participantIds],
+          participantIds: [...this.participantIds2p],
         };
       }
 
-      const relayerIds = participantIds.filter((id) => id !== this.clientParticipantId);
-      if (relayerIds.length !== 1) {
-        return { ok: false, code: 'multi_party_not_supported', message: 'multi-party coordinator fanout is not supported yet' };
-      }
-      const [peerId] = relayerIds;
-
-      const peer = this.coordinatorPeers.find((p) => p.id === peerId) || null;
+      const relayerIds = groupParticipantIds.filter((id) => id !== this.clientParticipantId);
+      const peer = this.coordinatorPeers.find((p) => relayerIds.includes(p.id)) || null;
       if (!peer) {
-        return { ok: false, code: 'missing_config', message: `Missing coordinator peer for participant id=${peerId}` };
+        return { ok: false, code: 'missing_config', message: `Missing coordinator peer for participantIds=[${relayerIds.join(',')}]` };
       }
-      if (this.coordinatorPeers.some((p) => p.id !== peerId)) {
-        return { ok: false, code: 'multi_party_not_supported', message: 'coordinatorPeers contains multiple participant ids (multi-party not supported yet)' };
-      }
+      const peerId = peer.id;
+      const signerParticipantIds =
+        normalizeThresholdEd25519ParticipantIds([this.clientParticipantId, peerId]) || [this.clientParticipantId, peerId];
 
       const now = Math.floor(Date.now() / 1000);
       const exp = now + 60;
@@ -363,7 +356,7 @@ export class ThresholdEd25519SigningHandlers {
         rpId: sess.rpId,
         clientVerifyingShareB64u: sess.clientVerifyingShareB64u,
         commitmentsById,
-        participantIds,
+        participantIds: signerParticipantIds,
         peerSigningSessionIdsById: {
           [String(peerId)]: peerSigningSessionId,
         },
@@ -381,7 +374,7 @@ export class ThresholdEd25519SigningHandlers {
         signingSessionId,
         commitmentsById,
         relayerVerifyingSharesById,
-        participantIds: [...participantIds],
+        participantIds: [...signerParticipantIds],
       };
     } catch (e: unknown) {
       const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Internal error');
@@ -406,7 +399,7 @@ export class ThresholdEd25519SigningHandlers {
         return { ok: false, code: 'unauthorized', message: 'coordinatorGrant does not match this relayer participant id' };
       }
 
-      const participantIdsRes = require2pParticipantIds(mpcSession.participantIds, this.participantIds2p, 'coordinatorGrant');
+      const participantIdsRes = requireParticipantIdsIncludeSignerSet(mpcSession.participantIds, this.participantIds2p, 'coordinatorGrant');
       if (!participantIdsRes.ok) return participantIdsRes;
 
       return await this.peerSignInitFromMpcSessionRecord({
@@ -437,7 +430,7 @@ export class ThresholdEd25519SigningHandlers {
         return { ok: false, code: 'unauthorized', message: 'coordinatorGrant does not match this relayer participant id' };
       }
 
-      const participantIdsRes = require2pParticipantIds(mpcSession.participantIds, this.participantIds2p, 'coordinatorGrant');
+      const participantIdsRes = requireParticipantIdsIncludeSignerSet(mpcSession.participantIds, this.participantIds2p, 'coordinatorGrant');
       if (!participantIdsRes.ok) return participantIdsRes;
 
       return await this.peerSignFinalizeFromSigningSessionId({
@@ -467,7 +460,7 @@ export class ThresholdEd25519SigningHandlers {
       return { ok: false, code: 'unauthorized', message: 'mpcSessionId expired' };
     }
 
-    const participantIdsRes = require2pParticipantIds(sess.participantIds, this.participantIds2p, 'mpcSessionId');
+    const participantIdsRes = requireParticipantIdsIncludeSignerSet(sess.participantIds, this.participantIds2p, 'mpcSessionId');
     if (!participantIdsRes.ok) return participantIdsRes;
     const participantIds = participantIdsRes.value;
     const signingDigestB64u = sess.signingDigestB64u;
@@ -576,7 +569,7 @@ export class ThresholdEd25519SigningHandlers {
       return { ok: false, code: 'unauthorized', message: 'signingSessionId does not match coordinatorGrant scope' };
     }
 
-    const participantIdsRes = require2pParticipantIds(sess.participantIds, this.participantIds2p, 'signingSessionId');
+    const participantIdsRes = requireParticipantIdsIncludeSignerSet(sess.participantIds, this.participantIds2p, 'signingSessionId');
     if (!participantIdsRes.ok) return participantIdsRes;
 
     const key = await this.resolveRelayerKeyMaterial({
@@ -642,13 +635,13 @@ export class ThresholdEd25519SigningHandlers {
         return { ok: false, code: 'unauthorized', message: 'signingSessionId expired' };
       }
 
-      const participantIdsRes = require2pParticipantIds(sess.participantIds, this.participantIds2p, 'signingSessionId');
-      if (!participantIdsRes.ok) return participantIdsRes;
-      const participantIds = participantIdsRes.value;
-
+      const participantIds = normalizeThresholdEd25519ParticipantIds(sess.participantIds);
+      if (!participantIds || participantIds.length < 2) {
+        return { ok: false, code: 'internal', message: 'coordinator signing session missing participantIds' };
+      }
       const relayerIds = participantIds.filter((id) => id !== this.clientParticipantId);
       if (relayerIds.length !== 1) {
-        return { ok: false, code: 'multi_party_not_supported', message: 'multi-party coordinator fanout is not supported yet' };
+        return { ok: false, code: 'internal', message: 'coordinator signing session has invalid participantIds' };
       }
       const [peerId] = relayerIds;
 

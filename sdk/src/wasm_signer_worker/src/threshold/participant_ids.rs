@@ -14,16 +14,6 @@ pub fn normalize_participant_ids(ids: Option<&Vec<u16>>) -> Vec<u16> {
     out
 }
 
-pub fn ensure_2p_participant_ids(participant_ids_norm: &[u16]) -> Result<(), String> {
-    if participant_ids_norm.len() > 2 {
-        return Err(format!(
-            "threshold-signer: multi-party threshold signing is not supported yet (got participantIds=[{}])",
-            join_participant_ids(participant_ids_norm)
-        ));
-    }
-    Ok(())
-}
-
 pub fn validate_threshold_ed25519_participant_ids_2p(
     client_id_opt: Option<u16>,
     relayer_id_opt: Option<u16>,
@@ -38,18 +28,15 @@ pub fn validate_threshold_ed25519_participant_ids_2p(
                 );
             }
             if !participant_ids_norm.is_empty() {
-                if participant_ids_norm.len() != 2 {
-                    return Err(
-                        "threshold-signer: participantIds must contain exactly 2 ids for 2-party signing"
-                            .to_string(),
-                    );
+                if participant_ids_norm.len() < 2 {
+                    return Err("threshold-signer: participantIds must contain at least 2 ids".to_string());
                 }
-                let mut expected = vec![c, r];
-                expected.sort_unstable();
-                expected.dedup();
-                if participant_ids_norm != expected.as_slice() {
+                if !participant_ids_norm.contains(&c) || !participant_ids_norm.contains(&r) {
+                    let mut expected = vec![c, r];
+                    expected.sort_unstable();
+                    expected.dedup();
                     return Err(format!(
-                        "threshold-signer: participantIds does not match clientParticipantId/relayerParticipantId (expected participantIds=[{}], got participantIds=[{}])",
+                        "threshold-signer: participantIds must include clientParticipantId/relayerParticipantId (expected to include participantIds=[{}], got participantIds=[{}])",
                         join_participant_ids(&expected),
                         join_participant_ids(participant_ids_norm)
                     ));
@@ -62,11 +49,13 @@ pub fn validate_threshold_ed25519_participant_ids_2p(
                 (1u16, 2u16)
             } else if participant_ids_norm.len() == 2 {
                 (participant_ids_norm[0], participant_ids_norm[1])
-            } else {
+            } else if participant_ids_norm.len() > 2 {
                 return Err(
-                    "threshold-signer: participantIds must contain exactly 2 ids for 2-party signing"
+                    "threshold-signer: participantIds contains more than 2 ids; set clientParticipantId and relayerParticipantId to select the signer set"
                         .to_string(),
                 );
+            } else {
+                return Err("threshold-signer: participantIds must contain at least 2 ids".to_string());
             }
         }
         _ => {

@@ -331,8 +331,8 @@ async function prepareThresholdSessionPlan(args: {
       return null;
     }
 
-    if (normalizedParticipantIds && normalizedParticipantIds.length !== 2) {
-      console.warn(`[login] multi-party threshold signing is not supported yet; skipping threshold session mint`);
+    if (!normalizedParticipantIds || normalizedParticipantIds.length < 2) {
+      console.warn('[login] threshold key material missing/invalid participantIds; skipping threshold session mint');
       return null;
     }
 

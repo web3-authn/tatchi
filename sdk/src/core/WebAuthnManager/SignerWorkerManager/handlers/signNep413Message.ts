@@ -282,9 +282,9 @@ function validateAndPrepareNep413SigningContext(args: {
   }
 
   const participantIds = normalizeThresholdEd25519ParticipantIds(thresholdKeyMaterial.participants.map((p) => p.id));
-  if (!participantIds || participantIds.length !== 2) {
+  if (!participantIds || participantIds.length < 2) {
     throw new Error(
-      `multi-party threshold signing is not supported yet (expected 2 participants, got [${(participantIds || []).join(',')}])`
+      `Invalid threshold signing participantIds (expected >=2 participants, got [${(participantIds || []).join(',')}])`
     );
   }
 

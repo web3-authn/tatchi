@@ -1,6 +1,5 @@
 use crate::threshold::participant_ids::{
-    ensure_2p_participant_ids, normalize_participant_ids,
-    validate_threshold_ed25519_participant_ids_2p,
+    normalize_participant_ids, validate_threshold_ed25519_participant_ids_2p,
 };
 use crate::types::SignerMode;
 use crate::types::ThresholdSignerConfig;
@@ -475,7 +474,6 @@ impl ThresholdEd25519RelayerSigner {
         }
 
         let participant_ids_norm = normalize_participant_ids(cfg.participant_ids.as_ref());
-        ensure_2p_participant_ids(&participant_ids_norm)?;
 
         let normalized_mpc_session_id = cfg
             .mpc_session_id
