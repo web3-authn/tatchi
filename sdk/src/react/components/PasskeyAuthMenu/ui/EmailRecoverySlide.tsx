@@ -7,7 +7,7 @@ import {
 } from '@/core/types/sdkSentEvents';
 import type { TatchiPasskey } from '@/core/TatchiPasskey';
 import { EmailRecoveryErrorCode } from '@/core/types/emailRecovery';
-import type { EmailRecoveryFlowOptions } from '@/core/TatchiPasskey/emailRecovery';
+import type { EmailRecoveryFlowOptions } from '@/core/types/emailRecovery';
 
 export interface EmailRecoverySlideProps {
   tatchiPasskey: TatchiPasskey;

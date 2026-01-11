@@ -24,7 +24,7 @@ import { base64Encode, base64Decode } from "../utils";
 import { errorMessage } from "../utils/errors";
 import { NearRpcError } from "./NearRpcError";
 import { DEFAULT_WAIT_STATUS, RpcResponse } from "./types/rpc";
-import { isFunction } from './WalletIframe/validation';
+import { isFunction } from '@/utils/validation';
 import {
   WasmTransaction,
   WasmSignature,
@@ -200,6 +200,7 @@ export interface NearClient {
     signedTransaction: SignedTransaction,
     waitUntil?: TxExecutionStatus
   ): Promise<FinalExecutionOutcome>;
+  txStatus(txHash: string, senderAccountId: string): Promise<FinalExecutionOutcome>;
   query<T extends QueryResponseKind>(params: RpcQueryRequest): Promise<T>;
   callFunction<A, T>(
     contractId: string,
@@ -427,6 +428,18 @@ export class MinimalNearClient implements NearClient {
     }
     // Should be unreachable
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
+  async txStatus(txHash: string, senderAccountId: string): Promise<FinalExecutionOutcome> {
+    const params = {
+      tx_hash: txHash,
+      sender_account_id: senderAccountId,
+    };
+    return this.makeRpcCall<typeof params, FinalExecutionOutcome>(
+      'EXPERIMENTAL_tx_status',
+      params,
+      'Tx Status'
+    );
   }
 
   // legacy helpers removed in favor of NearRpcError

@@ -15,7 +15,7 @@ export async function mockRelayServer(
   page: Page,
   options: RelayMockOptions = {}
 ): Promise<void> {
-  const relayBase = (options.relayUrl ?? DEFAULT_TEST_CONFIG.relayer?.url ?? 'http://localhost:3000').replace(/\/$/, '');
+  const relayBase = (options.relayUrl ?? DEFAULT_TEST_CONFIG.relayer?.url ?? 'https://relay-server.localhost').replace(/\/$/, '');
   const endpoint = `${relayBase}/create_account_and_register_user`;
 
   await page.unroute(endpoint).catch(() => undefined);

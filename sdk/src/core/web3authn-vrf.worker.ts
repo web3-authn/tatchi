@@ -17,6 +17,7 @@ import {
   SecureConfirmMessageType,
 } from './WebAuthnManager/VrfWorkerManager/confirmTxFlow';
 import { WorkerControlMessage } from './workerControlMessages';
+import { errorMessage } from '../utils/errors';
 
 /**
  * WASM Asset Path Resolution for VRF Worker
@@ -33,7 +34,7 @@ const wasmUrl = resolveWasmUrl('wasm_vrf_worker_bg.wasm', 'vrf-worker');
 console.debug(`[vrf-worker] WASM URL resolved to: ${wasmUrl.href}`);
 
 // Expose the confirmation bridge under the JS name expected by wasm-bindgen.
-// awaitSecureConfirmationV2 expects a schemaVersion=2 SecureConfirmRequest object.
+// awaitSecureConfirmationV2 expects a SecureConfirmRequest object.
 (globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
 
 let wasmReady = false;
@@ -79,9 +80,24 @@ self.onmessage = async (event: MessageEvent) => {
       try {
         await initializeWasmModule();
         attach_wrap_key_seed_port(sessionId, port);
+        self.postMessage({
+          type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK,
+          sessionId,
+        });
       } catch (err) {
         console.error('[vrf-worker]: Failed to attach WrapKeySeed port in WASM', err);
+        self.postMessage({
+          type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
+          sessionId,
+          error: errorMessage(err),
+        });
       }
+    } else {
+      self.postMessage({
+        type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
+        sessionId: sessionId || 'unknown',
+        error: 'ATTACH_WRAP_KEY_SEED_PORT missing sessionId or MessagePort',
+      });
     }
     return;
   }

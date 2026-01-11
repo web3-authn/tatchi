@@ -2,12 +2,12 @@ import type { ActionArgsWasm } from '../../core/types/actions';
 import { ActionType, validateActionArgsWasm } from '../../core/types/actions';
 import { parseContractExecutionError } from '../core/errors';
 import { generateZkEmailProofFromPayload, type ZkEmailProverClientOptions } from './zkEmail';
-import { extractRecoveryModeFromBody, normalizeRecoveryMode } from './emailParsers';
+import { extractRecoveryModeFromBody, parseRecoveryMode } from './emailParsers';
 import { encryptEmailForOutlayer, hashRecoveryEmailForAccount } from './emailEncryptor';
 import { buildEncryptedEmailRecoveryActions, buildOnchainEmailRecoveryActions, buildZkEmailRecoveryActions, sendEmailRecoveryTransaction, getOutlayerEncryptionPublicKey } from './rpcCalls';
 import { ZkEmailProverClient } from './zkEmail/proverClient';
 import { mapZkEmailRecoveryError, prepareZkEmailRecovery } from './zkEmail/recovery';
-import { normalizeLogger, type NormalizedLogger } from '../core/logger';
+import { coerceLogger, type NormalizedLogger } from '../core/logger';
 import type {
   EmailRecoveryDispatchRequest,
   EmailRecoveryMode,
@@ -44,7 +44,7 @@ export class EmailRecoveryService {
 
   constructor(deps: EmailRecoveryServiceDeps) {
     this.deps = deps;
-    this.logger = normalizeLogger(deps.logger);
+    this.logger = coerceLogger(deps.logger);
   }
 
   /**
@@ -131,7 +131,7 @@ export class EmailRecoveryService {
     emailBlob?: string;
   }): EmailRecoveryMode {
     return (
-      normalizeRecoveryMode(input.explicitMode) ??
+      parseRecoveryMode(input.explicitMode) ??
       extractRecoveryModeFromBody(input.emailBlob) ??
       'tee-encrypted'
     );

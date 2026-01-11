@@ -16,6 +16,7 @@ import {
 import { type DeviceLinkingQRData } from '../../types/linkDevice';
 import type { DelegateActionInput } from '../../types/delegate';
 import type { ConfirmationConfig } from '../../types/signer-worker';
+import type { SignerMode } from '../../types/signer-worker';
 
 export type WalletProtocolVersion = '1.0.0';
 
@@ -25,6 +26,8 @@ export type ParentToChildType =
   | 'PM_CANCEL'
   // TatchiPasskey API surface
   | 'PM_REGISTER'
+  | 'PM_ENROLL_THRESHOLD_ED25519_KEY'
+  | 'PM_ROTATE_THRESHOLD_ED25519_KEY'
   | 'PM_LOGIN'
   | 'PM_LOGOUT'
   | 'PM_GET_LOGIN_SESSION'
@@ -46,6 +49,8 @@ export type ParentToChildType =
   | 'PM_SET_CONFIRM_BEHAVIOR'
   | 'PM_SET_CONFIRMATION_CONFIG'
   | 'PM_GET_CONFIRMATION_CONFIG'
+  | 'PM_SET_SIGNER_MODE'
+  | 'PM_GET_SIGNER_MODE'
   | 'PM_SET_THEME'
   | 'PM_HAS_PASSKEY'
   | 'PM_VIEW_ACCESS_KEYS'
@@ -88,6 +93,7 @@ export interface ReadyPayload {
 export interface PreferencesChangedPayload {
   nearAccountId: string | null;
   confirmationConfig: ConfirmationConfig;
+  signerMode: SignerMode;
   updatedAt: number;
 }
 
@@ -98,6 +104,11 @@ export interface PMSetConfigPayload {
   nearNetwork?: 'testnet' | 'mainnet';
   contractId?: string;
   nearExplorerUrl?: string;
+  /**
+   * Default signing policy applied inside the wallet iframe when per-call `options.signerMode`
+   * is not provided (e.g., `registerPasskey()`).
+   */
+  signerMode?: SignerMode;
   relayer?: {
     initialUseRelayer?: boolean;
     url: string;
@@ -124,6 +135,22 @@ export interface PMRegisterPayload {
   options?: Record<string, unknown>;
 }
 
+export interface PMEnrollThresholdEd25519KeyPayload {
+  nearAccountId: string;
+  options?: {
+    deviceNumber?: number;
+    relayerUrl?: string;
+  };
+}
+
+export interface PMRotateThresholdEd25519KeyPayload {
+  nearAccountId: string;
+  options?: {
+    deviceNumber?: number;
+    relayerUrl?: string;
+  };
+}
+
 export interface PMLoginPayload {
   nearAccountId: string;
   options?: Record<string, unknown>;
@@ -132,16 +159,24 @@ export interface PMLoginPayload {
 export interface PMSignTxsPayload {
   nearAccountId: string;
   transactions: TransactionInput[];
-  options?: Record<string, unknown>;
+  options: {
+    signerMode: SignerMode;
+    confirmationConfig?: Record<string, unknown>;
+    confirmerText?: { title?: string; body?: string };
+    [key: string]: unknown;
+  };
 }
 
 export interface PMSignAndSendTxsPayload {
   nearAccountId: string;
   transactions: TransactionInput[];
-  options?: {
+  options: {
+    signerMode: SignerMode;
     // Keep only serializable fields; functions are bridged via PROGRESS
     waitUntil?: 'NONE' | 'INCLUDED' | 'INCLUDED_FINAL' | 'EXECUTED' | 'FINAL' | 'EXECUTED_OPTIMISTIC';
     executionWait?: Record<string, unknown>;
+    confirmationConfig?: Record<string, unknown>;
+    confirmerText?: { title?: string; body?: string };
     [key: string]: unknown;
   };
 }
@@ -155,19 +190,35 @@ export interface PMExecuteActionPayload {
   nearAccountId: string;
   receiverId: string;
   actionArgs: ActionArgs | ActionArgs[];
-  options?: Record<string, unknown>;
+  options: {
+    signerMode: SignerMode;
+    waitUntil?: unknown;
+    confirmationConfig?: Record<string, unknown>;
+    confirmerText?: { title?: string; body?: string };
+    [key: string]: unknown;
+  };
 }
 
 export interface PMSignDelegateActionPayload {
   nearAccountId: string;
   delegate: DelegateActionInput;
-  options?: Record<string, unknown>;
+  options: {
+    signerMode: SignerMode;
+    confirmationConfig?: Record<string, unknown>;
+    confirmerText?: { title?: string; body?: string };
+    [key: string]: unknown;
+  };
 }
 
 export interface PMSignNep413Payload {
   nearAccountId: string;
   params: { message: string; recipient: string; state?: string };
-  options?: Record<string, unknown>;
+  options: {
+    signerMode: SignerMode;
+    confirmationConfig?: Record<string, unknown>;
+    confirmerText?: { title?: string; body?: string };
+    [key: string]: unknown;
+  };
 }
 
 export interface PMExportNearKeypairPayload { nearAccountId: string }
@@ -179,13 +230,22 @@ export interface PMSetConfirmationConfigPayload { config: Record<string, unknown
 
 export interface PMGetLoginSessionPayload { nearAccountId?: string }
 
+export interface PMSetSignerModePayload { signerMode: SignerMode; nearAccountId?: string }
+
 export interface PMSetThemePayload { theme: 'dark' | 'light' }
 
 export interface PMHasPasskeyPayload { nearAccountId: string }
 
 export interface PMViewAccessKeysPayload { accountId: string }
 
-export interface PMDeleteDeviceKeyPayload { accountId: string; publicKeyToDelete: string }
+export interface PMDeleteDeviceKeyPayload {
+  accountId: string;
+  publicKeyToDelete: string;
+  options: {
+    signerMode: SignerMode;
+    [key: string]: unknown;
+  };
+}
 
 export interface PMStartEmailRecoveryPayload {
   accountId: string;
@@ -227,7 +287,8 @@ export interface PMGetRecoveryEmailsPayload {
 export interface PMSetRecoveryEmailsPayload {
   nearAccountId: string;
   recoveryEmails: string[];
-  options?: {
+  options: {
+    signerMode: SignerMode;
     waitUntil?: unknown;
     confirmationConfig?: Record<string, unknown>;
     [key: string]: unknown;
@@ -259,6 +320,8 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_SET_CONFIG', PMSetConfigPayload>
   | RpcEnvelope<'PM_CANCEL', PMCancelPayload>
   | RpcEnvelope<'PM_REGISTER', PMRegisterPayload>
+  | RpcEnvelope<'PM_ENROLL_THRESHOLD_ED25519_KEY', PMEnrollThresholdEd25519KeyPayload>
+  | RpcEnvelope<'PM_ROTATE_THRESHOLD_ED25519_KEY', PMRotateThresholdEd25519KeyPayload>
   | RpcEnvelope<'PM_LOGIN', PMLoginPayload>
   | RpcEnvelope<'PM_LOGOUT'>
   | RpcEnvelope<'PM_GET_LOGIN_SESSION', PMGetLoginSessionPayload>
@@ -279,6 +342,8 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_SET_CONFIRM_BEHAVIOR', PMSetConfirmBehaviorPayload>
   | RpcEnvelope<'PM_SET_CONFIRMATION_CONFIG', PMSetConfirmationConfigPayload>
   | RpcEnvelope<'PM_GET_CONFIRMATION_CONFIG'>
+  | RpcEnvelope<'PM_SET_SIGNER_MODE', PMSetSignerModePayload>
+  | RpcEnvelope<'PM_GET_SIGNER_MODE'>
   | RpcEnvelope<'PM_SET_THEME', PMSetThemePayload>
   | RpcEnvelope<'PM_HAS_PASSKEY', PMHasPasskeyPayload>
   | RpcEnvelope<'PM_VIEW_ACCESS_KEYS', PMViewAccessKeysPayload>

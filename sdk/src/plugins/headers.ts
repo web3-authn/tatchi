@@ -1,21 +1,12 @@
 // Framework-agnostic header helpers to minimize configuration surface.
 // Keep types local to avoid coupling to framework packages.
 
+import { toOriginOrUndefined } from '../utils/validation'
+
 export type CspMode = 'strict' | 'compatible'
 
-function normalizeOrigin(input?: string): string | undefined {
-  try {
-    const v = (input || '').trim()
-    if (!v) return undefined
-    // Next/Caddy/etc. expect an origin, not a path
-    return new URL(v, 'http://dummy').origin === 'http://dummy' ? new URL(v).origin : v
-  } catch {
-    return input?.trim() || undefined
-  }
-}
-
 export function buildPermissionsPolicy(walletOrigin?: string): string {
-  const o = normalizeOrigin(walletOrigin)
+  const o = toOriginOrUndefined(walletOrigin)
   const part = (name: string) => `${name}=(self${o ? ` "${o}"` : ''})`
   return [
     part('publickey-credentials-get'),
@@ -48,7 +39,7 @@ export function buildWalletCsp(opts: {
   const mode: CspMode = opts.mode || 'strict'
   const frame = (opts.frameSrc || []).filter(Boolean)
   const scriptAllow = (opts.scriptSrcAllowlist || [])
-    .map((s) => normalizeOrigin(s) || s)
+    .map((s) => toOriginOrUndefined(s) || s)
     .filter(Boolean) as string[]
   const scriptUnsafeInline = mode === 'compatible' ? " 'unsafe-inline'" : ''
   const styleUnsafeInline = mode === 'compatible' ? " 'unsafe-inline'" : ''

@@ -3,7 +3,7 @@ import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
   progressBus: '/sdk/esm/core/WalletIframe/client/on-events-progress-bus.js',
-  passkeyManagerTypes: '/sdk/esm/core/types/sdkSentEvents.js',
+  tatchiTypes: '/sdk/esm/core/types/sdkSentEvents.js',
 } as const;
 
 test.describe('defaultPhaseHeuristics', () => {
@@ -14,7 +14,7 @@ test.describe('defaultPhaseHeuristics', () => {
   test('returns show/hide/none for representative phases', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       const progress = await import(paths.progressBus);
-      const phases = await import(paths.passkeyManagerTypes);
+      const phases = await import(paths.tatchiTypes);
       const heuristic = progress.defaultPhaseHeuristics as (p: any) => 'show' | 'hide' | 'none';
 
       const show1 = heuristic({ phase: phases.ActionPhase.STEP_2_USER_CONFIRMATION });

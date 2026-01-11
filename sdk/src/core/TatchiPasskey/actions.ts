@@ -9,13 +9,12 @@ import type {
 import type { ActionResult, SignTransactionResult } from '../types/tatchi';
 import type { TxExecutionStatus } from '@near-js/types';
 import type { ActionArgs, TransactionInput, TransactionInputWasm } from '../types/actions';
-import type { ConfirmationConfig } from '../types/signer-worker';
+import { type ConfirmationConfig, type SignerMode, mergeSignerMode } from '../types/signer-worker';
 import type { PasskeyManagerContext } from './index';
 import type { SignedTransaction } from '../NearClient';
 import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus, type ActionSSEEvent, type onProgressEvents } from '../types/sdkSentEvents';
 import { toError, getNearShortErrorMessage } from '../../utils/errors';
-
 
 /**
  * executeAction signs a single transaction (with actions[]) to a single receiver.
@@ -33,9 +32,10 @@ export async function executeAction(args: {
   nearAccountId: AccountId,
   receiverId: AccountId,
   actionArgs: ActionArgs | ActionArgs[],
-  options?: ActionHooksOptions,
+  options: ActionHooksOptions,
 }): Promise<ActionResult> {
   try {
+    const signerMode = mergeSignerMode(getBaseSignerMode(args.context), args.options?.signerMode);
     // Thread optional per-call confirmation override when provided; otherwise
     // user preferences determine the confirmation behavior.
     return executeActionInternal({
@@ -43,68 +43,19 @@ export async function executeAction(args: {
       nearAccountId: args.nearAccountId,
       receiverId: args.receiverId,
       actionArgs: args.actionArgs,
+      signerMode,
       options: args.options,
-      confirmationConfigOverride: args.options?.confirmationConfig
+      confirmationConfigOverride: args.options.confirmationConfig
     });
   } catch (error: unknown) {
     throw toError(error);
   }
 }
 
-// Helper: parallel broadcast with per-item stagger. Keeps UI snappy while avoiding RPC bursts.
-async function sendTransactionsParallelStaggered({
-  context,
-  signedTxs,
-  options,
-  staggerMs,
-}: {
-  context: PasskeyManagerContext,
-  signedTxs: SignTransactionResult[],
-  options?: SignAndSendTransactionHooksOptions,
-  staggerMs: number,
-}): Promise<ActionResult[]> {
-  return Promise.all(signedTxs.map(async (tx, i) => {
-    if (i > 0 && staggerMs > 0) {
-      await new Promise(r => setTimeout(r, i * staggerMs));
-    }
-    return sendTransaction({
-      context,
-      signedTransaction: tx.signedTransaction,
-      options: {
-        onEvent: options?.onEvent,
-        waitUntil: options?.waitUntil,
-      }
-    });
-  }));
-}
-
 // Execution plan types for broadcasting multiple transactions
-interface SequentialExecutionPlan {
-  mode: 'sequential';
-  waitUntil?: TxExecutionStatus;
-}
-interface ParallelStaggeredExecutionPlan {
-  mode: 'parallelStaggered';
-  staggerMs: number;
-}
-type ExecutionPlan = SequentialExecutionPlan | ParallelStaggeredExecutionPlan;
-
-// Helper: parse executionWait into a clear execution plan
-function parseExecutionWait(options?: SignAndSendTransactionHooksOptions): ExecutionPlan {
-  const ew = options?.executionWait as ExecutionWaitOption | undefined;
-  if (!ew) {
-    return { mode: 'sequential', waitUntil: options?.waitUntil };
-  }
-  if ('mode' in ew) {
-    if (ew.mode === 'sequential') {
-      return { mode: 'sequential', waitUntil: ew.waitUntil };
-    }
-    // parallelStaggered
-    const ms = Math.max(0, Number(ew.staggerMs ?? 75));
-    return { mode: 'parallelStaggered', staggerMs: ms };
-  }
-  // Fallback: treat unknown shapes as sequential using provided waitUntil
-  return { mode: 'sequential', waitUntil: options?.waitUntil };
+// Helper: parse executionWait (only sequential for now)
+function parseExecutionWait(options?: SignAndSendTransactionHooksOptions): { waitUntil?: TxExecutionStatus } {
+  return { waitUntil: options?.waitUntil };
 }
 
 /**
@@ -120,14 +71,16 @@ export async function signAndSendTransactions(args: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
-  options?: SignAndSendTransactionHooksOptions,
+  options: SignAndSendTransactionHooksOptions,
 }): Promise<ActionResult[]> {
+  const signerMode = mergeSignerMode(getBaseSignerMode(args.context), args.options?.signerMode);
   return signAndSendTransactionsInternal({
     context: args.context,
     nearAccountId: args.nearAccountId,
     transactionInputs: args.transactionInputs,
+    signerMode,
     options: args.options,
-    confirmationConfigOverride: args.options?.confirmationConfig
+    confirmationConfigOverride: args.options.confirmationConfig
   });
 }
 
@@ -144,15 +97,17 @@ export async function signTransactionsWithActions(args: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
-  options?: SignTransactionHooksOptions,
+  options: SignTransactionHooksOptions,
 }): Promise<SignTransactionResult[]> {
   try {
+    const signerMode = mergeSignerMode(getBaseSignerMode(args.context), args.options?.signerMode);
     return signTransactionsWithActionsInternal({
       context: args.context,
       nearAccountId: args.nearAccountId,
       transactionInputs: args.transactionInputs,
+      signerMode,
       options: args.options,
-      confirmationConfigOverride: args.options?.confirmationConfig
+      confirmationConfigOverride: args.options.confirmationConfig
       // Public API always uses undefined override (respects user settings)
     });
   } catch (error: unknown) {
@@ -306,6 +261,7 @@ export async function executeActionInternal({
   nearAccountId,
   receiverId,
   actionArgs,
+  signerMode,
   options,
   confirmationConfigOverride,
 }: {
@@ -313,6 +269,7 @@ export async function executeActionInternal({
   nearAccountId: AccountId,
   receiverId: AccountId,
   actionArgs: ActionArgs | ActionArgs[],
+  signerMode: SignerMode,
   options?: ActionHooksOptions,
   // Accept partial override and merge later in confirm flow
   confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
@@ -339,6 +296,7 @@ export async function executeActionInternal({
         receiverId: receiverId,
         actions: actions,
       }],
+      signerMode,
       options: { onEvent, onError, waitUntil, confirmerText },
       confirmationConfigOverride
     });
@@ -379,12 +337,14 @@ export async function signAndSendTransactionsInternal({
   context,
   nearAccountId,
   transactionInputs,
+  signerMode,
   options,
   confirmationConfigOverride,
 }: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
+  signerMode: SignerMode,
   options?: SignAndSendTransactionHooksOptions,
   confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<ActionResult[]> {
@@ -394,31 +354,26 @@ export async function signAndSendTransactionsInternal({
       context,
       nearAccountId,
       transactionInputs,
+      signerMode,
       options,
       confirmationConfigOverride
     });
 
-    // Determine execution strategy from the new executionWait option.
     const plan = parseExecutionWait(options);
-    if (plan.mode === 'sequential') {
-      const txResults: ActionResult[] = [];
-      for (let i = 0; i < signedTxs.length; i++) {
-        const tx = signedTxs[i];
-        const txResult = await sendTransaction({
-          context,
-          signedTransaction: tx.signedTransaction,
-          options: {
-            onEvent: options?.onEvent,
-            waitUntil: plan.waitUntil ?? options?.waitUntil,
-          }
-        });
-        txResults.push(txResult);
-      }
-      return txResults;
+    const txResults: ActionResult[] = [];
+    for (let i = 0; i < signedTxs.length; i++) {
+      const tx = signedTxs[i];
+      const txResult = await sendTransaction({
+        context,
+        signedTransaction: tx.signedTransaction,
+        options: {
+          onEvent: options?.onEvent,
+          waitUntil: plan.waitUntil ?? options?.waitUntil,
+        }
+      });
+      txResults.push(txResult);
     }
-
-    // Parallel execution with configurable staggering to reduce transient RPC failures
-    return await sendTransactionsParallelStaggered({ context, signedTxs, options, staggerMs: plan.staggerMs });
+    return txResults;
   } catch (error: unknown) {
     // If signing fails, release all reserved nonces
     context.webAuthnManager.getNonceManager().releaseAllNonces();
@@ -450,12 +405,14 @@ export async function signTransactionsWithActionsInternal({
   context,
   nearAccountId,
   transactionInputs,
+  signerMode,
   options,
   confirmationConfigOverride,
 }: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
+  signerMode: SignerMode,
   options?: Omit<ActionHooksOptions, 'afterCall'>,
   confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<SignTransactionResult[]> {
@@ -477,14 +434,75 @@ export async function signTransactionsWithActionsInternal({
     await validateInputsOnly(nearAccountId, transactionInputs, { onEvent, onError, waitUntil });
 
     // 2. VRF Authentication + Transaction Signing (NEAR data fetched in confirmation flow)
-    const signedTxs = await wasmAuthenticateAndSignTransactions(
-      context,
-      nearAccountId,
-      transactionInputs,
-      { onEvent, onError, waitUntil, confirmerText, confirmationConfigOverride }
-    );
+    onEvent?.({
+      step: 2,
+      phase: ActionPhase.STEP_2_USER_CONFIRMATION,
+      status: ActionStatus.PROGRESS,
+      message: 'Requesting user confirmation...'
+    });
 
-    return signedTxs;
+    // Convert all actions to ActionArgsWasm format for batched transaction
+    const transactionInputsWasm: TransactionInputWasm[] = transactionInputs.map(tx => {
+      return {
+        receiverId: tx.receiverId,
+        actions: tx.actions.map(action => toActionArgsWasm(action)),
+      }
+    });
+
+    // VRF challenge and NEAR data will be generated in the confirmation flow
+    // - Nonce will be fetched within the confirmation flow
+    // This eliminates the ~500ms blocking operations before modal display
+    return context.webAuthnManager.signTransactionsWithActions({
+      transactions: transactionInputsWasm,
+      rpcCall: {
+        contractId: context.configs.contractId,
+        nearRpcUrl: context.configs.nearRpcUrl,
+        nearAccountId: nearAccountId, // caller account
+      },
+      signerMode,
+      // VRF challenge and NEAR data computed in confirmation flow
+      confirmationConfigOverride: confirmationConfigOverride,
+      title: confirmerText?.title,
+      body: confirmerText?.body,
+      // Pass through the onEvent callback for progress updates
+      onEvent: onEvent ? (progressEvent: onProgressEvents) => {
+        if (progressEvent.phase === ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION) {
+          onEvent?.({
+            step: 3,
+            phase: ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION,
+            status: ActionStatus.PROGRESS,
+            message: 'Authenticating with contract...',
+          });
+        }
+        if (progressEvent.phase === ActionPhase.STEP_4_AUTHENTICATION_COMPLETE) {
+          onEvent?.({
+            step: 4,
+            phase: ActionPhase.STEP_4_AUTHENTICATION_COMPLETE,
+            status: ActionStatus.SUCCESS,
+            message: 'WebAuthn verification complete',
+          });
+        }
+        if (progressEvent.phase === ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS) {
+          onEvent?.({
+            step: 5,
+            phase: ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS,
+            status: ActionStatus.PROGRESS,
+            message: 'Signing transaction...',
+          });
+        }
+        if (progressEvent.phase === ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE) {
+          onEvent?.({
+            step: 6,
+            phase: ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE,
+            status: ActionStatus.SUCCESS,
+            message: 'Transaction signed successfully',
+          });
+        }
+        // Bridge worker onProgressEvents (generic) to ActionSSEEvent expected by public hooks
+        onEvent(progressEvent as ActionSSEEvent);
+      } : undefined,
+    });
+
   } catch (error: any) {
     console.error('[signTransactionsWithActions] Error during execution:', error);
     const e = toError(error);
@@ -501,13 +519,6 @@ export async function signTransactionsWithActionsInternal({
   }
 }
 
-//////////////////////////////
-// === HELPER FUNCTIONS ===
-//////////////////////////////
-
-/**
- * 1. Input Validation - Validates inputs without fetching NEAR data
- */
 async function validateInputsOnly(
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
@@ -527,6 +538,10 @@ async function validateInputsOnly(
     message: 'Validating inputs...'
   });
 
+  if (transactionInputs.length === 0) {
+    throw new Error('No payloads provided for signing');
+  }
+
   for (const transactionInput of transactionInputs) {
     if (!transactionInput.receiverId) {
       throw new Error('Missing required parameter: receiverId');
@@ -542,89 +557,10 @@ async function validateInputsOnly(
   }
 }
 
-/**
- * 2. VRF Authentication - Handles VRF challenge generation and WebAuthn authentication
- *  with the webauthn contract
- */
-async function wasmAuthenticateAndSignTransactions(
-  context: PasskeyManagerContext,
-  nearAccountId: AccountId,
-  transactionInputs: TransactionInput[],
-  options?: Omit<ActionHooksOptions, 'afterCall'> & { confirmationConfigOverride?: Partial<ConfirmationConfig> }
-  // Per-call override for confirmation behavior (does not persist to IndexedDB)
-): Promise<SignTransactionResult[]> {
-
-  const { onEvent, onError, confirmationConfigOverride, confirmerText } = options || {};
-  const { webAuthnManager } = context;
-
-  onEvent?.({
-    step: 2,
-    phase: ActionPhase.STEP_2_USER_CONFIRMATION,
-    status: ActionStatus.PROGRESS,
-    message: 'Requesting user confirmation...'
-  });
-
-  // VRF challenge and NEAR data will be generated in the confirmation flow
-  // This eliminates the ~700ms blocking operations before modal display
-
-  // Convert all actions to ActionArgsWasm format for batched transaction
-  const transactionInputsWasm: TransactionInputWasm[] = transactionInputs.map((tx, i) => {
-    return {
-      receiverId: tx.receiverId,
-      actions: tx.actions.map(action => toActionArgsWasm(action)),
-    }
-  });
-
-  // Nonce will be fetched within the confirmation flow
-  const signedTxs = await webAuthnManager.signTransactionsWithActions({
-    transactions: transactionInputsWasm,
-    rpcCall: {
-      contractId: context.configs.contractId,
-      nearRpcUrl: context.configs.nearRpcUrl,
-      nearAccountId: nearAccountId, // caller account
-    },
-    // VRF challenge and NEAR data computed in confirmation flow
-    confirmationConfigOverride: confirmationConfigOverride,
-    title: confirmerText?.title,
-    body: confirmerText?.body,
-    // Pass through the onEvent callback for progress updates
-    onEvent: onEvent ? (progressEvent: onProgressEvents) => {
-      if (progressEvent.phase === ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION) {
-        onEvent?.({
-          step: 3,
-          phase: ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION,
-          status: ActionStatus.PROGRESS,
-          message: 'Authenticating with contract...',
-        });
-      }
-      if (progressEvent.phase === ActionPhase.STEP_4_AUTHENTICATION_COMPLETE) {
-        onEvent?.({
-          step: 4,
-          phase: ActionPhase.STEP_4_AUTHENTICATION_COMPLETE,
-          status: ActionStatus.SUCCESS,
-          message: 'WebAuthn verification complete',
-        });
-      }
-      if (progressEvent.phase === ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS) {
-        onEvent?.({
-          step: 5,
-          phase: ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS,
-          status: ActionStatus.PROGRESS,
-          message: 'Signing transaction...',
-        });
-      }
-      if (progressEvent.phase === ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE) {
-        onEvent?.({
-          step: 6,
-          phase: ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE,
-          status: ActionStatus.SUCCESS,
-          message: 'Transaction signed successfully',
-        });
-      }
-      // Bridge worker onProgressEvents (generic) to ActionSSEEvent expected by public hooks
-      onEvent(progressEvent as ActionSSEEvent);
-    } : undefined,
-  });
-
-  return signedTxs;
+function getBaseSignerMode(context: PasskeyManagerContext): SignerMode {
+  try {
+    return context.webAuthnManager.getUserPreferences().getSignerMode();
+  } catch {
+    return context.configs.signerMode;
+  }
 }

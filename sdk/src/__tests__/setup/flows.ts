@@ -2,6 +2,54 @@ import type { PasskeyFixture } from './fixtures';
 import type { TestUtils } from './index';
 import { printLog } from './logging';
 import { ActionType } from '../../core/types/actions';
+import type { Page } from '@playwright/test';
+
+export async function clickWalletIframeConfirm(page: Page, opts?: { timeoutMs?: number }): Promise<boolean> {
+  const timeoutMs = Math.max(250, Math.floor(opts?.timeoutMs ?? 15_000));
+  try {
+    const iframeEl = page.locator('iframe[allow*="publickey-credentials-get"]').first();
+    await iframeEl.waitFor({ state: 'attached', timeout: timeoutMs }).catch(() => undefined);
+    const frame = await iframeEl.contentFrame();
+    if (!frame) return false;
+
+    const confirmBtn = frame.locator('#w3a-confirm-portal button.confirm').first();
+    await confirmBtn.waitFor({ state: 'visible', timeout: timeoutMs });
+    await confirmBtn.click({ timeout: timeoutMs });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function autoConfirmWalletIframeUntil<T>(
+  page: Page,
+  task: Promise<T>,
+  opts?: { timeoutMs?: number; intervalMs?: number }
+): Promise<T> {
+  const timeoutMs = Math.max(250, Math.floor(opts?.timeoutMs ?? 55_000));
+  const intervalMs = Math.max(50, Math.floor(opts?.intervalMs ?? 250));
+
+  let done = false;
+
+  const loop = (async () => {
+    const deadline = Date.now() + timeoutMs;
+    while (!done && Date.now() < deadline) {
+      try {
+        await clickWalletIframeConfirm(page, { timeoutMs: Math.min(500, intervalMs) });
+      } catch { }
+      try {
+        await page.waitForTimeout(intervalMs);
+      } catch { }
+    }
+  })();
+
+  try {
+    return await task;
+  } finally {
+    done = true;
+    await loop.catch(() => undefined);
+  }
+}
 
 export interface RegistrationFlowOptions {
   accountId?: string;
@@ -30,7 +78,7 @@ export async function registerPasskey(
 
   printLog('flow', `starting registration for ${accountId}`, { step: 'register' });
 
-  const registrationResult = await passkey.withTestUtils((args) => {
+  const registrationPromise = passkey.withTestUtils((args) => {
     const utils = (window as any).testUtils as TestUtils;
     const toAccountId = (window as any).toAccountId ?? ((id: string) => id);
     const events: any[] = [];
@@ -42,7 +90,7 @@ export async function registerPasskey(
 
     try {
       console.log(`[flow:register] invoking registerPasskeyInternal for ${args.accountId}`);
-      return utils.passkeyManager.registerPasskeyInternal(toAccountId(args.accountId), {
+      return utils.tatchi.registerPasskeyInternal(toAccountId(args.accountId), {
         onEvent: (event: any) => {
           events.push(event);
           console.log(`[flow:register]   -> ${event.phase} | ${event.message}`);
@@ -80,6 +128,14 @@ export async function registerPasskey(
     }
   }, { accountId, confirmVariant: options.confirmVariant ?? 'skip' });
 
+  // Registration in a cross-origin wallet iframe requires a user activation.
+  // confirmTxFlow enforces requireClick; provide the click from Playwright while
+  // the browser-side registration promise is pending.
+  const clickPromise = clickWalletIframeConfirm(passkey.page, { timeoutMs: 20_000 });
+  await Promise.race([registrationPromise.then(() => undefined), clickPromise]);
+
+  const registrationResult = await registrationPromise;
+
   if (registrationResult.skippedDueToExisting) {
     printLog('flow', `registration skipped because ${accountId} already exists`, {
       step: 'register',
@@ -116,14 +172,14 @@ export async function loginAndCreateSession(
   const accountId = options.accountId;
   printLog('flow', `starting login for ${accountId}`, { step: 'login' });
 
-  const loginResult = await passkey.withTestUtils((args) => {
+  const loginPromise = passkey.withTestUtils((args) => {
     const utils = (window as any).testUtils as TestUtils;
     const toAccountId = (window as any).toAccountId ?? ((id: string) => id);
     const events: any[] = [];
 
     try {
       console.log(`[flow:login] invoking loginAndCreateSession for ${args.accountId}`);
-      return utils.passkeyManager.loginAndCreateSession(toAccountId(args.accountId), {
+      return utils.tatchi.loginAndCreateSession(toAccountId(args.accountId), {
         onEvent: (event: any) => {
           events.push(event);
           console.log(`[flow:login]   -> ${event.phase} | ${event.message}`);
@@ -148,6 +204,11 @@ export async function loginAndCreateSession(
       };
     }
   }, { accountId });
+
+  const clickPromise = clickWalletIframeConfirm(passkey.page, { timeoutMs: 20_000 });
+  await Promise.race([loginPromise.then(() => undefined), clickPromise]);
+
+  const loginResult = await loginPromise;
 
   printLog('flow', `login ${loginResult.success ? 'succeeded' : 'failed'} for ${accountId}`, {
     step: 'login',
@@ -183,25 +244,26 @@ export async function executeTransfer(
     step: 'transfer',
   });
 
-  const result = await passkey.withTestUtils((args) => {
+  const resultPromise = passkey.withTestUtils((args) => {
     const utils = (window as any).testUtils as TestUtils;
     const toAccountId = (window as any).toAccountId ?? ((id: string) => id);
     const events: any[] = [];
 
     try {
       console.log(`[flow:transfer] executing action for ${args.accountId}`);
-      return utils.passkeyManager.executeAction({
+      return utils.tatchi.executeAction({
         nearAccountId: toAccountId(args.accountId),
         receiverId: args.receiverId,
         actionArgs: {
           type: args.actionType ?? 'Transfer',
           amount: args.amountYocto,
         },
-        options: {
-          onEvent: (event: any) => {
-            events.push(event);
-            console.log(`[flow:transfer]   -> ${event.phase} | ${event.message}`);
-          },
+	        options: {
+	          signerMode: { mode: 'local-signer' },
+	          onEvent: (event: any) => {
+	            events.push(event);
+	            console.log(`[flow:transfer]   -> ${event.phase} | ${event.message}`);
+	          },
           onError: (error: any) => {
             console.error(`[flow:transfer] ! ${error}`);
           }
@@ -221,6 +283,11 @@ export async function executeTransfer(
       };
     }
   }, { ...options, actionType });
+
+  const clickPromise = clickWalletIframeConfirm(passkey.page, { timeoutMs: 20_000 });
+  await Promise.race([resultPromise.then(() => undefined), clickPromise]);
+
+  const result = await resultPromise;
 
   printLog('flow', `transfer ${result.success ? 'succeeded' : 'failed'}`, {
     step: 'transfer',
@@ -251,11 +318,11 @@ export async function recoverAccount(
     step: 'recovery',
   });
 
-  const result = await passkey.withTestUtils((args) => {
+  const resultPromise = passkey.withTestUtils((args) => {
     const utils = (window as any).testUtils as TestUtils;
     const events: any[] = [];
 
-    return utils.passkeyManager.recoverAccountFlow({
+    return utils.tatchi.recoverAccountFlow({
       accountId: args.accountId,
       options: {
         onEvent: (event: any) => {
@@ -277,6 +344,11 @@ export async function recoverAccount(
       events,
     }));
   }, options);
+
+  const clickPromise = clickWalletIframeConfirm(passkey.page, { timeoutMs: 20_000 });
+  await Promise.race([resultPromise.then(() => undefined), clickPromise]);
+
+  const result = await resultPromise;
 
   printLog('flow', `recovery ${result.success ? 'succeeded' : 'failed'}`, {
     step: 'recovery',

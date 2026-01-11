@@ -2,10 +2,19 @@ import { normalizeRegistrationCredential } from '../../credentialsHelpers';
 import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import { validateVRFChallenge, type VRFChallenge } from '../../../types/vrf-worker';
 import type { TransactionContext } from '../../../types/rpc';
-import { isObject, assertString } from '../../../WalletIframe/validation';
+import { isObject, assertString } from '@/utils/validation';
 import { DelegateActionInput } from '../../../types/delegate';
 import { base58Encode } from '../../../../utils/base58';
+
 import { ensureEd25519Prefix } from '../../../nearCrypto';
+export { ensureEd25519Prefix };
+
+export const toPublicKeyString = (pk: DelegateActionInput['publicKey']): string => {
+  if (typeof pk === 'string') {
+    return pk;
+  }
+  return ensureEd25519Prefix(base58Encode(pk.keyData));
+};
 
 // Strongly typed payload expected from the WASM → JS boundary
 export interface RegistrationCredentialConfirmationPayload {
@@ -191,12 +200,3 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
     error: normalizedError,
   };
 }
-
-export { ensureEd25519Prefix };
-
-export const toPublicKeyString = (pk: DelegateActionInput['publicKey']): string => {
-  if (typeof pk === 'string') {
-    return pk;
-  }
-  return ensureEd25519Prefix(base58Encode(pk.keyData));
-};

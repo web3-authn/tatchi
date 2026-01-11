@@ -4,9 +4,9 @@ import { LitElementWithProps } from '../LitElementWithProps';
 import type { ConfirmUIElement, ThemeName } from '../confirm-ui-types';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
-import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../txDigest';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../../digests/intentDigest';
 import { isActionArgsWasm, toActionArgsWasm, type ActionArgs, type ActionArgsWasm } from '@/core/types/actions';
-import { isObject, isString } from '../../../WalletIframe/validation';
+import { isObject, isString } from '@/utils/validation';
 import { W3A_TX_CONFIRMER_ID } from '../tags';
 import { DrawerTxConfirmerElement } from './viewer-drawer';
 import { ModalTxConfirmElement } from './viewer-modal';
@@ -233,12 +233,10 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     this.redispatchingEvent = true;
     try {
       event.stopImmediatePropagation();
-      console.debug('[TxConfirmerWrapper] CONFIRM received', { hasIntent: !!this.intentDigest, txCount: (this.txSigningRequests?.length ?? 0) });
 
       if (confirmed && this.intentDigest && (this.txSigningRequests?.length ?? 0) > 0) {
         try {
           const digest = await this.computeIntentDigest();
-          console.debug('[TxConfirmerWrapper] computed digest', { digest, expected: this.intentDigest });
           if (digest !== this.intentDigest) {
             confirmed = false;
             error = 'INTENT_DIGEST_MISMATCH';
@@ -246,9 +244,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
         } catch (err) {
           confirmed = false;
           error = 'UI_DIGEST_VALIDATION_FAILED';
-          if (typeof console !== 'undefined' && typeof console.warn === 'function') {
-            console.warn('[TxConfirmerWrapper] intent digest validation failed', err);
-          }
+          console.warn('[TxConfirmerWrapper] intent digest validation failed', err);
         }
       }
 

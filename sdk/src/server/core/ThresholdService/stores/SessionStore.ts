@@ -1,0 +1,311 @@
+import type { NormalizedLogger } from '../../logger';
+import type { ThresholdEd25519KeyStoreConfigInput } from '../../types';
+import { RedisTcpClient, UpstashRedisRestClient, redisGetdelJson, redisSetJson } from '../kv';
+import { toOptionalTrimmedString } from '../../../../utils/validation';
+import {
+  toThresholdEd25519SessionPrefix,
+  parseThresholdEd25519MpcSessionRecord,
+  parseThresholdEd25519CoordinatorSigningSessionRecord,
+  parseThresholdEd25519SigningSessionRecord,
+  isObject,
+} from '../validation';
+
+export type ThresholdEd25519Commitments = { hiding: string; binding: string };
+
+export type ThresholdEd25519CommitmentsById = Record<string, ThresholdEd25519Commitments>;
+
+export type ThresholdEd25519MpcSessionRecord = {
+  expiresAtMs: number;
+  relayerKeyId: string;
+  purpose: string;
+  intentDigestB64u: string;
+  signingDigestB64u: string;
+  userId: string;
+  rpId: string;
+  clientVerifyingShareB64u: string;
+  participantIds: number[];
+};
+
+export type ThresholdEd25519SigningSessionRecord = {
+  expiresAtMs: number;
+  mpcSessionId: string;
+  relayerKeyId: string;
+  signingDigestB64u: string;
+  userId: string;
+  rpId: string;
+  clientVerifyingShareB64u: string;
+  commitmentsById: ThresholdEd25519CommitmentsById;
+  relayerNoncesB64u: string;
+  participantIds: number[];
+};
+
+export type ThresholdEd25519CoordinatorSigningSessionRecord = {
+  expiresAtMs: number;
+  mpcSessionId: string;
+  relayerKeyId: string;
+  signingDigestB64u: string;
+  userId: string;
+  rpId: string;
+  clientVerifyingShareB64u: string;
+  commitmentsById: ThresholdEd25519CommitmentsById;
+  participantIds: number[];
+  peerSigningSessionIdsById: Record<string, string>;
+  peerRelayerUrlsById: Record<string, string>;
+  peerCoordinatorGrantsById: Record<string, string>;
+  relayerVerifyingSharesById: Record<string, string>;
+};
+
+export interface ThresholdEd25519SessionStore {
+  putMpcSession(id: string, record: ThresholdEd25519MpcSessionRecord, ttlMs: number): Promise<void>;
+  takeMpcSession(id: string): Promise<ThresholdEd25519MpcSessionRecord | null>;
+  putSigningSession(id: string, record: ThresholdEd25519SigningSessionRecord, ttlMs: number): Promise<void>;
+  takeSigningSession(id: string): Promise<ThresholdEd25519SigningSessionRecord | null>;
+  putCoordinatorSigningSession(id: string, record: ThresholdEd25519CoordinatorSigningSessionRecord, ttlMs: number): Promise<void>;
+  takeCoordinatorSigningSession(id: string): Promise<ThresholdEd25519CoordinatorSigningSessionRecord | null>;
+}
+
+class InMemoryThresholdEd25519SessionStore implements ThresholdEd25519SessionStore {
+  private readonly map = new Map<string, { value: unknown; expiresAtMs: number }>();
+  private readonly keyPrefix: string;
+  private readonly coordinatorPrefix: string;
+
+  constructor(input: { keyPrefix?: string }) {
+    this.keyPrefix = toThresholdEd25519SessionPrefix(input.keyPrefix);
+    this.coordinatorPrefix = `${this.keyPrefix}coord:`;
+  }
+
+  private key(id: string): string {
+    return `${this.keyPrefix}${id}`;
+  }
+
+  private coordKey(id: string): string {
+    return `${this.coordinatorPrefix}${id}`;
+  }
+
+  private getRaw(key: string): unknown | null {
+    const entry = this.map.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAtMs) {
+      this.map.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+
+  async putMpcSession(id: string, record: ThresholdEd25519MpcSessionRecord, ttlMs: number): Promise<void> {
+    const key = this.key(id);
+    const expiresAtMs = Date.now() + Math.max(0, Number(ttlMs) || 0);
+    this.map.set(key, { value: record, expiresAtMs });
+  }
+
+  async takeMpcSession(id: string): Promise<ThresholdEd25519MpcSessionRecord | null> {
+    const key = this.key(id);
+    const raw = this.getRaw(key);
+    this.map.delete(key);
+    return parseThresholdEd25519MpcSessionRecord(raw);
+  }
+
+  async putSigningSession(id: string, record: ThresholdEd25519SigningSessionRecord, ttlMs: number): Promise<void> {
+    const key = this.key(id);
+    const expiresAtMs = Date.now() + Math.max(0, Number(ttlMs) || 0);
+    this.map.set(key, { value: record, expiresAtMs });
+  }
+
+  async takeSigningSession(id: string): Promise<ThresholdEd25519SigningSessionRecord | null> {
+    const key = this.key(id);
+    const raw = this.getRaw(key);
+    this.map.delete(key);
+    return parseThresholdEd25519SigningSessionRecord(raw);
+  }
+
+  async putCoordinatorSigningSession(id: string, record: ThresholdEd25519CoordinatorSigningSessionRecord, ttlMs: number): Promise<void> {
+    const key = this.coordKey(id);
+    const expiresAtMs = Date.now() + Math.max(0, Number(ttlMs) || 0);
+    this.map.set(key, { value: record, expiresAtMs });
+  }
+
+  async takeCoordinatorSigningSession(id: string): Promise<ThresholdEd25519CoordinatorSigningSessionRecord | null> {
+    const key = this.coordKey(id);
+    const raw = this.getRaw(key);
+    this.map.delete(key);
+    return parseThresholdEd25519CoordinatorSigningSessionRecord(raw);
+  }
+}
+
+class UpstashRedisRestThresholdEd25519SessionStore implements ThresholdEd25519SessionStore {
+  private readonly client: UpstashRedisRestClient;
+  private readonly keyPrefix: string;
+  private readonly coordinatorPrefix: string;
+
+  constructor(input: { url: string; token: string; keyPrefix?: string }) {
+    const url = toOptionalTrimmedString(input.url);
+    const token = toOptionalTrimmedString(input.token);
+    if (!url) throw new Error('Upstash session store missing url');
+    if (!token) throw new Error('Upstash session store missing token');
+    this.client = new UpstashRedisRestClient({ url, token });
+    this.keyPrefix = toThresholdEd25519SessionPrefix(input.keyPrefix);
+    this.coordinatorPrefix = `${this.keyPrefix}coord:`;
+  }
+
+  private key(id: string): string {
+    return `${this.keyPrefix}${id}`;
+  }
+
+  private coordKey(id: string): string {
+    return `${this.coordinatorPrefix}${id}`;
+  }
+
+  async putMpcSession(id: string, record: ThresholdEd25519MpcSessionRecord, ttlMs: number): Promise<void> {
+    const k = id;
+    if (!k) throw new Error('Missing mpcSessionId');
+    await this.client.setJson(this.key(k), record, ttlMs);
+  }
+
+  async takeMpcSession(id: string): Promise<ThresholdEd25519MpcSessionRecord | null> {
+    const k = id;
+    if (!k) return null;
+    const raw = await this.client.getdelJson(this.key(k));
+    return parseThresholdEd25519MpcSessionRecord(raw);
+  }
+
+  async putSigningSession(id: string, record: ThresholdEd25519SigningSessionRecord, ttlMs: number): Promise<void> {
+    const k = id;
+    if (!k) throw new Error('Missing signingSessionId');
+    await this.client.setJson(this.key(k), record, ttlMs);
+  }
+
+  async takeSigningSession(id: string): Promise<ThresholdEd25519SigningSessionRecord | null> {
+    const k = id;
+    if (!k) return null;
+    const raw = await this.client.getdelJson(this.key(k));
+    return parseThresholdEd25519SigningSessionRecord(raw);
+  }
+
+  async putCoordinatorSigningSession(id: string, record: ThresholdEd25519CoordinatorSigningSessionRecord, ttlMs: number): Promise<void> {
+    const k = id;
+    if (!k) throw new Error('Missing coordinator signingSessionId');
+    await this.client.setJson(this.coordKey(k), record, ttlMs);
+  }
+
+  async takeCoordinatorSigningSession(id: string): Promise<ThresholdEd25519CoordinatorSigningSessionRecord | null> {
+    const k = id;
+    if (!k) return null;
+    const raw = await this.client.getdelJson(this.coordKey(k));
+    return parseThresholdEd25519CoordinatorSigningSessionRecord(raw);
+  }
+}
+
+class RedisTcpThresholdEd25519SessionStore implements ThresholdEd25519SessionStore {
+  private readonly client: RedisTcpClient;
+  private readonly keyPrefix: string;
+  private readonly coordinatorPrefix: string;
+
+  constructor(input: { redisUrl: string; keyPrefix?: string }) {
+    const url = toOptionalTrimmedString(input.redisUrl);
+    if (!url) throw new Error('redis-tcp session store missing redisUrl');
+    this.client = new RedisTcpClient(url);
+    this.keyPrefix = toThresholdEd25519SessionPrefix(input.keyPrefix);
+    this.coordinatorPrefix = `${this.keyPrefix}coord:`;
+  }
+
+  private key(id: string): string {
+    return `${this.keyPrefix}${id}`;
+  }
+
+  private coordKey(id: string): string {
+    return `${this.coordinatorPrefix}${id}`;
+  }
+
+  async putMpcSession(id: string, record: ThresholdEd25519MpcSessionRecord, ttlMs: number): Promise<void> {
+    const k = id;
+    if (!k) throw new Error('Missing mpcSessionId');
+    await redisSetJson(this.client, this.key(k), record, ttlMs);
+  }
+
+  async takeMpcSession(id: string): Promise<ThresholdEd25519MpcSessionRecord | null> {
+    const k = id;
+    if (!k) return null;
+    const raw = await redisGetdelJson(this.client, this.key(k));
+    return parseThresholdEd25519MpcSessionRecord(raw);
+  }
+
+  async putSigningSession(id: string, record: ThresholdEd25519SigningSessionRecord, ttlMs: number): Promise<void> {
+    const k = id;
+    if (!k) throw new Error('Missing signingSessionId');
+    await redisSetJson(this.client, this.key(k), record, ttlMs);
+  }
+
+  async takeSigningSession(id: string): Promise<ThresholdEd25519SigningSessionRecord | null> {
+    const k = id;
+    if (!k) return null;
+    const raw = await redisGetdelJson(this.client, this.key(k));
+    return parseThresholdEd25519SigningSessionRecord(raw);
+  }
+
+  async putCoordinatorSigningSession(id: string, record: ThresholdEd25519CoordinatorSigningSessionRecord, ttlMs: number): Promise<void> {
+    const k = id;
+    if (!k) throw new Error('Missing coordinator signingSessionId');
+    await redisSetJson(this.client, this.coordKey(k), record, ttlMs);
+  }
+
+  async takeCoordinatorSigningSession(id: string): Promise<ThresholdEd25519CoordinatorSigningSessionRecord | null> {
+    const k = id;
+    if (!k) return null;
+    const raw = await redisGetdelJson(this.client, this.coordKey(k));
+    return parseThresholdEd25519CoordinatorSigningSessionRecord(raw);
+  }
+}
+
+export function createThresholdEd25519SessionStore(input: {
+  config?: ThresholdEd25519KeyStoreConfigInput | null;
+  logger: NormalizedLogger;
+  isNode: boolean;
+}): ThresholdEd25519SessionStore {
+  const config = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
+  const envPrefix = toOptionalTrimmedString(config.THRESHOLD_ED25519_SESSION_PREFIX);
+
+  // Explicit config object
+  const kind = toOptionalTrimmedString(config.kind);
+  if (kind === 'in-memory') return new InMemoryThresholdEd25519SessionStore({ keyPrefix: envPrefix || undefined });
+  if (kind === 'upstash-redis-rest') {
+    return new UpstashRedisRestThresholdEd25519SessionStore({
+      url: toOptionalTrimmedString(config.url) || toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL),
+      token: toOptionalTrimmedString(config.token) || toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN),
+      keyPrefix: toOptionalTrimmedString(config.keyPrefix) || envPrefix,
+    });
+  }
+  if (kind === 'redis-tcp') {
+    if (!input.isNode) {
+      input.logger.warn('[threshold-ed25519] redis-tcp session store is not supported in this runtime; falling back to in-memory');
+      return new InMemoryThresholdEd25519SessionStore({ keyPrefix: envPrefix || undefined });
+    }
+    return new RedisTcpThresholdEd25519SessionStore({
+      redisUrl: toOptionalTrimmedString(config.redisUrl) || toOptionalTrimmedString(config.REDIS_URL),
+      keyPrefix: toOptionalTrimmedString(config.keyPrefix) || envPrefix,
+    });
+  }
+
+  // Env-shaped config: reuse UPSTASH/REDIS_URL detection like the key store.
+  const upstashUrl = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL);
+  const upstashToken = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN);
+  if (upstashUrl || upstashToken) {
+    if (!upstashUrl || !upstashToken) {
+      throw new Error('Upstash session store enabled but UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not both set');
+    }
+    input.logger.info('[threshold-ed25519] Using Upstash REST session store for signing session persistence');
+    return new UpstashRedisRestThresholdEd25519SessionStore({ url: upstashUrl, token: upstashToken, keyPrefix: envPrefix || undefined });
+  }
+
+  const redisUrl = toOptionalTrimmedString(config.REDIS_URL);
+  if (redisUrl) {
+    if (!input.isNode) {
+      input.logger.warn('[threshold-ed25519] REDIS_URL is set but TCP Redis is not supported in this runtime; falling back to in-memory');
+      return new InMemoryThresholdEd25519SessionStore({ keyPrefix: envPrefix || undefined });
+    }
+    input.logger.info('[threshold-ed25519] Using redis-tcp session store for signing session persistence');
+    return new RedisTcpThresholdEd25519SessionStore({ redisUrl, keyPrefix: envPrefix || undefined });
+  }
+
+  input.logger.info('[threshold-ed25519] Using in-memory session store for threshold signing sessions (non-persistent)');
+  return new InMemoryThresholdEd25519SessionStore({ keyPrefix: envPrefix || undefined });
+}

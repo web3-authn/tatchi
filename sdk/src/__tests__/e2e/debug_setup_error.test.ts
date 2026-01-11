@@ -52,31 +52,31 @@ test.describe('Debug Setup Errors', () => {
           console.log('Configs prepared:', configs);
 
           console.log('Creating TatchiPasskey instance...');
-          const passkeyManager = new TatchiPasskey(configs);
+          const tatchi = new TatchiPasskey(configs);
           console.log('TatchiPasskey created successfully!');
-          console.log('TatchiPasskey type:', typeof passkeyManager);
-          console.log('TatchiPasskey methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(passkeyManager)));
-          console.log('Has getLoginSession:', typeof passkeyManager.getLoginSession === 'function');
+          console.log('TatchiPasskey type:', typeof tatchi);
+          console.log('TatchiPasskey methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(tatchi)));
+          console.log('Has getLoginSession:', typeof tatchi.getLoginSession === 'function');
 
           return {
             success: true,
             error: null,
-            passkeyManagerCreated: true,
-            hasGetLoginSession: typeof passkeyManager.getLoginSession === 'function'
+            tatchiCreated: true,
+            hasGetLoginSession: typeof tatchi.getLoginSession === 'function'
           };
 
-        } catch (passkeyManagerError: any) {
-          console.error('TatchiPasskey creation failed with error:', passkeyManagerError);
-          console.error('Error message:', passkeyManagerError.message);
-          console.error('Error stack:', passkeyManagerError.stack);
-          console.error('Error name:', passkeyManagerError.name);
+        } catch (tatchiError: any) {
+          console.error('TatchiPasskey creation failed with error:', tatchiError);
+          console.error('Error message:', tatchiError.message);
+          console.error('Error stack:', tatchiError.stack);
+          console.error('Error name:', tatchiError.name);
 
           return {
             success: false,
-            error: passkeyManagerError.message,
-            errorName: passkeyManagerError.name,
-            errorStack: passkeyManagerError.stack,
-            passkeyManagerCreated: false
+            error: tatchiError.message,
+            errorName: tatchiError.name,
+            errorStack: tatchiError.stack,
+            tatchiCreated: false
           };
         }
 
@@ -103,7 +103,7 @@ test.describe('Debug Setup Errors', () => {
 
     } else {
       console.log('TatchiPasskey setup successful!');
-      console.log('TatchiPasskey created:', result.passkeyManagerCreated);
+      console.log('TatchiPasskey created:', result.tatchiCreated);
       console.log('Has getLoginSession:', (result as any).hasGetLoginSession);
     }
 

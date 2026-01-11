@@ -9,18 +9,21 @@ import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
 import { toAccountId } from '../types/accountIds';
 import { toError } from '../../utils/errors';
+import { mergeSignerMode } from '../types/signer-worker';
 
 
 export async function signDelegateAction(args: {
   context: PasskeyManagerContext;
   nearAccountId: AccountId;
   delegate: DelegateActionInput;
-  options?: DelegateActionHooksOptions;
+  options: DelegateActionHooksOptions;
 }): Promise<SignDelegateActionResult> {
   const { context, delegate, options } = args;
   const nearAccountId = toAccountId(String(args.nearAccountId));
   const title = options?.confirmerText?.title;
   const body = options?.confirmerText?.body;
+  const base = context.webAuthnManager.getUserPreferences().getSignerMode();
+  const signerMode = mergeSignerMode(base, options.signerMode);
 
   const resolvedDelegate: DelegateActionInput = {
     ...delegate,
@@ -52,6 +55,7 @@ export async function signDelegateAction(args: {
         nearRpcUrl: context.configs.nearRpcUrl,
         nearAccountId: String(nearAccountId),
       },
+      signerMode,
       confirmationConfigOverride: options?.confirmationConfig,
       title,
       body,

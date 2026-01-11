@@ -4,6 +4,7 @@
 // *                                                                            *
 // ******************************************************************************
 
+use crate::threshold::signer_backend::Ed25519SignerBackend;
 use crate::transaction::{
     build_actions_from_params, build_transaction_with_actions, calculate_transaction_hash,
     sign_transaction,
@@ -15,7 +16,7 @@ use crate::types::{
         ProgressStep,
     },
     wasm_to_json::WasmSignedTransaction,
-    DecryptionPayload, SignedTransaction,
+    DecryptionPayload, SignedTransaction, SignerMode, ThresholdSignerConfig,
 };
 use crate::{actions::ActionParams, WrapKey};
 use bs58;
@@ -25,15 +26,21 @@ use wasm_bindgen::prelude::*;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignTransactionsWithActionsRequest {
+    pub signer_mode: SignerMode,
     pub rpc_call: RpcCallPayload,
     pub session_id: String,
     pub created_at: Option<f64>,
     pub decryption: DecryptionPayload,
+    /// Threshold signer config (required when `signer_mode == threshold-signer`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<ThresholdSignerConfig>,
     pub tx_signing_requests: Vec<TransactionPayload>,
     /// Unified confirmation configuration for controlling the confirmation flow
     pub confirmation_config: Option<ConfirmationConfig>,
     pub intent_digest: Option<String>,
     pub transaction_context: Option<crate::types::handlers::TransactionContext>,
+    /// VRF challenge data required for relayer authorization in threshold mode.
+    pub vrf_challenge: Option<crate::types::VrfChallenge>,
     pub credential: Option<String>,
 }
 
@@ -122,27 +129,6 @@ impl KeyActionResult {
             signed_transaction,
             logs,
             error,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Decryption {
-    pub wrap_key: WrapKey,
-    pub encrypted_private_key_data: String,
-    pub encrypted_private_key_chacha20_nonce_b64u: String,
-}
-
-impl Decryption {
-    pub fn new(
-        wrap_key: WrapKey,
-        encrypted_private_key_data: String,
-        encrypted_private_key_chacha20_nonce_b64u: String,
-    ) -> Decryption {
-        Decryption {
-            wrap_key,
-            encrypted_private_key_data,
-            encrypted_private_key_chacha20_nonce_b64u,
         }
     }
 }
@@ -248,21 +234,60 @@ pub async fn handle_sign_transactions_with_actions(
     // Process all transactions using the shared verification and decryption
     let tx_count = tx_batch_request.tx_signing_requests.len();
 
-    let decryption = Decryption::new(
-        wrap_key,
-        tx_batch_request
-            .decryption
-            .encrypted_private_key_data
-            .clone(),
-        tx_batch_request
-            .decryption
-            .encrypted_private_key_chacha20_nonce_b64u
-            .clone(),
-    );
+    let signer = match tx_batch_request.signer_mode {
+        SignerMode::LocalSigner => Ed25519SignerBackend::from_encrypted_near_private_key(
+            SignerMode::LocalSigner,
+            &wrap_key,
+            &tx_batch_request.decryption.encrypted_private_key_data,
+            &tx_batch_request
+                .decryption
+                .encrypted_private_key_chacha20_nonce_b64u,
+        )?,
+        SignerMode::ThresholdSigner => {
+            let cfg = tx_batch_request
+                .threshold
+                .as_ref()
+                .ok_or_else(|| "Missing threshold signer config".to_string())?;
+
+            #[derive(Serialize)]
+            #[serde(rename_all = "camelCase")]
+            struct NearTxAuthorizeSigningPayload<'a> {
+                kind: &'a str,
+                tx_signing_requests: &'a Vec<TransactionPayload>,
+                transaction_context: &'a crate::types::handlers::TransactionContext,
+            }
+
+            let signing_payload_json = {
+                let js_val = serde_wasm_bindgen::to_value(&NearTxAuthorizeSigningPayload {
+                    kind: "near_tx",
+                    tx_signing_requests: &tx_batch_request.tx_signing_requests,
+                    transaction_context: &transaction_context,
+                })
+                .map_err(|e| format!("Failed to serialize signingPayload: {e}"))?;
+                js_sys::JSON::stringify(&js_val)
+                    .map_err(|e| format!("JSON.stringify signingPayload failed: {:?}", e))?
+                    .as_string()
+                    .ok_or_else(|| {
+                        "JSON.stringify signingPayload did not return a string".to_string()
+                    })?
+            };
+
+            Ed25519SignerBackend::from_threshold_signer_config(
+                &wrap_key,
+                &tx_batch_request.rpc_call.near_account_id,
+                &transaction_context.near_public_key_str,
+                "near_tx",
+                tx_batch_request.vrf_challenge.clone(),
+                tx_batch_request.credential.clone(),
+                Some(signing_payload_json),
+                cfg,
+            )?
+        }
+    };
 
     let result = sign_near_transactions_with_actions_impl(
         tx_batch_request.tx_signing_requests,
-        &decryption,
+        &signer,
         &transaction_context,
         logs,
     )
@@ -298,7 +323,7 @@ pub async fn handle_sign_transactions_with_actions(
 /// * `TransactionSignResult` - Contains batch signing results with individual transaction details
 async fn sign_near_transactions_with_actions_impl(
     tx_requests: Vec<TransactionPayload>,
-    decryption: &Decryption,
+    signer: &Ed25519SignerBackend,
     transaction_context: &crate::types::handlers::TransactionContext,
     mut logs: Vec<String>,
 ) -> Result<TransactionSignResult, String> {
@@ -320,35 +345,8 @@ async fn sign_near_transactions_with_actions_impl(
     }
 
     logs.push(format!("Processing {} transactions", tx_requests.len()));
-    // Decrypt using WrapKey-derived KEK
-    let kek = decryption.wrap_key.derive_kek()?;
-
-    let decrypted_private_key_str = crate::crypto::decrypt_data_chacha20(
-        &decryption.encrypted_private_key_data,
-        &decryption.encrypted_private_key_chacha20_nonce_b64u,
-        &kek,
-    )
-    .map_err(|e| format!("Decryption failed: {}", e))?;
-
-    let decoded_pk = bs58::decode(
-        decrypted_private_key_str
-            .strip_prefix("ed25519:")
-            .unwrap_or(&decrypted_private_key_str),
-    )
-    .into_vec()
-    .map_err(|e| format!("Invalid private key base58: {}", e))?;
-
-    if decoded_pk.len() < 32 {
-        return Err("Decoded private key too short".to_string());
-    }
-
-    let secret_bytes: [u8; 32] = decoded_pk[0..32]
-        .try_into()
-        .map_err(|_| "Invalid secret key length".to_string())?;
-
-    let signing_key = ed25519_dalek::SigningKey::from_bytes(&secret_bytes);
-
-    logs.push("Private key decrypted successfully".to_string());
+    let public_key_bytes = signer.public_key_bytes()?;
+    logs.push("Signer backend initialized successfully".to_string());
 
     // Prepare nonce sequencing: start from next_nonce and increment per transaction
     let mut current_nonce: u64 = transaction_context
@@ -402,7 +400,7 @@ async fn sign_near_transactions_with_actions_impl(
             &bs58::decode(&transaction_context.tx_block_hash)
                 .into_vec()
                 .map_err(|e| format!("Invalid block hash: {}", e))?,
-            &signing_key,
+            &public_key_bytes,
             actions,
         ) {
             Ok(tx) => {
@@ -424,14 +422,28 @@ async fn sign_near_transactions_with_actions_impl(
             }
         };
 
-        let signed_tx_bytes = match sign_transaction(transaction, &signing_key) {
+        let (transaction_hash_to_sign, _size) = transaction.get_hash_and_size();
+        let signature_bytes = match signer.sign(&transaction_hash_to_sign.0).await {
+            Ok(sig) => sig,
+            Err(e) => {
+                let error_msg = format!(
+                    "Transaction {}: Failed to sign transaction: {}",
+                    index + 1,
+                    e
+                );
+                logs.push(error_msg.clone());
+                return Ok(TransactionSignResult::failed(logs, error_msg));
+            }
+        };
+
+        let signed_tx_bytes = match sign_transaction(transaction, &signature_bytes) {
             Ok(bytes) => {
                 logs.push(format!("Transaction {}: Signed successfully", index + 1));
                 bytes
             }
             Err(e) => {
                 let error_msg = format!(
-                    "Transaction {}: Failed to sign transaction: {}",
+                    "Transaction {}: Failed to serialize signed transaction: {}",
                     index + 1,
                     e
                 );

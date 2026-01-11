@@ -1,8 +1,9 @@
 import { DEVICE_LINKING_CONFIG } from '../../config';
+import { ensureEd25519Prefix } from '../../utils/validation';
 import { createNearKeypair } from '../nearCrypto';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { ActionType, type ActionArgsWasm } from '../types/actions';
-import { toAccountId, type AccountId } from '../types/accountIds';
+import { type AccountId } from '../types/accountIds';
 import {
   VRFChallenge,
   type EncryptedVRFKeypair,
@@ -12,7 +13,17 @@ import { getLoginSession } from './login';
 import type { PasskeyManagerContext } from './index';
 import type { WebAuthnRegistrationCredential } from '../types';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
-import { getDeviceLinkingAccountContractCall } from "../rpcCalls";
+import { getDeviceLinkingAccountContractCall, thresholdEd25519KeygenFromRegistrationTx } from "../rpcCalls";
+import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
+import type {
+  DeviceLinkingQRData,
+  DeviceLinkingSession,
+  StartDeviceLinkingOptionsDevice2
+} from '../types/linkDevice';
+import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
+import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents';
+import type { DeviceLinkingSSEEvent } from '../types/sdkSentEvents';
+import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 
 // Lazy-load QRCode to keep it an optional peer and reduce baseline bundle size
 async function generateQRCodeDataURL(data: string): Promise<string> {
@@ -27,17 +38,6 @@ async function generateQRCodeDataURL(data: string): Promise<string> {
     errorCorrectionLevel: 'M'
   });
 }
-import type {
-  DeviceLinkingQRData,
-  DeviceLinkingSession,
-  StartDeviceLinkingOptionsDevice2
-} from '../types/linkDevice';
-import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
-import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents';
-import type { DeviceLinkingSSEEvent } from '../types/sdkSentEvents';
-import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
-import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
-
 
 /**
  * Device linking flow class - manages the complete device linking process
@@ -478,10 +478,24 @@ export class LinkDeviceFlow {
     }
 
     // Send the signed registration transaction to NEAR
-    await this.context.nearClient.sendTransaction(
+    const registrationOutcome = await this.context.nearClient.sendTransaction(
       registrationResult.signedTransaction,
       DEFAULT_WAIT_STATUS.linkDeviceRegistration,
     );
+
+    const registrationTxHash = (registrationOutcome as unknown as { transaction?: { hash?: unknown } })?.transaction?.hash;
+    if (typeof registrationTxHash !== 'string' || !registrationTxHash.trim()) {
+      throw new Error('Missing link_device_register_user transaction hash after broadcast');
+    }
+
+    // Activate threshold enrollment for this device by ensuring threshold key
+    // material is available locally (and AddKey if needed).
+    await this.activateThresholdEnrollment({
+      accountId: realAccountId,
+      credential: deterministicKeysResult.credential,
+      deviceNumber: this.session.deviceNumber!,
+      registrationTxHash,
+    });
 
     this.session.phase = DeviceLinkingPhase.STEP_7_LINKING_COMPLETE;
     this.registrationRetryCount = 0; // Reset retry counter on success
@@ -494,6 +508,106 @@ export class LinkDeviceFlow {
 
     // Auto-login for Device2 after successful device linking
     await this.attemptAutoLogin(deterministicKeysResult, this.options);
+  }
+
+  private async activateThresholdEnrollment(args: {
+    accountId: AccountId;
+    credential: WebAuthnRegistrationCredential;
+    deviceNumber: number;
+    registrationTxHash: string;
+  }): Promise<void> {
+    const deviceNumber = parseDeviceNumber(args.deviceNumber, { min: 1 });
+    if (deviceNumber === null) {
+      throw new Error(`Invalid deviceNumber for threshold enrollment: ${String(args.deviceNumber)}`);
+    }
+
+    // Ensure WebAuthn allowCredentials selection prefers this device's passkey
+    // when multiple authenticators exist for the account.
+    try {
+      await this.context.webAuthnManager.setLastUser(args.accountId, deviceNumber);
+    } catch {}
+
+    const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(args.accountId, deviceNumber);
+    if (existing) return;
+
+    const relayerUrl = String(this.context.configs.relayer.url || '').trim();
+    if (!relayerUrl) {
+      throw new Error('Missing configs.relayer.url (required for threshold enrollment)');
+    }
+
+    const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(args.accountId, deviceNumber);
+    if (!localKeyMaterial) {
+      throw new Error(`Missing local key material for ${String(args.accountId)} device ${deviceNumber}`);
+    }
+
+    const derived = await this.context.webAuthnManager.deriveThresholdEd25519ClientVerifyingShareFromCredential({
+      credential: args.credential,
+      nearAccountId: args.accountId,
+      wrapKeySalt: localKeyMaterial.wrapKeySalt,
+    });
+    if (!derived.success) {
+      throw new Error(derived.error || 'Failed to derive threshold client verifying share');
+    }
+
+    const keygen = await thresholdEd25519KeygenFromRegistrationTx(relayerUrl, {
+      nearAccountId: args.accountId,
+      clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+      registrationTxHash: args.registrationTxHash,
+    });
+    if (!keygen.ok) {
+      throw new Error(keygen.error || keygen.message || keygen.code || 'Threshold registration keygen failed');
+    }
+
+    const thresholdPublicKey = ensureEd25519Prefix(keygen.publicKey || '');
+    if (!thresholdPublicKey) throw new Error('Threshold registration keygen returned empty publicKey');
+    const relayerKeyId = String(keygen.relayerKeyId || '').trim();
+    if (!relayerKeyId) throw new Error('Threshold registration keygen returned empty relayerKeyId');
+    const relayerVerifyingShareB64u = String(keygen.relayerVerifyingShareB64u || '').trim();
+    if (!relayerVerifyingShareB64u) throw new Error('Threshold registration keygen returned empty relayerVerifyingShareB64u');
+
+    // Activate threshold enrollment on-chain by submitting AddKey(thresholdPublicKey) signed with the local key.
+    try {
+      this.context.webAuthnManager.getNonceManager().initializeUser(args.accountId, localKeyMaterial.publicKey);
+    } catch {}
+    const txContext = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient, { force: true });
+    const signed = await this.context.webAuthnManager.signAddKeyThresholdPublicKeyNoPrompt({
+      nearAccountId: args.accountId,
+      credential: args.credential,
+      wrapKeySalt: localKeyMaterial.wrapKeySalt,
+      transactionContext: txContext,
+      thresholdPublicKey,
+      relayerVerifyingShareB64u,
+      clientParticipantId: keygen.clientParticipantId,
+      relayerParticipantId: keygen.relayerParticipantId,
+      deviceNumber,
+    });
+    const signedTx = signed?.signedTransaction;
+    if (!signedTx) throw new Error('Failed to sign AddKey(thresholdPublicKey) transaction');
+
+    await this.context.nearClient.sendTransaction(
+      signedTx,
+      DEFAULT_WAIT_STATUS.thresholdAddKey,
+    );
+
+    await IndexedDBManager.nearKeysDB.storeKeyMaterial({
+      kind: 'threshold_ed25519_2p_v1',
+      nearAccountId: String(args.accountId),
+      deviceNumber,
+      publicKey: thresholdPublicKey,
+      wrapKeySalt: derived.wrapKeySalt,
+      relayerKeyId,
+      clientShareDerivation: 'prf_first_v1',
+      participants: buildThresholdEd25519Participants2pV1({
+        clientParticipantId: keygen.clientParticipantId,
+        relayerParticipantId: keygen.relayerParticipantId,
+        relayerKeyId,
+        relayerUrl,
+        clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+        relayerVerifyingShareB64u,
+        clientShareDerivation: 'prf_first_v1',
+      }),
+      timestamp: Date.now(),
+    });
   }
 
   /**
@@ -618,35 +732,13 @@ export class LinkDeviceFlow {
         }
       }
 
-      // TouchID fallback unlock (no Shamir): unlock VRF keypair directly using the
-      // encrypted VRF key from deterministicKeysResult. This ensures that the VRF
-      // session in WASM is bound to the correct deterministic VRF key for this device.
+      // TouchID fallback unlock (no Shamir):
+      // unlock VRF keypair using the already-collected registration credential (no extra prompt).
       try {
-        const nonceManager = this.context.webAuthnManager.getNonceManager();
-        const {
-          nextNonce: _nextNonce,
-          txBlockHash,
-          txBlockHeight
-        } = await nonceManager.getNonceBlockHashAndHeight(this.context.nearClient);
-
-        const authChallenge = await this.context.webAuthnManager.generateVrfChallengeOnce({
-          userId: accountId,
-          rpId: this.context.webAuthnManager.getRpId(),
-          blockHash: txBlockHash,
-          blockHeight: txBlockHeight,
-        });
-
-        const authenticators = await this.context.webAuthnManager.getAuthenticatorsByUser(accountId);
-        const authCredential = await this.context.webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
-          nearAccountId: accountId,
-          challenge: authChallenge,
-          credentialIds: authenticators.map((a) => a.credentialId),
-        });
-
         const vrfUnlockResult = await this.context.webAuthnManager.unlockVRFKeypair({
           nearAccountId: accountId,
           encryptedVrfKeypair: deterministicKeysResult.encryptedVrfKeypair,
-          credential: authCredential,
+          credential: sessionSnapshot.credential,
         });
 
         if (!vrfUnlockResult.success) {
@@ -863,7 +955,7 @@ export class LinkDeviceFlow {
     // Clean up any temp account VRF data.
     if (this.session?.tempPrivateKey) {
       try {
-        await IndexedDBManager.nearKeysDB.deleteEncryptedKey('temp-device-linking.testnet');
+        await IndexedDBManager.nearKeysDB.deleteKeyMaterial('temp-device-linking.testnet');
       } catch {}
       // Clean up temporary private key from memory after successful completion
       this.cleanupTemporaryKeyFromMemory();
@@ -965,10 +1057,10 @@ export class LinkDeviceFlow {
       if (accountId && credential) {
         try { await IndexedDBManager.clientDB.deleteAllAuthenticatorsForUser(accountId); } catch {}
         try { await IndexedDBManager.clientDB.deleteUser(accountId); } catch {}
-        try { await IndexedDBManager.nearKeysDB.deleteEncryptedKey(accountId); } catch {}
+        try { await IndexedDBManager.nearKeysDB.deleteKeyMaterial(accountId); } catch {}
       }
       // Always clean up temp account VRF data (this is where initial QR generation stores data)
-      try { await IndexedDBManager.nearKeysDB.deleteEncryptedKey('temp-device-linking.testnet'); } catch {}
+      try { await IndexedDBManager.nearKeysDB.deleteKeyMaterial('temp-device-linking.testnet'); } catch {}
     } catch (error) {
       console.error(`LinkDeviceFlow: Error during cleanup:`, error);
     }

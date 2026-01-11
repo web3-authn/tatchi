@@ -1,6 +1,6 @@
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { AccountId } from '../types/accountIds';
-import type { PendingEmailRecovery } from '../TatchiPasskey/emailRecovery';
+import type { PendingEmailRecovery } from '../types/emailRecovery';
 
 export interface PendingStore {
   get(accountId: AccountId, nearPublicKey?: string): Promise<PendingEmailRecovery | null>;

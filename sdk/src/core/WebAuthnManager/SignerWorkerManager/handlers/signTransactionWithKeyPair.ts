@@ -34,14 +34,9 @@ export async function signTransactionWithKeyPair({
 }> {
   try {
     console.info('SignerWorkerManager: Starting transaction signing with provided private key');
-
     // Validate actions
-    actions.forEach((action, index) => {
-      try {
-        validateActionArgsWasm(action);
-      } catch (error) {
-        throw new Error(`Action ${index} validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
+    actions.forEach(action => {
+      validateActionArgsWasm(action);
     });
 
     const response = await ctx.sendMessage<WorkerRequestType.SignTransactionWithKeyPair>({

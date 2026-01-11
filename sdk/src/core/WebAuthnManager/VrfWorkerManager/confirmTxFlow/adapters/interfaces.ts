@@ -3,7 +3,7 @@ import type { TransactionContext, VRFChallenge } from '../../../../types';
 import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
 import type { ClientAuthenticatorData } from '../../../../IndexedDBManager';
 import type { SessionVrfWorkerManager } from '../../';
-import type { SerializableCredential, SecureConfirmRequest, TransactionSummary } from '../types';
+import type { KnownSecureConfirmRequest, SerializableCredential, TransactionSummary } from '../types';
 
 export type NearContextResult = {
   transactionContext: TransactionContext | null;
@@ -20,7 +20,7 @@ export interface NearContextProvider {
 export interface VrfProvider extends SessionVrfWorkerManager {
   getRpId(): string;
   maybeRefreshVrfChallenge(
-    request: SecureConfirmRequest,
+    request: KnownSecureConfirmRequest,
     nearAccountId: string,
   ): Promise<{ vrfChallenge: VRFChallenge; transactionContext: TransactionContext }>;
 }
@@ -46,7 +46,7 @@ export interface WebAuthnCollector {
 
 export interface ConfirmUiRenderer {
   renderConfirmUI(args: {
-    request: SecureConfirmRequest;
+    request: KnownSecureConfirmRequest;
     confirmationConfig: ConfirmationConfig;
     transactionSummary: TransactionSummary;
     vrfChallenge?: Partial<VRFChallenge>;
@@ -61,4 +61,3 @@ export interface ConfirmTxFlowAdapters {
   webauthn: WebAuthnCollector;
   ui: ConfirmUiRenderer;
 }
-

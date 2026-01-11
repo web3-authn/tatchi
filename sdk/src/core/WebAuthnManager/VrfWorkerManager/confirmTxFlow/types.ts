@@ -4,7 +4,7 @@ import { ConfirmationConfig } from '../../../types';
 import { TransactionContext } from '../../../types/rpc';
 import { RpcCallPayload } from '../../../types/signer-worker';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../../types/webauthn';
-import { isObject, isString } from '../../../WalletIframe/validation';
+import { isObject, isString } from '@/utils/validation';
 
 // === SECURE CONFIRM TYPES (V2) ===
 
@@ -122,7 +122,6 @@ export type SecureConfirmPayload = SecureConfirmPayloadByType[keyof SecureConfir
 export type SecureConfirmSummary = SecureConfirmSummaryByType[keyof SecureConfirmSummaryByType];
 
 export interface SecureConfirmRequest<TPayload = SecureConfirmPayload, TSummary = SecureConfirmSummary> {
-  schemaVersion: 2;
   requestId: string;
   type: SecureConfirmationType;
   summary: TSummary;
@@ -139,6 +138,11 @@ export interface SignTransactionPayload {
   txSigningRequests: TransactionInputWasm[];
   intentDigest: string;
   rpcCall: RpcCallPayload;
+  /**
+   * Optional base64url-encoded 32-byte digest to bind a relayer session policy into the VRF input hash (v4+ only).
+   * When present, it will be forwarded to the VRF worker for inclusion in VRF input derivation.
+   */
+  sessionPolicyDigest32?: string;
   /**
    * Controls whether confirmTxFlow should collect a WebAuthn credential.
    * - `webauthn`: prompt TouchID/FaceID and derive WrapKeySeed from PRF.first_auth.
@@ -171,6 +175,10 @@ export interface SignNep413Payload {
   message: string;
   recipient: string;
   /**
+   * Optional base64url-encoded 32-byte digest to bind a relayer session policy into the VRF input hash (v4+ only).
+   */
+  sessionPolicyDigest32?: string;
+  /**
    * Optional contract verification context for VRF gating.
    * When provided, VRF Rust can call `verify_authentication_response` on-chain
    * before deriving and dispensing session keys.
@@ -190,9 +198,10 @@ export interface SignNep413Payload {
 // Type guards
 export function isSecureConfirmRequestV2(x: unknown): x is SecureConfirmRequest {
   return isObject(x)
-    && (x as { schemaVersion?: unknown }).schemaVersion === 2
     && isString((x as { type?: unknown }).type)
-    && isString((x as { requestId?: unknown }).requestId);
+    && isString((x as { requestId?: unknown }).requestId)
+    && (x as { summary?: unknown }).summary != null
+    && (x as { payload?: unknown }).payload != null;
 }
 
 // Serialized WebAuthn credential (authentication or registration)

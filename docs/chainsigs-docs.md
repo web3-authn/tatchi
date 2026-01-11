@@ -362,7 +362,7 @@ Instantiate and use the corresponding adapter for chains such as Bitcoin, Solana
 If you’re not using the `chainsig.js` wrapper and want to call the MPC contract directly through TatchiPasskey, send a NEAR FunctionCall with JSON args matching the contract schema:
 
 ```ts
-await passkeyManager.executeAction({
+await tatchi.executeAction({
   nearAccountId,
   receiverId: 'v1.signer-prod.testnet',
   actionArgs: {

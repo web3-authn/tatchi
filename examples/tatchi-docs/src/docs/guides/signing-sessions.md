@@ -23,7 +23,7 @@ By default, every backend API call requiring authentication triggers a WebAuthn 
 ### Client Configuration
 
 ```ts
-const result = await passkeyManager.loginAndCreateSession('alice.testnet', {
+const result = await tatchi.loginAndCreateSession('alice.testnet', {
   session: {
     kind: 'jwt',  // or 'cookie'
     relayUrl: 'https://relay.example.com',
@@ -132,7 +132,7 @@ When Shamir unlock fails:
 **Without sessions:**
 ```ts
 // Every API call triggers TouchID
-await passkeyManager.loginAndCreateSession('alice.testnet')
+await tatchi.loginAndCreateSession('alice.testnet')
 await apiCall1()  // TouchID prompt
 await apiCall2()  // TouchID prompt
 await apiCall3()  // TouchID prompt
@@ -141,7 +141,7 @@ await apiCall3()  // TouchID prompt
 **With sessions:**
 ```ts
 // One TouchID at login, then session-based auth
-await passkeyManager.loginAndCreateSession('alice.testnet', {
+await tatchi.loginAndCreateSession('alice.testnet', {
   session: { kind: 'jwt', relayUrl: 'https://relay.example.com' }
 })
 await apiCall1()  // No prompt, uses session
@@ -173,13 +173,13 @@ cookie: {
 
 ```ts
 // Login with session
-await passkeyManager.loginAndCreateSession('alice.testnet', { session: { kind: 'jwt', relayUrl } })
+await tatchi.loginAndCreateSession('alice.testnet', { session: { kind: 'jwt', relayUrl } })
 
 // SDK stores token internally
 // Subsequent API calls can use the issued JWT/cookie until expiry
 
 // Logout clears session
-await passkeyManager.logoutAndClearSession()
+await tatchi.logoutAndClearSession()
 ```
 
 ### Troubleshooting

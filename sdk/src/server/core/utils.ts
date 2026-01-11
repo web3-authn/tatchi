@@ -1,4 +1,4 @@
-import { isString } from '../../core/WalletIframe/validation';
+import { isString } from '@/utils/validation';
 
 // Format NEAR gas (string) to TGas for display in logs.
 export function formatGasToTGas(gasString: string): string {

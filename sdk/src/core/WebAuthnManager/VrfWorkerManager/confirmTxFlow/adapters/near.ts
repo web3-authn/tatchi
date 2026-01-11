@@ -23,11 +23,9 @@ export async function fetchNearContext(
     if (opts.reserveNonces) {
       try {
         reservedNonces = ctx.nonceManager.reserveNonces(txCount);
-        console.debug(`[NonceManager]: Reserved ${txCount} nonce(s):`, reservedNonces);
         // Provide the first reserved nonce to the worker context; worker handles per-tx assignment
         transactionContext.nextNonce = reservedNonces[0];
       } catch (error) {
-        console.debug(`[NonceManager]: Failed to reserve ${txCount} nonce(s):`, error);
         // Continue with existing nextNonce; worker may auto-increment where appropriate
       }
     }

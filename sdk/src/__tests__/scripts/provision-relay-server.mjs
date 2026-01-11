@@ -95,8 +95,10 @@ async function writeCache(data) {
 }
 
 function ttlMsFromEnv() {
-  const mins = Number(process.env.RELAY_PROVISION_TTL_MINUTES || '120');
-  if (!Number.isFinite(mins) || mins <= 0) return 120 * 60_000;
+  // Default to a long TTL so local test runs don't re-provision a relayer account
+  // (which can be slow and rate-limited) on every invocation.
+  const mins = Number(process.env.RELAY_PROVISION_TTL_MINUTES || '720');
+  if (!Number.isFinite(mins) || mins <= 0) return 720 * 60_000;
   return mins * 60_000;
 }
 

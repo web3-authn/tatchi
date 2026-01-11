@@ -2,22 +2,16 @@
 
 ## What Are Iframe Lit Components?
 
-Lit‑based web components that power the wallet UI in two contexts:
+Lit‑based web components that power the wallet UI in the wallet iframe (wallet origin):
 
-- Embedded on the host app (sandboxed child iframe)
-  - `<w3a-tx-button-host>` mounts a child srcdoc iframe and hydrates `<w3a-button-with-tooltip>` via a tiny bootstrap module.
-  - Purpose: perfect visual isolation and precise clipping for the tooltip/button without leaking styles into the host page.
-
-- Rendered inside the wallet iframe (no extra iframe)
-  - `<w3a-modal-tx-confirmer>` and `<w3a-drawer-tx-confirmer>` render directly in the wallet iframe (wallet origin).
-  - Shared building blocks include `<w3a-drawer>`, `<w3a-tx-tree>`, `<w3a-halo-border>`, and `<w3a-passkey-halo-loading>`.
-  - The export viewer uses an additional iframe host: `<w3a-export-viewer-iframe>` + `<w3a-export-key-viewer>`.
+- `<w3a-modal-tx-confirmer>` and `<w3a-drawer-tx-confirmer>` render directly in the wallet iframe.
+- Shared building blocks include `<w3a-drawer>`, `<w3a-tx-tree>`, `<w3a-halo-border>`, and `<w3a-passkey-halo-loading>`.
+- The export viewer uses an additional iframe host: `<w3a-export-viewer-iframe>` + `<w3a-export-key-viewer>`.
 
 All components are CSP‑safe: static CSS is externalized under `/sdk/*` and dynamic values are applied via constructable stylesheets (no inline styles or `<style>` tags). TxTree defaults to light DOM (opt‑in Shadow DOM via `shadow-dom`).
 
 ## Components
 
-- IframeButtonWithTooltipConfirmer: iframe host + embedded tooltip button (bootstrap hydrates the child)
 - IframeTxConfirmer: modal and drawer variants for confirmation UI
 - Drawer: reusable sliding container used by the drawer variant
 - TxTree: lightweight, themeable transaction tree
@@ -28,9 +22,8 @@ See the component index below for file paths and tags.
 
 ## Runtime Architecture
 
-- Parent never manipulates DOM inside the embedded iframe. A small bootstrap script runs in the child and communicates via postMessage.
-- Bootstrap responsibilities: load the embedded element, position it, measure layout, and respond with geometry.
-- Flow of updates: parent posts typed messages (e.g., SET_TX_DATA, SET_STYLE); child applies props to the element and triggers re-render; child returns measurements when needed.
+- Confirmer UI elements run in the wallet iframe (wallet origin) and never require parent DOM access.
+- Some flows use a nested srcdoc iframe for hard isolation (e.g., ExportPrivateKey viewer) and communicate via postMessage.
 
 ## Editing Components and Styles
 
@@ -67,7 +60,6 @@ Other notes:
 - TxTree visuals: `css/tx-tree.css`
 - Tx confirmer layout/tokens: `css/tx-confirmer.css`
 - Drawer (when used): `css/drawer.css`
-- Button host + tooltip: `css/button-with-tooltip.css`, `css/iframe-button-host.css`
 - Halo ring + loading icon: `css/halo-border.css`, `css/passkey-halo-loading.css`, `css/padlock-icon.css`
 - Export private key UI: `css/export-iframe.css`, `css/export-viewer.css`
 
@@ -78,7 +70,6 @@ Examples omitted for brevity; see HaloBorder, PasskeyHaloLoading, and Modal view
 ## Subcomponent Docs
 
 - TxTree: `./TxTree/README.md`
-- Iframe button + tooltip confirmer: `./IframeButtonWithTooltipConfirmer/README.md`
 
 
 ## Confirm UI API
@@ -101,11 +92,6 @@ When adding or refactoring components:
 
 
 ## Component Index
-
-- IframeButtonWithTooltipConfirmer/
-  - `iframe-host.ts` — `<w3a-tx-button-host>`; mounts embedded button inside an iframe
-  - `ButtonWithTooltip.ts` — `<w3a-button-with-tooltip>` embedded element (child iframe)
-  - `iframe-tx-button-bootstrap-script.ts` — child bootstrap module
 
 - IframeTxConfirmer/
   - `viewer-modal.ts` — `<w3a-modal-tx-confirmer>`
@@ -205,17 +191,6 @@ document.body.appendChild(host);
 
 Reference in codebase:
 - `VrfWorkerManager/confirmTxFlow/flows/localOnly.ts` dynamically imports `ExportPrivateKey/iframe-host` before `createElement('w3a-export-viewer-iframe')`.
-
-### Keep‑imports in wallet host (secondary defense)
-
-Keep critical element definitions alive in the wallet host runtime:
-
-```ts
-// sdk/src/core/WalletIframe/host/WalletHostElements.ts
-import { IframeButtonHost as __KeepTxButton } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
-import { IframeExportHost as __KeepExportViewerIframe } from '../../WebAuthnManager/LitComponents/ExportPrivateKey/iframe-host';
-const __ensure = [__KeepTxButton, __KeepExportViewerIframe];
-```
 
 ### Dev/Test guardrails
 - Unit: keep the SHOW_SECURE_PRIVATE_KEY_UI test that verifies the viewer remains mounted (already present under `src/__tests__/unit/confirmTxFlow.defensivePaths.test.ts`).

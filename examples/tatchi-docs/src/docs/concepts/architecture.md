@@ -63,7 +63,7 @@ sequenceDiagram
     UI->>VRF: Credential with PRF outputs
     VRF->>VRF: Derive deterministic VRF keypair<br/>Compute WrapKeySeed + wrapKeySalt<br/>Seal vault ciphertext
     VRF-->>Signer: MessageChannel: WrapKeySeed + wrapKeySalt
-    Signer->>Signer: Derive KEK; wrap deterministic NEAR key; sign registration tx
+    Signer->>Signer: Derive KEK, wrap deterministic NEAR key, sign registration tx
     Signer-->>UI: near_pk + encrypted NEAR key + signed tx
     UI->>Relay: Submit create_account_and_register_user (or direct)
     Relay->>Contract: Forward registration tx
@@ -105,7 +105,7 @@ sequenceDiagram
     Note over Wallet,Relay: Phase 2: Shamir 3-pass (2-of-2)
     Worker->>Relay: shareA derived from PRF.first_auth
     Relay->>Worker: shareB response
-    Worker->>Worker: Reconstruct vrf_sk; derive WrapKeySeed
+    Worker->>Worker: Reconstruct vrf_sk, derive WrapKeySeed
     Worker-->>Wallet: Session unlocked ✓ (WrapKeySeed retained VRF-side)
 ```
 
@@ -129,7 +129,7 @@ sequenceDiagram
     Note over Wallet,Worker: Recovery Mode only
     Wallet->>Worker: WebAuthn authentication (TouchID) requesting PRF.second
     Worker->>Worker: Re-derive vrf_sk deterministically from PRF.second
-    Worker->>Worker: Derive WrapKeySeed; zeroize PRF.second after use
+    Worker->>Worker: Derive WrapKeySeed, zeroize PRF.second after use
     Worker-->>Wallet: Session unlocked ✓ (relay not required)
 ```
 
@@ -192,11 +192,11 @@ sequenceDiagram
     VRF->>UI: Render confirm UI with intent digest
     UI->>VRF: WebAuthn authentication (TouchID) → PRF.first_auth
     VRF->>VRF: Shamir 3-pass (primary) or Recovery Mode (PRF.second) → vrf_sk
-    VRF->>VRF: Derive WrapKeySeed; generate VRF proof for contract
+    VRF->>VRF: Derive WrapKeySeed, generate VRF proof for contract
     VRF-->>Signer: MessageChannel: WrapKeySeed + wrapKeySalt
 
     Note over VRF,Signer: Phase 3: Signing in signer worker
-    Signer->>Signer: Derive KEK; decrypt/derive deterministic NEAR key
+    Signer->>Signer: Derive KEK, decrypt/derive deterministic NEAR key
     Signer->>Signer: Sign NEAR transaction(s)
     Signer-->>UI: Signed transaction(s)
 

@@ -1,13 +1,13 @@
 ---
-title: VRF Webauthn
+title: VRF WebAuthn
 ---
 
-# VRF Webauthn
+# VRF WebAuthn
 
 The wallet pairs WebAuthn PRF with **verifiable random function (VRF)** challenges to gate every session on fresh chain data. WebAuthn proves user presence; the VRF proves freshness against NEAR block data. A dual-worker pipeline keeps PRF outputs and `vrf_sk` in the VRF worker and only shares `WrapKeySeed + wrapKeySalt` with the signer worker.
 
 - **Traditional WebAuthn** requires a server to generate challenges, verify signatures, and maintain session state.
-- **In Web3Authn** the VRF worker generates challenges client-side, binds them to NEAR block data, and the contract verifies the VRF proof + WebAuthn signature together before any transaction signing.
+- **In Web3Authn** the VRF worker generates challenges client-side, binds them to NEAR block data (plus optional intent/session digests), and the contract verifies the VRF proof + WebAuthn signature before any signing session is released.
 
 
 ## VRF Challenge Construction
@@ -16,13 +16,17 @@ VRF challenges bind fresh blockchain data to prevent replay attacks. The VRF wor
 
 | Field | Purpose | Source |
 |-------|---------|--------|
-| `domain_separator` | Prevents cross-protocol collisions | Fixed constant (`"web3_authn_vrf_challenge_v1"`) |
+| `domain_separator` | Prevents cross-protocol collisions | Fixed constant (`"web3_authn_challenge_v4"`) |
 | `user_id` | Binds challenge to the NEAR account | Client (NEAR account ID) |
 | `relying_party_id` | Binds to the wallet origin | Client config (wallet origin / rpId) |
 | `block_height` | Enforces freshness window | NEAR RPC |
 | `block_hash` | Protects across forks/reorgs | NEAR RPC |
+| `intent_digest_32` (optional) | Binds a canonical intent payload to the challenge | SDK (base64url 32 bytes) |
+| `session_policy_digest_32` (optional) | Binds relayer session policy to the challenge | SDK/relayer (base64url 32 bytes) |
 
-The challenge input is `hash(domain_separator || user_id || rp_id || block_height || block_hash)`. Canonical intents (`{receiverId, actions}` only) are enforced separately before signing to avoid payload tampering.
+The challenge input is `sha256(domain_separator || user_id || rp_id_lower || block_height_le || block_hash || intent_digest_32? || session_policy_digest_32?)`. `rp_id` is lowercased to match on-chain derivation and `block_height` is encoded as little-endian bytes.
+
+**Intent digest binding:** when present, `intent_digest_32` is the canonical digest of the signing payload (tx/delegate/NEP-413) or threshold keygen intent. For threshold signing, the relayer recomputes this digest from the `signingPayload` and rejects any `signing_digest_32` that does not match the VRF‑bound intent.
 
 **VRF security properties:**
 - **Unpredictable** - VRF outputs indistinguishable from random
@@ -37,7 +41,7 @@ Traditional WebAuthn requires a server to mint and track challenges. VRF challen
 
 **Challenge Uniqueness**
 - Traditional: Server generates cryptographically random nonce for each request
-- VRF: Combines `domain_separator` + `user_id` + `rp_id` + `block_height` + `block_hash`; the VRF output is deterministic for that exact chain state and origin but indistinguishable from random.
+- VRF: Combines `domain_separator` + `user_id` + `rp_id` + `block_height` + `block_hash` (+ optional digests); the VRF output is deterministic for that exact chain state and origin but indistinguishable from random.
 
 **Time-Limited Validity**
 - Traditional: Server sets timeout and rejects expired challenges
@@ -46,6 +50,10 @@ Traditional WebAuthn requires a server to mint and track challenges. VRF challen
 **Stateless Verification**
 - Traditional: Server validates signed challenge matches the stored one
 - VRF: Contract recomputes the VRF input and verifies the proof; no storage required.
+
+Relayer can make a single contract view `verify_authentication_response`; no DB of "issued challenges" is needed.
+
+This is why VRF+contract verification works as a stateless replacement for WebAuthn challenge/response.
 
 **Replay Attack Prevention**
 - Traditional: Server marks used challenges to prevent reuse
@@ -60,9 +68,9 @@ Traditional WebAuthn requires a server to mint and track challenges. VRF challen
 
 1. **NEAR Transaction Nonces** - NEAR blockchain has accounts nonces tied to the account's access key. Even if an attacker replays a valid WebAuthn authentication, they cannot replay the same transaction.
 
-2. **Transaction Binding** For additional security, the VRF challenge could include a transaction digest hash, preventing an attacker from substituting different transaction actions while reusing the same authentication.
+2. **Intent + signing digest binding (implemented)** The VRF input includes `intent_digest_32` derived from the canonical signing payload. For threshold signing, the relayer recomputes the intent digest and validates `signing_digest_32` (tx, delegate, or NEP‑413) before authorizing any co‑signature.
 
-3. **Include NEAR nonce in VRF challenges** - Alternatively we could include the NEAR nonce in the VRF challenge and make it cryptographically binding, however this requirements nonce synchronization and makes it a bit more difficult to sign concurrent webauthn actions with little extra benefits
+3. **Include NEAR nonce in VRF challenges** - Alternatively we could include the NEAR nonce in the VRF challenge and make it cryptographically binding, however this requires nonce synchronization and makes it harder to sign concurrent WebAuthn actions with little extra benefit.
 
 ### Summary
 VRF challenges provide equivalent security to traditional WebAuthn challenge freshness, but verified on-chain without requiring server-side state or challenge storage.
@@ -78,12 +86,14 @@ The WASM worker builds the VRF input from blockchain state and session data, the
 
 ```ts
 const challengeData = await vrfWorker.generate_vrf_challenge({
-  user_id: userId,
-  rp_id: rpId,
-  block_height: blockHeight,
-  block_hash: blockHash,
+  userId,
+  rpId,
+  blockHeight,
+  blockHash,
+  intentDigest, // base64url 32-byte digest
+  sessionPolicyDigest32, // optional
 })
-// Returns: { vrf_output, vrf_proof, vrf_input, vrf_public_key, ... }
+// Returns: { vrfOutput, vrfProof, vrfInput, vrfPublicKey, ... }
 ```
 
 **2. WebAuthn authentication**
@@ -93,7 +103,7 @@ The VRF output is used as the WebAuthn challenge, binding the VRF proof to the b
 ```ts
 const credential = await navigator.credentials.get({
   publicKey: {
-    challenge: challengeData.vrf_output,  // VRF output as challenge
+    challenge: challengeData.vrfOutput,  // VRF output as challenge
     // ... other options
   }
 })
@@ -101,7 +111,7 @@ const credential = await navigator.credentials.get({
 
 **3. Submit to WebAuthn Contract for verification**
 
-The transaction includes both the VRF proof and WebAuthn signature for atomic onchain verification:
+The VRF worker or relayer submits both the VRF proof and WebAuthn signature for on-chain verification:
 
 ```rust
 // Contract method signature
@@ -114,7 +124,7 @@ The transaction includes both the VRF proof and WebAuthn signature for atomic on
 
 See the [Web3Authn contract section](../api/web3authn-contract.md) for implementation details.
 
-The WASM signer worker waits for the Web3Authn contract verification of both the VRF proof and WebAuthn signature, before signing any transactions:
+The VRF worker can gate session minting on the Web3Authn contract verification of both the VRF proof and WebAuthn signature before releasing session keys:
 
 ```rust
 // Simplified verification flow
@@ -141,7 +151,8 @@ fn verify_authentication_response(vrf_data, webauthn_authentication) {
 1. **VRF Proof** - Verifies the proof matches the user's VRF public key stored on-chain, confirming the challenge was generated by the correct private key
 2. **Challenge Binding** - Ensures the WebAuthn challenge equals the VRF output, preventing challenge substitution attacks
 3. **Freshness** - Validates block height is recent (within the contract’s freshness window), preventing replay attacks with old challenges
-4. **WebAuthn Signature** - Verifies the ECDSA P256 signature against the passkey's public key stored on-chain
+4. **Intent/Policy binding (when present)** - Recomputes the VRF input with `intent_digest_32` and/or `session_policy_digest_32` to ensure the proof is bound to the expected payload
+5. **WebAuthn Signature** - Verifies the ECDSA P256 signature against the passkey's public key stored on-chain
 
 **This gives us the following properties:**
 - **Atomic verification** - Both VRF and WebAuthn must pass in a single transaction

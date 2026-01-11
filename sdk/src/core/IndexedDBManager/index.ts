@@ -11,14 +11,18 @@ export type {
 } from './passkeyClientDB';
 
 export type {
-  EncryptedKeyData
+  PasskeyNearKeyMaterial,
+  LocalNearSkV3Material,
+  ThresholdEd25519_2p_V1Material,
+  PasskeyNearKeyMaterialKind,
+  ClientShareDerivation,
 } from './passkeyNearKeysDB';
 
 import { AccountId } from '../types/accountIds';
 
 // === SINGLETON INSTANCES ===
 import { PasskeyClientDBManager, type ClientUserData } from './passkeyClientDB';
-import { PasskeyNearKeysDBManager, type EncryptedKeyData } from './passkeyNearKeysDB';
+import { PasskeyNearKeysDBManager, type PasskeyNearKeyMaterial } from './passkeyNearKeysDB';
 
 // Export singleton instances for backward compatibility with existing code
 export const passkeyClientDB = new PasskeyClientDBManager();
@@ -112,7 +116,7 @@ export class UnifiedIndexedDBManager {
       // This will trigger the getDB() method in both managers and ensure databases are created
       await Promise.all([
         this.clientDB.getAppState('_init_check'),
-        this.nearKeysDB.hasEncryptedKey('_init_check', 1)
+        this.nearKeysDB.hasKeyMaterial('_init_check', 1, 'local_near_sk_v3')
       ]);
 
       this._initialized = true;
@@ -137,7 +141,7 @@ export class UnifiedIndexedDBManager {
   async getUserWithKeys(nearAccountId: AccountId): Promise<{
     userData: ClientUserData | null;
     hasKeys: boolean;
-    keyData?: EncryptedKeyData | null;
+    keyMaterial?: PasskeyNearKeyMaterial | null;
   }> {
     const last = await this.clientDB.getLastUser();
     const userData = last && last.nearAccountId === nearAccountId
@@ -146,15 +150,17 @@ export class UnifiedIndexedDBManager {
     const deviceNumber = (last && last.nearAccountId === nearAccountId)
       ? last.deviceNumber
       : userData?.deviceNumber!;
-    const [hasKeys, keyData] = await Promise.all([
-      this.nearKeysDB.hasEncryptedKey(nearAccountId, deviceNumber),
-      this.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber)
+    const [local, threshold] = await Promise.all([
+      this.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber),
+      this.nearKeysDB.getThresholdKeyMaterial(nearAccountId, deviceNumber),
     ]);
+    const keyData = local ?? threshold;
+    const hasKeys = !!keyData;
 
     return {
       userData,
       hasKeys,
-      keyData: hasKeys ? keyData : undefined
+      keyMaterial: hasKeys ? keyData : undefined
     };
   }
 

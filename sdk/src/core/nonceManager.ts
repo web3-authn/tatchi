@@ -1,9 +1,8 @@
 import type { NearClient } from './NearClient';
 import type { AccountId } from './types/accountIds';
-import { fetchNonceBlockHashAndHeight } from './rpcCalls';
 import type { TransactionContext } from './types/rpc';
 import type { AccessKeyView, BlockResult } from '@near-js/types';
-import { isObject, isNumber, isString } from './WalletIframe/validation';
+import { isObject, isNumber, isString } from '@/utils/validation';
 import { errorMessage } from '../utils/errors';
 
 /**
@@ -205,7 +204,6 @@ export class NonceManager {
                 || msg.includes('does not exist');
               if (missingAk) {
                 // Non-fatal: proceed without live AK; compute nextNonce conservatively
-                console.debug('[NonceManager]: Access key missing during fetch; proceeding with block-only context');
                 maybeAccessKey = null;
               } else {
                 accessKeyError = akErr;
@@ -282,13 +280,6 @@ export class NonceManager {
           const now = Date.now();
           if (fetchAccessKey) this.lastNonceUpdate = now;
           if (fetchBlock) this.lastBlockHeightUpdate = now;
-          // console.debug('[NonceManager]: committed context', {
-          //   nextNonce: transactionContext.nextNonce,
-          //   txBlockHeight: transactionContext.txBlockHeight,
-          //   txBlockHash: transactionContext.txBlockHash,
-          //   lastNonceUpdate: this.lastNonceUpdate,
-          //   lastBlockHeightUpdate: this.lastBlockHeightUpdate,
-          // });
         } else {
           // Discard results from outdated or identity-mismatched fetches; a newer fetch has already committed.
         }
@@ -400,7 +391,6 @@ export class NonceManager {
     this.reservedNonces = newSet;
     this.lastReservedNonce = planned[planned.length - 1];
 
-    console.debug(`[NonceManager]: Reserved ${count} nonces:`, planned);
     return planned;
   }
 
@@ -411,7 +401,6 @@ export class NonceManager {
   public releaseNonce(nonce: string): void {
     if (this.reservedNonces.has(nonce)) {
       this.reservedNonces.delete(nonce);
-      console.debug(`[NonceManager]: Released nonce ${nonce}`);
     }
   }
 
@@ -422,7 +411,6 @@ export class NonceManager {
     const count = this.reservedNonces.size;
     this.reservedNonces.clear();
     this.lastReservedNonce = null;
-    console.debug(`[NonceManager]: Released all ${count} reserved nonces`);
   }
 
   /**
@@ -452,7 +440,7 @@ export class NonceManager {
       // - post-final: chainNonce >= actualNonce
       if (chainNonceBigInt < actualNonceBigInt - BigInt(1)) {
         console.warn(
-          `[NonceManager]: Chain nonce (${chainNonceBigInt}) behind expected (${actualNonceBigInt - BigInt(1)}). Proceeding with tolerant update.`
+          `[NonceManager]: Chain nonce (${chainNonceBigInt}) behind expected (${actualNonceBigInt - BigInt(1)}). Updating...`
         );
       }
 

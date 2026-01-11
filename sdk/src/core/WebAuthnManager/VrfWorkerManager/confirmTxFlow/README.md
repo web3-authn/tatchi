@@ -22,7 +22,7 @@ High‑level phases: Classify → Prepare → Confirm UI → JIT Refresh → Col
 
 ## Message Handshake
 
-- Worker → Main: `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD` with a V2 `SecureConfirmRequest` (schemaVersion: 2)
+- Worker → Main: `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD` with a V2 `SecureConfirmRequest`
 - Main → Worker: `USER_PASSKEY_CONFIRM_RESPONSE` containing confirmation status, optional credential, and optional `{ vrfChallenge, transactionContext }`
 
 ### Defensive constraints (signing flows)

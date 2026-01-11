@@ -5,7 +5,7 @@ use crate::types::*;
 fn test_add_key_action_handler() {
     let valid_params = ActionParams::AddKey {
         public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp".to_string(),
-        access_key: r#"{"nonce":0,"permission":"FullAccess"}"#.to_string(),
+        access_key: r#"{"nonce":0,"permission":{"FullAccess":{}}}"#.to_string(),
     };
 
     assert!(valid_params.validate().is_ok());
@@ -35,8 +35,8 @@ fn test_add_key_function_call_permission() {
             "permission": {
                 "FunctionCall": {
                     "allowance": "1000000000000000000000000",
-                    "receiver_id": "example.near",
-                    "method_names": ["method1", "method2"]
+                    "receiverId": "example.near",
+                    "methodNames": ["method1", "method2"]
                 }
             }
         }"#
@@ -144,7 +144,7 @@ fn test_get_action_handler_new_types() {
 
     let add_key_params = ActionParams::AddKey {
         public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp".to_string(),
-        access_key: r#"{"nonce":0,"permission":"FullAccess"}"#.to_string(),
+        access_key: r#"{"nonce":0,"permission":{"FullAccess":{}}}"#.to_string(),
     };
     assert!(add_key_params.to_action().is_ok());
 

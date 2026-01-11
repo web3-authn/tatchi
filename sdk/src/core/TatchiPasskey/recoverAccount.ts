@@ -16,6 +16,7 @@ import { WebAuthnManager } from '../WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { VRFInputData } from '../types/vrf-worker';
 import type { OriginPolicyInput, UserVerificationPolicy } from '../types/authenticatorOptions';
+import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 import {
   getCredentialIdsContractCall,
   syncAuthenticatorsContractCall
@@ -113,21 +114,17 @@ export class AccountRecoveryFlow {
         const challenge = createRandomVRFChallenge();
         const credential = await this.context.webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
           // Account is unknown here – salts aren't used downstream for discovery
-          nearAccountId: '' as any,
+          nearAccountId: '' as AccountId,
           challenge: challenge as VRFChallenge,
           credentialIds: [],
         });
 
         // Try to infer accountId from userHandle
-        let inferredAccountId: string | null = null;
-        try {
-          const assertion: any = credential.response as any;
-          inferredAccountId = parseAccountIdFromUserHandle(assertion?.userHandle);
-        } catch {}
+        const inferredAccountId = parseAccountIdFromUserHandle(credential.response?.userHandle);
 
         const option: PasskeyOption = {
           credentialId: credential.id,
-          accountId: inferredAccountId ? (inferredAccountId as any as AccountId) : null,
+          accountId: inferredAccountId ? toAccountId(inferredAccountId) : null,
           publicKey: '',
           displayName: inferredAccountId ? `${inferredAccountId}` : 'Recovered passkey',
           credential,
@@ -151,11 +148,12 @@ export class AccountRecoveryFlow {
         displayName: option.displayName
       }));
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const failure = error instanceof Error ? error : new Error(String(error));
       this.phase = 'error';
-      this.error = error;
-      console.error('AccountRecoveryFlow: Discovery failed:', error);
-      throw error;
+      this.error = failure;
+      console.error('AccountRecoveryFlow: Discovery failed:', failure);
+      throw failure;
     }
   }
 
@@ -185,22 +183,27 @@ export class AccountRecoveryFlow {
         throw new Error('Invalid selection - account not found in available options');
       }
       if (!selectedOption.accountId) {
-        // Attempt a one-time re-prompt to infer accountId from userHandle for this credential
-        try {
-          const challenge = createRandomVRFChallenge();
-          const cred = await this.context.webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
-            nearAccountId: '' as any,
-            challenge: challenge as VRFChallenge,
-            credentialIds: selectedOption.credentialId && selectedOption.credentialId !== 'manual-input'
-              ? [selectedOption.credentialId]
-              : [],
-          });
-          const assertion: any = cred.response as any;
-          const maybeAccount = parseAccountIdFromUserHandle(assertion?.userHandle);
-          if (maybeAccount) {
-            selectedOption.accountId = maybeAccount as any as AccountId;
-          }
-        } catch {}
+        // Attempt to infer accountId from the stored discovery credential first.
+        const storedAccount = parseAccountIdFromUserHandle(selectedOption.credential?.response?.userHandle);
+        if (storedAccount) {
+          selectedOption.accountId = toAccountId(storedAccount);
+        } else {
+          // Fall back to a one-time re-prompt to infer accountId from userHandle.
+          try {
+            const challenge = createRandomVRFChallenge();
+            const cred = await this.context.webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
+              nearAccountId: '' as AccountId,
+              challenge: challenge as VRFChallenge,
+              credentialIds: selectedOption.credentialId && selectedOption.credentialId !== 'manual-input'
+                ? [selectedOption.credentialId]
+                : [],
+            });
+            const maybeAccount = parseAccountIdFromUserHandle(cred.response?.userHandle);
+            if (maybeAccount) {
+              selectedOption.accountId = toAccountId(maybeAccount);
+            }
+          } catch {}
+        }
         if (!selectedOption.accountId) {
           throw new Error('Invalid account selection - no account ID provided');
         }
@@ -224,18 +227,19 @@ export class AccountRecoveryFlow {
         this.context,
         selectedOption.accountId,
         this.options,
-        undefined,
+        selectedOption.credential ?? undefined,
         allowList
       );
 
       this.phase = 'complete';
       return recoveryResult;
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const failure = error instanceof Error ? error : new Error(String(error));
       this.phase = 'error';
-      this.error = error;
-      console.error('AccountRecoveryFlow: Recovery failed:', error);
-      throw error;
+      this.error = failure;
+      console.error('AccountRecoveryFlow: Recovery failed:', failure);
+      throw failure;
     }
   }
 
@@ -352,8 +356,7 @@ export async function recoverAccount(
     // Cross-check: ensure the authenticator's userHandle maps to the same account,
     // when available. This avoids deriving a key for the wrong account if the user
     // picks an unrelated passkey from the platform chooser.
-    const assertion: any = (credential as any)?.response;
-    const passkeyAccount = parseAccountIdFromUserHandle(assertion?.userHandle);
+    const passkeyAccount = parseAccountIdFromUserHandle(credential.response?.userHandle);
     if (passkeyAccount && passkeyAccount !== accountId) {
       return handleRecoveryError(
         accountId,
@@ -430,7 +433,9 @@ export async function recoverAccount(
 
     afterCall?.(true, recoveryResult);
     return recoveryResult;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const err = error instanceof Error ? error : new Error(message);
     // Clear any VRF session that might have been established during recovery
     try {
       await webAuthnManager.clearVrfSession();
@@ -438,8 +443,8 @@ export async function recoverAccount(
       console.warn('Failed to clear VRF session after recovery error:', clearError);
     }
 
-    onError?.(error);
-    return handleRecoveryError(accountId, error.message, onError, afterCall);
+    onError?.(err);
+    return handleRecoveryError(accountId, message, onError, afterCall);
   }
 }
 
@@ -477,7 +482,7 @@ function handleRecoveryError(
   accountId: AccountId,
   errorMessage: string,
   onError?: (error: Error) => void,
-  afterCall?: AfterCall<any>
+  afterCall?: AfterCall<RecoveryResult>
 ): RecoveryResult {
   console.error('[recoverAccount] Error:', errorMessage);
   onError?.(new Error(errorMessage));
@@ -490,7 +495,6 @@ function handleRecoveryError(
     error: errorMessage
   };
 
-  const result = { success: false, accountId, error: errorMessage } as any;
   afterCall?.(false);
   return errorResult;
 }
@@ -587,6 +591,15 @@ async function performAccountRecovery({
       message: 'Restored Passkey authenticator...',
     });
 
+    // Activate threshold enrollment for this device by ensuring threshold key
+    // material is available locally (and AddKey if needed).
+    await activateThresholdEnrollment({
+      context,
+      accountId,
+      deviceNumber,
+      credential,
+    });
+
     // 5. Unlock VRF keypair in memory for immediate use
     console.debug('Unlocking VRF keypair in memory after account recovery');
     const unlockResult = await webAuthnManager.unlockVRFKeypair({
@@ -616,9 +629,10 @@ async function performAccountRecovery({
       message: 'Account successfully recovered',
     };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('[performAccountRecovery] Error:', error);
-    throw new Error(`Recovery process failed: ${error.message}`);
+    throw new Error(`Recovery process failed: ${message}`);
   }
 }
 
@@ -672,13 +686,14 @@ async function restoreUserData({
   }
 
   // Store the encrypted NEAR keypair in the encrypted keys database
-  await IndexedDBManager.nearKeysDB.storeEncryptedKey({
+  await IndexedDBManager.nearKeysDB.storeKeyMaterial({
+    kind: 'local_near_sk_v3',
     nearAccountId: accountId,
     deviceNumber,
-    encryptedData: encryptedNearKeypair.encryptedPrivateKey,
+    publicKey,
+    encryptedSk: encryptedNearKeypair.encryptedPrivateKey,
     chacha20NonceB64u,
     wrapKeySalt,
-    version: 2,
     timestamp: Date.now()
   });
 
@@ -755,5 +770,36 @@ async function restoreAuthenticators({
       vrfPublicKey,
       deviceNumber // Pass the device number from contract data
     });
+  }
+}
+
+async function activateThresholdEnrollment(args: {
+  context: PasskeyManagerContext;
+  accountId: AccountId;
+  deviceNumber: number;
+  credential: WebAuthnAuthenticationCredential;
+}): Promise<void> {
+  const deviceNumber = parseDeviceNumber(args.deviceNumber, { min: 1 });
+  if (deviceNumber === null) {
+    throw new Error(`Invalid deviceNumber for threshold enrollment: ${String(args.deviceNumber)}`);
+  }
+
+  // Ensure WebAuthn allowCredentials selection prefers this device's passkey
+  // when multiple authenticators exist for the account.
+  try {
+    await args.context.webAuthnManager.setLastUser(args.accountId, deviceNumber);
+  } catch {}
+
+  const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(args.accountId, deviceNumber);
+  if (existing) return;
+
+	  const enrollment = await args.context.webAuthnManager.enrollThresholdEd25519Key({
+	    credential: args.credential,
+	    nearAccountId: args.accountId,
+	    deviceNumber,
+	  });
+
+  if (!enrollment.success) {
+    throw new Error(enrollment.error || 'Threshold enrollment failed');
   }
 }

@@ -17,14 +17,13 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
       const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (req: any, opts?: any) => Promise<any>;
       const errors: string[] = [];
       try { await awaitV2('not-json'); } catch (e: any) { errors.push(String(e?.message || e)); }
-      try { await awaitV2({ schemaVersion: 1 }); } catch (e: any) { errors.push(String(e?.message || e)); }
-      try { await awaitV2({ schemaVersion: 2, type: 'signTransaction', summary: {}, payload: {} }); } catch (e: any) { errors.push(String(e?.message || e)); }
-      try { await awaitV2({ schemaVersion: 2, requestId: 'id-1', summary: {}, payload: {} }); } catch (e: any) { errors.push(String(e?.message || e)); }
+      try { await awaitV2({}); } catch (e: any) { errors.push(String(e?.message || e)); }
+      try { await awaitV2({ type: 'signTransaction', summary: {}, payload: {} }); } catch (e: any) { errors.push(String(e?.message || e)); }
+      try { await awaitV2({ requestId: 'id-1', summary: {}, payload: {} }); } catch (e: any) { errors.push(String(e?.message || e)); }
       return { errors };
     }, { workerPath: WORKER_PATH });
     expect(result.errors.length).toBe(4);
     expect(result.errors.join(' ')).toContain('JSON strings are not supported');
-    expect(result.errors.join(' ')).toContain('schemaVersion must be 2');
     expect(result.errors.join(' ')).toContain('missing requestId');
     expect(result.errors.join(' ')).toContain('missing type');
   });
@@ -36,7 +35,7 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
       const controller = new AbortController();
       controller.abort();
       try {
-        await awaitV2({ schemaVersion: 2, requestId: 'id-2', type: 'signTransaction', summary: {}, payload: {} }, { signal: controller.signal });
+        await awaitV2({ requestId: 'id-2', type: 'signTransaction', summary: {}, payload: {} }, { signal: controller.signal });
         return { ok: true };
       } catch (e: any) {
         return { ok: false, message: String(e?.message || e) };
@@ -55,7 +54,6 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
       (self as any).postMessage = (_msg: unknown) => {};
       try {
         await awaitV2({
-          schemaVersion: 2,
           requestId: 'id-3',
           type: 'signTransaction',
           summary: {},
@@ -78,7 +76,7 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
       const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (req: any, opts?: any) => Promise<any>;
       const originalPost = (self as any).postMessage;
       (self as any).postMessage = (_msg: unknown) => {};
-      const payload = { schemaVersion: 2, requestId: 'id-4', type: 'signTransaction', summary: {}, payload: {} };
+      const payload = { requestId: 'id-4', type: 'signTransaction', summary: {}, payload: {} };
       setTimeout(() => {
         // Dispatch a message event with a mismatched requestId; listener should ignore it
         self.dispatchEvent(new MessageEvent('message', {
@@ -107,7 +105,6 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
       const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (req: any, opts?: any) => Promise<any>;
 
       const request = {
-        schemaVersion: 2,
         requestId: 'sess-1',
         type: 'decryptPrivateKeyWithPrf',
         summary: {

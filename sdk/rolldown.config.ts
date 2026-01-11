@@ -507,21 +507,6 @@ const configs = [
       }
     ]
   },
-  // Button-with-Tooltip component - bundles Lit for iframe usage
-  {
-    input: 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/ButtonWithTooltip.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
-      format: 'esm',
-      // Align emitted filename with iframe srcdoc import expectation
-      entryFileNames: 'w3a-button-with-tooltip.js'
-    },
-    external: embeddedExternal,
-    resolve: {
-      alias: aliasConfig
-    },
-    plugins: prodPlugins,
-  },
   // Confirm UI helpers and elements bundle for iframe usage
   // Build from confirm-ui.ts (container-agnostic); keep output filename stable
   {
@@ -538,12 +523,9 @@ const configs = [
     // Minification is controlled via CLI flags; no config option in current Rolldown types
     plugins: prodPlugins,
   },
-  // Embedded Transaction Confirmation Iframe Host component + Modal Host
+  // Wallet iframe host + confirmer bundles
   {
     input: {
-      // SendTxButtonWithTooltip component (Button with ToolTip)
-      'w3a-tx-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host.ts',
-      'iframe-tx-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-tx-button-bootstrap-script.ts',
       // Tx Confirmer component
       'w3a-tx-confirmer': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/tx-confirmer-wrapper.ts',
       // Wallet service host (headless)
@@ -577,24 +559,23 @@ const configs = [
             const cssPath = path.join(sdkDir, 'wallet-service.css');
             if (!fs.existsSync(cssPath)) fs.writeFileSync(cssPath, WALLET_SURFACE_CSS, 'utf-8');
             // Generate w3a-components.css from palette + centralized base-styles.js
-            try {
-              const palettePath = path.join(process.cwd(), 'src/theme/palette.json');
-              const paletteRaw = fs.readFileSync(palettePath, 'utf-8');
-              const p = JSON.parse(paletteRaw) as any;
+	            try {
+	              const palettePath = path.join(process.cwd(), 'src/theme/palette.json');
+	              const paletteRaw = fs.readFileSync(palettePath, 'utf-8');
+	              const p = JSON.parse(paletteRaw) as any;
               const baseStylesPath = path.join(process.cwd(), 'src/theme/base-styles.js');
               const base = await import(pathToFileURL(baseStylesPath).href);
               const { createThemeTokens } = base as any;
               const { DARK_THEME: darkVars, LIGHT_THEME: lightVars, CREAM_THEME: creamVars } = createThemeTokens(p);
-              const sel = [
-                'w3a-tx-tree',
-                'w3a-drawer',
-                'w3a-modal-tx-confirmer',
-                'w3a-drawer-tx-confirmer',
-                'w3a-tx-confirm-content',
-                'w3a-button-with-tooltip',
-                'w3a-halo-border',
-                'w3a-passkey-halo-loading',
-              ].join(',\n');
+	              const sel = [
+	                'w3a-tx-tree',
+	                'w3a-drawer',
+	                'w3a-modal-tx-confirmer',
+	                'w3a-drawer-tx-confirmer',
+	                'w3a-tx-confirm-content',
+	                'w3a-halo-border',
+	                'w3a-passkey-halo-loading',
+	              ].join(',\n');
               const lines: string[] = [];
               lines.push('/* Generated from src/theme/palette.json + src/theme/base-styles.js. Do not edit by hand. */');
               lines.push(`${sel} {`);
@@ -673,16 +654,15 @@ const configs = [
               lines.push(...emitAliases(creamVars, '  '));
               lines.push('}');
               // Theme-aware host overrides (prefix each selector with the theme scope)
-              const hostList = [
-                'w3a-tx-tree',
-                'w3a-drawer',
-                'w3a-modal-tx-confirmer',
-                'w3a-drawer-tx-confirmer',
-                'w3a-tx-confirm-content',
-                'w3a-button-with-tooltip',
-                'w3a-halo-border',
-                'w3a-passkey-halo-loading',
-              ];
+	              const hostList = [
+	                'w3a-tx-tree',
+	                'w3a-drawer',
+	                'w3a-modal-tx-confirmer',
+	                'w3a-drawer-tx-confirmer',
+	                'w3a-tx-confirm-content',
+	                'w3a-halo-border',
+	                'w3a-passkey-halo-loading',
+	              ];
               const themedSelLight = hostList.map(s => `:root[data-w3a-theme="light"] ${s}`).join(',\n');
               const themedSelCream = hostList.map(s => `:root[data-w3a-theme="cream"] ${s}`).join(',\n');
               lines.push('');
@@ -700,19 +680,17 @@ const configs = [
               const src = path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/w3a-components.css');
               const dest = path.join(sdkDir, 'w3a-components.css');
               if (fs.existsSync(src)) fs.copyFileSync(src, dest);
-            }
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-tree.css'), path.join(sdkDir, 'tx-tree.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/button-with-tooltip.css'), path.join(sdkDir, 'button-with-tooltip.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-confirmer.css'), path.join(sdkDir, 'tx-confirmer.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/drawer.css'), path.join(sdkDir, 'drawer.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/halo-border.css'), path.join(sdkDir, 'halo-border.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/passkey-halo-loading.css'), path.join(sdkDir, 'passkey-halo-loading.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/padlock-icon.css'), path.join(sdkDir, 'padlock-icon.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/iframe-button-host.css'), path.join(sdkDir, 'iframe-button-host.css'));
-            // Export viewer stylesheet used by ExportPrivateKey viewer (loaded via ensureExternalStyles)
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/export-viewer.css'), path.join(sdkDir, 'export-viewer.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/export-iframe.css'), path.join(sdkDir, 'export-iframe.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WalletIframe/client/overlay.css'), path.join(sdkDir, 'overlay.css'));
+	            }
+	            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-tree.css'), path.join(sdkDir, 'tx-tree.css'));
+	            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-confirmer.css'), path.join(sdkDir, 'tx-confirmer.css'));
+	            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/drawer.css'), path.join(sdkDir, 'drawer.css'));
+	            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/halo-border.css'), path.join(sdkDir, 'halo-border.css'));
+	            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/passkey-halo-loading.css'), path.join(sdkDir, 'passkey-halo-loading.css'));
+	            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/padlock-icon.css'), path.join(sdkDir, 'padlock-icon.css'));
+	            // Export viewer stylesheet used by ExportPrivateKey viewer (loaded via ensureExternalStyles)
+	            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/export-viewer.css'), path.join(sdkDir, 'export-viewer.css'));
+	            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/export-iframe.css'), path.join(sdkDir, 'export-iframe.css'));
+	            copyIf(path.join(process.cwd(), 'src/core/WalletIframe/client/overlay.css'), path.join(sdkDir, 'overlay.css'));
             // Offline Export route shell stylesheet
             copyIf(path.join(process.cwd(), 'src/core/OfflineExport/offline-export.css'), path.join(sdkDir, 'offline-export.css'));
             console.log('✅ Emitted /sdk wallet-shims.js and wallet-service.css');

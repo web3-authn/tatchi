@@ -4,56 +4,52 @@ mod cose;
 mod crypto;
 mod encoders;
 mod error;
+#[cfg(target_arch = "wasm32")]
+mod fetch;
 mod handlers;
 mod logger;
 #[cfg(test)]
 mod tests;
+mod threshold;
 mod transaction;
 mod types;
-
-use std::cell::RefCell;
-use std::collections::HashMap;
+mod wrap_key_handshake;
 
 use crate::types::worker_messages::{
-    parse_typed_payload,
-    parse_worker_request_envelope,
-    worker_request_type_name,
-    worker_response_type_name,
-    SignerWorkerMessage,
-    SignerWorkerResponse,
-    WorkerRequestType,
+    parse_typed_payload, parse_worker_request_envelope, worker_request_type_name,
+    worker_response_type_name, SignerWorkerMessage, SignerWorkerResponse, WorkerRequestType,
     WorkerResponseType,
 };
 use crate::types::*;
+use crate::wrap_key_handshake::{get_prf_second_b64u, get_wrap_key_shards};
 use log::debug;
 use wasm_bindgen::prelude::*;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::JsCast;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::closure::Closure;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_futures::JsFuture;
-#[cfg(target_arch = "wasm32")]
-use web_sys::{MessageEvent, MessagePort};
 
 pub use handlers::handle_decrypt_private_key_with_prf::{
-    handle_decrypt_private_key_with_prf,
-    DecryptPrivateKeyRequest,
-    DecryptPrivateKeyResult,
+    handle_decrypt_private_key_with_prf, DecryptPrivateKeyRequest, DecryptPrivateKeyResult,
 };
 pub use handlers::handle_derive_near_keypair_and_encrypt::{
-    handle_derive_near_keypair_and_encrypt,
-    DeriveNearKeypairAndEncryptRequest,
+    handle_derive_near_keypair_and_encrypt, DeriveNearKeypairAndEncryptRequest,
     DeriveNearKeypairAndEncryptResult,
 };
 pub use handlers::{
     CoseExtractionResult,
+    // Delegate Actions
+    DelegatePayload,
+    DelegateSignResult,
+    // Threshold Signing
+    DeriveThresholdEd25519ClientVerifyingShareRequest,
     // Extract Cose Public Key
     ExtractCoseRequest,
     KeyActionResult,
     // Recover Account
     RecoverKeypairRequest,
     RecoverKeypairResult,
+    // Combined Device2 Registration
+    RegisterDevice2WithDerivedKeyRequest,
+    RegisterDevice2WithDerivedKeyResult,
+    SignAddKeyThresholdPublicKeyNoPromptRequest,
+    SignDelegateActionRequest,
     // Sign Nep413 Message
     SignNep413Request,
     SignNep413Result,
@@ -62,23 +58,11 @@ pub use handlers::{
     // Execute Actions
     SignTransactionsWithActionsRequest,
     TransactionPayload,
-    // Delegate Actions
-    DelegatePayload,
-    DelegateSignResult,
-    SignDelegateActionRequest,
-    // Combined Device2 Registration
-    RegisterDevice2WithDerivedKeyRequest,
-    RegisterDevice2WithDerivedKeyResult,
 };
 
 // Re-export NEAR types for TypeScript usage
 pub use types::near::{
-    DelegateAction,
-    PublicKey,
-    Signature,
-    SignedDelegate,
-    SignedTransaction,
-    Transaction,
+    DelegateAction, PublicKey, Signature, SignedDelegate, SignedTransaction, Transaction,
 };
 // Re-export progress types for auto-generation
 pub use types::progress::{
@@ -86,53 +70,12 @@ pub use types::progress::{
 };
 // Re-export WASM-friendly wrapper types for TypeScript usage
 pub use types::wasm_to_json::{
-    WasmDelegateAction,
-    WasmPublicKey,
-    WasmSignature,
-    WasmSignedDelegate,
-    WasmSignedTransaction,
+    WasmDelegateAction, WasmPublicKey, WasmSignature, WasmSignedDelegate, WasmSignedTransaction,
     WasmTransaction,
 };
 
 pub use crate::crypto::WrapKey;
-
-thread_local! {
-    static WRAP_KEY_SEED_SESSIONS: RefCell<HashMap<String, WrapKey>> = RefCell::new(HashMap::new());
-    static SESSION_PRF_OUTPUTS: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
-}
-
-#[cfg(target_arch = "wasm32")]
-thread_local! {
-    static WRAP_KEY_SEED_WAITERS: RefCell<HashMap<String, Vec<js_sys::Function>>> = RefCell::new(HashMap::new());
-    static PRF_SECOND_WAITERS: RefCell<HashMap<String, Vec<js_sys::Function>>> = RefCell::new(HashMap::new());
-    static SESSION_MATERIAL_ERRORS: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
-}
-
-#[cfg(target_arch = "wasm32")]
-fn resolve_wrap_key_seed_waiters(session_id: &str, value: &JsValue) {
-    WRAP_KEY_SEED_WAITERS.with(|waiters| {
-        let mut waiters = waiters.borrow_mut();
-        let Some(list) = waiters.remove(session_id) else {
-            return;
-        };
-        for resolve in list {
-            let _ = resolve.call1(&JsValue::UNDEFINED, value);
-        }
-    });
-}
-
-#[cfg(target_arch = "wasm32")]
-fn resolve_prf_second_waiters(session_id: &str, value: &JsValue) {
-    PRF_SECOND_WAITERS.with(|waiters| {
-        let mut waiters = waiters.borrow_mut();
-        let Some(list) = waiters.remove(session_id) else {
-            return;
-        };
-        for resolve in list {
-            let _ = resolve.call1(&JsValue::UNDEFINED, value);
-        }
-    });
-}
+pub use wrap_key_handshake::attach_wrap_key_seed_port;
 
 #[wasm_bindgen]
 pub fn init_worker() {
@@ -144,101 +87,6 @@ pub fn init_worker() {
 #[wasm_bindgen(js_name = "init_wasm_signer_worker")]
 pub fn init_wasm_signer_worker() {
     init_worker();
-}
-
-/// Attach a MessagePort for a signing session and store WrapKeySeed material in Rust.
-/// JS shim should transfer the port; all parsing/caching lives here.
-#[wasm_bindgen]
-pub fn attach_wrap_key_seed_port(session_id: String, port_val: JsValue) {
-    #[cfg(target_arch = "wasm32")]
-    {
-        let Some(port) = port_val.dyn_ref::<MessagePort>() else {
-            // Not a MessagePort; nothing to attach.
-            return;
-        };
-
-        let sid = session_id.clone();
-        let port_for_close = port.clone();
-        let on_message = move |event: MessageEvent| {
-            let Ok(data) = js_sys::Reflect::get(&event, &JsValue::from_str("data")) else {
-                return;
-            };
-
-            // New contract: payload is result-like:
-            // - success: { ok: true, wrap_key_seed, wrapKeySalt, prfSecond? }
-            // - error:   { ok: false, error }
-            let ok = js_sys::Reflect::get(&data, &JsValue::from_str("ok"))
-                .ok()
-                .and_then(|v| v.as_bool());
-            if ok == Some(false) {
-                let err = js_sys::Reflect::get(&data, &JsValue::from_str("error"))
-                    .ok()
-                    .and_then(|v| v.as_string())
-                    .unwrap_or_else(|| "VRF failed to provide WrapKeySeed".to_string());
-
-                SESSION_MATERIAL_ERRORS.with(|map| {
-                    map.borrow_mut().insert(sid.clone(), err.clone());
-                });
-
-                let err_js = JsValue::from_str(&err);
-                resolve_wrap_key_seed_waiters(&sid, &err_js);
-                resolve_prf_second_waiters(&sid, &err_js);
-                port_for_close.close();
-                return;
-            }
-
-            let wrap_key_seed = js_sys::Reflect::get(&data, &JsValue::from_str("wrap_key_seed"))
-                .ok()
-                .and_then(|v| v.as_string());
-            let wrap_key_salt = js_sys::Reflect::get(&data, &JsValue::from_str("wrapKeySalt"))
-                .ok()
-                .and_then(|v| v.as_string());
-            let prf_second = js_sys::Reflect::get(&data, &JsValue::from_str("prfSecond"))
-                .ok()
-                .and_then(|v| v.as_string());
-
-            if let (Some(seed), Some(salt)) = (wrap_key_seed, wrap_key_salt) {
-                SESSION_MATERIAL_ERRORS.with(|map| {
-                    map.borrow_mut().remove(&sid);
-                });
-
-                WRAP_KEY_SEED_SESSIONS.with(|map| {
-                    map.borrow_mut().insert(
-                        sid.clone(),
-                        WrapKey {
-                            wrap_key_seed: seed,
-                            wrap_key_salt: salt,
-                        },
-                    );
-                });
-                resolve_wrap_key_seed_waiters(&sid, &JsValue::TRUE);
-
-                // Store PRF.second if present (used in Device2 registration flow)
-                if let Some(prf_second_b64u) = prf_second {
-                    if !prf_second_b64u.is_empty() {
-                        SESSION_PRF_OUTPUTS.with(|map| {
-                            map.borrow_mut().insert(sid.clone(), prf_second_b64u);
-                        });
-                        resolve_prf_second_waiters(&sid, &JsValue::TRUE);
-                    }
-                }
-            }
-            // One-shot semantics: VRF sends one message and closes its end; close ours too.
-            port_for_close.close();
-        };
-
-        let closure = Closure::<dyn FnMut(MessageEvent)>::wrap(Box::new(on_message));
-        port.set_onmessage(Some(closure.as_ref().unchecked_ref()));
-        port.start();
-        // Keep the closure alive for the lifetime of the port
-        closure.forget();
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let _ = session_id;
-        let _ = port_val;
-    }
 }
 
 // === PROGRESS MESSAGING ===
@@ -328,14 +176,9 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         WorkerRequestType::DeriveNearKeypairAndEncrypt => {
             let request: DeriveNearKeypairAndEncryptRequest =
                 parse_typed_payload(&payload_js, request_type)?;
-            #[cfg(target_arch = "wasm32")]
-            let wrap_key = await_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            #[cfg(not(target_arch = "wasm32"))]
-            let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
-            #[cfg(target_arch = "wasm32")]
-            let prf_second_b64u = await_prf_second(&request.session_id, request_type, 2000).await?;
-            #[cfg(not(target_arch = "wasm32"))]
-            let prf_second_b64u = lookup_prf_second(&request.session_id, request_type)?;
+            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let prf_second_b64u =
+                get_prf_second_b64u(&request.session_id, request_type, 2000).await?;
             let result = handlers::handle_derive_near_keypair_and_encrypt(
                 request,
                 wrap_key,
@@ -346,60 +189,37 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::RecoverKeypairFromPasskey => {
-            let request: RecoverKeypairRequest =
-                parse_typed_payload(&payload_js, request_type)?;
-            #[cfg(target_arch = "wasm32")]
-            let wrap_key = await_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            #[cfg(not(target_arch = "wasm32"))]
-            let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
+            let request: RecoverKeypairRequest = parse_typed_payload(&payload_js, request_type)?;
+            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
             let result = handlers::handle_recover_keypair_from_passkey(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::DecryptPrivateKeyWithPrf => {
-            let request: DecryptPrivateKeyRequest =
-                parse_typed_payload(&payload_js, request_type)?;
-            #[cfg(target_arch = "wasm32")]
-            let wrap_key = await_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            #[cfg(not(target_arch = "wasm32"))]
-            let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
-            let result = handlers::handle_decrypt_private_key_with_prf(
-                request,
-                wrap_key,
-            )
-            .await?;
+            let request: DecryptPrivateKeyRequest = parse_typed_payload(&payload_js, request_type)?;
+            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let result = handlers::handle_decrypt_private_key_with_prf(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::SignTransactionsWithActions => {
             let request: SignTransactionsWithActionsRequest =
                 parse_typed_payload(&payload_js, request_type)?;
-            #[cfg(target_arch = "wasm32")]
-            let wrap_key = await_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            #[cfg(not(target_arch = "wasm32"))]
-            let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
-            let result = handlers::handle_sign_transactions_with_actions(
-                request,
-                wrap_key,
-            )
-            .await?;
+            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let result = handlers::handle_sign_transactions_with_actions(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::SignDelegateAction => {
             let request: SignDelegateActionRequest =
                 parse_typed_payload(&payload_js, request_type)?;
-            #[cfg(target_arch = "wasm32")]
-            let wrap_key = await_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            #[cfg(not(target_arch = "wasm32"))]
-            let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
+            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
             let result = handlers::handle_sign_delegate_action(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::ExtractCosePublicKey => {
-            let request: ExtractCoseRequest =
-                parse_typed_payload(&payload_js, request_type)?;
+            let request: ExtractCoseRequest = parse_typed_payload(&payload_js, request_type)?;
             let result = handlers::handle_extract_cose_public_key(request).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
@@ -414,37 +234,44 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::SignNep413Message => {
-            let request: SignNep413Request =
-                parse_typed_payload(&payload_js, request_type)?;
-            #[cfg(target_arch = "wasm32")]
-            let wrap_key = await_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            #[cfg(not(target_arch = "wasm32"))]
-            let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
-            let result = handlers::handle_sign_nep413_message(
-                request,
-                wrap_key,
-            )
-            .await?;
+            let request: SignNep413Request = parse_typed_payload(&payload_js, request_type)?;
+            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let result = handlers::handle_sign_nep413_message(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::RegisterDevice2WithDerivedKey => {
             let request: handlers::RegisterDevice2WithDerivedKeyRequest =
                 parse_typed_payload(&payload_js, request_type)?;
-            #[cfg(target_arch = "wasm32")]
-            let wrap_key = await_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            #[cfg(not(target_arch = "wasm32"))]
-            let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
-            #[cfg(target_arch = "wasm32")]
-            let prf_second_b64u = await_prf_second(&request.session_id, request_type, 2000).await?;
-            #[cfg(not(target_arch = "wasm32"))]
-            let prf_second_b64u = lookup_prf_second(&request.session_id, request_type)?;
+            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let prf_second_b64u =
+                get_prf_second_b64u(&request.session_id, request_type, 2000).await?;
             let result = handlers::handle_register_device2_with_derived_key(
                 request,
                 wrap_key,
                 prf_second_b64u,
             )
             .await?;
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
+        }
+        WorkerRequestType::DeriveThresholdEd25519ClientVerifyingShare => {
+            let request: DeriveThresholdEd25519ClientVerifyingShareRequest =
+                parse_typed_payload(&payload_js, request_type)?;
+            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let result =
+                handlers::handle_threshold_ed25519_derive_client_verifying_share(request, wrap_key)
+                    .await?;
+            serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
+        }
+        WorkerRequestType::SignAddKeyThresholdPublicKeyNoPrompt => {
+            let request: SignAddKeyThresholdPublicKeyNoPromptRequest =
+                parse_typed_payload(&payload_js, request_type)?;
+            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let result =
+                handlers::handle_sign_add_key_threshold_public_key_no_prompt(request, wrap_key)
+                    .await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
@@ -467,20 +294,20 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         WorkerRequestType::SignTransactionsWithActions => {
             WorkerResponseType::SignTransactionsWithActionsSuccess
         }
-        WorkerRequestType::SignDelegateAction => {
-            WorkerResponseType::SignDelegateActionSuccess
-        }
-        WorkerRequestType::ExtractCosePublicKey => {
-            WorkerResponseType::ExtractCosePublicKeySuccess
-        }
+        WorkerRequestType::SignDelegateAction => WorkerResponseType::SignDelegateActionSuccess,
+        WorkerRequestType::ExtractCosePublicKey => WorkerResponseType::ExtractCosePublicKeySuccess,
         WorkerRequestType::SignTransactionWithKeyPair => {
             WorkerResponseType::SignTransactionWithKeyPairSuccess
         }
-        WorkerRequestType::SignNep413Message => {
-            WorkerResponseType::SignNep413MessageSuccess
-        }
+        WorkerRequestType::SignNep413Message => WorkerResponseType::SignNep413MessageSuccess,
         WorkerRequestType::RegisterDevice2WithDerivedKey => {
             WorkerResponseType::RegisterDevice2WithDerivedKeySuccess
+        }
+        WorkerRequestType::DeriveThresholdEd25519ClientVerifyingShare => {
+            WorkerResponseType::DeriveThresholdEd25519ClientVerifyingShareSuccess
+        }
+        WorkerRequestType::SignAddKeyThresholdPublicKeyNoPrompt => {
+            WorkerResponseType::SignAddKeyThresholdPublicKeyNoPromptSuccess
         }
     };
 
@@ -500,161 +327,4 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
     // Return JsValue directly
     serde_wasm_bindgen::to_value(&response)
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize response: {:?}", e)))
-}
-
-fn lookup_wrap_key_shards(session_id: &str, _request_type: WorkerRequestType) -> Result<WrapKey, JsValue> {
-    let material = WRAP_KEY_SEED_SESSIONS.with(|map| map.borrow().get(session_id).cloned());
-    let Some(mat) = material else {
-        return Err(JsValue::from_str(&format!(
-            "Missing WrapKeySeed for session {}",
-            session_id
-        )));
-    };
-
-    Ok(mat)
-}
-
-fn lookup_prf_second(session_id: &str, _request_type: WorkerRequestType) -> Result<String, JsValue> {
-    let prf_second = SESSION_PRF_OUTPUTS.with(|map| map.borrow().get(session_id).cloned());
-    let Some(prf) = prf_second else {
-        return Err(JsValue::from_str(&format!(
-            "Missing PRF.second for session {}",
-            session_id
-        )));
-    };
-
-    Ok(prf)
-}
-
-#[cfg(target_arch = "wasm32")]
-fn timeout_promise(ms: u32) -> js_sys::Promise {
-    js_sys::Promise::new(&mut |resolve, _reject| {
-        let global = js_sys::global();
-        let set_timeout = js_sys::Reflect::get(&global, &JsValue::from_str("setTimeout"))
-            .ok()
-            .and_then(|v| v.dyn_into::<js_sys::Function>().ok());
-        let Some(set_timeout) = set_timeout else {
-            let _ = resolve.call1(&JsValue::UNDEFINED, &JsValue::FALSE);
-            return;
-        };
-        let cb = Closure::<dyn FnOnce()>::once(move || {
-            let _ = resolve.call1(&JsValue::UNDEFINED, &JsValue::FALSE);
-        });
-        let _ = set_timeout.call2(&global, cb.as_ref(), &JsValue::from_f64(ms as f64));
-        cb.forget();
-    })
-}
-
-#[cfg(target_arch = "wasm32")]
-fn wrap_key_seed_waiter_promise(session_id: &str) -> js_sys::Promise {
-    let sid = session_id.to_string();
-    js_sys::Promise::new(&mut |resolve, _reject| {
-        WRAP_KEY_SEED_WAITERS.with(|waiters| {
-            waiters
-                .borrow_mut()
-                .entry(sid.clone())
-                .or_default()
-                .push(resolve);
-        });
-    })
-}
-
-#[cfg(target_arch = "wasm32")]
-fn prf_second_waiter_promise(session_id: &str) -> js_sys::Promise {
-    let sid = session_id.to_string();
-    js_sys::Promise::new(&mut |resolve, _reject| {
-        PRF_SECOND_WAITERS.with(|waiters| {
-            waiters
-                .borrow_mut()
-                .entry(sid.clone())
-                .or_default()
-                .push(resolve);
-        });
-    })
-}
-
-/// Await WrapKeySeed material inside the signer worker.
-///
-/// This removes the need for any main-thread "seed ready" synchronization:
-/// the signer worker can receive a signing request first and then block until
-/// the VRF worker delivers WrapKeySeed over the attached MessagePort.
-#[cfg(target_arch = "wasm32")]
-async fn await_wrap_key_shards(
-    session_id: &str,
-    request_type: WorkerRequestType,
-    timeout_ms: u32,
-) -> Result<WrapKey, JsValue> {
-    let error = SESSION_MATERIAL_ERRORS.with(|map| map.borrow().get(session_id).cloned());
-    if let Some(err) = error {
-        return Err(JsValue::from_str(&err));
-    }
-
-    if let Ok(mat) = lookup_wrap_key_shards(session_id, request_type) {
-        return Ok(mat);
-    }
-
-    let seed_promise = wrap_key_seed_waiter_promise(session_id);
-    let race_inputs = js_sys::Array::new();
-    race_inputs.push(&seed_promise);
-    race_inputs.push(&timeout_promise(timeout_ms));
-    let raced = js_sys::Promise::race(&race_inputs);
-    let result = JsFuture::from(raced).await?;
-
-    // Timeout promise resolves with `false`.
-    if result.as_bool() == Some(false) {
-        return Err(JsValue::from_str(&format!(
-            "Timed out waiting for WrapKeySeed for session {}",
-            session_id
-        )));
-    }
-    if let Some(err) = result.as_string() {
-        return Err(JsValue::from_str(&err));
-    }
-
-    lookup_wrap_key_shards(session_id, request_type).map_err(|_| {
-        JsValue::from_str(&format!(
-            "WrapKeySeed waiter resolved but WrapKeySeed still missing for session {}",
-            session_id
-        ))
-    })
-}
-
-#[cfg(target_arch = "wasm32")]
-async fn await_prf_second(
-    session_id: &str,
-    request_type: WorkerRequestType,
-    timeout_ms: u32,
-) -> Result<String, JsValue> {
-    let error = SESSION_MATERIAL_ERRORS.with(|map| map.borrow().get(session_id).cloned());
-    if let Some(err) = error {
-        return Err(JsValue::from_str(&err));
-    }
-
-    if let Ok(v) = lookup_prf_second(session_id, request_type) {
-        return Ok(v);
-    }
-
-    let prf_promise = prf_second_waiter_promise(session_id);
-    let race_inputs = js_sys::Array::new();
-    race_inputs.push(&prf_promise);
-    race_inputs.push(&timeout_promise(timeout_ms));
-    let raced = js_sys::Promise::race(&race_inputs);
-    let result = JsFuture::from(raced).await?;
-
-    if result.as_bool() == Some(false) {
-        return Err(JsValue::from_str(&format!(
-            "Timed out waiting for PRF.second for session {}",
-            session_id
-        )));
-    }
-    if let Some(err) = result.as_string() {
-        return Err(JsValue::from_str(&err));
-    }
-
-    lookup_prf_second(session_id, request_type).map_err(|_| {
-        JsValue::from_str(&format!(
-            "PRF.second waiter resolved but PRF.second still missing for session {}",
-            session_id
-        ))
-    })
 }

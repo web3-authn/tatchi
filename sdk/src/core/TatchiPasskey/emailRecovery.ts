@@ -7,19 +7,14 @@ import {
   EmailRecoveryPhase,
   EmailRecoveryStatus,
   type EmailRecoverySSEEvent,
-  type EventCallback,
-  type AfterCall,
 } from '../types/sdkSentEvents';
 import type { TatchiConfigs } from '../types/tatchi';
 import {
   createRandomVRFChallenge,
-  type EncryptedVRFKeypair,
-  type ServerEncryptedVrfKeypair,
   type VRFChallenge,
 } from '../types/vrf-worker';
 import type { FinalExecutionOutcome } from '@near-js/types';
 import type { StoredAuthenticator, WebAuthnRegistrationCredential } from '../types';
-import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 import { getLoginSession } from './login';
@@ -29,109 +24,30 @@ import {
   parseLinkDeviceRegisterUserResponse,
   type PendingStore,
 } from '../EmailRecovery';
-import { EmailRecoveryError, EmailRecoveryErrorCode } from '../types/emailRecovery';
-import { getEmailRecoveryAttempt } from '../rpcCalls';
+import {
+  EmailRecoveryError,
+  EmailRecoveryErrorCode,
+  generateEmailRecoveryRequestId,
+  type EmailRecoveryFlowOptions,
+  type PendingEmailRecovery,
+  type PendingEmailRecoveryStatus,
+  type PollTickResult,
+  type PollUntilResult,
+  type VerificationOutcome,
+  type AutoLoginResult,
+  type StoreUserDataPayload,
+  type AccountViewLike,
+  type CollectedRecoveryCredential,
+  type DerivedRecoveryKeys,
+} from '../types/emailRecovery';
+import {
+  syncAuthenticatorsContractCall,
+  getEmailRecoveryAttempt,
+  thresholdEd25519KeygenFromRegistrationTx
+} from '../rpcCalls';
 import { ensureEd25519Prefix } from '../nearCrypto';
+import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
 
-export type PendingEmailRecoveryStatus =
-  | 'awaiting-email'
-  | 'awaiting-add-key'
-  | 'finalizing'
-  | 'complete'
-  | 'error';
-
-export type PendingEmailRecovery = {
-  accountId: AccountId;
-  deviceNumber: number;
-  nearPublicKey: string;
-  requestId: string;
-  encryptedVrfKeypair: EncryptedVRFKeypair;
-  serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-  vrfPublicKey: string;
-  credential: WebAuthnRegistrationCredential;
-  vrfChallenge?: VRFChallenge;
-  createdAt: number;
-  status: PendingEmailRecoveryStatus;
-};
-
-type PollTickResult<T> = { done: false } | { done: true; value: T };
-
-type PollUntilResult<T> =
-  | { status: 'completed'; value: T; elapsedMs: number; pollCount: number }
-  | { status: 'timedOut'; elapsedMs: number; pollCount: number }
-  | { status: 'cancelled'; elapsedMs: number; pollCount: number };
-
-type VerificationOutcome =
-  | { outcome: 'verified' }
-  | { outcome: 'failed'; errorMessage: string };
-
-type AutoLoginResult =
-  | { success: true; method: 'shamir' | 'touchid' }
-  | { success: false; reason: string };
-
-type StoreUserDataPayload = Parameters<PasskeyManagerContext['webAuthnManager']['storeUserData']>[0];
-
-type AccountViewLike = {
-  amount: bigint | string;
-  locked: bigint | string;
-  storage_usage: number | bigint;
-};
-
-type CollectedRecoveryCredential = {
-  credential: WebAuthnRegistrationCredential;
-  vrfChallenge?: VRFChallenge;
-};
-
-type DerivedRecoveryKeys = {
-  encryptedVrfKeypair: EncryptedVRFKeypair;
-  serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-  vrfPublicKey: string;
-  nearPublicKey: string;
-};
-
-export interface EmailRecoveryFlowOptions {
-  onEvent?: EventCallback<EmailRecoverySSEEvent>;
-  onError?: (error: Error) => void;
-  afterCall?: AfterCall<void>;
-  pendingStore?: PendingStore;
-  confirmerText?: { title?: string; body?: string };
-  confirmationConfig?: Partial<ConfirmationConfig>;
-}
-
-function getEmailRecoveryConfig(configs: TatchiConfigs): {
-  minBalanceYocto: string;
-  pollingIntervalMs: number;
-  maxPollingDurationMs: number;
-  pendingTtlMs: number;
-  mailtoAddress: string;
-} {
-  const relayerEmailCfg = configs.relayer.emailRecovery;
-  const minBalanceYocto = String(relayerEmailCfg.minBalanceYocto);
-  const pollingIntervalMs = Number(relayerEmailCfg.pollingIntervalMs);
-  const maxPollingDurationMs = Number(relayerEmailCfg.maxPollingDurationMs);
-  const pendingTtlMs = Number(relayerEmailCfg.pendingTtlMs);
-  const mailtoAddress = String(relayerEmailCfg.mailtoAddress);
-  return {
-    minBalanceYocto,
-    pollingIntervalMs,
-    maxPollingDurationMs,
-    pendingTtlMs,
-    mailtoAddress,
-  };
-}
-
-export function generateEmailRecoveryRequestId(): string {
-  // 6-character A–Z0–9 identifier, suitable for short-lived correlation.
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const length = 6;
-  const bytes = new Uint8Array(length);
-  (globalThis.crypto || window.crypto).getRandomValues(bytes);
-  let out = '';
-  for (let i = 0; i < length; i++) {
-    out += alphabet[bytes[i] % alphabet.length];
-  }
-  return out;
-}
 
 export class EmailRecoveryFlow {
   private context: PasskeyManagerContext;
@@ -228,7 +144,14 @@ export class EmailRecoveryFlow {
   }
 
   private getConfig() {
-    return getEmailRecoveryConfig(this.context.configs);
+    const relayConfig = this.context.configs.relayer.emailRecovery;
+    return {
+      minBalanceYocto: String(relayConfig.minBalanceYocto),
+      pollingIntervalMs: Number(relayConfig.pollingIntervalMs),
+      maxPollingDurationMs: Number(relayConfig.maxPollingDurationMs),
+      pendingTtlMs: Number(relayConfig.pendingTtlMs),
+      mailtoAddress: String(relayConfig.mailtoAddress),
+    };
   }
 
   private toBigInt(value: bigint | number | string | null | undefined): bigint {
@@ -267,7 +190,6 @@ export class EmailRecoveryFlow {
 
   private async getNextDeviceNumberFromContract(nearAccountId: AccountId): Promise<number> {
     try {
-      const { syncAuthenticatorsContractCall } = await import('../rpcCalls');
       const authenticators = await syncAuthenticatorsContractCall(
         this.context.nearClient,
         this.context.configs.contractId,
@@ -958,6 +880,12 @@ export class EmailRecoveryFlow {
       if (typeof hash === 'string' && hash.length > 0) return hash;
     }
 
+    const txOutcomeId = (outcome as unknown as { transaction_outcome?: unknown })?.transaction_outcome;
+    if (txOutcomeId && typeof txOutcomeId === 'object') {
+      const id = (txOutcomeId as Record<string, unknown>).id;
+      if (typeof id === 'string' && id.length > 0) return id;
+    }
+
     const fallback = (outcome as unknown as Record<string, unknown>).transaction_hash;
     return typeof fallback === 'string' && fallback.length > 0 ? fallback : undefined;
   }
@@ -991,7 +919,6 @@ export class EmailRecoveryFlow {
 
   private async syncAuthenticatorsBestEffort(accountId: AccountId): Promise<boolean> {
     try {
-      const { syncAuthenticatorsContractCall } = await import('../rpcCalls');
       const authenticators = await syncAuthenticatorsContractCall(
         this.context.nearClient,
         this.context.configs.contractId,
@@ -1235,6 +1162,12 @@ export class EmailRecoveryFlow {
 
       await this.updateNonceBestEffort(nonceManager, signedTx);
 
+      // Activate threshold enrollment for this device by ensuring threshold key
+      // material is available locally (and AddKey if needed).
+      if (txHash) {
+        await this.activateThresholdEnrollment(accountId, rec, txHash);
+      }
+
       this.emitAutoLoginEvent(EmailRecoveryStatus.PROGRESS, 'Attempting auto-login with recovered device...', {
         autoLogin: 'progress',
       });
@@ -1274,6 +1207,110 @@ export class EmailRecoveryFlow {
       await this.options?.afterCall?.(false);
       throw err;
     }
+  }
+
+  private async activateThresholdEnrollment(
+    accountId: AccountId,
+    rec: PendingEmailRecovery,
+    registrationTxHash: string,
+  ): Promise<void> {
+    const deviceNumber = parseDeviceNumber(rec.deviceNumber, { min: 1 });
+    if (deviceNumber === null) {
+      throw new Error(`Invalid deviceNumber for threshold enrollment: ${String(rec.deviceNumber)}`);
+    }
+
+    // Ensure WebAuthn allowCredentials selection prefers this device's passkey
+    // when multiple authenticators exist for the account.
+    try {
+      await this.context.webAuthnManager.setLastUser(accountId, deviceNumber);
+    } catch {}
+
+    const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(accountId, deviceNumber);
+    if (existing) {
+      return;
+    }
+
+    const relayerUrl = this.context.configs.relayer.url;
+    if (!relayerUrl) {
+      throw new Error('Missing configs.relayer.url (required for threshold enrollment)');
+    }
+
+    const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(accountId, deviceNumber);
+    if (!localKeyMaterial) {
+      throw new Error(`Missing local key material for ${String(accountId)} device ${deviceNumber}`);
+    }
+
+    const derived = await this.context.webAuthnManager.deriveThresholdEd25519ClientVerifyingShareFromCredential({
+      credential: rec.credential,
+      nearAccountId: accountId,
+      wrapKeySalt: localKeyMaterial.wrapKeySalt,
+    });
+    if (!derived.success) {
+      throw new Error(derived.error || 'Failed to derive threshold client verifying share');
+    }
+
+    const keygen = await thresholdEd25519KeygenFromRegistrationTx(relayerUrl, {
+      nearAccountId: accountId,
+      clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+      registrationTxHash,
+    });
+    if (!keygen.ok) {
+      throw new Error(keygen.error || keygen.message || keygen.code || 'Threshold registration keygen failed');
+    }
+
+    const thresholdPublicKey = ensureEd25519Prefix(keygen.publicKey || '');
+    if (!thresholdPublicKey) throw new Error('Threshold registration keygen returned empty publicKey');
+    const relayerKeyId = String(keygen.relayerKeyId || '').trim();
+    if (!relayerKeyId) throw new Error('Threshold registration keygen returned empty relayerKeyId');
+    const relayerVerifyingShareB64u = String(keygen.relayerVerifyingShareB64u || '').trim();
+    if (!relayerVerifyingShareB64u) throw new Error('Threshold registration keygen returned empty relayerVerifyingShareB64u');
+
+    // Activate threshold enrollment on-chain by submitting AddKey(thresholdPublicKey) signed with the local key.
+    try {
+      this.context.webAuthnManager.getNonceManager().initializeUser(accountId, localKeyMaterial.publicKey);
+    } catch {}
+    const txContext = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(
+      this.context.nearClient,
+      { force: true },
+    );
+    const signed = await this.context.webAuthnManager.signAddKeyThresholdPublicKeyNoPrompt({
+      nearAccountId: accountId,
+      credential: rec.credential,
+      wrapKeySalt: localKeyMaterial.wrapKeySalt,
+      transactionContext: txContext,
+      thresholdPublicKey,
+      relayerVerifyingShareB64u,
+      clientParticipantId: keygen.clientParticipantId,
+      relayerParticipantId: keygen.relayerParticipantId,
+      deviceNumber,
+    });
+    const signedTx = signed?.signedTransaction;
+    if (!signedTx) throw new Error('Failed to sign AddKey(thresholdPublicKey) transaction');
+
+    await this.context.nearClient.sendTransaction(
+      signedTx,
+      DEFAULT_WAIT_STATUS.thresholdAddKey,
+    );
+
+    await IndexedDBManager.nearKeysDB.storeKeyMaterial({
+      kind: 'threshold_ed25519_2p_v1',
+      nearAccountId: String(accountId),
+      deviceNumber,
+      publicKey: thresholdPublicKey,
+      wrapKeySalt: derived.wrapKeySalt,
+      relayerKeyId,
+      clientShareDerivation: 'prf_first_v1',
+      participants: buildThresholdEd25519Participants2pV1({
+        clientParticipantId: keygen.clientParticipantId,
+        relayerParticipantId: keygen.relayerParticipantId,
+        relayerKeyId,
+        relayerUrl,
+        clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+        relayerVerifyingShareB64u,
+        clientShareDerivation: 'prf_first_v1',
+      }),
+      timestamp: Date.now(),
+    });
   }
 
   private async attemptAutoLogin(rec: PendingEmailRecovery): Promise<AutoLoginResult> {

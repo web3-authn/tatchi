@@ -35,8 +35,12 @@
 
 import {
   SignerWorkerMessage,
+  type SignerWorkerRequestType,
+  type SignerWorkerResponseType,
   WorkerRequestType,
   WorkerResponseType,
+  INTERNAL_WORKER_REQUEST_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT,
+  INTERNAL_WORKER_RESPONSE_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT_FAILURE,
   WasmRequestPayload,
 } from './types/signer-worker';
 // Import WASM binary directly
@@ -62,7 +66,8 @@ import { WorkerControlMessage } from './workerControlMessages';
 const wasmUrl = resolveWasmUrl('wasm_signer_worker_bg.wasm', 'Signer Worker');
 // SecureConfirm bridge removed: signer no longer initiates confirmations
 
-let messageProcessed = false;
+let wasmInitPromise: Promise<void> | null = null;
+let messageQueue: Promise<void> = Promise.resolve();
 
 /**
  * Function called by WASM to send progress messages
@@ -136,12 +141,18 @@ function sendProgressMessage(
  * Initialize WASM module
  */
 async function initializeWasm(): Promise<void> {
-  try {
-    await init({ module_or_path: wasmUrl });
-  } catch (error: any) {
-    console.error('[signer-worker]: WASM initialization failed:', error);
-    throw new Error(`WASM initialization failed: ${errorMessage(error)}`);
-  }
+  if (wasmInitPromise) return wasmInitPromise;
+  wasmInitPromise = (async () => {
+    try {
+      await init({ module_or_path: wasmUrl });
+    } catch (error: any) {
+      // Allow retry if init fails (e.g., transient path/config issues during dev).
+      wasmInitPromise = null;
+      console.error('[signer-worker]: WASM initialization failed:', error);
+      throw new Error(`WASM initialization failed: ${errorMessage(error)}`);
+    }
+  })();
+  return wasmInitPromise;
 }
 
 // Signal readiness so the main thread can health‑check worker pooling
@@ -153,7 +164,7 @@ setTimeout(() => {
 /**
  * Maps a WorkerRequestType to its corresponding failure response type
  */
-function getFailureResponseType(requestType: WorkerRequestType): WorkerResponseType {
+function getFailureResponseType(requestType: SignerWorkerRequestType): SignerWorkerResponseType {
   switch (requestType) {
     case WorkerRequestType.DeriveNearKeypairAndEncrypt:
       return WorkerResponseType.DeriveNearKeypairAndEncryptFailure;
@@ -173,6 +184,10 @@ function getFailureResponseType(requestType: WorkerRequestType): WorkerResponseT
       return WorkerResponseType.RegisterDevice2WithDerivedKeyFailure;
     case WorkerRequestType.SignDelegateAction:
       return WorkerResponseType.SignDelegateActionFailure;
+    case WorkerRequestType.DeriveThresholdEd25519ClientVerifyingShare:
+      return WorkerResponseType.DeriveThresholdEd25519ClientVerifyingShareFailure;
+    case INTERNAL_WORKER_REQUEST_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT:
+      return INTERNAL_WORKER_RESPONSE_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT_FAILURE;
     default:
       // Fallback for unknown request types
       return WorkerResponseType.DeriveNearKeypairAndEncryptFailure;
@@ -183,7 +198,6 @@ function getFailureResponseType(requestType: WorkerRequestType): WorkerResponseT
  * Process a WASM worker message (main operation)
  */
 async function processWorkerMessage(event: MessageEvent): Promise<void> {
-  messageProcessed = true;
   try {
     // Guardrail: PRF/vrf_sk must never traverse into signer payloads
     assertNoPrfOrVrfSecrets(event.data);
@@ -194,7 +208,6 @@ async function processWorkerMessage(event: MessageEvent): Promise<void> {
     const response = await handle_signer_message(event.data);
     // Response is already a JS object, send back to main thread
     self.postMessage(response);
-    self.close();
   } catch (error: any) {
     console.error('[signer-worker]: Message processing failed:', error);
     // Determine the correct failure response type based on the request type
@@ -209,19 +222,7 @@ async function processWorkerMessage(event: MessageEvent): Promise<void> {
         context: { type: event.data.type }
       }
     });
-    self.close();
   }
-}
-
-/**
- * Send error response for invalid message states
- */
-function sendInvalidMessageError(reason: string): void {
-  self.postMessage({
-    type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure,
-    payload: { error: reason }
-  });
-  self.close();
 }
 
 self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestType, WasmRequestPayload>>): Promise<void> => {
@@ -241,30 +242,17 @@ self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestTyp
     return;
   }
 
-  // Handle different message types explicitly
-  switch (true) {
-    case !messageProcessed && typeof eventType === 'number':
-      // Case 1: First message with numeric type - process as normal worker operation
-      await processWorkerMessage(event);
-      break;
-
-    case !messageProcessed && typeof eventType !== 'number':
-      // Case 2: First message but non-numeric type - ignore control messages
-      console.warn('[signer-worker]: Ignoring message with invalid non-numeric type:', eventType);
-      break;
-
-    case messageProcessed:
-      // Case 4: Worker already processed initial message and this isn't a confirmation
-      console.error('[signer-worker]: Invalid message - worker already processed initial message');
-      sendInvalidMessageError('Worker has already processed a message');
-      break;
-
-    default:
-      // Case 5: Unexpected state
-      console.error('[signer-worker]: Unexpected message state');
-      sendInvalidMessageError('Unexpected message state');
-      break;
+  if (typeof eventType !== 'number') {
+    console.warn('[signer-worker]: Ignoring message with invalid non-numeric type:', eventType);
+    return;
   }
+
+  // Serialize worker operations to keep WASM state predictable and to avoid
+  // overlapping accesses to session-bound WrapKeySeed and relayer state.
+  messageQueue = messageQueue
+    .catch(() => undefined)
+    .then(() => processWorkerMessage(event));
+  await messageQueue;
 };
 
 async function handleAttachWrapKeySeedPort(

@@ -51,9 +51,8 @@ import type {
 import type { ActionArgs, TransactionInput, TxExecutionStatus } from '../types';
 import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults } from '../types/linkDevice';
 import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types/linkDevice';
-import { EmailRecoveryFlowOptions } from '../TatchiPasskey/emailRecovery';
-import type { ConfirmationConfig } from '../types/signer-worker';
-import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
+import type { EmailRecoveryFlowOptions } from '../types/emailRecovery';
+import { type ConfirmationConfig, type SignerMode, DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
 import type { RecoveryResult, PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
@@ -125,6 +124,7 @@ export class TatchiPasskeyIframe {
       connectTimeoutMs: 3_000,
       requestTimeoutMs: 60_000,
       theme: this.configs.walletTheme,
+      signerMode: this.configs.signerMode,
       nearRpcUrl: this.configs.nearRpcUrl,
       nearNetwork: this.configs.nearNetwork,
       contractId: this.configs.contractId,
@@ -195,6 +195,7 @@ export class TatchiPasskeyIframe {
         confirmationConfig: options?.confirmationConfig,
         options: {
           onEvent: options?.onEvent,
+          ...(options?.signerMode ? { signerMode: options.signerMode } : {}),
           ...(options?.confirmerText ? { confirmerText: options.confirmerText } : {})
         } // Bridge progress events from iframe to parent
       });
@@ -208,6 +209,65 @@ export class TatchiPasskeyIframe {
     }
   }
 
+  async enrollThresholdEd25519Key(
+    nearAccountId: string,
+    options?: { deviceNumber?: number; relayerUrl?: string }
+  ): Promise<{
+    success: boolean;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    error?: string;
+  }> {
+    try {
+      const res = await this.router.enrollThresholdEd25519Key({
+        nearAccountId,
+        options: options || {},
+      });
+      return res;
+    } catch (err: unknown) {
+      const e = toError(err);
+      return { success: false, publicKey: '', relayerKeyId: '', wrapKeySalt: '', error: e.message };
+    }
+  }
+
+  async rotateThresholdEd25519Key(
+    nearAccountId: string,
+    options?: { deviceNumber?: number; relayerUrl?: string }
+  ): Promise<{
+    success: boolean;
+    oldPublicKey: string;
+    oldRelayerKeyId: string;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    deleteOldKeyAttempted: boolean;
+    deleteOldKeySuccess: boolean;
+    warning?: string;
+    error?: string;
+  }> {
+    try {
+      const res = await this.router.rotateThresholdEd25519Key({
+        nearAccountId,
+        options: options || {},
+      });
+      return res;
+    } catch (err: unknown) {
+      const e = toError(err);
+      return {
+        success: false,
+        oldPublicKey: '',
+        oldRelayerKeyId: '',
+        publicKey: '',
+        relayerKeyId: '',
+        wrapKeySalt: '',
+        deleteOldKeyAttempted: false,
+        deleteOldKeySuccess: false,
+        error: e.message,
+      };
+    }
+  }
+
   async loginAndCreateSession(nearAccountId: string, options?: LoginHooksOptions): Promise<LoginAndCreateSessionResult> {
     try {
       // Route login request to iframe - similar flow to registerPasskey
@@ -216,6 +276,7 @@ export class TatchiPasskeyIframe {
         nearAccountId,
         options: {
           onEvent: options?.onEvent,
+          deviceNumber: options?.deviceNumber,
           session: options?.session,
           signingSession: options?.signingSession,
         } // Progress events flow back to parent
@@ -251,7 +312,7 @@ export class TatchiPasskeyIframe {
   async signTransactionsWithActions(args: {
     nearAccountId: string;
     transactions: TransactionInput[];
-    options?: SignTransactionHooksOptions
+    options: SignTransactionHooksOptions
   }): Promise<SignTransactionResult[]> {
     try {
       // Route transaction signing to iframe
@@ -264,6 +325,9 @@ export class TatchiPasskeyIframe {
         nearAccountId: args.nearAccountId,
         transactions: args.transactions,
         options: {
+          signerMode: args.options?.signerMode,
+          confirmerText: args.options?.confirmerText,
+          confirmationConfig: args.options?.confirmationConfig,
           onEvent: args.options?.onEvent // Progress events: user-confirmation, webauthn-authentication, etc.
         }
       });
@@ -280,7 +344,7 @@ export class TatchiPasskeyIframe {
   async signNEP413Message(args: {
     nearAccountId: string;
     params: SignNEP413MessageParams;
-    options?: SignNEP413HooksOptions
+    options: SignNEP413HooksOptions
   }): Promise<SignNEP413MessageResult> {
     try {
       const res = await this.router.signNep413Message({
@@ -289,6 +353,7 @@ export class TatchiPasskeyIframe {
         recipient: args.params.recipient,
         state: args.params.state,
         options: {
+          signerMode: args.options?.signerMode,
           onEvent: args.options?.onEvent,
           confirmerText: args.options?.confirmerText,
           confirmationConfig: args.options?.confirmationConfig,
@@ -307,7 +372,7 @@ export class TatchiPasskeyIframe {
   async signDelegateAction(args: {
     nearAccountId: string;
     delegate: DelegateActionInput;
-    options?: DelegateActionHooksOptions;
+    options: DelegateActionHooksOptions;
   }): Promise<SignDelegateActionResult> {
     const options = args.options;
     try {
@@ -316,6 +381,7 @@ export class TatchiPasskeyIframe {
         nearAccountId: args.nearAccountId,
         delegate: args.delegate,
         options: {
+          signerMode: options?.signerMode,
           onEvent: options?.onEvent,
           confirmationConfig: options?.confirmationConfig,
           confirmerText: options?.confirmerText,
@@ -577,7 +643,7 @@ export class TatchiPasskeyIframe {
   async setRecoveryEmails(
     nearAccountId: string,
     recoveryEmails: string[],
-    options?: ActionHooksOptions
+    options: ActionHooksOptions
   ): Promise<ActionResult> {
     try {
       const res = await this.router.setRecoveryEmails({ nearAccountId, recoveryEmails, options });
@@ -597,13 +663,16 @@ export class TatchiPasskeyIframe {
   async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
     return this.router.viewAccessKeyList(accountId);
   }
-  async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options?: ActionHooksOptions): Promise<ActionResult> {
+  async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options: ActionHooksOptions): Promise<ActionResult> {
     try {
-      const res = await this.router.deleteDeviceKey(
+      const res = await this.router.deleteDeviceKey({
         accountId,
         publicKeyToDelete,
-        { onEvent: options?.onEvent }
-      );
+        options: {
+          signerMode: options?.signerMode,
+          onEvent: options?.onEvent,
+        },
+      });
       await options?.afterCall?.(true, res);
       return res;
     } catch (err: unknown) {
@@ -617,17 +686,14 @@ export class TatchiPasskeyIframe {
     nearAccountId: string;
     receiverId: string;
     actionArgs: ActionArgs | ActionArgs[];
-    options?: ActionHooksOptions
+    options: ActionHooksOptions
   }): Promise<ActionResult> {
     try {
       const res = await this.router.executeAction({
         nearAccountId: args.nearAccountId,
         receiverId: args.receiverId,
         actionArgs: args.actionArgs,
-        options: {
-          onEvent: args.options?.onEvent,
-          waitUntil: args.options?.waitUntil,
-        }
+        options: args.options
       });
       await args.options?.afterCall?.(true, res);
       return res;
@@ -670,7 +736,7 @@ export class TatchiPasskeyIframe {
   async signAndSendTransactions(args: {
     nearAccountId: string;
     transactions: TransactionInput[];
-    options?: SignAndSendTransactionHooksOptions;
+    options: SignAndSendTransactionHooksOptions;
   }): Promise<ActionResult[]> {
     const options = args.options;
     try {
@@ -678,10 +744,7 @@ export class TatchiPasskeyIframe {
         nearAccountId: args.nearAccountId,
         transactions: args.transactions,
         // Default to sequential execution when executionWait is not provided
-        options: {
-          onEvent: options?.onEvent,
-          executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil }
-        }
+        options
       });
       await options?.afterCall?.(true, res);
       return res;

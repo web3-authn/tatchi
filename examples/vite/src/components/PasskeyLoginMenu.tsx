@@ -42,7 +42,7 @@ export function PasskeyLoginMenu() {
             }
             break;
           case RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK:
-            toast.loading(`Pre-checking contract and account state...`, { id: 'registration' });
+            toast.loading(`Checking account availability...`, { id: 'registration' });
             break;
           case RegistrationPhase.STEP_4_ACCESS_KEY_ADDITION:
             toast.loading(`Creating account...`, { id: 'registration' });

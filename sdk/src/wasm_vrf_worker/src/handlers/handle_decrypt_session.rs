@@ -80,9 +80,8 @@ pub async fn handle_decrypt_session(
     let near_account_id = request.near_account_id.clone();
     let wrap_key_salt_b64u = request.wrap_key_salt_b64u.clone();
 
-    // Build a schemaVersion=2 SecureConfirmRequest object and hand it to awaitSecureConfirmationV2.
+    // Build a SecureConfirmRequest object and hand it to awaitSecureConfirmationV2.
     let req = SecureConfirmRequest {
-        schemaVersion: 2,
         requestId: &session_id,
         request_type: "decryptPrivateKeyWithPrf",
         summary: ExportSummary {

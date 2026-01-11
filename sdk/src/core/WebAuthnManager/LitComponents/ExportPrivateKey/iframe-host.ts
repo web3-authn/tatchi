@@ -6,7 +6,7 @@ import { IFRAME_EXPORT_BOOTSTRAP_MODULE, EXPORT_VIEWER_BUNDLE } from '../tags';
 import { resolveEmbeddedBase } from '../asset-base';
 import { OFFLINE_EXPORT_FALLBACK } from '../../../OfflineExport/messages';
 import type { ExportViewerVariant, ExportViewerTheme } from './viewer';
-import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
+import { isObject, isString, isBoolean } from '@/utils/validation';
 import { dispatchLitCancel, dispatchLitConfirm, dispatchLitCopy } from '../lit-events';
 import { ensureExternalStyles } from '../css/css-loader';
 

@@ -7,34 +7,53 @@
 
 import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
+import { autoConfirmWalletIframeUntil } from '../setup/flows';
+import { DEFAULT_TEST_CONFIG } from '../setup/config';
 
 test.describe('NonceManager Integration Tests', () => {
 
   test.beforeEach(async ({ page }) => {
-    // Initialize test environment without SDK short-circuit flags
-    await setupBasicPasskeyTest(page);
+    // Use a blank harness page so the example app does not configure wallet-iframe mode,
+    // which disables IndexedDB on the app origin (NonceManager tests need app-origin IndexedDB).
+    const blankPageUrl = new URL('/__test_blank.html', DEFAULT_TEST_CONFIG.frontendUrl).toString();
+    await setupBasicPasskeyTest(page, {
+      frontendUrl: blankPageUrl,
+      skipPasskeyManagerInit: true,
+    });
     await page.waitForTimeout(300);
   });
 
   // validates remote nonce fetch + caching via TatchiPasskey integration helpers
   test('NonceManager - Integration with TatchiPasskey', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const resultPromise = page.evaluate(async () => {
       try {
-        const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
+        const { generateTestAccountId, configs } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
 
         // Ensure relay-server registration is mocked for deterministic success
         try { (window as any).testUtils?.registrationFlowUtils?.setupRelayServerMock?.(true); } catch {}
 
+        // Use a local (non-iframe) TatchiPasskey instance so NonceManager is initialized on the app origin.
+        // Wallet-iframe mode keeps nonce/session state on the wallet origin.
+        // @ts-ignore - Runtime import
+        const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
+        const pm = new TatchiPasskey({
+          nearNetwork: configs.nearNetwork,
+          nearRpcUrl: configs.nearRpcUrl,
+          contractId: configs.contractId,
+          relayer: configs.relayer,
+          iframeWallet: { walletOrigin: '' },
+        });
+
         // Register and login to get a working session
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
           || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
-        const registrationResult = await passkeyManager.registerPasskeyInternal(testAccountId, {}, cfg);
+        const registrationResult = await pm.registerPasskeyInternal(testAccountId, {}, cfg as any);
         if (!registrationResult.success) {
           throw new Error(`Registration failed: ${registrationResult.error}`);
         }
 
-        const loginResult = await passkeyManager.loginAndCreateSession(testAccountId);
+        const loginResult = await pm.loginAndCreateSession(testAccountId);
         if (!loginResult.success) {
           throw new Error(`Login failed: ${loginResult.error}`);
         }
@@ -42,11 +61,13 @@ test.describe('NonceManager Integration Tests', () => {
         // Wait for session to settle
         await new Promise(resolve => setTimeout(resolve, 2000));
 
+        const ctx = pm.getContext();
+
         // Test nonce manager integration
-        const nonceManager = passkeyManager.webAuthnManager.getNonceManager();
+        const nonceManager = ctx.webAuthnManager.getNonceManager();
 
         // Get initial nonce
-        const initialContext = await nonceManager.getNonceBlockHashAndHeight(passkeyManager.nearClient);
+        const initialContext = await nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
 
         // Test nonce reservation
         const nonces = nonceManager.reserveNonces(2);
@@ -73,6 +94,7 @@ test.describe('NonceManager Integration Tests', () => {
         };
       }
     });
+    const result = await autoConfirmWalletIframeUntil(page, resultPromise);
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) {
@@ -95,30 +117,44 @@ test.describe('NonceManager Integration Tests', () => {
 
   // simulates a full sign-and-send to confirm nonce sequencing across multiple actions
   test('NonceManager - Real Transaction Flow Simulation', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const resultPromise = page.evaluate(async () => {
       try {
-        const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
+        const { generateTestAccountId, configs } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
 
         // Ensure relay-server registration is mocked for deterministic success
         try { (window as any).testUtils?.registrationFlowUtils?.setupRelayServerMock?.(true); } catch {}
 
+        // @ts-ignore - Runtime import
+        const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
+        const pm = new TatchiPasskey({
+          nearNetwork: configs.nearNetwork,
+          nearRpcUrl: configs.nearRpcUrl,
+          contractId: configs.contractId,
+          relayer: configs.relayer,
+          iframeWallet: { walletOrigin: '' },
+        });
+
         // Register and login
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
           || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
-        const registrationResult = await passkeyManager.registerPasskeyInternal(testAccountId, {}, cfg);
+        const registrationResult = await pm.registerPasskeyInternal(testAccountId, {}, cfg as any);
         if (!registrationResult.success) {
           throw new Error(`Registration failed: ${registrationResult.error}`);
         }
 
-        const loginResult = await passkeyManager.loginAndCreateSession(testAccountId);
+        const loginResult = await pm.loginAndCreateSession(testAccountId);
         if (!loginResult.success) {
           throw new Error(`Login failed: ${loginResult.error}`);
         }
 
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        const nonceManager = passkeyManager.webAuthnManager.getNonceManager();
+        const ctx = pm.getContext();
+        const nonceManager = ctx.webAuthnManager.getNonceManager();
+
+        // Ensure transaction context exists so getNextNonce()/reserveNonces() are meaningful
+        await nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
 
         // Simulate consecutive transactions with real TatchiPasskey
         const transactionResults = [];
@@ -152,6 +188,7 @@ test.describe('NonceManager Integration Tests', () => {
         };
       }
     });
+    const result = await autoConfirmWalletIframeUntil(page, resultPromise);
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) {
@@ -177,30 +214,44 @@ test.describe('NonceManager Integration Tests', () => {
 
   // stresses batch increment/decrement logic using realistic account state snapshots
   test('NonceManager - Batch Transaction with Real Context', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const resultPromise = page.evaluate(async () => {
       try {
-        const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
+        const { generateTestAccountId, configs } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
 
         // Ensure relay-server registration is mocked for deterministic success
         try { (window as any).testUtils?.registrationFlowUtils?.setupRelayServerMock?.(true); } catch {}
 
+        // @ts-ignore - Runtime import
+        const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
+        const pm = new TatchiPasskey({
+          nearNetwork: configs.nearNetwork,
+          nearRpcUrl: configs.nearRpcUrl,
+          contractId: configs.contractId,
+          relayer: configs.relayer,
+          iframeWallet: { walletOrigin: '' },
+        });
+
         // Register and login
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
           || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
-        const registrationResult = await passkeyManager.registerPasskeyInternal(testAccountId, {}, cfg);
+        const registrationResult = await pm.registerPasskeyInternal(testAccountId, {}, cfg as any);
         if (!registrationResult.success) {
           throw new Error(`Registration failed: ${registrationResult.error}`);
         }
 
-        const loginResult = await passkeyManager.loginAndCreateSession(testAccountId);
+        const loginResult = await pm.loginAndCreateSession(testAccountId);
         if (!loginResult.success) {
           throw new Error(`Login failed: ${loginResult.error}`);
         }
 
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        const nonceManager = passkeyManager.webAuthnManager.getNonceManager();
+        const ctx = pm.getContext();
+        const nonceManager = ctx.webAuthnManager.getNonceManager();
+
+        // Ensure transaction context exists so reservations are tracked
+        await nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
 
         // Test batch nonce reservation with real context
         const batch1 = nonceManager.reserveNonces(3);
@@ -232,6 +283,7 @@ test.describe('NonceManager Integration Tests', () => {
         };
       }
     });
+    const result = await autoConfirmWalletIframeUntil(page, resultPromise);
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) {

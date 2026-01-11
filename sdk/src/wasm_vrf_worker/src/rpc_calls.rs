@@ -34,6 +34,24 @@ pub struct VrfData {
     pub rp_id: String,
     pub block_height: u64,
     pub block_hash: Vec<u8>,
+    /// Optional 32-byte digest bound into VRF input derivation.
+    #[serde(
+        rename = "intent_digest_32",
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "intentDigest",
+        alias = "intent_digest"
+    )]
+    pub intent_digest_32: Option<Vec<u8>>,
+    /// Optional 32-byte digest bound into VRF input derivation for relayer session policies.
+    #[serde(
+        rename = "session_policy_digest_32",
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "sessionPolicyDigest32",
+        alias = "session_policy_digest_32"
+    )]
+    pub session_policy_digest_32: Option<Vec<u8>>,
 }
 
 impl TryFrom<&VRFChallengeData> for VrfData {
@@ -61,6 +79,42 @@ impl TryFrom<&VRFChallengeData> for VrfData {
             block_hash: base64_url_decode(&vrf_challenge.block_hash).map_err(|e| {
                 wasm_bindgen::JsValue::from_str(&format!("Failed to decode block hash: {}", e))
             })?,
+            intent_digest_32: match vrf_challenge.intent_digest.as_deref() {
+                Some(b64u) if !b64u.trim().is_empty() => {
+                    let bytes = base64_url_decode(b64u).map_err(|e| {
+                        wasm_bindgen::JsValue::from_str(&format!(
+                            "Failed to decode intentDigest (base64url): {}",
+                            e
+                        ))
+                    })?;
+                    if bytes.len() != 32 {
+                        return Err(wasm_bindgen::JsValue::from_str(&format!(
+                            "Invalid intentDigest length: expected 32 bytes, got {}",
+                            bytes.len()
+                        )));
+                    }
+                    Some(bytes)
+                }
+                _ => None,
+            },
+            session_policy_digest_32: match vrf_challenge.session_policy_digest_32.as_deref() {
+                Some(b64u) if !b64u.trim().is_empty() => {
+                    let bytes = base64_url_decode(b64u).map_err(|e| {
+                        wasm_bindgen::JsValue::from_str(&format!(
+                            "Failed to decode sessionPolicyDigest32 (base64url): {}",
+                            e
+                        ))
+                    })?;
+                    if bytes.len() != 32 {
+                        return Err(wasm_bindgen::JsValue::from_str(&format!(
+                            "Invalid sessionPolicyDigest32 length: expected 32 bytes, got {}",
+                            bytes.len()
+                        )));
+                    }
+                    Some(bytes)
+                }
+                _ => None,
+            },
         })
     }
 }

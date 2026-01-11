@@ -62,7 +62,9 @@ where
             #[cfg(not(target_arch = "wasm32"))]
             {
                 let _ = v;
-                Err(E::custom("Parsing actions from JSON string is not supported on native targets (requires serde_json)"))
+                Err(E::custom(
+                    "Parsing actions from JSON string is not supported on native targets",
+                ))
             }
         }
     }
@@ -87,6 +89,7 @@ pub async fn handle_sign_transaction_with_keypair(
     request: SignTransactionWithKeyPairRequest,
 ) -> Result<TransactionSignResult, String> {
     let mut logs: Vec<String> = Vec::new();
+    use ed25519_dalek::Signer;
     // Parse the private key from NEAR format (ed25519:base58_encoded_64_bytes)
     let private_key_str = if request.near_private_key.starts_with("ed25519:") {
         &request.near_private_key[8..] // Remove "ed25519:" prefix
@@ -113,6 +116,7 @@ pub async fn handle_sign_transaction_with_keypair(
 
     // Create SigningKey from seed
     let signing_key = ed25519_dalek::SigningKey::from_bytes(&seed_bytes);
+    let public_key_bytes = signing_key.verifying_key().to_bytes();
 
     logs.push("Private key parsed and signing key created".to_string());
 
@@ -135,15 +139,17 @@ pub async fn handle_sign_transaction_with_keypair(
         &bs58::decode(&request.block_hash)
             .into_vec()
             .map_err(|e| format!("Invalid block hash: {}", e))?,
-        &signing_key,
+        &public_key_bytes,
         actions,
     )
     .map_err(|e| format!("Failed to build transaction: {}", e))?;
 
     logs.push("Transaction built successfully".to_string());
 
-    let signed_tx_bytes = sign_transaction(transaction, &signing_key)
-        .map_err(|e| format!("Failed to sign transaction: {}", e))?;
+    let (transaction_hash_to_sign, _size) = transaction.get_hash_and_size();
+    let signature_bytes = signing_key.sign(&transaction_hash_to_sign.0).to_bytes();
+    let signed_tx_bytes = sign_transaction(transaction, &signature_bytes)
+        .map_err(|e| format!("Failed to serialize signed transaction: {}", e))?;
 
     // Calculate transaction hash from signed transaction bytes (before moving the bytes)
     let transaction_hash = calculate_transaction_hash(&signed_tx_bytes);

@@ -22,6 +22,11 @@ pub enum WorkerRequestType {
     RegisterDevice2WithDerivedKey,
     // Delegate action signing (NEP-461)
     SignDelegateAction,
+    // Public, deterministic key enrollment helper for threshold mode
+    DeriveThresholdEd25519ClientVerifyingShare,
+    /// Single-purpose internal signing path for post-registration activation:
+    /// Sign AddKey(thresholdPublicKey) for receiverId == nearAccountId without VRF/confirmTxFlow.
+    SignAddKeyThresholdPublicKeyNoPrompt,
 }
 
 impl From<u32> for WorkerRequestType {
@@ -36,6 +41,8 @@ impl From<u32> for WorkerRequestType {
             6 => WorkerRequestType::SignNep413Message,
             7 => WorkerRequestType::RegisterDevice2WithDerivedKey,
             8 => WorkerRequestType::SignDelegateAction,
+            9 => WorkerRequestType::DeriveThresholdEd25519ClientVerifyingShare,
+            10 => WorkerRequestType::SignAddKeyThresholdPublicKeyNoPrompt,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }
@@ -52,6 +59,12 @@ impl WorkerRequestType {
             WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
             WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
             WorkerRequestType::RegisterDevice2WithDerivedKey => "REGISTER_DEVICE2_WITH_DERIVED_KEY",
+            WorkerRequestType::DeriveThresholdEd25519ClientVerifyingShare => {
+                "DERIVE_THRESHOLD_ED25519_CLIENT_VERIFYING_SHARE"
+            }
+            WorkerRequestType::SignAddKeyThresholdPublicKeyNoPrompt => {
+                "SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT"
+            }
         }
     }
 }
@@ -69,6 +82,12 @@ pub fn worker_request_type_name(request_type: WorkerRequestType) -> &'static str
         WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
         WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
         WorkerRequestType::RegisterDevice2WithDerivedKey => "REGISTER_DEVICE2_WITH_DERIVED_KEY",
+        WorkerRequestType::DeriveThresholdEd25519ClientVerifyingShare => {
+            "DERIVE_THRESHOLD_ED25519_CLIENT_VERIFYING_SHARE"
+        }
+        WorkerRequestType::SignAddKeyThresholdPublicKeyNoPrompt => {
+            "SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT"
+        }
     }
 }
 
@@ -115,6 +134,14 @@ pub enum WorkerResponseType {
     RegistrationComplete = 19,
     ExecuteActionsProgress = 20,
     ExecuteActionsComplete = 21,
+
+    // Threshold key enrollment helper
+    DeriveThresholdEd25519ClientVerifyingShareSuccess = 22,
+    DeriveThresholdEd25519ClientVerifyingShareFailure = 23,
+
+    // Internal post-registration activation helper
+    SignAddKeyThresholdPublicKeyNoPromptSuccess = 24,
+    SignAddKeyThresholdPublicKeyNoPromptFailure = 25,
 }
 impl From<WorkerResponseType> for u32 {
     fn from(value: WorkerResponseType) -> Self {
@@ -151,6 +178,10 @@ impl From<u32> for WorkerResponseType {
             19 => WorkerResponseType::RegistrationComplete,
             20 => WorkerResponseType::ExecuteActionsProgress,
             21 => WorkerResponseType::ExecuteActionsComplete,
+            22 => WorkerResponseType::DeriveThresholdEd25519ClientVerifyingShareSuccess,
+            23 => WorkerResponseType::DeriveThresholdEd25519ClientVerifyingShareFailure,
+            24 => WorkerResponseType::SignAddKeyThresholdPublicKeyNoPromptSuccess,
+            25 => WorkerResponseType::SignAddKeyThresholdPublicKeyNoPromptFailure,
             _ => panic!("Invalid WorkerResponseType value: {}", value),
         }
     }
@@ -211,6 +242,18 @@ pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static 
         WorkerResponseType::RegistrationComplete => "REGISTRATION_COMPLETE",
         WorkerResponseType::ExecuteActionsProgress => "EXECUTE_ACTIONS_PROGRESS",
         WorkerResponseType::ExecuteActionsComplete => "EXECUTE_ACTIONS_COMPLETE",
+        WorkerResponseType::DeriveThresholdEd25519ClientVerifyingShareSuccess => {
+            "DERIVE_THRESHOLD_ED25519_CLIENT_VERIFYING_SHARE_SUCCESS"
+        }
+        WorkerResponseType::DeriveThresholdEd25519ClientVerifyingShareFailure => {
+            "DERIVE_THRESHOLD_ED25519_CLIENT_VERIFYING_SHARE_FAILURE"
+        }
+        WorkerResponseType::SignAddKeyThresholdPublicKeyNoPromptSuccess => {
+            "SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT_SUCCESS"
+        }
+        WorkerResponseType::SignAddKeyThresholdPublicKeyNoPromptFailure => {
+            "SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT_FAILURE"
+        }
     }
 }
 

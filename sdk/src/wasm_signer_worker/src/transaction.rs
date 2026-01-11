@@ -1,5 +1,4 @@
 use borsh;
-use ed25519_dalek::{Signer, SigningKey};
 use sha2::{Digest, Sha256};
 
 use crate::actions::ActionParams;
@@ -11,7 +10,7 @@ pub fn build_transaction_with_actions(
     receiver_account_id: &str,
     nonce: u64,
     block_hash_bytes: &[u8],
-    private_key: &SigningKey,
+    public_key_bytes: &[u8; 32],
     actions: Vec<NearAction>,
 ) -> Result<Transaction, String> {
     // Parse account IDs
@@ -30,9 +29,8 @@ pub fn build_transaction_with_actions(
     block_hash_array.copy_from_slice(block_hash_bytes);
     let block_hash = CryptoHash::from_bytes(block_hash_array);
 
-    // Create PublicKey from ed25519 verifying key
-    let public_key_bytes = private_key.verifying_key().to_bytes();
-    let public_key = PublicKey::from_ed25519_bytes(&public_key_bytes);
+    // Create PublicKey from ed25519 verifying key bytes
+    let public_key = PublicKey::from_ed25519_bytes(public_key_bytes);
 
     // Build transaction
     Ok(Transaction {
@@ -63,14 +61,9 @@ pub fn build_actions_from_params(
 /// Takes an already-built Transaction and SigningKey, signs it, and returns serialized bytes
 pub fn sign_transaction(
     transaction: Transaction,
-    private_key: &SigningKey,
+    signature_bytes: &[u8; 64],
 ) -> Result<Vec<u8>, String> {
-    // Get transaction hash for signing
-    let (transaction_hash, _size) = transaction.get_hash_and_size();
-
-    // Sign the hash
-    let signature_bytes = private_key.sign(&transaction_hash.0);
-    let signature = Signature::from_ed25519_bytes(&signature_bytes.to_bytes());
+    let signature = Signature::from_ed25519_bytes(signature_bytes);
 
     // Create SignedTransaction
     let signed_transaction = SignedTransaction::new(signature, transaction);

@@ -90,10 +90,10 @@ function App() {
 }
 
 function SignInButton() {
-  const passkeyManager = usePasskeyManager()
+  const tatchi = usePasskeyManager()
 
   const handleSignIn = async () => {
-    const result = await passkeyManager.registerPasskey({
+    const result = await tatchi.registerPasskey({
       username: 'alice',
       nearAccountId: 'alice.testnet'
     })

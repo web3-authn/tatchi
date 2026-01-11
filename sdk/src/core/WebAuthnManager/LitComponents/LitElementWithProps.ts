@@ -21,9 +21,27 @@
  */
 
 import { LitElement } from 'lit';
-import { isObject } from '../../../core/WalletIframe/validation';
+import { isObject } from '@/utils/validation';
 
 export type CSSProperties = Record<string, string | Record<string, string> | undefined>;
+
+type KeepDefinition = CustomElementConstructor;
+
+interface LitElementWithPropsStatics {
+  keepDefinitions?: ReadonlyArray<KeepDefinition>;
+  requiredChildTags?: ReadonlyArray<string>;
+  strictChildDefinitions?: boolean;
+}
+
+interface AdoptedStyleSheetsOwner {
+  adoptedStyleSheets: CSSStyleSheet[];
+}
+
+const hasAdoptedStyleSheets = (node: unknown): node is AdoptedStyleSheetsOwner =>
+  !!node && typeof node === 'object' && 'adoptedStyleSheets' in node;
+
+const supportsConstructableStylesheets = (): boolean =>
+  typeof CSSStyleSheet !== 'undefined' && 'replaceSync' in CSSStyleSheet.prototype;
 
 /**
  * Drop-in replacement for LitElement that automatically handles the custom element upgrade race.
@@ -47,15 +65,15 @@ export class LitElementWithProps extends LitElement {
    *   import TxTree from '../TxTree';
    *   static keepDefinitions = [TxTree];
    */
-  static keepDefinitions?: unknown[];
+  static keepDefinitions?: ReadonlyArray<KeepDefinition>;
 
   /**
    * Optional: Tag names that should be defined before this component renders.
    * When missing, a console.warn is emitted to remind developers to import/keep the child.
    * Example:
-   *   static requiredChildTags = ['w3a-tx-button'];
+   *   static requiredChildTags = ['w3a-tx-tree'];
    */
-  static requiredChildTags?: string[];
+  static requiredChildTags?: ReadonlyArray<string>;
 
   /**
    * When true, missing requiredChildTags trigger a thrown Error (instead of a warn).
@@ -125,18 +143,16 @@ export class LitElementWithProps extends LitElement {
 
     // Ensure referenced definitions are kept by bundlers (touch the values)
     try {
-      const ctor = this.constructor as typeof LitElementWithProps & {
-        keepDefinitions?: unknown[];
-        requiredChildTags?: string[];
-      };
-      const defs = ctor.keepDefinitions;
+      const ctor = this.constructor as typeof LitElementWithProps & LitElementWithPropsStatics;
+      const { keepDefinitions, requiredChildTags, strictChildDefinitions } = ctor;
+      const defs = keepDefinitions;
       if (defs && defs.length) {
         // Touch each value to prevent tree-shaking of side-effect-only imports
         for (const d of defs) void d;
       }
 
       // Dev-time reminder when nested custom elements are not defined
-      const req = ctor.requiredChildTags;
+      const req = requiredChildTags;
       if (req && Array.isArray(req)) {
         for (const tag of req) {
           try {
@@ -144,7 +160,7 @@ export class LitElementWithProps extends LitElement {
               const msg = `[W3A] Required child custom element not defined: <${tag}>. ` +
                 'Import the module that defines it and keep a reference via `static keepDefinitions` ' +
                 'or a private field to avoid tree-shaking. See LitComponents/README.md (tree-shake checklist).';
-              if ((ctor as any).strictChildDefinitions) {
+              if (strictChildDefinitions) {
                 throw new Error(msg);
               } else {
                 // Elevate to error for visibility without breaking execution
@@ -153,7 +169,7 @@ export class LitElementWithProps extends LitElement {
             }
           } catch (err) {
             // In strict mode, surface the failure to developers immediately
-            if ((ctor as any).strictChildDefinitions) { throw err; }
+            if (strictChildDefinitions) { throw err; }
           }
         }
       }
@@ -204,8 +220,9 @@ export class LitElementWithProps extends LitElement {
     const transformViewportUnits = (val: string): string => {
       if (!val || typeof val !== 'string') return val;
       try {
-        const supportsDvh = typeof CSS !== 'undefined' && !!(CSS as any).supports && CSS.supports('height', '1dvh');
-        const supportsDvw = typeof CSS !== 'undefined' && !!(CSS as any).supports && CSS.supports('width', '1dvw');
+        const canUseCssSupports = typeof CSS !== 'undefined' && typeof CSS.supports === 'function';
+        const supportsDvh = canUseCssSupports && CSS.supports('height', '1dvh');
+        const supportsDvw = canUseCssSupports && CSS.supports('width', '1dvw');
         let out = val;
         if (supportsDvh && out.includes('vh')) {
           // Replace numeric vh occurrences (e.g., 50vh, calc(100vh - 1rem)) with dvh
@@ -297,44 +314,45 @@ export class LitElementWithProps extends LitElement {
         .join(' ');
 
       const cssTextShadow = `:host{ ${decls} }`;
+      const canUseConstructable = supportsConstructableStylesheets();
 
       // 1) Preferred: ShadowRoot adopted stylesheets
-      if (this.renderRoot instanceof ShadowRoot && 'adoptedStyleSheets' in this.renderRoot && 'replaceSync' in CSSStyleSheet.prototype) {
+      if (this.renderRoot instanceof ShadowRoot && canUseConstructable && hasAdoptedStyleSheets(this.renderRoot)) {
         if (!this._varsSheet) this._varsSheet = new CSSStyleSheet();
         try { this._varsSheet.replaceSync(cssTextShadow); } catch {}
-        const sheets = (this.renderRoot.adoptedStyleSheets || []) as any[];
+        const sheets = this.renderRoot.adoptedStyleSheets ?? [];
         // Ensure the vars sheet is last so its :host var declarations override defaults
-        const without = sheets.filter((s: any) => s !== this._varsSheet);
+        const without = sheets.filter(sheet => sheet !== this._varsSheet);
         this.renderRoot.adoptedStyleSheets = [...without, this._varsSheet];
         return;
       }
 
       // 2) Fallback (still CSP-safe): Document-level constructable stylesheet with per-instance class
-      const rootNode = (this.getRootNode && this.getRootNode()) as Document | ShadowRoot | undefined;
-      const doc = (rootNode instanceof Document ? rootNode : document) as Document;
+      const rootNode = this.getRootNode?.();
+      const doc = rootNode instanceof Document ? rootNode : document;
       const cssTextScoped = () => {
         if (!this._varsClassName) {
           this._varsClassName = `w3a-vars-${Math.random().toString(36).slice(2)}`;
-          try { (this as unknown as HTMLElement).classList.add(this._varsClassName); } catch {}
+          try { this.classList.add(this._varsClassName); } catch {}
         }
         return `.${this._varsClassName}{ ${decls} }`;
       };
       // Try attaching a constructable sheet to the nearest ShadowRoot when present
-      if (rootNode && (rootNode as any).adoptedStyleSheets && 'replaceSync' in CSSStyleSheet.prototype) {
+      if (rootNode && canUseConstructable && hasAdoptedStyleSheets(rootNode)) {
         if (!this._varsDocSheet) this._varsDocSheet = new CSSStyleSheet();
         try { this._varsDocSheet.replaceSync(cssTextScoped()); } catch {}
-        const srSheets = ((rootNode as any).adoptedStyleSheets || []) as any[];
+        const srSheets = rootNode.adoptedStyleSheets ?? [];
         if (!srSheets.includes(this._varsDocSheet)) {
-          (rootNode as any).adoptedStyleSheets = [...srSheets, this._varsDocSheet];
+          rootNode.adoptedStyleSheets = [...srSheets, this._varsDocSheet];
         }
         return;
       }
       // Otherwise, attach to Document (styles won’t pierce closed shadow DOMs, but helps for light DOM cases)
-      const docSupportsConstructable = !!doc && 'adoptedStyleSheets' in doc && 'replaceSync' in CSSStyleSheet.prototype;
-      if (docSupportsConstructable && doc) {
+      const docSupportsConstructable = canUseConstructable && hasAdoptedStyleSheets(doc);
+      if (docSupportsConstructable) {
         if (!this._varsDocSheet) this._varsDocSheet = new CSSStyleSheet();
         try { this._varsDocSheet.replaceSync(cssTextScoped()); } catch {}
-        const current = (doc.adoptedStyleSheets || []) as any[];
+        const current = doc.adoptedStyleSheets ?? [];
         if (!current.includes(this._varsDocSheet)) {
           doc.adoptedStyleSheets = [...current, this._varsDocSheet];
         }

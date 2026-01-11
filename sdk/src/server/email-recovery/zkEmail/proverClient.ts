@@ -10,6 +10,8 @@
  * helpers.
  */
 
+import { stripTrailingSlashes } from '../../../utils/validation';
+
 export type ZkEmailProverHealthzResponse = {
   status?: string;
   ok?: boolean;
@@ -79,7 +81,7 @@ export class ZkEmailProverClient {
   private healthInFlight: Promise<void> | null = null;
 
   constructor(opts: ZkEmailProverClientOptions) {
-    const baseUrl = normalizeBaseUrl(opts.baseUrl);
+    const baseUrl = stripTrailingSlashes(opts.baseUrl);
     const proveTimeoutMs = safePositiveInt(opts.timeoutMs ?? 0, 60_000);
 
     const health = opts.healthCheck || {};
@@ -232,10 +234,6 @@ export class ZkEmailProverClient {
 // ----------------------------
 // Internal helpers (non-export)
 // ----------------------------
-
-function normalizeBaseUrl(baseUrl: string): string {
-  return String(baseUrl || '').replace(/\/+$/, '');
-}
 
 function safePositiveInt(v: unknown, fallback: number): number {
   const n = Number(v);

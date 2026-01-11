@@ -2,23 +2,37 @@ import type { TransactionInputWasm } from '../../../types/actions';
 import { ActionType } from '../../../types/actions';
 import type { RpcCallPayload, ConfirmationConfig } from '../../../types/signer-worker';
 import type { TransactionContext } from '../../../types/rpc';
-import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../txDigest';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../../digests/intentDigest';
 import {
   SecureConfirmationType,
   type SecureConfirmRequest,
   type SignTransactionPayload,
+  type SigningAuthMode,
   type TransactionSummary,
   type SerializableCredential,
 } from '../confirmTxFlow/types';
 import type { SignNep413Payload } from '../confirmTxFlow/types';
 import type { VrfWorkerManagerContext } from '..';
 import type { VrfWorkerManagerHandlerContext } from './types';
-import type { VRFWorkerMessage, WasmConfirmAndPrepareSigningSessionRequest } from '../../../types/vrf-worker';
+import type { VRFChallenge, VRFWorkerMessage, WasmConfirmAndPrepareSigningSessionRequest } from '../../../types/vrf-worker';
 
 export interface ConfirmAndPrepareSigningSessionBaseParams {
   ctx: VrfWorkerManagerContext;
   sessionId: string;
   confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  /**
+   * Optional override for signing auth mode.
+   * When omitted, the VRF worker may auto-select `warmSession` when a session is available.
+   *
+   * Threshold signing should force `webauthn` to ensure a fresh VRF challenge + WebAuthn assertion
+   * is available for relayer authorization.
+   */
+  signingAuthMode?: SigningAuthMode;
+  /**
+   * Optional base64url-encoded 32-byte digest to bind a relayer session policy into the VRF input hash (v4+ only).
+   * When provided, it is forwarded to the VRF worker for inclusion in VRF input derivation.
+   */
+  sessionPolicyDigest32?: string;
 }
 
 export interface ConfirmAndPrepareSigningSessionTransactionParams extends ConfirmAndPrepareSigningSessionBaseParams {
@@ -65,12 +79,13 @@ export interface ConfirmAndPrepareSigningSessionResult {
   transactionContext: TransactionContext;
   intentDigest: string;
   credential?: SerializableCredential;
+  vrfChallenge?: VRFChallenge;
 }
 
 /**
  * Kick off the SecureConfirm signing flow inside the VRF worker.
  *
- * This creates a schemaVersion=2 `SecureConfirmRequest` (tx / delegate / NEP-413) and sends it to the
+ * This creates a `SecureConfirmRequest` (tx / delegate / NEP-413) and sends it to the
  * VRF worker, which will render UI, collect a WebAuthn credential when needed, and return the
  * `transactionContext` (reserved nonces, block hash/height) needed by the signer worker.
  */
@@ -103,7 +118,6 @@ export async function confirmAndPrepareSigningSession(
       };
 
       request = {
-        schemaVersion: 2,
         requestId: sessionId,
         type: SecureConfirmationType.SIGN_TRANSACTION,
         summary,
@@ -111,6 +125,8 @@ export async function confirmAndPrepareSigningSession(
           txSigningRequests,
           intentDigest,
           rpcCall: params.rpcCall,
+          ...(params.sessionPolicyDigest32 ? { sessionPolicyDigest32: params.sessionPolicyDigest32 } : {}),
+          ...(params.signingAuthMode ? { signingAuthMode: params.signingAuthMode } : {}),
         },
         confirmationConfig: params.confirmationConfigOverride,
         intentDigest,
@@ -121,13 +137,13 @@ export async function confirmAndPrepareSigningSession(
       const txSigningRequests: TransactionInputWasm[] = [{
         receiverId: params.delegate.receiverId,
         actions: params.delegate.actions,
-      } as TransactionInputWasm];
+      }];
 
       intentDigest = await computeUiIntentDigestFromTxs(
         txSigningRequests.map(tx => ({
           receiverId: tx.receiverId,
           actions: tx.actions.map(orderActionForDigest),
-        })) as TransactionInputWasm[]
+        }))
       );
 
       const summary: TransactionSummary = {
@@ -146,7 +162,6 @@ export async function confirmAndPrepareSigningSession(
       };
 
       request = {
-        schemaVersion: 2,
         requestId: sessionId,
         type: SecureConfirmationType.SIGN_TRANSACTION,
         summary,
@@ -154,6 +169,8 @@ export async function confirmAndPrepareSigningSession(
           txSigningRequests,
           intentDigest,
           rpcCall: params.rpcCall,
+          ...(params.sessionPolicyDigest32 ? { sessionPolicyDigest32: params.sessionPolicyDigest32 } : {}),
+          ...(params.signingAuthMode ? { signingAuthMode: params.signingAuthMode } : {}),
         },
         confirmationConfig: params.confirmationConfigOverride,
         intentDigest,
@@ -171,7 +188,6 @@ export async function confirmAndPrepareSigningSession(
       };
 
       request = {
-        schemaVersion: 2,
         requestId: sessionId,
         type: SecureConfirmationType.SIGN_NEP413_MESSAGE,
         summary,
@@ -179,8 +195,10 @@ export async function confirmAndPrepareSigningSession(
           nearAccountId: params.nearAccountId,
           message: params.message,
           recipient: params.recipient,
+          ...(params.sessionPolicyDigest32 ? { sessionPolicyDigest32: params.sessionPolicyDigest32 } : {}),
           ...(params.contractId ? { contractId: params.contractId } : {}),
           ...(params.nearRpcUrl ? { nearRpcUrl: params.nearRpcUrl } : {}),
+          ...(params.signingAuthMode ? { signingAuthMode: params.signingAuthMode } : {}),
         },
         confirmationConfig: params.confirmationConfigOverride,
         intentDigest,
@@ -214,6 +232,7 @@ export async function confirmAndPrepareSigningSession(
     intent_digest?: string;
     transaction_context?: TransactionContext;
     credential?: SerializableCredential;
+    vrf_challenge?: VRFChallenge;
   };
 
   if (!decision?.confirmed) {
@@ -228,6 +247,7 @@ export async function confirmAndPrepareSigningSession(
     transactionContext: decision.transaction_context,
     intentDigest: decision.intent_digest || intentDigest,
     credential: decision.credential,
+    vrfChallenge: decision.vrf_challenge,
   };
 }
 

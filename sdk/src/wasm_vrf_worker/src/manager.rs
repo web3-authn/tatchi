@@ -99,6 +99,7 @@ impl VrfSessionData {
 pub struct VrfStatus {
     pub active: bool,
     pub session_duration: f64,
+    pub vrf_public_key: Option<String>,
 }
 
 impl VRFKeyManager {
@@ -387,7 +388,10 @@ impl VRFKeyManager {
         // Construct VRF input according to specification from the contract test
         let domain_separator = VRF_DOMAIN_SEPARATOR;
         let user_id_bytes = input_data.user_id.as_bytes();
-        let rp_id_bytes = input_data.rp_id.as_bytes();
+        // Match on-chain derivation: the contract lowercases rp_id before hashing into vrf_input_data.
+        // Normalize here so vrf_input_data remains consistent even if callers pass mixed-case domains.
+        let rp_id_normalized = input_data.rp_id.to_ascii_lowercase();
+        let rp_id_bytes = rp_id_normalized.as_bytes();
         let block_height_num = parse_block_height(&input_data.block_height)?;
         let block_height_bytes = block_height_num.to_le_bytes();
 
@@ -396,6 +400,59 @@ impl VRFKeyManager {
             .into_vec()
             .map_err(|e| VrfWorkerError::invalid_format(&format!("invalid blockHash: {}", e)))?;
 
+        // Optional 32-byte intent digest (base64url) to bind into the VRF input hash.
+        // When present, it must decode to exactly 32 bytes and will be appended to the input.
+        let intent_digest_b64u = input_data
+            .intent_digest
+            .clone()
+            .and_then(|s| {
+                let trimmed = s.trim().to_string();
+                if trimmed.is_empty() { None } else { Some(trimmed) }
+            });
+        let intent_digest_bytes = match intent_digest_b64u.as_deref() {
+            Some(b64u) => {
+                let bytes = base64_url_decode(b64u).map_err(|e| {
+                    VrfWorkerError::invalid_format(&format!("invalid intentDigest (base64url): {}", e))
+                })?;
+                if bytes.len() != 32 {
+                    return Err(VrfWorkerError::invalid_format(&format!(
+                        "invalid intentDigest length: expected 32 bytes, got {}",
+                        bytes.len()
+                    )));
+                }
+                Some(bytes)
+            }
+            None => None,
+        };
+
+        // Optional 32-byte session policy digest (base64url) to bind into the VRF input hash.
+        // When present, it must decode to exactly 32 bytes and will be appended to the input.
+        let session_policy_digest_b64u = input_data
+            .session_policy_digest_32
+            .clone()
+            .and_then(|s| {
+                let trimmed = s.trim().to_string();
+                if trimmed.is_empty() { None } else { Some(trimmed) }
+            });
+        let session_policy_digest_bytes = match session_policy_digest_b64u.as_deref() {
+            Some(b64u) => {
+                let bytes = base64_url_decode(b64u).map_err(|e| {
+                    VrfWorkerError::invalid_format(&format!(
+                        "invalid sessionPolicyDigest32 (base64url): {}",
+                        e
+                    ))
+                })?;
+                if bytes.len() != 32 {
+                    return Err(VrfWorkerError::invalid_format(&format!(
+                        "invalid sessionPolicyDigest32 length: expected 32 bytes, got {}",
+                        bytes.len()
+                    )));
+                }
+                Some(bytes)
+            }
+            None => None,
+        };
+
         // Concatenate all input components following the test pattern
         let mut vrf_input_data = Vec::new();
         vrf_input_data.extend_from_slice(domain_separator);
@@ -403,6 +460,12 @@ impl VRFKeyManager {
         vrf_input_data.extend_from_slice(rp_id_bytes);
         vrf_input_data.extend_from_slice(&block_height_bytes);
         vrf_input_data.extend_from_slice(&block_hash_bytes);
+        if let Some(bytes) = intent_digest_bytes.as_deref() {
+            vrf_input_data.extend_from_slice(bytes);
+        }
+        if let Some(bytes) = session_policy_digest_bytes.as_deref() {
+            vrf_input_data.extend_from_slice(bytes);
+        }
 
         // Hash the input data (VRF input should be hashed)
         let vrf_input = Sha256::digest(&vrf_input_data).to_vec();
@@ -427,9 +490,11 @@ impl VRFKeyManager {
             vrf_proof: base64_url_encode(&proof_bytes),
             vrf_public_key: base64_url_encode(&pk_bytes),
             user_id: input_data.user_id,
-            rp_id: input_data.rp_id,
+            rp_id: rp_id_normalized,
             block_height: input_data.block_height,
             block_hash: base64_url_encode(&block_hash_bytes),
+            intent_digest: intent_digest_b64u,
+            session_policy_digest_32: session_policy_digest_b64u,
         };
 
         Ok(result)
@@ -441,9 +506,18 @@ impl VRFKeyManager {
         } else {
             0.0
         };
+        let vrf_public_key = if self.session_active {
+            self.vrf_keypair
+                .as_ref()
+                .and_then(|kp| bincode::serialize(&kp.inner().pk).ok())
+                .map(|bytes| base64_url_encode(&bytes))
+        } else {
+            None
+        };
         VrfStatus {
             active: self.session_active,
             session_duration,
+            vrf_public_key,
         }
     }
 

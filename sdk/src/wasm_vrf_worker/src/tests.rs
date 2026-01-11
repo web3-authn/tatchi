@@ -10,6 +10,7 @@ use crate::errors::VrfWorkerError;
 use crate::handlers::handle_mint_session_keys_and_send_to_signer::verify_authentication_if_needed;
 use crate::manager::{VRFKeyManager, VrfSessionData};
 use crate::shamir3pass::{decode_biguint_b64u, encode_biguint_b64u};
+use crate::types::VRFInputData;
 use crate::utils::{base64_url_decode, base64_url_encode};
 use num_bigint::BigUint;
 
@@ -91,6 +92,8 @@ fn logout_clears_cached_sessions_and_challenges() {
             rp_id: "rp".to_string(),
             block_height: "1".to_string(),
             block_hash: "h".to_string(),
+            intent_digest: None,
+            session_policy_digest_32: None,
         },
     );
     mgr.upsert_session(
@@ -222,6 +225,57 @@ fn test_base64url_prf_processing_consistency() {
 }
 
 #[test]
+fn vrf_input_hash_matches_regression_vector_with_intent_digest() {
+    // This is a deterministic regression vector intended to keep the VRF input hash format in
+    // lockstep with the on-chain verifier (domain_sep || user_id || rp_id || block_height_le || block_hash || intent_digest_32).
+    //
+    // Inputs:
+    // - domain_separator: "web3_authn_challenge_v4"
+    // - user_id: "alice.near"
+    // - rp_id: "example.com"
+    // - block_height: 12345 (u64 LE)
+    // - block_hash (base58): 32 zero bytes (base58 "1" * 32)
+    // - intent_digest (base64url): bytes 0..31
+    //
+    // Expected:
+    // - vrf_input (base64url sha256): "-N4GgUAlGrK6ZO5mSzcQdJ0InpsqRxWmuMlJ7rCXR04"
+    let mgr = VRFKeyManager::new(None, None, None, None);
+
+    let prf_output = create_test_prf_output();
+    let vrf_keypair = mgr
+        .generate_vrf_keypair_from_seed(&prf_output, &create_test_account_id())
+        .expect("deterministic VRF keypair");
+
+    let input_data = VRFInputData {
+        user_id: "alice.near".to_string(),
+        rp_id: "example.com".to_string(),
+        block_height: "12345".to_string(),
+        block_hash: "11111111111111111111111111111111".to_string(),
+        intent_digest: Some("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8".to_string()),
+        session_policy_digest_32: None,
+    };
+
+    let challenge = mgr
+        .generate_vrf_challenge_with_keypair(&vrf_keypair, input_data)
+        .expect("VRF challenge generation");
+
+    assert_eq!(
+        challenge.vrf_input,
+        "-N4GgUAlGrK6ZO5mSzcQdJ0InpsqRxWmuMlJ7rCXR04"
+    );
+    assert_eq!(
+        challenge.intent_digest.as_deref(),
+        Some("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8")
+    );
+    assert_eq!(
+        challenge.block_hash,
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    );
+
+    println!("[Passed] VRF input hash regression vector test passed");
+}
+
+#[test]
 #[cfg(target_arch = "wasm32")]
 fn test_vrf_data_structures_serialization() {
     // Test VRFInputData serialization/deserialization
@@ -230,6 +284,8 @@ fn test_vrf_data_structures_serialization() {
         rp_id: "example.com".to_string(),
         block_height: "12345".to_string(),
         block_hash: String::from_utf8(vec![0u8; 32]).unwrap(),
+        intent_digest: None,
+        session_policy_digest_32: None,
     };
 
     let js_val = serde_wasm_bindgen::to_value(&vrf_input).expect("Should serialize VRFInputData");
@@ -821,6 +877,8 @@ fn generate_vrf_keypair_bootstrap_request_allows_optional_input() {
             rp_id: "example.com".to_string(),
             block_height: "1".to_string(),
             block_hash: "hash".to_string(),
+            intent_digest: None,
+            session_policy_digest_32: None,
         }),
     };
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");
@@ -842,6 +900,8 @@ fn generate_vrf_challenge_request_requires_input() {
             rp_id: "example.com".to_string(),
             block_height: "2".to_string(),
             block_hash: "hash2".to_string(),
+            intent_digest: None,
+            session_policy_digest_32: None,
         },
     };
     let json = serde_wasm_bindgen::to_value(&req).expect("serialize");

@@ -40,7 +40,7 @@ Examples in CSS:
 ## Controlled vs Uncontrolled
 
 - Controlled: pass `theme="dark" | "light"` and handle `onThemeChange`.
-- Uncontrolled: omit `theme` and optionally set `defaultTheme`. The provider listens to `passkeyManager.userPreferences` and `prefers-color-scheme` for initial value and persists using localStorage when not available.
+- Uncontrolled: omit `theme` and optionally set `defaultTheme`. The provider listens to `tatchi.userPreferences` and `prefers-color-scheme` for initial value and persists using localStorage when not available.
 
 ## Token Overrides (per instance)
 

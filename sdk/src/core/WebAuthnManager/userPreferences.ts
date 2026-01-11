@@ -1,15 +1,31 @@
-import { ConfirmationConfig, DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
+import {
+  ConfirmationConfig,
+  DEFAULT_CONFIRMATION_CONFIG,
+  type SignerMode,
+  DEFAULT_SIGNING_MODE,
+  coerceSignerMode,
+  mergeSignerMode,
+} from '../types/signer-worker';
 import type { AccountId } from '../types/accountIds';
 import { IndexedDBManager, type IndexedDBEvent } from '../IndexedDBManager';
 
 
 export class UserPreferencesManager {
+
   private themeChangeListeners: Set<(theme: 'dark' | 'light') => void> = new Set();
   private confirmationConfigChangeListeners: Set<(config: ConfirmationConfig) => void> = new Set();
+  private signerModeChangeListeners: Set<(mode: SignerMode) => void> = new Set();
+
   private currentUserAccountId: AccountId | undefined;
   private confirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
+  private signerMode: SignerMode = DEFAULT_SIGNING_MODE;
+
   // Optional app-provided default theme (e.g., configs.walletTheme). This is NOT a per-user preference.
   private walletThemeOverride: 'dark' | 'light' | null = null;
+  // Optional app-provided default signer mode (e.g., configs.signerMode). This is NOT a per-user preference.
+  private signerModeOverride: SignerMode | null = null;
+  // Wallet-iframe app-origin: delegate signerMode persistence to the wallet host.
+  private walletIframeSignerModeWriter: ((signerMode: SignerMode) => Promise<void>) | null = null;
   // Prevent multiple one-time environment syncs per session
   private envThemeSyncedForSession = false;
 
@@ -41,6 +57,28 @@ export class UserPreferencesManager {
   }
 
   /**
+   * Apply an app-provided default signer mode (e.g., `configs.signerMode`) without
+   * persisting it as a per-user preference in IndexedDB.
+   */
+  configureDefaultSignerMode(signerMode?: SignerMode | SignerMode['mode'] | null): void {
+    const next = coerceSignerMode(signerMode, DEFAULT_SIGNING_MODE);
+    this.signerModeOverride = next;
+    // When no user is active, keep in-memory default aligned to config.
+    if (!this.currentUserAccountId) {
+      this.setSignerModeInternal(next, { persist: false, notify: true });
+    }
+  }
+
+  /**
+   * In wallet-iframe mode on the app origin, user preferences must be persisted by the wallet host
+   * (not the app origin). This configures a best-effort writer used by `setSignerMode(...)` when
+   * IndexedDB is disabled.
+   */
+  configureWalletIframeSignerModeWriter(writer: ((signerMode: SignerMode) => Promise<void>) | null): void {
+    this.walletIframeSignerModeWriter = writer;
+  }
+
+  /**
    * Register a callback for theme change events
    */
   onThemeChange(callback: (theme: 'dark' | 'light') => void): () => void {
@@ -62,6 +100,16 @@ export class UserPreferencesManager {
   }
 
   /**
+   * Register a callback for signer mode changes.
+   */
+  onSignerModeChange(callback: (mode: SignerMode) => void): () => void {
+    this.signerModeChangeListeners.add(callback);
+    return () => {
+      this.signerModeChangeListeners.delete(callback);
+    };
+  }
+
+  /**
    * Notify all registered listeners of theme changes
    */
   private notifyThemeChange(theme: 'dark' | 'light'): void {
@@ -72,23 +120,23 @@ export class UserPreferencesManager {
       return;
     }
 
-    let index = 0;
-    this.themeChangeListeners.forEach((listener) => {
-      index++;
-      try {
-        listener(theme);
-      } catch (error: any) {
-      }
-    });
+    for (const listener of this.themeChangeListeners) {
+      listener(theme);
+    }
   }
 
   private notifyConfirmationConfigChange(config: ConfirmationConfig): void {
     if (this.confirmationConfigChangeListeners.size === 0) return;
-    this.confirmationConfigChangeListeners.forEach((listener) => {
-      try {
-        listener(config);
-      } catch {}
-    });
+    for (const listener of this.confirmationConfigChangeListeners) {
+      listener(config);
+    }
+  }
+
+  private notifySignerModeChange(mode: SignerMode): void {
+    if (this.signerModeChangeListeners.size === 0) return;
+    for (const listener of this.signerModeChangeListeners) {
+      listener(mode);
+    }
   }
 
   /**
@@ -98,12 +146,9 @@ export class UserPreferencesManager {
    * app-origin IndexedDB (wallet-iframe mode) can skip it entirely.
    */
   async initFromIndexedDB(): Promise<void> {
-    try {
-      await this.loadUserSettings();
-    } catch (error) {
+    await this.loadUserSettings().catch((error) => {
       console.warn('[WebAuthnManager]: Failed to initialize user settings:', error);
-      // Keep default settings if loading fails
-    }
+    });
   }
 
   /**
@@ -112,7 +157,9 @@ export class UserPreferencesManager {
   private subscribeToIndexedDBChanges(): void {
     // Subscribe to IndexedDB change events
     this.unsubscribeFromIndexedDB = IndexedDBManager.clientDB.onChange((event) => {
-      this.handleIndexedDBEvent(event);
+      void this.handleIndexedDBEvent(event).catch((error) => {
+        console.warn('[WebAuthnManager]: Error handling IndexedDB event:', error);
+      });
     });
   }
 
@@ -121,32 +168,28 @@ export class UserPreferencesManager {
    * @param event - The IndexedDBEvent: `user-updated`, `preferences-updated`, `user-deleted` to handle.
    */
   private async handleIndexedDBEvent(event: IndexedDBEvent): Promise<void> {
-    try {
-      switch (event.type) {
-        case 'preferences-updated':
-          // Check if this affects the current user
-          if (event.accountId === this.currentUserAccountId) {
-            await this.reloadUserSettings();
-          }
-          break;
+    switch (event.type) {
+      case 'preferences-updated':
+        // Check if this affects the current user
+        if (event.accountId === this.currentUserAccountId) {
+          await this.reloadUserSettings();
+        }
+        break;
 
-        case 'user-updated':
-          // Check if this affects the current user
-          if (event.accountId === this.currentUserAccountId) {
-            await this.reloadUserSettings();
-          }
-          break;
+      case 'user-updated':
+        // Check if this affects the current user
+        if (event.accountId === this.currentUserAccountId) {
+          await this.reloadUserSettings();
+        }
+        break;
 
-        case 'user-deleted':
-          // Check if the deleted user was the current user
-          if (event.accountId === this.currentUserAccountId) {
-            this.currentUserAccountId = undefined;
-            this.confirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
-          }
-          break;
-      }
-    } catch (error) {
-      console.warn('[WebAuthnManager]: Error handling IndexedDB event:', error);
+      case 'user-deleted':
+        // Check if the deleted user was the current user
+        if (event.accountId === this.currentUserAccountId) {
+          this.currentUserAccountId = undefined;
+          this.confirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
+        }
+        break;
     }
   }
 
@@ -163,9 +206,11 @@ export class UserPreferencesManager {
       this.unsubscribeFromIndexedDB();
       this.unsubscribeFromIndexedDB = undefined;
     }
+    this.walletIframeSignerModeWriter = null;
     // Clear all theme change listeners
     this.themeChangeListeners.clear();
     this.confirmationConfigChangeListeners.clear();
+    this.signerModeChangeListeners.clear();
   }
 
   getCurrentUserAccountId(): AccountId {
@@ -180,6 +225,10 @@ export class UserPreferencesManager {
 
   getConfirmationConfig(): ConfirmationConfig {
     return this.confirmationConfig;
+  }
+
+  getSignerMode(): SignerMode {
+    return this.signerMode;
   }
 
   /**
@@ -209,6 +258,23 @@ export class UserPreferencesManager {
     if (this.confirmationConfig.theme !== prevTheme) {
       this.notifyThemeChange(this.confirmationConfig.theme);
     }
+  }
+
+  /**
+   * Apply an authoritative signer mode snapshot from the wallet-iframe host.
+   * This updates in-memory state only; persistence remains owned by the wallet origin.
+   */
+  applyWalletHostSignerMode(args: {
+    nearAccountId?: AccountId | null;
+    signerMode: SignerMode;
+  }): void {
+    const { nearAccountId, signerMode } = args || ({} as any);
+    if (nearAccountId) {
+      this.currentUserAccountId = nearAccountId;
+    }
+    const base = this.signerModeOverride ?? DEFAULT_SIGNING_MODE;
+    const next = coerceSignerMode(signerMode, base);
+    this.setSignerModeInternal(next, { persist: false, notify: true });
   }
 
   setCurrentUser(nearAccountId: AccountId): void {
@@ -259,6 +325,12 @@ export class UserPreferencesManager {
         this.notifyThemeChange(this.confirmationConfig.theme);
       }
     }
+
+    // Signer mode: stored per-user preference (optional).
+    const base = this.signerModeOverride ?? DEFAULT_SIGNING_MODE;
+    const stored = user?.preferences?.signerMode as SignerMode | SignerMode['mode'] | null | undefined;
+    const nextSignerMode = stored != null ? coerceSignerMode(stored, base) : base;
+    this.setSignerModeInternal(nextSignerMode, { persist: false, notify: true });
   }
 
   /**
@@ -318,6 +390,12 @@ export class UserPreferencesManager {
       } else {
         console.debug('[WebAuthnManager]: No user preferences found, using defaults');
       }
+
+      // Load signer mode preference if available; otherwise use app default (configs.signerMode).
+      const base = this.signerModeOverride ?? DEFAULT_SIGNING_MODE;
+      const stored = user?.preferences?.signerMode as SignerMode | SignerMode['mode'] | null | undefined;
+      const nextSignerMode = stored != null ? coerceSignerMode(stored, base) : base;
+      this.setSignerModeInternal(nextSignerMode, { persist: false, notify: true });
     } else {
       console.debug('[WebAuthnManager]: No last user found, using default settings');
     }
@@ -384,6 +462,40 @@ export class UserPreferencesManager {
       await IndexedDBManager.clientDB.setTheme(id, theme);
     } catch (error) {
       console.warn('[UserPreferencesManager]: Failed to save user theme:', error);
+    }
+  }
+
+  /**
+   * Set signer mode preference (in-memory immediately; IndexedDB persistence is best-effort).
+   */
+  setSignerMode(signerMode: SignerMode | SignerMode['mode']): void {
+    const next = mergeSignerMode(this.signerMode, signerMode);
+    // In wallet-iframe mode on the app origin, persistence is owned by the wallet host.
+    // Forward to the host and rely on PREFERENCES_CHANGED mirroring for local state updates.
+    if (this.walletIframeSignerModeWriter && IndexedDBManager.clientDB.isDisabled()) {
+      void this.walletIframeSignerModeWriter(next).catch(() => undefined);
+      return;
+    }
+    this.setSignerModeInternal(next, { persist: true, notify: true });
+  }
+
+  private isSignerModeEqual(a: SignerMode, b: SignerMode): boolean {
+    if (a.mode !== b.mode) return false;
+    if (a.mode !== 'threshold-signer' || b.mode !== 'threshold-signer') return true;
+    return (a.behavior ?? null) === (b.behavior ?? null);
+  }
+
+  private setSignerModeInternal(next: SignerMode, opts: { persist: boolean; notify: boolean }): void {
+    const prev = this.signerMode;
+    this.signerMode = next;
+    if (opts.notify && !this.isSignerModeEqual(prev, next)) {
+      this.notifySignerModeChange(next);
+    }
+    if (opts.persist) {
+      // Best-effort persistence: only write when we have a current user context.
+      const id = this.currentUserAccountId;
+      if (!id || IndexedDBManager.clientDB.isDisabled()) return;
+      void IndexedDBManager.clientDB.setSignerMode(id, next).catch(() => undefined);
     }
   }
 }

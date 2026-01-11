@@ -1,10 +1,12 @@
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
-import { MinimalNearClient, SignedTransaction } from '../../core/NearClient';
-import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
+import { MinimalNearClient, SignedTransaction, type AccessKeyList } from '../../core/NearClient';
+import type { FinalExecutionOutcome } from '@near-js/types';
+import { toPublicKeyStringFromSecretKey } from './nearKeys';
 import { createAuthServiceConfig } from './config';
 import { formatGasToTGas, formatYoctoToNear } from './utils';
 import { parseContractExecutionError } from './errors';
-
+import { toOptionalTrimmedString } from '../../utils/validation';
+import { coerceThresholdEd25519ShareMode, coerceThresholdNodeRole } from './ThresholdService/config';
 import initSignerWasm, {
   handle_signer_message,
   WorkerRequestType,
@@ -35,7 +37,11 @@ import {
   executeSignedDelegateWithRelayer,
   type DelegateActionPolicy,
 } from '../delegateAction';
-import { normalizeLogger, type NormalizedLogger } from './logger';
+import { coerceLogger, type NormalizedLogger } from './logger';
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
 
 // =============================
 // WASM URL CONSTANTS + HELPERS
@@ -67,6 +73,34 @@ function getSignerWasmUrls(logger: NormalizedLogger): URL[] {
   return resolved;
 }
 
+function summarizeThresholdEd25519Config(cfg: AuthServiceConfig['thresholdEd25519KeyStore']): string {
+  if (!cfg) return 'thresholdEd25519: not configured';
+
+  const nodeRole = coerceThresholdNodeRole(cfg.THRESHOLD_NODE_ROLE);
+  const shareMode = coerceThresholdEd25519ShareMode(cfg.THRESHOLD_ED25519_SHARE_MODE);
+
+  const masterSecretSet = (() => {
+    if ('kind' in cfg) return false;
+    return Boolean(toOptionalTrimmedString(cfg.THRESHOLD_ED25519_MASTER_SECRET_B64U));
+  })();
+
+  const store = (() => {
+    if ('kind' in cfg) {
+      if (cfg.kind === 'upstash-redis-rest') return 'upstash';
+      if (cfg.kind === 'redis-tcp') return 'redis';
+      return 'in-memory';
+    }
+    const upstashUrl = toOptionalTrimmedString(cfg.UPSTASH_REDIS_REST_URL);
+    const upstashToken = toOptionalTrimmedString(cfg.UPSTASH_REDIS_REST_TOKEN);
+    const redisUrl = toOptionalTrimmedString(cfg.REDIS_URL);
+    return (upstashUrl || upstashToken) ? 'upstash' : (redisUrl ? 'redis' : 'in-memory');
+  })();
+
+  const parts = [`thresholdEd25519: configured`, `nodeRole=${nodeRole}`, `shareMode=${shareMode}`, `store=${store}`];
+  if (masterSecretSet) parts.push('masterSecret=set');
+  return parts.join(' ');
+}
+
 /**
  * Framework-agnostic NEAR account service
  * Core business logic for account creation and registration operations
@@ -90,7 +124,7 @@ export class AuthService {
 
   constructor(config: AuthServiceConfigInput) {
     this.config = createAuthServiceConfig(config);
-    this.logger = normalizeLogger(this.config.logger);
+    this.logger = coerceLogger(this.config.logger);
     const graceFileCandidate = (this.config.shamir?.graceShamirKeysFile || '').trim();
     this.shamirService = new ShamirService(this.config.shamir, graceFileCandidate || 'grace-keys.json');
     this.nearClient = new MinimalNearClient(this.config.nearRpcUrl);
@@ -124,6 +158,7 @@ export class AuthService {
         ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...`
         : '• shamir: not configured'
     }
+    • ${summarizeThresholdEd25519Config(this.config.thresholdEd25519KeyStore)}
     ${
       this.config.zkEmailProver?.baseUrl
         ? `• zkEmailProver: ${this.config.zkEmailProver.baseUrl}`
@@ -138,6 +173,20 @@ export class AuthService {
       accountId: this.config.relayerAccountId,
       publicKey: this.relayerPublicKey
     };
+  }
+
+  async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
+    await this._ensureSignerAndRelayerAccount();
+    return this.nearClient.viewAccessKeyList(accountId);
+  }
+
+  getWebAuthnContractId(): string {
+    return this.config.webAuthnContractId;
+  }
+
+  async txStatus(txHash: string, senderAccountId: string): Promise<FinalExecutionOutcome> {
+    await this._ensureSignerAndRelayerAccount();
+    return this.nearClient.txStatus(txHash, senderAccountId);
   }
 
   /**
@@ -166,8 +215,7 @@ export class AuthService {
 
     // Derive public key from configured relayer private key
     try {
-      const { seed, pub } = parseNearSecretKey(this.config.relayerPrivateKey);
-      this.relayerPublicKey = toPublicKeyString(pub);
+      this.relayerPublicKey = toPublicKeyStringFromSecretKey(this.config.relayerPrivateKey);
     } catch (e) {
       this.logger.warn('Failed to derive public key from relayerPrivateKey; ensure it is in ed25519:<base58> format');
       this.relayerPublicKey = '';
@@ -229,10 +277,13 @@ export class AuthService {
 
   private isNodeEnvironment(): boolean {
     // Detect true Node.js, not Cloudflare Workers with nodejs_compat polyfills.
-    const isNode = Boolean((globalThis as any).process?.versions?.node);
+    const processObj = (globalThis as unknown as { process?: { versions?: { node?: string } } }).process;
+    const isNode = Boolean(processObj?.versions?.node);
     // Cloudflare Workers expose WebSocketPair and may polyfill process.
-    const isCloudflareWorker = typeof (globalThis as any).WebSocketPair !== 'undefined'
-      || (typeof navigator !== 'undefined' && (navigator as any).userAgent?.includes?.('Cloudflare-Workers'));
+    const webSocketPair = (globalThis as unknown as { WebSocketPair?: unknown }).WebSocketPair;
+    const nav = (globalThis as unknown as { navigator?: { userAgent?: unknown } }).navigator;
+    const isCloudflareWorker = typeof webSocketPair !== 'undefined'
+      || (typeof nav?.userAgent === 'string' && nav.userAgent.includes('Cloudflare-Workers'));
     return isNode && !isCloudflareWorker;
   }
 
@@ -261,11 +312,11 @@ export class AuthService {
       try {
         const filePath = fileURLToPath(url);
         const bytes = await readFile(filePath);
-        // Ensure we pass an ArrayBuffer, not a Node Buffer (type mismatch)
-        const u8 = bytes instanceof Uint8Array ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) : new Uint8Array(bytes as any);
-        const ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
-        const module = await WebAssembly.compile(ab as ArrayBuffer);
-        await initSignerWasm({ module_or_path: module as any });
+        // Ensure we pass an ArrayBuffer (not Buffer / SharedArrayBuffer) for WebAssembly.compile
+        const ab = new ArrayBuffer(bytes.byteLength);
+        new Uint8Array(ab).set(bytes);
+        const module = await WebAssembly.compile(ab);
+        await initSignerWasm({ module_or_path: module });
         return;
       } catch {} // throw at end of function
     }
@@ -274,7 +325,7 @@ export class AuthService {
     for (const url of candidates) {
       try {
         const filePath = fileURLToPath(url);
-        await initSignerWasm({ module_or_path: filePath as any });
+        await initSignerWasm({ module_or_path: filePath as unknown as InitInput });
         return;
       } catch {} // throw at end of function
     }
@@ -458,19 +509,40 @@ export class AuthService {
     try {
       await this._ensureSignerAndRelayerAccount();
 
+      const intentDigest32 = request?.vrf_data?.intent_digest_32;
+      if (!Array.isArray(intentDigest32) || intentDigest32.length !== 32) {
+        return {
+          success: false,
+          verified: false,
+          code: 'invalid_intent_digest',
+          message: 'Missing or invalid vrf_data.intent_digest_32 (expected 32 bytes)',
+        };
+      }
+      const sessionPolicyDigest32 = (request?.vrf_data as { session_policy_digest_32?: unknown })?.session_policy_digest_32;
+      if (sessionPolicyDigest32 !== undefined) {
+        if (!Array.isArray(sessionPolicyDigest32) || sessionPolicyDigest32.length !== 32) {
+          return {
+            success: false,
+            verified: false,
+            code: 'invalid_session_policy_digest',
+            message: 'Invalid vrf_data.session_policy_digest_32 (expected 32 bytes when present)',
+          };
+        }
+      }
+
       const args = {
         vrf_data: request.vrf_data,
         webauthn_authentication: request.webauthn_authentication,
       };
 
       // Perform a VIEW function call (no gas) and parse the contract response
-      const contractResponse = await this.nearClient.view<typeof args, any>({
+      const contractResponse = await this.nearClient.view<typeof args, unknown>({
         account: this.config.webAuthnContractId,
         method: 'verify_authentication_response',
         args
       });
 
-      const verified = Boolean((contractResponse && (contractResponse.verified === true)));
+      const verified = isObject(contractResponse) && contractResponse.verified === true;
       if (!verified) {
         return {
           success: false,
@@ -506,9 +578,9 @@ export class AuthService {
    * Defaults: contractId = webAuthnContractId, method = 'get_allowed_origins', args = {}.
    * Returns a sanitized, deduplicated list of absolute origins.
    */
-  public async getRorOrigins(opts?: { contractId?: string; method?: string; args?: any }): Promise<string[]> {
-    const contractId = (opts?.contractId || this.config.webAuthnContractId).trim();
-    const method = (opts?.method || 'get_allowed_origins').trim();
+  public async getRorOrigins(opts?: { contractId?: string; method?: string; args?: unknown }): Promise<string[]> {
+    const contractId = toOptionalTrimmedString(opts?.contractId) || this.config.webAuthnContractId.trim();
+    const method = toOptionalTrimmedString(opts?.method) || 'get_allowed_origins';
     const args = opts?.args ?? {};
 
     const isValidOrigin = (s: unknown): string | null => {
@@ -525,13 +597,14 @@ export class AuthService {
     };
 
     try {
-      const result = await this.nearClient.view<{ } , unknown>({ account: contractId, method, args });
-      let list: string[] = [];
-      if (Array.isArray(result)) {
-        list = result as string[];
-      } else if (result && typeof result === 'object' && Array.isArray((result as any).origins)) {
-        list = (result as any).origins as string[];
-      }
+      const result = await this.nearClient.view<unknown, unknown>({ account: contractId, method, args });
+      const list: string[] = (() => {
+        if (Array.isArray(result)) return result.filter((v): v is string => typeof v === 'string');
+        if (isObject(result) && Array.isArray(result.origins)) {
+          return (result.origins as unknown[]).filter((v): v is string => typeof v === 'string');
+        }
+        return [];
+      })();
       const out = new Set<string>();
       for (const item of list) {
         const norm = isValidOrigin(item);

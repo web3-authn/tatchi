@@ -127,7 +127,9 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
     setDeleteError(null);
 
     try {
-      await tatchi.deleteDeviceKey(nearAccountId, publicKey);
+      await tatchi.deleteDeviceKey(nearAccountId, publicKey, {
+        signerMode: { mode: 'threshold-signer', behavior: 'fallback' },
+      });
       await loadAuthenticators();
     } catch (err: any) {
       setDeleteError(err.message || 'Failed to delete access key');

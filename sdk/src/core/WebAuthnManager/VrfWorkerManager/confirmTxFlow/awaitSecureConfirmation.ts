@@ -4,7 +4,7 @@ import {
   SecureConfirmRequest,
   SerializableCredential,
 } from './types';
-import { isObject, isString, isBoolean } from '@/core/WalletIframe/validation';
+import { isObject, isString, isBoolean } from '@/utils/validation';
 import { errorMessage, toError } from '@/utils/errors';
 import { VRFChallenge } from '../../../types';
 import { TransactionContext } from '../../../types/rpc';

@@ -25,7 +25,7 @@ export const DEFAULT_TEST_CONFIG: PasskeyTestConfig = {
   rpId: RP_ID,
   useRelayer: true,
   relayer: {
-    url: 'http://localhost:3000',
+    url: 'https://relay-server.localhost',
   },
   testReceiverAccountId: 'w3a-v1.testnet',
 };

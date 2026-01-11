@@ -46,11 +46,10 @@ import { CONFIRM_UI_ELEMENT_SELECTORS } from '../../WebAuthnManager/LitComponent
 import { MinimalNearClient } from '../../NearClient';
 import { setupLitElemMounter } from './iframe-lit-elem-mounter';
 import type { TatchiConfigsInput } from '../../types/tatchi';
-import { isObject, isString } from '../validation';
+import { isObject, isString } from '@/utils/validation';
 import { errorMessage } from '../../../utils/errors';
 import { TatchiPasskey } from '../../TatchiPasskey';
 import { __setWalletIframeHostMode } from '../host-mode';
-import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import type { ProgressPayload } from '../shared/messages';
 import { WalletIframeDomEvents } from '../events';
 import { assertWalletHostConfigsNoNestedIframeWallet, sanitizeWalletHostConfigs } from './config-guards';
@@ -67,7 +66,7 @@ let parentOrigin: string | null = null;
 let port: MessagePort | null = null;
 let walletConfigs: TatchiConfigsInput | null = null;
 let nearClient: MinimalNearClient | null = null;
-let tatchiPasskey: TatchiPasskeyIframe | TatchiPasskey | null = null;
+let tatchiPasskey: TatchiPasskey | null = null;
 let themeUnsubscribe: (() => void) | null = null;
 let prefsUnsubscribe: (() => void) | null = null;
 
@@ -129,25 +128,31 @@ function ensureTatchiPasskey(): void {
 
     // Bridge wallet-host preferences to the parent app so app UI can mirror wallet host state.
     prefsUnsubscribe?.();
-    const emitPreferencesChanged = (confirmationConfig: PreferencesChangedPayload['confirmationConfig']) => {
+    const emitPreferencesChanged = () => {
       const id = String(up.getCurrentUserAccountId?.() || '').trim();
       const nearAccountId = id ? id : null;
       post({
         type: 'PREFERENCES_CHANGED',
         payload: {
           nearAccountId,
-          confirmationConfig,
+          confirmationConfig: up.getConfirmationConfig(),
+          signerMode: up.getSignerMode(),
           updatedAt: Date.now(),
         } satisfies PreferencesChangedPayload,
       });
     };
-    prefsUnsubscribe = up.onConfirmationConfigChange?.((cfg) => emitPreferencesChanged(cfg)) || null;
+    const unsubCfg = up.onConfirmationConfigChange?.(() => emitPreferencesChanged()) || null;
+    const unsubSignerMode = up.onSignerModeChange?.(() => emitPreferencesChanged()) || null;
+    prefsUnsubscribe = () => {
+      try { unsubCfg?.(); } catch {}
+      try { unsubSignerMode?.(); } catch {}
+    };
     // Emit a best-effort snapshot as soon as the host is ready.
-    Promise.resolve().then(() => emitPreferencesChanged(up.getConfirmationConfig())).catch(() => {});
+    Promise.resolve().then(() => emitPreferencesChanged()).catch(() => {});
   }
 }
 
-function getTatchiPasskey(): TatchiPasskey | TatchiPasskeyIframe {
+function getTatchiPasskey(): TatchiPasskey {
   ensureTatchiPasskey();
   return tatchiPasskey!;
 }
@@ -237,6 +242,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       nearNetwork: payload?.nearNetwork || walletConfigs?.nearNetwork || 'testnet',
       contractId: payload?.contractId || walletConfigs?.contractId || '',
       nearExplorerUrl: payload?.nearExplorerUrl || walletConfigs?.nearExplorerUrl,
+      signerMode: payload?.signerMode || walletConfigs?.signerMode,
       relayer: payload?.relayer || walletConfigs?.relayer,
       authenticatorOptions: payload?.authenticatorOptions || walletConfigs?.authenticatorOptions,
       vrfWorkerConfigs: payload?.vrfWorkerConfigs || walletConfigs?.vrfWorkerConfigs,
@@ -254,9 +260,10 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     // Configure SDK embedded asset base for Lit modal/embedded components
     const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
     // Default to serving embedded assets from this wallet origin under /sdk/
+    const safeOrigin = window.location.origin || window.location.href;
     const defaultRoot = (() => {
       try {
-        const base = new URL('/sdk/', window.location.origin).toString();
+        const base = new URL('/sdk/', safeOrigin).toString();
         return base.endsWith('/') ? base : base + '/';
       } catch {
         return '/sdk/';
@@ -264,11 +271,12 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     })();
 
     let resolvedBase = defaultRoot;
-    if (isString(assetsBaseUrl)) {
+    const assetsBaseUrlCandidate = isString(assetsBaseUrl) ? assetsBaseUrl : undefined;
+    if (assetsBaseUrlCandidate !== undefined) {
       try {
-        const u = new URL(assetsBaseUrl, window.location.origin);
+        const u = new URL(assetsBaseUrlCandidate, safeOrigin);
         // Only honor provided assetsBaseUrl if it matches this wallet origin to avoid CORS
-        if (u.origin === window.location.origin) {
+        if (u.origin === safeOrigin) {
           const norm = u.toString().endsWith('/') ? u.toString() : (u.toString() + '/');
           resolvedBase = norm;
         }

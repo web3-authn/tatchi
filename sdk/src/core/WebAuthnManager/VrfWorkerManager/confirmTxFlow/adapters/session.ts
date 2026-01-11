@@ -1,6 +1,6 @@
 import type { ConfirmationConfig } from '../../../../types/signer-worker';
 import type { ConfirmUIHandle, ConfirmUIUpdate } from '../../../LitComponents/confirm-ui';
-import type { SecureConfirmDecision, SecureConfirmRequest, TransactionSummary } from '../types';
+import type { KnownSecureConfirmRequest, SecureConfirmDecision, TransactionSummary } from '../types';
 import type { VRFChallenge } from '../../../../types';
 import { sendConfirmResponse } from './common';
 import type { ConfirmTxFlowAdapters } from './interfaces';
@@ -14,7 +14,7 @@ export function createConfirmSession({
 }: {
   adapters: ConfirmTxFlowAdapters;
   worker: Worker;
-  request: SecureConfirmRequest;
+  request: KnownSecureConfirmRequest;
   confirmationConfig: ConfirmationConfig;
   transactionSummary: TransactionSummary;
 }): {

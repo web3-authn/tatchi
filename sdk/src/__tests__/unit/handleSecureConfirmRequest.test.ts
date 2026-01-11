@@ -38,7 +38,6 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
 
         // Request with unsupported type but with non-empty payload to bypass payload guard
         const request = {
-          schemaVersion: 2,
           requestId: 'req-1',
           type: 'unsupported_type',
           summary: {},
@@ -90,7 +89,6 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
         const worker: any = { postMessage: (msg: any) => responses.push(msg) };
 
         const request = {
-          schemaVersion: 2,
           requestId: 'req-2',
           type: 'signTransaction', // valid type but payload missing
           summary: {},
@@ -144,7 +142,6 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
 
         // Include fields that should never appear in a main-thread signing envelope.
         const request = {
-          schemaVersion: 2,
           requestId: 'req-prf-wrap',
           type: types.SecureConfirmationType.SIGN_TRANSACTION,
           summary: {},

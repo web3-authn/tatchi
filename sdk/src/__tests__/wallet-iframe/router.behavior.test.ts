@@ -41,12 +41,12 @@ test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
         
 
         // Fire-and-forget request that will time out since the stub never replies with PM_RESULT
-        const p = router.executeAction({
-          nearAccountId: 'e2e_router_timeout.testnet',
-          receiverId: 'w3a-v1.testnet',
-          actionArgs: { type: 'Transfer', amount: '1' } as any,
-          options: {}
-        }).catch((e) => ({ ok: false, error: String(e?.message || e) }));
+	        const p = router.executeAction({
+	          nearAccountId: 'e2e_router_timeout.testnet',
+	          receiverId: 'w3a-v1.testnet',
+	          actionArgs: { type: 'Transfer', amount: '1' } as any,
+	          options: { signerMode: { mode: 'local-signer' } }
+	        }).catch((e) => ({ ok: false, error: String(e?.message || e) }));
 
         // Expect overlay to become visible soon after posting
         const shown = await waitFor(() => {

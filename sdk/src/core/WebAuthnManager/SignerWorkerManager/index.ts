@@ -2,7 +2,7 @@ import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
 import { ClientAuthenticatorData, UnifiedIndexedDBManager } from '../../IndexedDBManager';
 import { IndexedDBManager } from '../../IndexedDBManager';
 import { SignedTransaction, type NearClient } from '../../NearClient';
-import { isObject } from '../../WalletIframe/validation';
+import { isObject } from '@/utils/validation';
 import { resolveWorkerUrl } from '../../sdkPaths';
 import {
   WorkerRequestType,
@@ -24,8 +24,10 @@ import { AccountId } from "../../types/accountIds";
 import { TransactionContext } from '../../types/rpc';
 import {
   ConfirmationConfig,
+  type SignerMode,
   WasmSignedDelegate,
 } from '../../types/signer-worker';
+import type { ThresholdBehavior } from '../../types/signer-worker';
 import { TouchIdPrompt } from "../touchIdPrompt";
 import { isSignerWorkerControlMessage } from './sessionMessages';
 import { WorkerControlMessage } from '../../workerControlMessages';
@@ -42,6 +44,7 @@ import {
   signDelegateAction,
   registerDevice2WithDerivedKey,
   exportNearKeypairUi,
+  deriveThresholdEd25519ClientVerifyingShare,
 } from './handlers';
 import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
@@ -67,6 +70,7 @@ export interface SignerWorkerManagerContext {
   indexedDB: UnifiedIndexedDBManager;
   userPreferencesManager: UserPreferencesManager;
   nonceManager: NonceManager;
+  relayerUrl: string;
   rpIdOverride?: string;
   nearExplorerUrl?: string;
   vrfWorkerManager?: VrfWorkerManager;
@@ -95,6 +99,7 @@ export class SignerWorkerManager {
   private nearClient: NearClient;
   private userPreferencesManager: UserPreferencesManager;
   private nonceManager: NonceManager;
+  private relayerUrl: string;
   private workerBaseOrigin: string | undefined;
   private nearExplorerUrl?: string;
 
@@ -103,6 +108,7 @@ export class SignerWorkerManager {
     nearClient: NearClient,
     userPreferencesManager: UserPreferencesManager,
     nonceManager: NonceManager,
+    relayerUrl: string,
     rpIdOverride?: string,
     enableSafariGetWebauthnRegistrationFallback: boolean = true,
     nearExplorerUrl?: string,
@@ -113,6 +119,7 @@ export class SignerWorkerManager {
     this.nearClient = nearClient;
     this.userPreferencesManager = userPreferencesManager;
     this.nonceManager = nonceManager;
+    this.relayerUrl = relayerUrl;
     this.nearExplorerUrl = nearExplorerUrl;
   }
 
@@ -131,6 +138,7 @@ export class SignerWorkerManager {
       nonceManager: this.nonceManager,
       rpIdOverride: this.touchIdPrompt.getRpId(),
       nearExplorerUrl: this.nearExplorerUrl,
+      relayerUrl: this.relayerUrl,
     };
   }
 
@@ -366,7 +374,7 @@ export class SignerWorkerManager {
     }
   }
 
-  private async sendMessage<T extends WorkerRequestType>({
+  private async sendMessage<T extends keyof WorkerRequestTypeMap>({
     sessionId,
     message,
     onEvent,
@@ -536,6 +544,23 @@ export class SignerWorkerManager {
     return deriveNearKeypairAndEncryptFromSerialized({ ctx: this.getContext(), ...args });
   }
 
+  async deriveThresholdEd25519ClientVerifyingShare(args: {
+    sessionId: string;
+    nearAccountId: AccountId;
+  }): Promise<{
+    success: boolean;
+    nearAccountId: string;
+    clientVerifyingShareB64u: string;
+    wrapKeySalt: string;
+    error?: string;
+  }> {
+    return deriveThresholdEd25519ClientVerifyingShare({
+      ctx: this.getContext(),
+      sessionId: args.sessionId,
+      nearAccountId: String(args.nearAccountId),
+    });
+  }
+
   /**
    * Secure private key decryption with dual PRF
    */
@@ -609,6 +634,7 @@ export class SignerWorkerManager {
   async signTransactionsWithActions(args: {
     transactions: TransactionInputWasm[],
     rpcCall: RpcCallPayload,
+    signerMode: SignerMode,
     onEvent?: (update: onProgressEvents) => void,
     confirmationConfigOverride?: Partial<ConfirmationConfig>,
     title?: string;
@@ -628,6 +654,7 @@ export class SignerWorkerManager {
   async signDelegateAction(args: {
     delegate: DelegateActionInput;
     rpcCall: RpcCallPayload;
+    signerMode: SignerMode;
     onEvent?: (update: onProgressEvents) => void;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
     title?: string;
@@ -699,6 +726,7 @@ export class SignerWorkerManager {
     nonce: string;
     state: string | null;
     accountId: string;
+    signerMode: SignerMode;
     title?: string;
     body?: string;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;

@@ -1,5 +1,5 @@
 import { base64UrlEncode } from "../../utils";
-import { isObject, isString, isArray } from '../WalletIframe/validation';
+import { isObject, isString, isArray } from '@/utils/validation';
 import {
   type WebAuthnAuthenticationCredential,
   type WebAuthnRegistrationCredential,
@@ -144,7 +144,7 @@ export function serializeAuthenticationCredentialWithPRF({
 // RUNTIME VALIDATION / NORMALIZATION
 /////////////////////////////////////////
 
-// Use shared type guards (isString/isArray) from WalletIframe/validation
+// Use shared type guards (isString/isArray) from @/utils/validation
 
 /**
  * Validates and normalizes a serialized WebAuthn registration credential.

@@ -1,4 +1,5 @@
 import type { EmailRecoveryContracts, TatchiConfigs, TatchiConfigsInput } from './types/tatchi';
+import { coerceSignerMode } from './types/signer-worker';
 
 // Default SDK configs suitable for local dev.
 // Cross-origin wallet isolation is recommended; set iframeWallet in your app config when you have a dedicated origin.
@@ -11,6 +12,7 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',
   nearExplorerUrl: 'https://testnet.nearblocks.io',
+  signerMode: { mode: 'local-signer' },
   // Warm signing session defaults used by login/unlock flows.
   // Enforcement (TTL/uses) is owned by the VRF worker; signer workers remain one-shot.
   signingSessionDefaults: {
@@ -61,6 +63,22 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
   }
 };
 
+// Default threshold participant identifiers (2P FROST).
+// These are intentionally exported as standalone constants so apps can reuse them when wiring
+// threshold signing across client + server environments.
+export const THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID = 1 as const;
+export const THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID = 2 as const;
+export const THRESHOLD_ED25519_2P_PARTICIPANT_IDS = [
+  THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
+  THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
+] as const;
+
+// Threshold node roles.
+// Coordinator is the default because it exposes the public `/threshold-ed25519/sign/*` endpoints.
+export const THRESHOLD_NODE_ROLE_COORDINATOR = 'coordinator' as const;
+export const THRESHOLD_NODE_ROLE_PARTICIPANT = 'participant' as const;
+export const THRESHOLD_NODE_ROLE_DEFAULT = THRESHOLD_NODE_ROLE_COORDINATOR;
+
 export const DEFAULT_EMAIL_RECOVERY_CONTRACTS: EmailRecoveryContracts = {
   emailRecovererGlobalContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailRecovererGlobalContract,
   zkEmailVerifierContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.zkEmailVerifierContract,
@@ -75,6 +93,7 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
   // Prefer explicit override for relayer URL; fall back to default preset.
   // Used below to default VRF relayServerUrl when it is undefined.
   const relayServerUrlDefault = relayerUrl;
+  const signerMode = coerceSignerMode(overrides.signerMode, defaults.signerMode);
 
   const merged: TatchiConfigs = {
     nearRpcUrl: overrides.nearRpcUrl ?? defaults.nearRpcUrl,
@@ -82,6 +101,7 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
     contractId: overrides.contractId ?? defaults.contractId,
     nearExplorerUrl: overrides.nearExplorerUrl ?? defaults.nearExplorerUrl,
     walletTheme: overrides.walletTheme ?? defaults.walletTheme,
+    signerMode,
     signingSessionDefaults: {
       ttlMs: overrides.signingSessionDefaults?.ttlMs
         ?? defaults.signingSessionDefaults?.ttlMs,

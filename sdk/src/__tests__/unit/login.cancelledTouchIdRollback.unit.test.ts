@@ -32,6 +32,7 @@ test('loginAndCreateSession: cancelling TouchID during warm signing rolls back V
 
   const webAuthnManager: any = {
     checkVrfStatus: async () => ({ active: vrfActive, nearAccountId: vrfActive ? 'alice.testnet' : null }),
+    getUserPreferences: () => ({ getSignerMode: () => ({ mode: 'local-signer' }) }),
     getLastUser: async () => userData,
     getUserByDevice: async () => userData,
     getAuthenticatorsByUser: async () => [{ credentialId: 'cred', deviceNumber: 1 }],

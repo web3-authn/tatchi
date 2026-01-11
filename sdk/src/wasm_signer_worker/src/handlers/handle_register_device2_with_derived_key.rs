@@ -136,9 +136,13 @@ pub async fn handle_register_device2_with_derived_key(
     let (near_private_key, near_public_key) = crate::crypto::derive_ed25519_key_from_prf_output(
         &prf_second_b64u,
         &request.near_account_id,
-    ).map_err(|e| format!("Failed to derive ed25519 key from PRF.second: {}", e))?;
+    )
+    .map_err(|e| format!("Failed to derive ed25519 key from PRF.second: {}", e))?;
 
-    debug!("[rust wasm signer]: Derived Device2 NEAR keypair, public key: {}", near_public_key);
+    debug!(
+        "[rust wasm signer]: Derived Device2 NEAR keypair, public key: {}",
+        near_public_key
+    );
 
     // === STEP 2: Encrypt NEAR private key with KEK ===
     let kek = wrap_key
@@ -192,11 +196,22 @@ pub async fn handle_register_device2_with_derived_key(
     let registration_tx =
         build_device2_registration_transaction(&request, &public_key_bytes, function_call_args)?;
 
-    debug!("[rust wasm signer]: Built Device2 registration transaction for contract {}", request.contract_id);
+    debug!(
+        "[rust wasm signer]: Built Device2 registration transaction for contract {}",
+        request.contract_id
+    );
 
     // === STEP 5: Sign transaction with derived NEAR keypair ===
-    let signed_tx_bytes = crate::transaction::sign_transaction(registration_tx, &signing_key)
-        .map_err(|e| format!("Failed to sign Device2 registration transaction: {}", e))?;
+    use ed25519_dalek::Signer;
+    let (tx_hash_to_sign, _size) = registration_tx.get_hash_and_size();
+    let signature_bytes = signing_key.sign(&tx_hash_to_sign.0).to_bytes();
+    let signed_tx_bytes = crate::transaction::sign_transaction(registration_tx, &signature_bytes)
+        .map_err(|e| {
+        format!(
+            "Failed to serialize signed Device2 registration transaction: {}",
+            e
+        )
+    })?;
 
     // === STEP 6: Convert to WasmSignedTransaction ===
     let signed_tx = crate::types::SignedTransaction::from_borsh_bytes(&signed_tx_bytes)

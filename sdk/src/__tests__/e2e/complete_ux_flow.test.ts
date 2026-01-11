@@ -11,7 +11,7 @@
 import { test, expect } from '../setup/fixtures';
 import { bypassContractVerification } from '../setup/bypasses';
 import { mockRelayServer, mockAccessKeyLookup, mockSendTransaction } from '../setup/route-mocks';
-import { registerPasskey, loginAndCreateSession, executeTransfer, recoverAccount } from '../setup/flows';
+import { registerPasskey, loginAndCreateSession, executeTransfer, recoverAccount, clickWalletIframeConfirm } from '../setup/flows';
 import { handleInfrastructureErrors, type TestUtils } from '../setup';
 import { printLog } from '../setup/logging';
 import { BUILD_PATHS } from '@build-paths';
@@ -132,7 +132,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
           });
         }
       })).then(async () => {
-        const loginState = (await utils.passkeyManager.getLoginSession()).login;
+        const loginState = (await utils.tatchi.getLoginSession()).login;
         return { workerResults, loginState };
       });
     }, { buildPaths: BUILD_PATHS });
@@ -188,7 +188,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
 
       while (Date.now() - start < timeoutMs) {
         try {
-          await utils.passkeyManager.getNearClient().viewAccessKey(toAccountId(id), publicKey);
+          await utils.tatchi.getNearClient().viewAccessKey(toAccountId(id), publicKey);
           console.log('[flow:recovery] Access key indexed – proceeding');
           return;
         } catch (error) {
@@ -205,14 +205,6 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
 
     const recovery = await recoverAccount(passkey, { accountId });
 
-    const finalState = await passkey.withTestUtils(async ({ accountId: id }) => {
-      const utils = (window as any).testUtils as TestUtils;
-      const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
-      const state = (await utils.passkeyManager.getLoginSession(toAccountId(id))).login;
-      const recent = await utils.passkeyManager.getRecentLogins();
-      return { state, recent };
-    }, { accountId });
-
     printLog('test', `registration events: ${registration.events.length}`, { indent: 1 });
     printLog('test', `login events: ${login.events.length}`, { indent: 1 });
     printLog('test', `transfer events: ${transfer.events.length}`, { indent: 1 });
@@ -223,54 +215,89 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
     expect(transfer.success).toBe(true);
 
     if (!recovery.success) {
-      printLog('test', `recovery failure tolerated: ${recovery.error ?? 'unknown error'}`, {
-        step: 'recovery',
-        indent: 1,
-      });
+      if (handleInfrastructureErrors({ success: recovery.success, error: recovery.error })) {
+        return;
+      }
+      expect(recovery.success).toBe(true);
+      return;
     }
+
+    const finalState = await passkey.withTestUtils(async ({ accountId: id }) => {
+      const utils = (window as any).testUtils as TestUtils;
+      const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
+      const state = (await utils.tatchi.getLoginSession(toAccountId(id))).login;
+      const recent = await utils.tatchi.getRecentLogins();
+      return { state, recent };
+    }, { accountId });
 
     printLog('test', `final login state: ${JSON.stringify(finalState.state)}`, { indent: 2 });
     printLog('test', `recent logins count: ${finalState.recent.accountIds.length}`, { indent: 2 });
 
-    // Best-effort cleanup: send remaining balance of the ephemeral
-    // test account back to the relay/funding account.
-    await passkey.withTestUtils(async ({ accountId: id, beneficiaryId }) => {
-      const utils = (window as any).testUtils as TestUtils;
-      const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
-      const nearAccountId = toAccountId(id);
+	    // Best-effort cleanup: send remaining balance of the ephemeral
+	    // test account back to the relay/funding account.
+	    const cleanupPromise = passkey.withTestUtils(async ({ accountId: id, beneficiaryId, timeoutMs }) => {
+	      const utils = (window as any).testUtils as TestUtils;
+	      const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
+	      const nearAccountId = toAccountId(id);
+	      const maxWaitMs = Math.max(1_000, Math.floor(timeoutMs ?? 8_000));
 
-      try {
-        // @ts-ignore - Runtime import within browser context
-        const { ActionType } = await import('/sdk/esm/core/types/actions.js');
+	      try {
+	        // @ts-ignore - Runtime import within browser context
+	        const { ActionType } = await import('/sdk/esm/core/types/actions.js');
 
-        console.log('[cleanup] Attempting DeleteAccount to refund remaining balance', {
-          nearAccountId,
-          beneficiaryId,
-        });
+	        console.log('[cleanup] Attempting DeleteAccount to refund remaining balance', {
+	          nearAccountId,
+	          beneficiaryId,
+	        });
 
-        const result = await utils.passkeyManager.executeAction({
-          nearAccountId,
-          receiverId: nearAccountId,
-          actionArgs: {
-            type: ActionType.DeleteAccount,
-            beneficiaryId,
-          },
-          options: {
-            onEvent: (event: any) => {
-              console.log('[cleanup] DeleteAccount event', event?.phase, event?.status);
-            },
-            onError: (error: any) => {
-              console.warn('[cleanup] DeleteAccount error', error);
-            },
-          },
-        });
+	        const actionPromise = utils.tatchi.executeAction({
+	          nearAccountId,
+	          receiverId: nearAccountId,
+	          actionArgs: {
+	            type: ActionType.DeleteAccount,
+	            beneficiaryId,
+	          },
+	          options: {
+	            signerMode: { mode: 'local-signer' },
+	            onEvent: (event: any) => {
+	              console.log('[cleanup] DeleteAccount event', event?.phase, event?.status);
+	            },
+	            onError: (error: any) => {
+	              console.warn('[cleanup] DeleteAccount error', error);
+	            },
+	          },
+	        });
 
-        console.log('[cleanup] DeleteAccount result', result);
-      } catch (error) {
-        console.warn('[cleanup] Failed to delete test account; skipping cleanup', error);
-      }
-    }, { accountId, beneficiaryId: RELAYER_REFUND_ACCOUNT_ID });
-  });
+	        const outcomePromise = actionPromise
+	          .then((value: any) => ({ ok: true as const, value }))
+	          .catch((error: any) => ({ ok: false as const, error }));
+
+	        const timeoutPromise = new Promise<{ ok: false; timedOut: true }>((resolve) => {
+	          setTimeout(() => resolve({ ok: false, timedOut: true }), maxWaitMs);
+	        });
+
+	        const outcome = await Promise.race([outcomePromise, timeoutPromise]);
+	        if ('timedOut' in outcome) {
+	          console.warn(`[cleanup] DeleteAccount timed out after ${maxWaitMs}ms; skipping cleanup`);
+	          return { ok: false, timedOut: true };
+	        }
+	        if (!outcome.ok) {
+	          console.warn('[cleanup] DeleteAccount failed; skipping cleanup', outcome.error);
+	          return { ok: false, error: outcome.error?.message || String(outcome.error) };
+	        }
+
+	        console.log('[cleanup] DeleteAccount result', outcome.value);
+	        return { ok: true };
+	      } catch (error) {
+	        console.warn('[cleanup] Failed to delete test account; skipping cleanup', error);
+	        return { ok: false, error: (error as any)?.message || String(error) };
+	      }
+	    }, { accountId, beneficiaryId: RELAYER_REFUND_ACCOUNT_ID, timeoutMs: 8_000 });
+
+	    const clickPromise = clickWalletIframeConfirm(page, { timeoutMs: 8_000 });
+	    await Promise.race([cleanupPromise.then(() => undefined), clickPromise]);
+	    await cleanupPromise;
+	  });
 
   test('Headers sanity', async ({ passkey, page }) => {
     // Assert that WASM is served with the correct MIME (exposed header)

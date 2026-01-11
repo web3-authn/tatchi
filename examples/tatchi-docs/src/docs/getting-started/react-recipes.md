@@ -148,9 +148,7 @@ export function HeaderProfile() {
 }
 ```
 
-## SendTxButtonWithTooltip – embedded transaction button
-
-`SendTxButtonWithTooltip` embeds the wallet iframe in a button with a rich tooltip that explains what’s being signed.
+## Transactions – custom button
 
 ```tsx
 import {
@@ -158,7 +156,6 @@ import {
   ActionType,
   TxExecutionStatus,
 } from '@tatchi-xyz/sdk/react'
-import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react/embedded'
 
 export function SendGreetingButton() {
   const { tatchi, loginState } = useTatchi()
@@ -171,36 +168,30 @@ export function SendGreetingButton() {
   const contractId = tatchi.configs.contractId
 
   return (
-    <SendTxButtonWithTooltip
-      nearAccountId={nearAccountId}
-      txSigningRequests={[
-        {
+    <button
+      onClick={async () => {
+        await tatchi.executeAction({
+          nearAccountId,
           receiverId: contractId,
-          actions: [
-            {
-              type: ActionType.FunctionCall,
-              methodName: 'set_greeting',
-              args: { greeting: 'Hello from Tatchi!' },
-              gas: '30000000000000',
-              deposit: '0',
+          actionArgs: {
+            type: ActionType.FunctionCall,
+            methodName: 'set_greeting',
+            args: { greeting: 'Hello from Tatchi!' },
+            gas: '30000000000000',
+            deposit: '0',
+          },
+          options: {
+            confirmationConfig: { uiMode: 'drawer' },
+            waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
+            afterCall: (success, result) => {
+              if (success) console.log('Tx result', result)
+              else console.warn('Tx failed', result)
             },
-          ],
-        },
-      ]}
-      options={{
-        waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
-        afterCall: (success, result) => {
-          if (success) {
-            console.log('Tx result', result)
-          } else {
-            console.warn('Tx failed', result)
-          }
-        },
-        onError: (error) => {
-          console.error('Tx error', error)
-        },
+            onError: (error) => console.error('Tx error', error),
+          },
+        })
       }}
-      buttonStyle={{
+      style={{
         color: 'white',
         background: 'var(--w3a-colors-primary)',
         borderRadius: '2rem',
@@ -208,13 +199,12 @@ export function SendGreetingButton() {
         height: 44,
         paddingInline: 24,
       }}
-      buttonHoverStyle={{
-        background: 'var(--w3a-colors-primaryHover)',
-      }}
-    />
+    >
+      Send Greeting
+    </button>
   )
 }
 ```
 
-From here you can refine styling and hook `onEvent` into your own toast/notification system, ful a full list of events see [progress events](../guides/progress-events.md).
+From here you can refine styling and hook `onEvent` into your own toast/notification system; for a full list of events see [progress events](../guides/progress-events.md).
 The setup above is enough to get end‑to‑end passkey registration, login, and transaction signing with React components.

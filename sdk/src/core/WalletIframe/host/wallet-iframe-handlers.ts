@@ -9,13 +9,13 @@ import type {
   PMFinalizeEmailRecoveryPayload,
   PMStopEmailRecoveryPayload,
 } from '../shared/messages';
-import type { TatchiPasskey, PasskeyManagerContext, RecoveryResult } from '../../TatchiPasskey';
-import type { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
+import type { TatchiPasskey } from '../../TatchiPasskey';
 import { OFFLINE_EXPORT_FALLBACK, EXPORT_NEAR_KEYPAIR_CANCELLED, WALLET_UI_CLOSED } from '../../OfflineExport/messages';
 import { isTouchIdCancellationError } from '../../../utils/errors';
 import type {
   AccountRecoveryHooksOptions,
   ActionHooksOptions,
+  DelegateActionHooksOptions,
   LoginHooksOptions,
   RegistrationHooksOptions,
   SendTransactionHooksOptions,
@@ -24,31 +24,24 @@ import type {
   SignTransactionHooksOptions,
 } from '../../types/sdkSentEvents';
 import type {
-  ActionResult,
-  GetRecentLoginsResult,
   LoginSession,
   RegistrationResult,
-  SignTransactionResult,
 } from '../../types/tatchi';
 import type {
   DeviceLinkingQRData,
   ScanAndLinkDeviceOptionsDevice1,
-  LinkDeviceResult,
-  StartDevice2LinkingFlowResults
 } from '../../types/linkDevice';
 import type { ConfirmationConfig } from '../../types/signer-worker';
 import { toAccountId } from '../../types/accountIds';
 import { SignedTransaction } from '../../NearClient';
-import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
-import { isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, PlainSignedTransactionLike } from '../validation';
-import type { TransactionInput, ActionArgs } from '../../types';
-import type { DelegateActionInput } from '../../types/delegate';
+import { isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, PlainSignedTransactionLike } from '@/utils/validation';
+import type { ActionArgs } from '../../types';
 
 type Req<T extends ParentToChildType> = Extract<ParentToChildEnvelope, { type: T }>;
 type HandlerMap = { [K in ParentToChildType]: (req: Extract<ParentToChildEnvelope, { type: K }>) => Promise<void> };
 
 export interface HandlerDeps {
-  getTatchiPasskey(): TatchiPasskey | TatchiPasskeyIframe;
+  getTatchiPasskey(): TatchiPasskey;
   post(msg: ChildToParentEnvelope): void;
   postProgress(requestId: string | undefined, payload: ProgressPayload): void;
   postToParent?(msg: unknown): void;
@@ -106,6 +99,26 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
+    PM_ENROLL_THRESHOLD_ED25519_KEY: async (req: Req<'PM_ENROLL_THRESHOLD_ED25519_KEY'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId, options } = req.payload!;
+      if (respondIfCancelled(req.requestId)) return;
+
+      const result = await pm.enrollThresholdEd25519Key(nearAccountId, options);
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_ROTATE_THRESHOLD_ED25519_KEY: async (req: Req<'PM_ROTATE_THRESHOLD_ED25519_KEY'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId, options } = req.payload!;
+      if (respondIfCancelled(req.requestId)) return;
+
+      const result = await pm.rotateThresholdEd25519Key(nearAccountId, options);
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
     PM_SIGN_TXS_WITH_ACTIONS: async (req: Req<'PM_SIGN_TXS_WITH_ACTIONS'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, transactions, options } = req.payload!;
@@ -114,8 +127,8 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         nearAccountId,
         transactions: transactions,
         options: {
-          ...options,
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
+          ...(options || {}),
+          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
         } as SignTransactionHooksOptions,
       });
 
@@ -185,12 +198,11 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const pm = getTatchiPasskey();
       const { signedTransaction, options } = req.payload || {};
       let st = signedTransaction;
-
-      if (isPlainSignedTransactionLike(st)) {
-        const s = st;
+      const plainCandidate = st;
+      if (plainCandidate && isPlainSignedTransactionLike(plainCandidate)) {
         try {
-          const borsh = extractBorshBytesFromPlainSignedTx(st as Parameters<typeof extractBorshBytesFromPlainSignedTx>[0]);
-          st = SignedTransaction.fromPlain({ transaction: s.transaction, signature: s.signature, borsh_bytes: borsh });
+          const borsh = extractBorshBytesFromPlainSignedTx(plainCandidate);
+          st = SignedTransaction.fromPlain({ transaction: plainCandidate.transaction, signature: plainCandidate.signature, borsh_bytes: borsh });
         } catch {
           // If conversion fails, pass through original value
         }
@@ -232,7 +244,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         options: {
           ...(options || {}),
           onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-        },
+        } as DelegateActionHooksOptions,
       });
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
@@ -354,15 +366,28 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
           .catch(() => undefined);
       }
       const base: ConfirmationConfig = pm.getConfirmationConfig();
-      if (typeof pm.setConfirmationConfig === 'function') {
-        pm.setConfirmationConfig({ ...base, ...patch });
-      }
+      pm.setConfirmationConfig({ ...base, ...patch });
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
     PM_GET_CONFIRMATION_CONFIG: async (req: Req<'PM_GET_CONFIRMATION_CONFIG'>) => {
       const pm = getTatchiPasskey();
       const result = pm.getConfirmationConfig();
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_SET_SIGNER_MODE: async (req: Req<'PM_SET_SIGNER_MODE'>) => {
+      const pm = getTatchiPasskey();
+      const { signerMode } = req.payload!;
+      try {
+        pm.setSignerMode(signerMode);
+      } catch {}
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+    },
+
+    PM_GET_SIGNER_MODE: async (req: Req<'PM_GET_SIGNER_MODE'>) => {
+      const pm = getTatchiPasskey();
+      const result = pm.getSignerMode();
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
@@ -396,9 +421,10 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
 
     PM_DELETE_DEVICE_KEY: async (req: Req<'PM_DELETE_DEVICE_KEY'>) => {
       const pm = getTatchiPasskey();
-      const { accountId, publicKeyToDelete } = req.payload!;
+      const { accountId, publicKeyToDelete, options } = req.payload!;
       const result = await pm.deleteDeviceKey(accountId, publicKeyToDelete, {
-        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
+        ...(options || {}),
+        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
       } as ActionHooksOptions);
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });

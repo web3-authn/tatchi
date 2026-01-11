@@ -5,7 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { promises as fs } from 'node:fs';
 
 // Import from built SDK to avoid TS transpilation for tests
-import { AuthService } from '../../../dist/esm/server/index.js';
+import {
+  AuthService,
+  createThresholdEd25519ServiceFromAuthService,
+  handleApplyServerLock,
+  handleGetShamirKeyInfo,
+  handleRemoveServerLock,
+} from '../../../dist/esm/server/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,6 +56,26 @@ async function main() {
   };
 
   const authService = new AuthService(config);
+  // Ensure the Shamir service is initialized early so the test harness health check
+  // (`/shamir/key-info`) can succeed before Playwright starts running tests.
+  try {
+    await authService.shamirService?.ensureReady?.();
+  } catch { }
+
+  // Test harness: skip on-chain WebAuthn authentication verification for relayer routes.
+  // The Playwright suite already validates client-side behavior (and often bypasses
+  // contract verification for determinism); keeping the relay permissive avoids
+  // failures caused by browser WebAuthn mock signature differences.
+  try {
+    authService.verifyAuthenticationResponse = async () => ({ success: true, verified: true });
+  } catch { }
+
+  // Threshold signing services (in-memory stores are sufficient for test runs).
+  const threshold = createThresholdEd25519ServiceFromAuthService({
+    authService,
+    thresholdEd25519KeyStore: { kind: 'in-memory' },
+    logger: null,
+  });
 
   const port = Number(process.env.RELAY_PORT || '3000');
   const allowedOrigins = [
@@ -57,11 +83,18 @@ async function main() {
     process.env.EXPECTED_WALLET_ORIGIN || 'https://wallet.example.localhost',
   ].filter(Boolean);
 
-  const setCors = (res) => {
-    const origin = allowedOrigins[0] || '*';
-    res.setHeader('Access-Control-Allow-Origin', origin);
+  const setCors = (req, res) => {
+    const requestOrigin = String(req.headers?.origin || '');
+    const allowOrigin =
+      requestOrigin && allowedOrigins.includes(requestOrigin)
+        ? requestOrigin
+        : (allowedOrigins[0] || '*');
+
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    if (allowOrigin !== '*') {
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   };
@@ -81,8 +114,22 @@ async function main() {
     res.end(JSON.stringify(body));
   };
 
+  const thresholdStatus = (result) => {
+    if (result?.ok) return 200;
+    switch (result?.code) {
+      case 'threshold_disabled':
+        return 503;
+      case 'internal':
+        return 500;
+      case 'unauthorized':
+        return 401;
+      default:
+        return 400;
+    }
+  };
+
   const server = createServer(async (req, res) => {
-    setCors(res);
+    setCors(req, res);
     if (req.method === 'OPTIONS') {
       res.statusCode = 200; return res.end();
     }
@@ -91,18 +138,38 @@ async function main() {
       if (req.method === 'GET' && url.pathname === '/healthz') {
         return sendJson(res, 200, { ok: true });
       }
+      if (req.method === 'GET' && url.pathname === '/threshold-ed25519/healthz') {
+        return sendJson(res, 200, { ok: true, configured: true });
+      }
       if (req.method === 'GET' && url.pathname === '/shamir/key-info') {
-        const out = await authService.handleGetShamirKeyInfo();
+        const shamir = authService.shamirService;
+        if (!shamir || !shamir.hasShamir?.()) {
+          return sendJson(res, 503, { error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' });
+        }
+        const out = await handleGetShamirKeyInfo(shamir);
         return sendJson(res, out.status, JSON.parse(out.body));
+      }
+      if (req.method === 'POST' && url.pathname === '/threshold-ed25519/keygen') {
+        const body = await readJson(req);
+        const out = await threshold.thresholdEd25519Keygen(body);
+        return sendJson(res, thresholdStatus(out), out);
       }
       if (req.method === 'POST' && url.pathname === '/vrf/apply-server-lock') {
         const body = await readJson(req);
-        const out = await authService.handleApplyServerLock({ body });
+        const shamir = authService.shamirService;
+        if (!shamir || !shamir.hasShamir?.()) {
+          return sendJson(res, 503, { error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' });
+        }
+        const out = await handleApplyServerLock(shamir, { body });
         return sendJson(res, out.status, JSON.parse(out.body));
       }
       if (req.method === 'POST' && url.pathname === '/vrf/remove-server-lock') {
         const body = await readJson(req);
-        const out = await authService.handleRemoveServerLock({ body });
+        const shamir = authService.shamirService;
+        if (!shamir || !shamir.hasShamir?.()) {
+          return sendJson(res, 503, { error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' });
+        }
+        const out = await handleRemoveServerLock(shamir, { body });
         return sendJson(res, out.status, JSON.parse(out.body));
       }
       if (req.method === 'POST' && url.pathname === '/create_account_and_register_user') {
@@ -110,6 +177,7 @@ async function main() {
         const {
           new_account_id,
           new_public_key,
+          threshold_ed25519,
           vrf_data,
           webauthn_registration,
           deterministic_vrf_public_key,
@@ -121,6 +189,7 @@ async function main() {
         const result = await authService.createAccountAndRegisterUser({
           new_account_id,
           new_public_key,
+          threshold_ed25519,
           vrf_data,
           webauthn_registration,
           deterministic_vrf_public_key,

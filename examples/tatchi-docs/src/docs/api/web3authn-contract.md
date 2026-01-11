@@ -69,7 +69,7 @@ These WebAuthn credentials are signed with a challenge: we use verifiable random
 
 | Field | Purpose | Source |
 |-------|---------|--------|
-| `domain_separator` | Prevents cross-protocol collisions | Fixed constant (`"web3_authn_vrf_challenge_v1"`) |
+| `domain_separator` | Prevents cross-protocol collisions | Fixed constant (`"web3_authn_challenge_v3"`) |
 | `user_id` | Binds challenge to user identity | Client session |
 | `rp_id` | Binds to origin (e.g., `"example.com"`) | Client config |
 | `block_height` | Ensures freshness and replay protection | NEAR RPC |

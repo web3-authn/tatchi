@@ -28,6 +28,7 @@ import {
   SecureConfirmMessageType,
   type SecureConfirmRequest,
   type SerializableCredential,
+  type SigningAuthMode,
 } from './confirmTxFlow/types';
 import type { TransactionInputWasm } from '../../types/actions';
 import type { RpcCallPayload, ConfirmationConfig } from '../../types/signer-worker';
@@ -36,13 +37,13 @@ import type { RegistrationCredentialConfirmationPayload } from '../SignerWorkerM
 import type { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types/webauthn';
 import { handlePromptUserConfirmInJsMainThread } from './confirmTxFlow';
 import type { VrfWorkerManagerHandlerContext } from './handlers/types';
+import { WorkerControlMessage } from '../../workerControlMessages';
 import {
   checkVrfStatus,
   clearSession,
   clearVrfSession,
   confirmAndDeriveDevice2RegistrationSession,
   confirmAndPrepareSigningSession,
-  createSigningSessionChannel,
   deriveVrfKeypairFromPrf,
   mintSessionKeysAndSendToSigner,
   dispenseSessionKey,
@@ -213,7 +214,53 @@ export class VrfWorkerManager {
    * VRF retains the sibling port for WrapKeySeed delivery.
    */
   async createSigningSessionChannel(sessionId: string): Promise<MessagePort> {
-    return createSigningSessionChannel(this.getHandlerContext(), sessionId);
+    await this.ensureWorkerReady(true);
+    if (!this.vrfWorker) {
+      throw new Error('VRF Web Worker not available');
+    }
+
+    const channel = new MessageChannel();
+
+    // Wait for VRF worker ACK to avoid a race where MintSessionKeys runs before
+    // the VRF worker has stored the port (WrapKeySeed delivery would silently no-op).
+    const ackPromise = new Promise<void>((resolve, reject) => {
+      const worker = this.vrfWorker!;
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Timeout waiting for VRF WrapKeySeed port attach for session ${sessionId}`));
+      }, 2000);
+
+      const onMessage = (event: MessageEvent) => {
+        const msg = (event as any)?.data as any;
+        if (!msg || typeof msg.type !== 'string') return;
+        if (msg.sessionId !== sessionId) return;
+
+        if (msg.type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR) {
+          cleanup();
+          reject(new Error(String(msg.error || 'VRF worker failed to attach WrapKeySeed port')));
+          return;
+        }
+        if (msg.type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK) {
+          cleanup();
+          resolve();
+        }
+      };
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        worker.removeEventListener('message', onMessage);
+      };
+
+      worker.addEventListener('message', onMessage);
+    });
+
+    this.vrfWorker.postMessage(
+      { type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT, sessionId },
+      [channel.port1],
+    );
+
+    await ackPromise;
+    return channel.port2;
   }
 
   /**
@@ -310,6 +357,8 @@ export class VrfWorkerManager {
   async confirmAndPrepareSigningSession(params: {
     ctx: VrfWorkerManagerContext;
     sessionId: string;
+    signingAuthMode?: SigningAuthMode;
+    sessionPolicyDigest32?: string;
     kind: 'transaction';
     txSigningRequests: TransactionInputWasm[];
     rpcCall: RpcCallPayload;
@@ -319,6 +368,8 @@ export class VrfWorkerManager {
   } | {
     ctx: VrfWorkerManagerContext;
     sessionId: string;
+    signingAuthMode?: SigningAuthMode;
+    sessionPolicyDigest32?: string;
     kind: 'delegate';
     nearAccountId: string;
     title?: string;
@@ -335,6 +386,8 @@ export class VrfWorkerManager {
   } | {
     ctx: VrfWorkerManagerContext;
     sessionId: string;
+    signingAuthMode?: SigningAuthMode;
+    sessionPolicyDigest32?: string;
     kind: 'nep413';
     nearAccountId: string;
     message: string;
@@ -349,6 +402,7 @@ export class VrfWorkerManager {
     transactionContext: TransactionContext;
     intentDigest: string;
     credential?: SerializableCredential;
+    vrfChallenge?: VRFChallenge;
   }> {
     return confirmAndPrepareSigningSession(this.getHandlerContext(), params);
   }
@@ -591,7 +645,7 @@ export class VrfWorkerManager {
    * This is called during login to decrypt and load the VRF keypair in-memory
    */
   async unlockVrfKeypair(args: {
-    credential: WebAuthnAuthenticationCredential;
+    credential: WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential;
     nearAccountId: AccountId;
     encryptedVrfKeypair: EncryptedVRFKeypair;
     onEvent?: (event: { type: string; data: { step: string; message: string } }) => void;

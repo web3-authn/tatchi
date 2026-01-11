@@ -1,6 +1,6 @@
 import type { SecureConfirmRequest } from '../types';
 import { SecureConfirmationType } from '../types';
-import { isObject, isString } from '@/core/WalletIframe/validation';
+import { isObject, isString } from '@/utils/validation';
 
 /**
  * Validates secure-confirm requests (V2 only).
@@ -12,13 +12,11 @@ export function validateSecureConfirmRequest(input: unknown): SecureConfirmReque
   }
   if (!isObject(input)) throw new Error('parsed is not an object');
   const p = input as {
-    schemaVersion?: unknown;
     requestId?: unknown;
     type?: unknown;
     summary?: unknown;
     payload?: unknown;
   };
-  if (p.schemaVersion !== 2) throw new Error('schemaVersion must be 2');
   if (!isString(p.requestId) || !p.requestId) throw new Error('missing requestId');
   if (!isString(p.type) || !p.type) throw new Error('missing type');
   if (p.summary === undefined || p.summary === null) throw new Error('missing summary');

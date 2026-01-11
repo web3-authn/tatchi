@@ -1,7 +1,7 @@
 import { Page } from '@playwright/test';
 
 export async function setupWebAuthnMocks(page: Page): Promise<void> {
-  await page.evaluate(() => {
+  const install = () => {
     const baseLog = console.log.bind(console);
     const baseWarn = console.warn.bind(console);
     const baseError = console.error.bind(console);
@@ -15,38 +15,31 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
 
     log('Setting up WebAuthn Virtual Authenticator mocks...');
 
-    const loadNobleEd25519 = async () => {
-      const cacheKey = '__noble_ed25519';
-      const cached = (window as any)[cacheKey];
-      if (cached !== undefined) return cached;
-
-      const ensureSha512 = (ed: any) => {
-        const utils = ed?.utils;
-        if (!utils) return;
-        if (typeof utils.sha512 === 'function') return;
-        utils.sha512 = async (message: Uint8Array | ArrayBuffer) => {
-          // Normalize to a fresh ArrayBuffer to satisfy BufferSource typing
-          const bytes = message instanceof Uint8Array ? message : new Uint8Array(message);
-          const ab = new ArrayBuffer(bytes.byteLength);
-          new Uint8Array(ab).set(bytes);
-          const digest = await crypto.subtle.digest('SHA-512', ab);
-          return new Uint8Array(digest);
+    // Ensure base64url helpers exist in every frame (wallet iframe runs cross-origin).
+    try {
+      if (typeof (window as any).base64UrlEncode !== 'function') {
+        (window as any).base64UrlEncode = (value: ArrayBufferLike | ArrayBufferView): string => {
+          const bytes =
+            value instanceof ArrayBuffer
+              ? new Uint8Array(value)
+              : new Uint8Array((value as ArrayBufferView).buffer, (value as ArrayBufferView).byteOffset, (value as ArrayBufferView).byteLength);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
         };
-        log('Patched noble/ed25519 utils.sha512 with WebCrypto digest');
-      };
-
-      try {
-        const mod: any = await import('@noble/ed25519');
-        const ed25519 = mod?.ed25519 ?? mod;
-        ensureSha512(ed25519);
-        (window as any)[cacheKey] = ed25519;
-        return ed25519;
-      } catch (error) {
-        warn('[WebAuthn Mock] Failed to load noble/ed25519 module; falling back to deterministic keys', error);
-        (window as any)[cacheKey] = null;
-        return null;
       }
-    };
+      if (typeof (window as any).base64UrlDecode !== 'function') {
+        (window as any).base64UrlDecode = (value: string): Uint8Array => {
+          const padded = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+          const padding = padded.length % 4 ? 4 - (padded.length % 4) : 0;
+          const base64 = padded + '='.repeat(padding);
+          const binary = atob(base64);
+          const out = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+          return out;
+        };
+      }
+    } catch { }
 
     // Store original functions for restoration
     const originalFetch = window.fetch;
@@ -58,46 +51,24 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
       // This ensures the contract will store and lookup the credential using the same format
       const credentialIdBytes = new TextEncoder().encode(credentialIdString);
 
-      // Try to generate a real Ed25519 keypair via noble; on failure, fall back to deterministic bytes
+      // Generate a real Ed25519 keypair using WebCrypto so it works in strict-CSP wallet iframes.
       let publicKeyBytes: Uint8Array | undefined;
-      let seed: Uint8Array | undefined;
-      let deterministicFallback = false;
+      let privateKey: CryptoKey | undefined;
 
-      const ed25519 = await loadNobleEd25519();
-      if (ed25519) {
-        try {
-          seed = new Uint8Array(32);
-          crypto.getRandomValues(seed);
-          // Prefer async variant so we only need utils.sha512 (not sha512Sync)
-          const getPk = ed25519.getPublicKeyAsync || ed25519.getPublicKey;
-          if (!getPk) {
-            throw new Error('ed25519.getPublicKey not available');
-          }
-          const pk = await getPk.call(ed25519, seed);
-          publicKeyBytes = pk instanceof Uint8Array ? pk : new Uint8Array(pk);
-          log('Generated real Ed25519 keypair for credential:', credentialIdString);
-        } catch (error) {
-          warn('[WebAuthn Mock] noble/ed25519 key generation failed; using deterministic fallback', error);
-          deterministicFallback = true;
-        }
-      } else {
-        deterministicFallback = true;
-      }
-
-      if (deterministicFallback) {
-        const encoder = new TextEncoder();
-        const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode('pub:' + credentialIdString)));
-        publicKeyBytes = digest.slice(0, 32);
-        seed = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode('seed:' + credentialIdString)));
-      }
-
-      if (!publicKeyBytes || !seed) {
+      try {
+        const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+        privateKey = keyPair.privateKey;
+        const pub = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+        publicKeyBytes = new Uint8Array(pub);
+        log('Generated real Ed25519 keypair (WebCrypto) for credential:', credentialIdString);
+      } catch (error) {
+        warn('[WebAuthn Mock] WebCrypto Ed25519 key generation failed', error);
         throw new Error('Failed to derive Ed25519 keypair for WebAuthn mock');
       }
 
-      // Store the seed for later signature generation (get/assertion flow will use it when available)
+      // Store the key material for later signature generation (get/assertion flow).
       (window as any).__testKeyPairs = (window as any).__testKeyPairs || {};
-      (window as any).__testKeyPairs[credentialIdString] = { seed };
+      (window as any).__testKeyPairs[credentialIdString] = { privateKey, publicKeyBytes };
 
       try { console.log('Public key bytes:', Array.from(publicKeyBytes)); } catch {}
 
@@ -170,6 +141,8 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
     // === Helper utilities for RP ID resolution in tests ===
     const resolveTestRpId = (): string => {
       try {
+        const explicit = (window as any).__W3A_TEST_RP_ID__;
+        if (explicit && typeof explicit === 'string' && explicit.length > 0) return explicit;
         const fromConfig = (window as any).testUtils?.configs?.rpId;
         if (fromConfig && typeof fromConfig === 'string' && fromConfig.length > 0) return fromConfig;
         const host = (typeof window !== 'undefined' && window.location) ? window.location.hostname : '';
@@ -429,9 +402,8 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
             signature: await (async () => {
               // Generate proper WebAuthn signature using the stored Ed25519 keypair
               try {
-                const ed25519 = await import('@noble/ed25519');
                 const entry = (window as any).__testKeyPairs?.[credentialIdString];
-                if (!entry?.seed) {
+                if (!entry?.privateKey) {
                   console.warn('No stored keypair for credential:', credentialIdString);
                   return new Uint8Array(64).fill(0x99); // Fallback signature
                 }
@@ -468,17 +440,8 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
                 dataToSign.set(authenticatorData, 0);
                 dataToSign.set(clientDataHash, authenticatorData.length);
 
-                // Sign with the Ed25519 seed using noble (async variant avoids sha512 sync requirement)
-                let signatureBytes: Uint8Array;
-                if (ed25519.signAsync) {
-                  // Version 2.x API
-                  signatureBytes = await ed25519.signAsync(dataToSign, entry.seed);
-                } else if (ed25519.sign) {
-                  // Version 3.x API
-                  signatureBytes = ed25519.sign(dataToSign, entry.seed);
-                } else {
-                  throw new Error('Unsupported @noble/ed25519 signing API');
-                }
+                const signature = await crypto.subtle.sign({ name: 'Ed25519' }, entry.privateKey, dataToSign);
+                const signatureBytes = new Uint8Array(signature);
 
                 console.log('Generated proper WebAuthn signature for credential:', credentialIdString);
                 console.log('Signature bytes length:', signatureBytes.length);
@@ -519,5 +482,9 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
     };
 
     console.log('Enhanced WebAuthn mock with dual PRF extension support installed');
-  });
+  };
+
+  // Apply to future frames (wallet iframe) and the current main frame.
+  await page.addInitScript(install);
+  await page.evaluate(install);
 }

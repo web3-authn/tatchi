@@ -11,7 +11,7 @@ import {
   sendTransaction,
   signAndSendTransactions,
 } from './actions';
-import { AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
+import type { RecoveryResult } from './recoverAccount';
 import { registerPasskey } from './registration';
 import { registerPasskeyInternal } from './registration';
 import {
@@ -49,7 +49,7 @@ import type {
   SignTransactionHooksOptions,
 } from '../types/sdkSentEvents';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
-import { ConfirmationConfig, type WasmSignedDelegate } from '../types/signer-worker';
+import { ConfirmationConfig, type SignerMode, type WasmSignedDelegate } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import type { DerivedAddressRecord, RecoveryEmailRecord } from '../IndexedDBManager';
@@ -63,30 +63,19 @@ import type {
   StartDevice2LinkingFlowArgs,
   StartDevice2LinkingFlowResults
 } from '../types/linkDevice';
-import { LinkDeviceFlow } from './linkDevice';
-import { linkDeviceWithScannedQRData } from './scanDevice';
-import {
-  signNEP413Message,
-  type SignNEP413MessageParams,
-  type SignNEP413MessageResult
+import type {
+  SignNEP413MessageParams,
+  SignNEP413MessageResult
 } from './signNEP413';
-import { signDelegateAction } from './delegateAction';
 import { SignedDelegate } from '../types/delegate';
-import { sendDelegateActionViaRelayer } from './relay';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 import type { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../utils/errors';
 import { isOffline, openOfflineExport } from '../OfflineExport';
-import { buildSetRecoveryEmailsActions, getRecoveryEmailHashesContractCall } from '../rpcCalls';
-import {
-  prepareRecoveryEmails,
-  getLocalRecoveryEmails,
-  bytesToHex,
-} from '../EmailRecovery';
 import type { DelegateActionInput } from '../types/delegate';
 import { buildConfigsFromEnv } from '../defaultConfigs';
-import { EmailRecoveryFlowOptions } from './emailRecovery';
+import type { EmailRecoveryFlowOptions } from '../types/emailRecovery';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -114,8 +103,8 @@ export class TatchiPasskey {
   // Wallet-iframe mode: mirror wallet-host preferences into app-origin in-memory cache.
   private walletIframePrefsUnsubscribe: (() => void) | null = null;
   // Internal active Device2 flow when running locally (not exposed)
-  private activeDeviceLinkFlow: LinkDeviceFlow | null = null;
-  private activeAccountRecoveryFlow: AccountRecoveryFlow | null = null;
+  private activeDeviceLinkFlow: import('./linkDevice').LinkDeviceFlow | null = null;
+  private activeAccountRecoveryFlow: import('./recoverAccount').AccountRecoveryFlow | null = null;
   private activeEmailRecoveryFlow: import('./emailRecovery').EmailRecoveryFlow | null = null;
 
   constructor(
@@ -133,12 +122,22 @@ export class TatchiPasskey {
     // Use provided client or create default one
     this.nearClient = nearClient || new MinimalNearClient(this.configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(this.configs, this.nearClient);
+    // Wallet-iframe mode: delegate signerMode persistence to the wallet host.
+    // Non-iframe mode: ensure any previous writer is cleared (UserPreferences is a singleton).
+    this.userPreferences.configureWalletIframeSignerModeWriter(
+      this.shouldUseWalletIframe()
+        ? async (next) => {
+          const router = await this.requireWalletIframeRouter();
+          await router.setSignerMode(next);
+        }
+        : null
+    );
     // VRF worker initializes automatically in the constructor
   }
 
   /**
    * Direct access to user preferences manager for convenience
-   * Example: passkeyManager.userPreferences.onThemeChange(cb)
+   * Example: tatchi.userPreferences.onThemeChange(cb)
    */
   get userPreferences(): UserPreferencesManager {
     return this.webAuthnManager.getUserPreferences();
@@ -197,6 +196,7 @@ export class TatchiPasskey {
             connectTimeoutMs: 20_000, // 20s
             requestTimeoutMs: 60_000, // 60s
             theme: this.configs.walletTheme,
+            signerMode: this.configs.signerMode,
             nearRpcUrl: this.configs.nearRpcUrl,
             nearNetwork: this.configs.nearNetwork,
             contractId: this.configs.contractId,
@@ -212,7 +212,7 @@ export class TatchiPasskey {
 
           await this.iframeRouter.init();
           // Opportunistically warm remote NonceManager
-          try { await this.iframeRouter.prefetchBlockheight(); } catch {}
+          try { await this.iframeRouter.prefetchBlockheight(); } catch { }
         })();
       }
 
@@ -224,7 +224,7 @@ export class TatchiPasskey {
     } else {
       await this.iframeRouter.init();
       // Opportunistically warm remote NonceManager
-      try { await this.iframeRouter.prefetchBlockheight(); } catch {}
+      try { await this.iframeRouter.prefetchBlockheight(); } catch { }
     }
 
     // Wallet-iframe mode: keep app-origin UI prefs in sync with the wallet host.
@@ -236,6 +236,13 @@ export class TatchiPasskey {
         this.userPreferences.applyWalletHostConfirmationConfig({
           nearAccountId: nearAccountId ? toAccountId(nearAccountId) : null,
           confirmationConfig: cfg,
+        });
+      }
+      const signerMode = await this.iframeRouter.getSignerMode?.({ timeoutMs: 1000 }).catch(() => null);
+      if (signerMode) {
+        this.userPreferences.applyWalletHostSignerMode?.({
+          nearAccountId: nearAccountId ? toAccountId(nearAccountId) : null,
+          signerMode,
         });
       }
     }
@@ -257,6 +264,12 @@ export class TatchiPasskey {
         nearAccountId,
         confirmationConfig: payload?.confirmationConfig,
       });
+      if (payload?.signerMode) {
+        this.userPreferences.applyWalletHostSignerMode?.({
+          nearAccountId,
+          signerMode: payload.signerMode,
+        });
+      }
     });
     this.walletIframePrefsUnsubscribe = unsubscribe ?? null;
   }
@@ -367,11 +380,12 @@ export class TatchiPasskey {
           confirmationConfig,
           options: {
             onEvent: options?.onEvent,
+            ...(options?.signerMode ? { signerMode: options.signerMode } : {}),
             ...(options?.confirmerText ? { confirmerText: options.confirmerText } : {})
           }
         });
         // Opportunistically warm resources (non-blocking)
-        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
+        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch { } })();
         await options?.afterCall?.(true, res);
         return res;
       } catch (error: unknown) {
@@ -408,10 +422,11 @@ export class TatchiPasskey {
           confirmationConfig,
           options: {
             onEvent: options?.onEvent,
+            ...(options?.signerMode ? { signerMode: options.signerMode } : {}),
             ...(options?.confirmerText ? { confirmerText: options.confirmerText } : {})
           }
         });
-        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
+        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch { } })();
         await options?.afterCall?.(true, res);
         return res;
       } catch (error: unknown) {
@@ -429,6 +444,75 @@ export class TatchiPasskey {
       this.configs.authenticatorOptions || DEFAULT_AUTHENTICATOR_OPTIONS,
       confirmationConfigOverride,
     );
+  }
+
+  /**
+   * Post-registration threshold enrollment.
+   * Runs `/threshold-ed25519/keygen` authorization and stores `threshold_ed25519_2p_v1`
+   * key material locally. Intended to be called after the passkey is registered on-chain.
+   */
+  async enrollThresholdEd25519Key(
+    nearAccountId: string,
+    options?: {
+      deviceNumber?: number;
+      relayerUrl?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    error?: string;
+  }> {
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter(nearAccountId);
+      return await router.enrollThresholdEd25519Key({
+        nearAccountId,
+        options: options || {},
+      });
+    }
+
+    return await this.webAuthnManager.enrollThresholdEd25519KeyPostRegistration({
+      nearAccountId: toAccountId(nearAccountId),
+      deviceNumber: options?.deviceNumber,
+    });
+  }
+
+  /**
+   * Threshold key rotation helper:
+   * keygen → AddKey(new) → DeleteKey(old).
+   */
+  async rotateThresholdEd25519Key(
+    nearAccountId: string,
+    options?: {
+      deviceNumber?: number;
+    }
+  ): Promise<{
+    success: boolean;
+    oldPublicKey: string;
+    oldRelayerKeyId: string;
+    publicKey: string;
+    relayerKeyId: string;
+    wrapKeySalt: string;
+    deleteOldKeyAttempted: boolean;
+    deleteOldKeySuccess: boolean;
+    warning?: string;
+    error?: string;
+  }> {
+    // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter(nearAccountId);
+      return await router.rotateThresholdEd25519Key({
+        nearAccountId,
+        options: options || {},
+      });
+    }
+
+    return await this.webAuthnManager.rotateThresholdEd25519KeyPostRegistration({
+      nearAccountId: toAccountId(nearAccountId),
+      deviceNumber: options?.deviceNumber,
+    });
   }
 
   /**
@@ -450,13 +534,14 @@ export class TatchiPasskey {
           nearAccountId,
           options: {
             onEvent: options?.onEvent,
+            deviceNumber: options?.deviceNumber,
             // Pass through session so the wallet host calls relay to mint JWT/cookie sessions
             session: options?.session,
             signingSession: options?.signingSession,
           }
         });
         // Best-effort warm-up after successful login (non-blocking)
-        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
+        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch { } })();
         await options?.afterCall?.(true, res);
         return res;
       } catch (error: unknown) {
@@ -470,7 +555,7 @@ export class TatchiPasskey {
     await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient);
     const res = await loginAndCreateSession(this.getContext(), toAccountId(nearAccountId), options);
     // Best-effort warm-up after successful login (non-blocking)
-    try { void this.warmCriticalResources(nearAccountId); } catch {}
+    try { void this.warmCriticalResources(nearAccountId); } catch { }
     return res;
   }
 
@@ -481,7 +566,7 @@ export class TatchiPasskey {
     await logoutAndClearSession(this.getContext());
     // Also clear wallet-origin VRF session if service iframe is active
     if (this.iframeRouter) {
-      try { await this.iframeRouter.clearVrfSession?.(); } catch {}
+      try { await this.iframeRouter.clearVrfSession?.(); } catch { }
     }
   }
 
@@ -492,7 +577,7 @@ export class TatchiPasskey {
     if (this.shouldUseWalletIframe()) {
       const router = await this.requireWalletIframeRouter(nearAccountId);
       const session = await router.getLoginSession(nearAccountId);
-      try { await router.prefetchBlockheight(); } catch {}
+      try { await router.prefetchBlockheight(); } catch { }
       return session;
     }
     return await getLoginSession(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
@@ -524,7 +609,7 @@ export class TatchiPasskey {
         try {
           const router = await this.requireWalletIframeRouter();
           await router.setConfirmBehavior(behavior);
-        } catch {}
+        } catch { }
       })();
       return;
     }
@@ -541,7 +626,7 @@ export class TatchiPasskey {
         try {
           const router = await this.requireWalletIframeRouter();
           await router.setConfirmationConfig(config);
-        } catch {}
+        } catch { }
       })();
       return;
     }
@@ -554,11 +639,15 @@ export class TatchiPasskey {
         try {
           const router = await this.requireWalletIframeRouter();
           await router.setTheme(theme);
-        } catch {}
+        } catch { }
       })();
       return;
     }
     this.webAuthnManager.getUserPreferences().setUserTheme(theme);
+  }
+
+  setSignerMode(signerMode: SignerMode | SignerMode['mode']): void {
+    this.webAuthnManager.getUserPreferences().setSignerMode(signerMode);
   }
 
   /**
@@ -571,6 +660,10 @@ export class TatchiPasskey {
     return this.webAuthnManager.getUserPreferences().getConfirmationConfig();
   }
 
+  getSignerMode(): SignerMode {
+    return this.webAuthnManager.getUserPreferences().getSignerMode();
+  }
+
   /**
    * Prefetch latest block height/hash (and nonce if context missing) to reduce
    * perceived latency when the user initiates a signing flow.
@@ -580,7 +673,7 @@ export class TatchiPasskey {
       await this.iframeRouter.prefetchBlockheight();
       return;
     }
-    try { await this.webAuthnManager.getNonceManager().prefetchBlockheight(this.nearClient); } catch {}
+    try { await this.webAuthnManager.getNonceManager().prefetchBlockheight(this.nearClient); } catch { }
   }
 
   async getRecentLogins(): Promise<GetRecentLoginsResult> {
@@ -617,14 +710,14 @@ export class TatchiPasskey {
    * @example
    * ```typescript
    * // Basic transfer
-   * const result = await passkeyManager.executeAction('alice.near', {
+   * const result = await tatchi.executeAction('alice.near', {
    *   type: ActionType.Transfer,
    *   receiverId: 'bob.near',
    *   amount: '1000000000000000000000000' // 1 NEAR
    * });
    *
    * // Function call with gas and deposit (already available in ActionArgs)
-   * const result = await passkeyManager.executeAction('alice.near', {
+   * const result = await tatchi.executeAction('alice.near', {
    *   type: ActionType.FunctionCall,
    *   receiverId: 'contract.near',
    *   methodName: 'set_value',
@@ -634,7 +727,7 @@ export class TatchiPasskey {
    * });
    *
    * // Batched transaction
-   * const result = await passkeyManager.executeAction('alice.near', [
+   * const result = await tatchi.executeAction('alice.near', [
    *   {
    *     type: ActionType.Transfer,
    *     receiverId: 'bob.near',
@@ -655,23 +748,17 @@ export class TatchiPasskey {
     nearAccountId: string,
     receiverId: string,
     actionArgs: ActionArgs | ActionArgs[],
-    options?: ActionHooksOptions
+    options: ActionHooksOptions
   }): Promise<ActionResult> {
     // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(args.nearAccountId);
-        const confirmerText = args.options?.confirmerText;
         const res = await router.executeAction({
           nearAccountId: args.nearAccountId,
           receiverId: args.receiverId,
           actionArgs: args.actionArgs,
-          options: {
-            onEvent: args.options?.onEvent,
-            waitUntil: args.options?.waitUntil,
-            confirmationConfig: args.options?.confirmationConfig,
-            confirmerText,
-          }
+          options: args.options
         });
         await args.options?.afterCall?.(true, res);
         return res;
@@ -709,7 +796,7 @@ export class TatchiPasskey {
    * @example
    * ```typescript
    * // Sign and send multiple transactions in a batch
-   * const results = await passkeyManager.signAndSendTransactions('alice.near', {
+   * const results = await tatchi.signAndSendTransactions('alice.near', {
    *   transactions: [
    *     {
    *       receiverId: 'bob.near',
@@ -739,27 +826,25 @@ export class TatchiPasskey {
   async signAndSendTransactions({
     nearAccountId,
     transactions,
-    options = {}
+    options
   }: {
     nearAccountId: string,
     transactions: TransactionInput[],
-    options?: SignAndSendTransactionHooksOptions,
+    options: SignAndSendTransactionHooksOptions,
   }): Promise<ActionResult[]> {
 
     // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(nearAccountId);
-        const confirmerText = options?.confirmerText;
+        const routerOptions: SignAndSendTransactionHooksOptions = {
+          ...options,
+          executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil },
+        };
         const res = await router.signAndSendTransactions({
           nearAccountId,
           transactions: transactions.map(t => ({ receiverId: t.receiverId, actions: t.actions })),
-          options: {
-            onEvent: options?.onEvent,
-            executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil },
-            confirmationConfig: options?.confirmationConfig,
-            confirmerText,
-          }
+          options: routerOptions
         });
         // Emit completion
         const txIds = (res || []).map(r => r?.transactionId).filter(Boolean).join(', ');
@@ -799,12 +884,12 @@ export class TatchiPasskey {
     nearAccountId,
     receiverId,
     actions,
-    options = {}
+    options
   }: {
     nearAccountId: string;
     receiverId: string;
     actions: ActionArgs[];
-    options?: SignAndSendTransactionHooksOptions;
+    options: SignAndSendTransactionHooksOptions;
   }): Promise<ActionResult> {
     const results = await this.signAndSendTransactions({
       nearAccountId,
@@ -836,7 +921,7 @@ export class TatchiPasskey {
    * @example
    * ```typescript
    * // Sign a single transaction
-   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   * const signedTransactions = await tatchi.signTransactionsWithActions('alice.near', {
    *   transactions: [{
    *     receiverId: 'bob.near',
    *     actions: [{
@@ -848,7 +933,7 @@ export class TatchiPasskey {
    * });
    *
    * // Sign multiple transactions in a batch
-   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   * const signedTransactions = await tatchi.signTransactionsWithActions('alice.near', {
    *   transactions: [
    *     {
    *       receiverId: 'bob.near',
@@ -874,22 +959,22 @@ export class TatchiPasskey {
   async signTransactionsWithActions({ nearAccountId, transactions, options }: {
     nearAccountId: string,
     transactions: TransactionInput[],
-    options?: SignTransactionHooksOptions
+    options: SignTransactionHooksOptions
   }): Promise<SignTransactionResult[]> {
     // route signing via wallet origin
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(nearAccountId);
         const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
-        const confirmerText = options?.confirmerText;
         const result = await router.signTransactionsWithActions({
-          nearAccountId, transactions:
-          txs,
+          nearAccountId,
+          transactions: txs,
           options: {
-            onEvent: options?.onEvent,
-            confirmationConfig: options?.confirmationConfig,
-            confirmerText,
-          }
+            signerMode: options.signerMode,
+            onEvent: options.onEvent,
+            confirmationConfig: options.confirmationConfig,
+            confirmerText: options.confirmerText,
+          },
         });
         const arr: SignTransactionResult[] = Array.isArray(result) ? result : [];
         await options?.afterCall?.(true, arr);
@@ -921,7 +1006,7 @@ export class TatchiPasskey {
    * @example
    * ```typescript
    * // Sign a transaction first
-   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   * const signedTransactions = await tatchi.signTransactionsWithActions('alice.near', {
    *   transactions: [{
    *     receiverId: 'bob.near',
    *     actions: [{
@@ -932,7 +1017,7 @@ export class TatchiPasskey {
    * });
    *
    * // Then broadcast it
-   * const result = await passkeyManager.sendTransaction(
+   * const result = await tatchi.sendTransaction(
    *   signedTransactions[0].signedTransaction,
    *   TxExecutionStatus.FINAL
    * );
@@ -984,7 +1069,7 @@ export class TatchiPasskey {
   }: {
     nearAccountId: string;
     delegate: DelegateActionInput;
-    options?: DelegateActionHooksOptions;
+    options: DelegateActionHooksOptions;
   }): Promise<SignDelegateActionResult> {
     // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
     if (this.shouldUseWalletIframe()) {
@@ -994,9 +1079,10 @@ export class TatchiPasskey {
           nearAccountId,
           delegate,
           options: {
-            onEvent: options?.onEvent,
-            confirmationConfig: options?.confirmationConfig,
-            confirmerText: options?.confirmerText,
+            signerMode: options.signerMode,
+            onEvent: options.onEvent,
+            confirmationConfig: options.confirmationConfig,
+            confirmerText: options.confirmerText,
           }
         }) as SignDelegateActionResult;
         await options?.afterCall?.(true, result);
@@ -1009,6 +1095,7 @@ export class TatchiPasskey {
       }
     }
 
+    const { signDelegateAction } = await import('./delegateAction');
     return signDelegateAction({
       context: this.getContext(),
       nearAccountId: toAccountId(nearAccountId),
@@ -1031,6 +1118,7 @@ export class TatchiPasskey {
     const base = args.relayerUrl.replace(/\/+$/, '');
     const route = (this.configs.relayer?.delegateActionRoute || '/signed-delegate').replace(/^\/?/, '/');
     const endpoint = `${base}${route}`;
+    const { sendDelegateActionViaRelayer } = await import('./relay');
     return sendDelegateActionViaRelayer({
       url: endpoint,
       payload: {
@@ -1051,20 +1139,21 @@ export class TatchiPasskey {
     delegate: DelegateActionInput;
     relayerUrl: string;
     signal?: AbortSignal;
-    options?: SignAndSendDelegateActionHooksOptions;
+    options: SignAndSendDelegateActionHooksOptions;
   }): Promise<SignAndSendDelegateActionResult> {
     const { nearAccountId, delegate, relayerUrl, signal, options } = args;
 
     const signOptions: DelegateActionHooksOptions | undefined = options
       ? {
-          onEvent: options.onEvent,
-          onError: options.onError,
-          waitUntil: options.waitUntil,
-          confirmationConfig: options.confirmationConfig,
-          confirmerText: options.confirmerText,
-          // suppress afterCall so we can call afterCall() once at the end of the lifecycle.
-          afterCall: () => {},
-        }
+        signerMode: options.signerMode,
+        onEvent: options.onEvent,
+        onError: options.onError,
+        waitUntil: options.waitUntil,
+        confirmationConfig: options.confirmationConfig,
+        confirmerText: options.confirmerText,
+        // suppress afterCall so we can call afterCall() once at the end of the lifecycle.
+        afterCall: () => { },
+      }
       : undefined;
 
     let signResult: SignDelegateActionResult;
@@ -1072,7 +1161,7 @@ export class TatchiPasskey {
       signResult = await this.signDelegateAction({
         nearAccountId,
         delegate,
-        options: signOptions,
+        options: signOptions as DelegateActionHooksOptions,
       });
     } catch (error) {
       await options?.afterCall?.(false);
@@ -1081,9 +1170,9 @@ export class TatchiPasskey {
 
     const relayOptions: DelegateRelayHooksOptions | undefined = options
       ? {
-          onEvent: options.onEvent,
-          onError: options.onError,
-        }
+        onEvent: options.onEvent,
+        onError: options.onError,
+      }
       : undefined;
 
     let relayResult: DelegateRelayResult;
@@ -1141,7 +1230,7 @@ export class TatchiPasskey {
    *
    * @example
    * ```typescript
-   * const result = await passkeyManager.signNEP413Message('alice.near', {
+   * const result = await tatchi.signNEP413Message('alice.near', {
    *   message: 'Hello World',
    *   recipient: 'app.example.com',
    *   state: 'optional-state'
@@ -1151,20 +1240,23 @@ export class TatchiPasskey {
   async signNEP413Message(args: {
     nearAccountId: string,
     params: SignNEP413MessageParams,
-    options?: SignNEP413HooksOptions
+    options: SignNEP413HooksOptions
   }): Promise<SignNEP413MessageResult> {
     // In wallet-iframe mode, always run inside the wallet origin (no app-origin fallback).
     if (this.shouldUseWalletIframe()) {
       try {
         const router = await this.requireWalletIframeRouter(args.nearAccountId);
-        const confirmerText = args.options?.confirmerText;
-        const confirmationConfig = args.options?.confirmationConfig;
         const result = await router.signNep413Message({
           nearAccountId: args.nearAccountId,
           message: args.params.message,
           recipient: args.params.recipient,
           state: args.params.state,
-          options: { onEvent: args.options?.onEvent, confirmerText, confirmationConfig }
+          options: {
+            signerMode: args.options.signerMode,
+            onEvent: args.options.onEvent,
+            confirmerText: args.options.confirmerText,
+            confirmationConfig: args.options.confirmationConfig,
+          }
         });
         await args.options?.afterCall?.(true, result);
         // Expect wallet to return the same shape as WebAuthnManager.signNEP413Message
@@ -1177,6 +1269,7 @@ export class TatchiPasskey {
       }
     }
 
+    const { signNEP413Message } = await import('./signNEP413');
     const res = await signNEP413Message({
       context: this.getContext(),
       nearAccountId: toAccountId(args.nearAccountId),
@@ -1310,6 +1403,10 @@ export class TatchiPasskey {
     }
     const accountId = toAccountId(nearAccountId);
 
+    // Dynamic import for rpc/email utils
+    const { getRecoveryEmailHashesContractCall } = await import('../rpcCalls');
+    const { getLocalRecoveryEmails, bytesToHex } = await import('../EmailRecovery');
+
     // Fetch on-chain recovery email hashes
     const rawHashes = await getRecoveryEmailHashesContractCall(this.nearClient, accountId);
     if (!rawHashes.length) {
@@ -1349,7 +1446,7 @@ export class TatchiPasskey {
   async setRecoveryEmails(
     nearAccountId: string,
     recoveryEmails: string[],
-    options?: ActionHooksOptions
+    options: ActionHooksOptions
   ): Promise<ActionResult> {
     if (this.shouldUseWalletIframe()) {
       try {
@@ -1365,6 +1462,10 @@ export class TatchiPasskey {
       }
     }
     const accountId = toAccountId(nearAccountId);
+
+    // Dynamic import
+    const { prepareRecoveryEmails } = await import('../EmailRecovery');
+    const { buildSetRecoveryEmailsActions } = await import('../rpcCalls');
 
     // Canonicalize, hash, and persist mapping locally (best-effort)
     const { hashes: recoveryEmailHashes } = await prepareRecoveryEmails(accountId, recoveryEmails);
@@ -1418,6 +1519,7 @@ export class TatchiPasskey {
 
     // Local orchestration using AccountRecoveryFlow for a single-call UX
     try {
+      const { AccountRecoveryFlow } = await import('./recoverAccount');
       const flow = new AccountRecoveryFlow(this.getContext(), options);
       // Phase 1: Discover available accounts
       const discovered = await flow.discover(accountIdInput || '');
@@ -1452,8 +1554,9 @@ export class TatchiPasskey {
   // === Email Recovery Flow ===
   ///////////////////////////////////////
 
-  private getEmailRecoveryFlow(options?: EmailRecoveryFlowOptions) {
-    const { EmailRecoveryFlow } = require('./emailRecovery') as typeof import('./emailRecovery');
+
+  private async ensureEmailRecoveryFlow(options?: EmailRecoveryFlowOptions) {
+    const { EmailRecoveryFlow } = await import('./emailRecovery');
     if (!this.activeEmailRecoveryFlow) {
       this.activeEmailRecoveryFlow = new EmailRecoveryFlow(this.getContext(), options);
     } else if (options) {
@@ -1490,7 +1593,7 @@ export class TatchiPasskey {
         throw e;
       }
     }
-    const flow = this.getEmailRecoveryFlow(options);
+    const flow = await this.ensureEmailRecoveryFlow(options);
     return await flow.start({ accountId });
   }
 
@@ -1517,7 +1620,7 @@ export class TatchiPasskey {
         throw e;
       }
     }
-    const flow = this.getEmailRecoveryFlow(options);
+    const flow = await this.ensureEmailRecoveryFlow(options);
     await flow.finalize({ accountId, nearPublicKey });
   }
 
@@ -1532,13 +1635,13 @@ export class TatchiPasskey {
       try {
         const router = await this.requireWalletIframeRouter();
         await router.stopEmailRecovery({ accountId, nearPublicKey });
-      } catch {}
+      } catch { }
       return;
     }
 
     try {
       await this.activeEmailRecoveryFlow?.cancelAndReset({ accountId, nearPublicKey });
-    } catch {}
+    } catch { }
     this.activeEmailRecoveryFlow = null;
   }
 
@@ -1564,6 +1667,7 @@ export class TatchiPasskey {
     }
     // Local fallback: keep internal flow reference for cancellation
     this.activeDeviceLinkFlow?.cancel();
+    const { LinkDeviceFlow } = await import('./linkDevice');
     const flow = new LinkDeviceFlow(this.getContext(), {
       cameraId: args?.cameraId,
       options: args?.options,
@@ -1581,7 +1685,7 @@ export class TatchiPasskey {
       try {
         const router = await this.requireWalletIframeRouter();
         await router.stopDevice2LinkingFlow();
-      } catch {}
+      } catch { }
       return;
     }
     if (this.iframeRouter) {
@@ -1619,6 +1723,7 @@ export class TatchiPasskey {
       });
       return res as LinkDeviceResult;
     }
+    const { linkDeviceWithScannedQRData } = await import('./scanDevice');
     return linkDeviceWithScannedQRData(this.getContext(), qrData, options);
   }
 
@@ -1628,7 +1733,7 @@ export class TatchiPasskey {
   async deleteDeviceKey(
     accountId: string,
     publicKeyToDelete: string,
-    options?: ActionHooksOptions
+    options: ActionHooksOptions
   ): Promise<ActionResult> {
     // Validate that we're not deleting the last key
     const keysView = this.iframeRouter

@@ -22,7 +22,7 @@ export interface SessionConfig {
   };
 }
 
-export class SessionService<TClaims = any> {
+export class SessionService<TClaims extends Record<string, unknown> = Record<string, unknown>> {
   private cfg: NonNullable<SessionConfig>;
 
   constructor(cfg: NonNullable<SessionConfig>) {
@@ -93,7 +93,9 @@ export class SessionService<TClaims = any> {
     return await Promise.resolve(verify(token));
   }
 
-  parse(headers: Record<string, string | string[] | undefined>): Promise<{ ok: boolean; claims?: TClaims } | { ok: false }>{
+  parse(
+    headers: Record<string, string | string[] | undefined>
+  ): Promise<{ ok: true; claims: TClaims } | { ok: false }> {
     const authHeader = (headers['authorization'] || headers['Authorization']) as string | undefined;
     let token: string | null = null;
     if (authHeader && /^Bearer\s+/.test(authHeader)) token = authHeader.replace(/^Bearer\s+/i, '').trim();
@@ -106,7 +108,11 @@ export class SessionService<TClaims = any> {
       }
     }
     if (!token) return Promise.resolve({ ok: false });
-    return this.verifyJwt(token).then(v => v.valid ? { ok: true, claims: v.payload as TClaims } : { ok: false });
+    return this.verifyJwt(token).then(v =>
+      v.valid
+        ? { ok: true, claims: v.payload as TClaims }
+        : { ok: false }
+    );
   }
 
   // === token helpers ===

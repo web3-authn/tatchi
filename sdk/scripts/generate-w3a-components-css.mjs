@@ -111,7 +111,6 @@ const hostSelectorsArr = [
   'w3a-modal-tx-confirmer',
   'w3a-drawer-tx-confirmer',
   'w3a-tx-confirm-content',
-  'w3a-button-with-tooltip',
   'w3a-halo-border',
   'w3a-passkey-halo-loading',
   // Export Private Key viewer host (responds to theme + tokens)

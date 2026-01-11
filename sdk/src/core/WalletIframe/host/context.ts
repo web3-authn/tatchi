@@ -1,10 +1,10 @@
 import { MinimalNearClient } from '../../NearClient';
-import { TatchiPasskey as PasskeyManager } from '../../TatchiPasskey';
+import { TatchiPasskey } from '../../TatchiPasskey';
 import { __setWalletIframeHostMode } from '../host-mode';
 import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import type { TatchiConfigsInput } from '../../types/tatchi';
 import type { PMSetConfigPayload } from '../shared/messages';
-import { isString } from '../validation';
+import { isString } from '@/utils/validation';
 import { setEmbeddedBase } from '../../sdkPaths';
 import { assertWalletHostConfigsNoNestedIframeWallet, sanitizeWalletHostConfigs } from './config-guards';
 
@@ -13,7 +13,7 @@ export interface HostContext {
   port: MessagePort | null;
   walletConfigs: TatchiConfigsInput | null;
   nearClient: MinimalNearClient | null;
-  passkeyManager: PasskeyManager | TatchiPasskeyIframe | null;
+  tatchiPasskey: TatchiPasskey | TatchiPasskeyIframe | null;
   themeUnsubscribe?: () => void;
   onWindowMessage?: (e: MessageEvent) => void;
 }
@@ -24,7 +24,7 @@ export function createHostContext(): HostContext {
     port: null,
     walletConfigs: null,
     nearClient: null,
-    passkeyManager: null,
+    tatchiPasskey: null,
     themeUnsubscribe: undefined,
     onWindowMessage: undefined,
   };
@@ -41,13 +41,13 @@ export function ensurePasskeyManager(ctx: HostContext): void {
   if (!ctx.nearClient) {
     ctx.nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
   }
-  if (!ctx.passkeyManager) {
+  if (!ctx.tatchiPasskey) {
     const cfg = sanitizeWalletHostConfigs(walletConfigs);
     assertWalletHostConfigsNoNestedIframeWallet(cfg);
     __setWalletIframeHostMode(true);
-    ctx.passkeyManager = new PasskeyManager(cfg, ctx.nearClient);
+    ctx.tatchiPasskey = new TatchiPasskey(cfg, ctx.nearClient);
     try {
-      const pmAny = ctx.passkeyManager as unknown as { warmCriticalResources?: () => Promise<void> };
+      const pmAny = ctx.tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
       if (pmAny?.warmCriticalResources) void pmAny.warmCriticalResources();
     } catch {}
     updateThemeBridge(ctx);
@@ -56,9 +56,9 @@ export function ensurePasskeyManager(ctx: HostContext): void {
 
 export function updateThemeBridge(ctx: HostContext): void {
   try {
-    const pm: unknown = ctx.passkeyManager;
+    const pm = ctx.tatchiPasskey;
     if (!pm) return;
-    const up = (pm as PasskeyManager).userPreferences as unknown as {
+    const up = pm.userPreferences as {
       getUserTheme(): 'dark' | 'light';
       onThemeChange(cb: (t: 'dark' | 'light') => void): () => void;
     };
@@ -79,6 +79,7 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
     nearNetwork: payload?.nearNetwork || prev.nearNetwork || 'testnet',
     contractId: payload?.contractId || prev.contractId || '',
     nearExplorerUrl: payload?.nearExplorerUrl || prev.nearExplorerUrl,
+    signerMode: payload?.signerMode || prev.signerMode,
     relayer: payload?.relayer || prev.relayer,
     authenticatorOptions: payload?.authenticatorOptions || prev.authenticatorOptions,
     vrfWorkerConfigs: payload?.vrfWorkerConfigs || prev.vrfWorkerConfigs,
@@ -94,19 +95,21 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
   // Configure SDK embedded asset base for Lit modal/embedded components
   try {
     const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
+    const safeOrigin = window.location.origin || window.location.href;
     const defaultRoot = (() => {
       try {
-        const base = new URL('/sdk/', window.location.origin).toString();
+        const base = new URL('/sdk/', safeOrigin).toString();
         return base.endsWith('/') ? base : base + '/';
       } catch {
         return '/sdk/';
       }
     })();
     let resolvedBase = defaultRoot;
-    if (isString(assetsBaseUrl)) {
+    const assetsBaseUrlCandidate = isString(assetsBaseUrl) ? assetsBaseUrl : undefined;
+    if (assetsBaseUrlCandidate !== undefined) {
       try {
-        const u = new URL(assetsBaseUrl, window.location.origin);
-        if (u.origin === window.location.origin) {
+        const u = new URL(assetsBaseUrlCandidate, safeOrigin);
+        if (u.origin === safeOrigin) {
           const norm = u.toString().endsWith('/') ? u.toString() : u.toString() + '/';
           resolvedBase = norm;
         }
@@ -117,7 +120,7 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
 
   // Reset instances so they re-initialize with new config lazily
   ctx.nearClient = null;
-  ctx.passkeyManager = null;
+  ctx.tatchiPasskey = null;
 
   // Forward UI registry to iframe-lit-elem-mounter if provided
   try {

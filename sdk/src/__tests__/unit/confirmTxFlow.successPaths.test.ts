@@ -29,15 +29,43 @@ test.describe('confirmTxFlow – success paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async () => ({
-            id: 'cred-id', type: 'public-key', rawId: new Uint8Array([1, 2, 3]).buffer,
+          getAuthenticationCredentialsSerialized: async () => ({
+            id: 'cred-id',
+            rawId: 'AQID',
+            type: 'public-key',
             response: {
-              clientDataJSON: new Uint8Array([1]).buffer,
-              authenticatorData: new Uint8Array([2]).buffer,
-              signature: new Uint8Array([3]).buffer,
-              userHandle: null
+              clientDataJSON: 'AQ',
+              authenticatorData: 'Ag',
+              signature: 'Aw',
+              userHandle: undefined,
             },
-            getClientExtensionResults: () => ({ prf: { results: { first: new Uint8Array(32).fill(7), second: new Uint8Array(32).fill(8) } } })
+            clientExtensionResults: {
+              prf: {
+                results: {
+                  first: 'Bw',
+                  second: undefined,
+                },
+              },
+            },
+          }) as any,
+          getAuthenticationCredentialsSerializedDualPrf: async () => ({
+            id: 'cred-id',
+            rawId: 'AQID',
+            type: 'public-key',
+            response: {
+              clientDataJSON: 'AQ',
+              authenticatorData: 'Ag',
+              signature: 'Aw',
+              userHandle: undefined,
+            },
+            clientExtensionResults: {
+              prf: {
+                results: {
+                  first: 'Bw',
+                  second: 'CA',
+                },
+              },
+            },
           }) as any,
         },
         indexedDB: {
@@ -53,7 +81,7 @@ test.describe('confirmTxFlow – success paths', () => {
       };
 
       const request = {
-        schemaVersion: 2, requestId: 'r1', type: types.SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF,
+        requestId: 'r1', type: types.SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF,
         summary: {}, payload: { nearAccountId: 'alice.testnet', publicKey: 'pk' }
       };
 
@@ -161,14 +189,16 @@ test.describe('confirmTxFlow – success paths', () => {
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
 
-      const request = {
-        schemaVersion: 2, requestId: 'r2', type: types.SecureConfirmationType.REGISTER_ACCOUNT,
-        summary: {},
-        payload: {
-          nearAccountId: 'bob.testnet',
-          rpcCall: { method: 'create', argsJson: {} }
-        }
-      };
+	      const request = {
+	        requestId: 'r2', type: types.SecureConfirmationType.REGISTER_ACCOUNT,
+	        summary: {},
+	        payload: {
+	          nearAccountId: 'bob.testnet',
+	          deviceNumber: 1,
+	          rpcCall: { method: 'create', argsJson: {} }
+	        },
+	        intentDigest: 'register:bob.testnet:1',
+	      };
       const msgs: any[] = [];
       const worker = { postMessage: (m: any) => msgs.push(m) } as unknown as Worker;
       await handle(ctx, { type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD, data: request }, worker);
@@ -250,22 +280,44 @@ test.describe('confirmTxFlow – success paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async () => ({
-            id: 'auth-cred', type: 'public-key', rawId: new Uint8Array([9]).buffer,
+          getAuthenticationCredentialsSerialized: async () => ({
+            id: 'auth-cred',
+            rawId: 'CQ',
+            type: 'public-key',
             response: {
-              clientDataJSON: new Uint8Array([1]).buffer,
-              authenticatorData: new Uint8Array([2]).buffer,
-              signature: new Uint8Array([3]).buffer,
-              userHandle: null
+              clientDataJSON: 'AQ',
+              authenticatorData: 'Ag',
+              signature: 'Aw',
+              userHandle: undefined,
             },
-            getClientExtensionResults: () => ({
+            clientExtensionResults: {
               prf: {
                 results: {
-                  first: new Uint8Array(32).fill(5)
-                }
-              }
-            })
-          }),
+                  first: 'BQ',
+                  second: undefined,
+                },
+              },
+            },
+          }) as any,
+          getAuthenticationCredentialsSerializedDualPrf: async () => ({
+            id: 'auth-cred',
+            rawId: 'CQ',
+            type: 'public-key',
+            response: {
+              clientDataJSON: 'AQ',
+              authenticatorData: 'Ag',
+              signature: 'Aw',
+              userHandle: undefined,
+            },
+            clientExtensionResults: {
+              prf: {
+                results: {
+                  first: 'BQ',
+                  second: 'Bg',
+                },
+              },
+            },
+          }) as any,
         },
         indexedDB: {
           clientDB: {
@@ -275,13 +327,22 @@ test.describe('confirmTxFlow – success paths', () => {
             getUserByDevice: async () => ({ deviceNumber: 1 }),
           },
           nearKeysDB: {
-            getEncryptedKey: async () => ({ wrapKeySalt: 'salt-sign' }),
+            getLocalKeyMaterial: async () => ({
+              kind: 'local_near_sk_v3',
+              nearAccountId: 'carol.testnet',
+              deviceNumber: 1,
+              publicKey: 'ed25519:pk',
+              encryptedSk: 'ciphertext-b64u',
+              chacha20NonceB64u: 'nonce-b64u',
+              wrapKeySalt: 'salt-sign',
+              timestamp: Date.now(),
+            }),
+            getThresholdKeyMaterial: async () => null,
           },
         },
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'r3',
         type: types.SecureConfirmationType.SIGN_TRANSACTION,
         summary: {},
@@ -307,6 +368,7 @@ test.describe('confirmTxFlow – success paths', () => {
       const resp = msgs[0]?.data;
       return {
         confirmed: resp?.confirmed,
+        error: resp?.error,
         tx: resp?.transactionContext,
         reserved,
         refreshed,
@@ -314,7 +376,7 @@ test.describe('confirmTxFlow – success paths', () => {
       };
     }, { paths: IMPORT_PATHS });
 
-    expect(result.confirmed).toBe(true);
+    expect(result.confirmed, result.error || 'unknown error').toBe(true);
     expect(result.tx?.nextNonce).toBe('201');
     expect(result.reserved).toEqual(['201']);
     expect(result.refreshed).toBeGreaterThanOrEqual(0);
@@ -379,24 +441,44 @@ test.describe('confirmTxFlow – success paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async () => ({
+          getAuthenticationCredentialsSerialized: async () => ({
             id: 'nep-cred',
+            rawId: 'Bw',
             type: 'public-key',
-            rawId: new Uint8Array([7]).buffer,
             response: {
-              clientDataJSON: new Uint8Array([1]).buffer,
-              authenticatorData: new Uint8Array([2]).buffer,
-              signature: new Uint8Array([3]).buffer,
-              userHandle: null
+              clientDataJSON: 'AQ',
+              authenticatorData: 'Ag',
+              signature: 'Aw',
+              userHandle: undefined,
             },
-            getClientExtensionResults: () => ({
+            clientExtensionResults: {
               prf: {
                 results: {
-                  first: new Uint8Array(32).fill(6)
-                }
-              }
-            })
-          }),
+                  first: 'Bg',
+                  second: undefined,
+                },
+              },
+            },
+          }) as any,
+          getAuthenticationCredentialsSerializedDualPrf: async () => ({
+            id: 'nep-cred',
+            rawId: 'Bw',
+            type: 'public-key',
+            response: {
+              clientDataJSON: 'AQ',
+              authenticatorData: 'Ag',
+              signature: 'Aw',
+              userHandle: undefined,
+            },
+            clientExtensionResults: {
+              prf: {
+                results: {
+                  first: 'Bg',
+                  second: 'Bw',
+                },
+              },
+            },
+          }) as any,
         },
         indexedDB: {
           clientDB: {
@@ -406,13 +488,22 @@ test.describe('confirmTxFlow – success paths', () => {
             getUserByDevice: async () => ({ deviceNumber: 1 }),
           },
           nearKeysDB: {
-            getEncryptedKey: async () => ({ wrapKeySalt: 'salt-nep' }),
+            getLocalKeyMaterial: async () => ({
+              kind: 'local_near_sk_v3',
+              nearAccountId: 'nep.testnet',
+              deviceNumber: 1,
+              publicKey: 'ed25519:pk',
+              encryptedSk: 'ciphertext-b64u',
+              chacha20NonceB64u: 'nonce-b64u',
+              wrapKeySalt: 'salt-nep',
+              timestamp: Date.now(),
+            }),
+            getThresholdKeyMaterial: async () => null,
           },
         },
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'r-nep',
         type: types.SecureConfirmationType.SIGN_NEP413_MESSAGE,
         summary: {},
@@ -434,6 +525,7 @@ test.describe('confirmTxFlow – success paths', () => {
       const resp = msgs[0]?.data;
       return {
         confirmed: resp?.confirmed,
+        error: resp?.error,
         prf: resp?.prfOutput,
         vrf: resp?.vrfChallenge,
         tx: resp?.transactionContext,
@@ -442,7 +534,7 @@ test.describe('confirmTxFlow – success paths', () => {
       };
     }, { paths: IMPORT_PATHS });
 
-    expect(result.confirmed).toBe(true);
+    expect(result.confirmed, result.error || 'unknown error').toBe(true);
     expect(result.vrf?.vrfOutput).toBe('nep-out');
     expect(result.tx?.nextNonce).toBe('11');
     expect(result.refreshed).toBeGreaterThanOrEqual(0);

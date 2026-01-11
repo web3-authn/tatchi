@@ -1,6 +1,6 @@
 import type { FinalExecutionOutcome } from '@near-js/types';
 import type { NearExecutionFailure, NearReceiptOutcomeWithId } from './types';
-import { isObject, isString } from '../../core/WalletIframe/validation';
+import { isObject, isString } from '@/utils/validation';
 
 /**
  * Parse a NEAR FinalExecutionOutcome and surface a human-readable error

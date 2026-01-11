@@ -1,5 +1,5 @@
 import { base64UrlDecode } from '../../../../utils';
-import type { EncryptedKeyData } from '../../../IndexedDBManager/passkeyNearKeysDB';
+import type { LocalNearSkV3Material } from '../../../IndexedDBManager/passkeyNearKeysDB';
 import {
   WorkerRequestType,
   isRegisterDevice2WithDerivedKeySuccess,
@@ -77,6 +77,10 @@ export async function registerDevice2WithDerivedKey({
       if (!s) return [];
       return Array.from(base64UrlDecode(s));
     };
+    const intentDigest32 = b64ToBytes(vrfChallenge.intentDigest);
+    if (intentDigest32.length !== 32) {
+      throw new Error('Missing or invalid vrfChallenge.intentDigest (expected base64url-encoded 32 bytes)');
+    }
     // Construct contractArgs in TypeScript and use JSON.stringify() here.
     // This is native to JS, extremely fast, and means the Rust worker just receives a "dumb" string that it can blindly convert to bytes
     const finalContractArgs = {
@@ -89,6 +93,7 @@ export async function registerDevice2WithDerivedKey({
         rp_id: vrfChallenge.rpId,
         block_height: Number(vrfChallenge.blockHeight),
         block_hash: b64ToBytes(vrfChallenge.blockHash),
+        intent_digest_32: intentDigest32,
       },
       webauthn_registration: credential,
       deterministic_vrf_public_key: b64ToBytes(deterministicVrfPublicKey),
@@ -134,16 +139,22 @@ export async function registerDevice2WithDerivedKey({
     if (!chacha20NonceB64u) {
       throw new Error('Missing chacha20NonceB64u in Device2 registration result');
     }
-    const keyData: EncryptedKeyData = {
+    const wrapKeySaltPersisted = wasmResult.wrapKeySalt;
+    if (!wrapKeySaltPersisted) {
+      throw new Error('Missing wrapKeySalt in Device2 registration result');
+    }
+
+    const keyMaterial: LocalNearSkV3Material = {
+      kind: 'local_near_sk_v3',
       nearAccountId,
       deviceNumber: deviceNumber ?? 2, // Default to device 2
-      encryptedData: wasmResult.encryptedData,
+      publicKey: wasmResult.publicKey,
+      encryptedSk: wasmResult.encryptedData,
       chacha20NonceB64u,
-      wrapKeySalt: wasmResult.wrapKeySalt,
-      version: 2,
+      wrapKeySalt: wrapKeySaltPersisted,
       timestamp: Date.now(),
     };
-    await ctx.indexedDB.nearKeysDB.storeEncryptedKey(keyData);
+    await ctx.indexedDB.nearKeysDB.storeKeyMaterial(keyMaterial);
 
     console.debug('[SignerWorkerManager] Device2 encrypted key stored successfully');
 
@@ -151,7 +162,7 @@ export async function registerDevice2WithDerivedKey({
       success: true,
       publicKey: wasmResult.publicKey,
       signedTransaction: wasmResult.signedTransaction,
-      wrapKeySalt: wasmResult.wrapKeySalt,
+      wrapKeySalt: wrapKeySaltPersisted,
       encryptedData: wasmResult.encryptedData,
       chacha20NonceB64u,
     };

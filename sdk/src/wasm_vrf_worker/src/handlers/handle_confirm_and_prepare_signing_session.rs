@@ -11,7 +11,7 @@ use wasm_bindgen::JsValue;
 
 /// Request payload: kick off confirmTxFlow from VRF WASM (via awaitSecureConfirmationV2).
 ///
-/// `request` must be a schemaVersion=2 SecureConfirmRequest object.
+/// `request` must be a SecureConfirmRequest object.
 /// This handler will auto-set `payload.signingAuthMode` for signing requests when absent:
 /// - `warmSession` if a valid VRF session exists for `requestId` with enough remaining uses
 /// - otherwise `webauthn`

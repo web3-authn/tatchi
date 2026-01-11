@@ -13,7 +13,7 @@ export async function checkVrfStatus(ctx: VrfWorkerManagerHandlerContext): Promi
     await ctx.ensureWorkerReady();
   } catch {
     // If initialization fails, return inactive status
-    return { active: false, nearAccountId: null };
+    return { active: false, nearAccountId: null, vrfPublicKey: null };
   }
 
   try {
@@ -26,18 +26,19 @@ export async function checkVrfStatus(ctx: VrfWorkerManagerHandlerContext): Promi
     const response = await ctx.sendMessage(message);
 
     if (response.success && response.data) {
-      const data = response.data as { active: boolean; sessionDuration?: number };
+      const data = response.data as { active: boolean; sessionDuration?: number; vrfPublicKey?: string };
       const current = ctx.getCurrentVrfAccountId();
       return {
         active: data.active,
         nearAccountId: current ? toAccountId(current) : null,
-        sessionDuration: data.sessionDuration
+        sessionDuration: data.sessionDuration,
+        vrfPublicKey: data.vrfPublicKey ?? null,
       };
     }
 
-    return { active: false, nearAccountId: null };
+    return { active: false, nearAccountId: null, vrfPublicKey: null };
   } catch (error) {
     console.warn('VRF Manager: Failed to get VRF status:', error);
-    return { active: false, nearAccountId: null };
+    return { active: false, nearAccountId: null, vrfPublicKey: null };
   }
 }

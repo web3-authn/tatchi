@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -8,7 +8,6 @@ import {
   TxExecutionStatus,
   useTatchi,
 } from '@tatchi-xyz/sdk/react';
-import { TouchIdWithText, SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react/embedded';
 import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
 import type { ConfirmationUIMode, ConfirmationBehavior } from '@tatchi-xyz/sdk/core';
 
@@ -20,69 +19,7 @@ import './DemoPage.css';
 
 
 export const DemoPage: React.FC = () => {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [isSlideActive, setIsSlideActive] = useState(false);
-  const [hasArmedHeavy, setHasArmedHeavy] = useState(false);
   const [clockMs, setClockMs] = useState(() => Date.now());
-
-  // Detect when this slide becomes the active (enter) page in the carousel
-  useEffect(() => {
-    const el = rootRef.current?.closest('.carousel-page') as HTMLElement | null;
-    if (!el) {
-      // Not inside the carousel; arm immediately
-      setIsSlideActive(true);
-      setHasArmedHeavy(true);
-      return;
-    }
-    const update = () => setIsSlideActive(el.classList.contains('page--active'));
-    update();
-    const mo = new MutationObserver(update);
-    mo.observe(el, { attributes: true, attributeFilter: ['class'] });
-    return () => mo.disconnect();
-  }, []);
-
-  // Once visible, arm heavy components after the slide transition completes
-  useEffect(() => {
-    if (!isSlideActive || hasArmedHeavy) return;
-
-    const prefersReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const pageEl = rootRef.current?.closest('.carousel-page') as HTMLElement | null;
-    const rootEl = pageEl?.closest('.carousel-root') as HTMLElement | null;
-    const transitionKind = rootEl?.getAttribute('data-transition') || 'slide';
-
-    // Try to read CSS custom properties for durations; fall back to sensible defaults
-    const cs = rootEl ? getComputedStyle(rootEl) : null;
-    const parseTime = (v?: string | null) => {
-      if (!v) return NaN;
-      const s = v.trim();
-      if (!s) return NaN;
-      if (s.endsWith('ms')) return parseFloat(s);
-      if (s.endsWith('s')) return parseFloat(s) * 1000;
-      const n = parseFloat(s);
-      return Number.isFinite(n) ? n : NaN;
-    };
-    const slideMs = parseTime(cs?.getPropertyValue('--carousel-slide-duration'));
-    const fadeMs = parseTime(cs?.getPropertyValue('--carousel-fade-in-duration'));
-    const baseMs = transitionKind === 'fade'
-      ? (Number.isFinite(fadeMs) ? fadeMs : 240)
-      : (Number.isFinite(slideMs) ? slideMs : 300);
-
-    // Add a small buffer to ensure compositor settles
-    const delayMs = prefersReduced ? 0 : baseMs + 80;
-
-    let timer: number | null = null;
-    // If there's no motion, or we can't detect elements, arm on next frame
-    if (!pageEl || !rootEl || prefersReduced) {
-      let raf1 = 0, raf2 = 0;
-      raf1 = requestAnimationFrame(() => {
-        raf2 = requestAnimationFrame(() => setHasArmedHeavy(true));
-      });
-      return () => { if (raf1) cancelAnimationFrame(raf1); if (raf2) cancelAnimationFrame(raf2); };
-    }
-
-    timer = window.setTimeout(() => setHasArmedHeavy(true), delayMs) as unknown as number;
-    return () => { if (timer) clearTimeout(timer as unknown as number); };
-  }, [isSlideActive, hasArmedHeavy]);
 
   // Lightweight clock for TTL countdown display
   useEffect(() => {
@@ -102,7 +39,6 @@ export const DemoPage: React.FC = () => {
     error,
   } = useSetGreeting();
 
-  const networkPostfix = tatchi.configs.nearNetwork == 'mainnet' ? 'near' : 'testnet';
   const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
   const [txLoading, setTxLoading] = useState(false);
   const [delegateLoading, setDelegateLoading] = useState(false);
@@ -465,7 +401,7 @@ export const DemoPage: React.FC = () => {
     : null;
 
   return (
-    <div ref={rootRef}>
+    <div>
       <div className="action-section">
         <div className="demo-page-header">
           <h2 className="demo-title">Welcome, {accountName}</h2>
@@ -529,141 +465,6 @@ export const DemoPage: React.FC = () => {
           {error && (
             <div className="error-message">Error: {error}</div>
           )}
-        </div>
-      </div>
-
-      <div className="action-section">
-        <h2 className="demo-subtitle">Batch Sign Transactions</h2>
-        <div className="action-text">
-          Sign multiple transactions securely in an cross-origin iframe.
-          What you see is what you sign.
-        </div>
-
-        <div className={"button-with-tooltip-container"}>
-          {!hasArmedHeavy
-            ? <LoadingButton
-                onClick={() => {}}
-                loading={false}
-                loadingText="Batch Sign Actions"
-                variant="primary"
-                size="medium"
-                disabled={true}
-                style={{ width: 200 }}
-              >
-                <TouchIdWithText buttonText="Batch Sign Actions" />
-              </LoadingButton>
-            : <SendTxButtonWithTooltip
-              nearAccountId={nearAccountId}
-              txSigningRequests={[
-                {
-                  receiverId: WEBAUTHN_CONTRACT_ID,
-                  actions: [
-                    createGreetingAction(greetingInput, { postfix: 'Embedded' }),
-                    { type: ActionType.Transfer, amount: '30000000000000000000' },
-                  ],
-                },
-                {
-                  receiverId: `jeff.${networkPostfix}`,
-                  actions: [ { type: ActionType.Transfer, amount: '20000000000000000000' } ],
-                },
-                {
-                  receiverId: `jensen.${networkPostfix}`,
-                  actions: [ { type: ActionType.Transfer, amount: '10000000000000000000' } ],
-                },
-              ]}
-              onEvent={(event) => {
-                switch (event.phase) {
-                  case ActionPhase.STEP_1_PREPARATION:
-                  case ActionPhase.STEP_2_USER_CONFIRMATION:
-                  case ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION:
-                  case ActionPhase.STEP_4_AUTHENTICATION_COMPLETE:
-                  case ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS:
-                  case ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE:
-                  case ActionPhase.STEP_7_BROADCASTING:
-                    toast.loading(event.message, { id: 'embedded' });
-                    break;
-                  case ActionPhase.ACTION_ERROR:
-                  case ActionPhase.WASM_ERROR:
-                    toast.error(`Transaction failed: ${event.error}`, { id: 'embedded' });
-                    break;
-                }
-              }}
-              options={{
-                // Force the confirmer to use the drawer UI for this flow
-                confirmationConfig: { uiMode: 'drawer' },
-                waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
-                afterCall: (success: boolean, result?: ActionResult[]) => {
-                  if (success && result) {
-                    const last = result[result.length - 1] ?? result[0];
-                    let txId = last?.transactionId;
-                    if (txId) {
-                      try { toast.dismiss('embedded'); } catch {}
-                      toast.success('Embedded flow complete', {
-                        description: (
-                          <a href={`${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`}
-                            target="_blank" rel="noopener noreferrer"
-                          >
-                            View transaction on NearBlocks
-                          </a>
-                        ),
-                      });
-                    } else {
-                      try { toast.dismiss('embedded'); } catch {}
-                      toast.success('Embedded flow complete');
-                    }
-                    setTimeout(() => void fetchGreeting(), 1000);
-                  }
-                },
-                onError: (error) => {
-                  const message = error instanceof Error ? error.message : String(error);
-                  toast.error(`Transaction failed: ${message}`, { id: 'embedded' });
-                },
-              }}
-              buttonStyle={{
-                color: 'white',
-                background: 'var(--w3a-colors-primary)',
-                borderRadius: '2rem',
-                border: 'none',
-                boxShadow: '0px 0px 3px 1px rgba(0, 0, 0, 0.1)',
-                fontSize: '16px',
-                height: '44px',
-              }}
-              buttonHoverStyle={{
-                background: 'var(--w3a-colors-primaryHover)',
-                boxShadow: '0px 0px 4px 2px rgba(0, 0, 0, 0.2)',
-              }}
-              tooltipPosition={{
-                position: 'bottom-left',
-              }}
-              buttonTextElement={<TouchIdWithText buttonText="Batch Sign Actions" />}
-              onCancel={() => toast('Transaction cancelled by user', { id: 'embedded' })}
-              onSuccess={(result) => {
-                try {
-                  const last = result[result.length - 1] ?? result[0];
-                  let txId = last?.transactionId;
-                  if (txId) {
-                    const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
-                    try { toast.dismiss('embedded'); } catch {}
-                    toast.success('Tx Success', {
-                      description: (
-                        <a href={txLink} target="_blank" rel="noopener noreferrer">
-                          View transaction on NearBlocks ({txId})
-                        </a>
-                      ),
-                    });
-                  } else {
-                    try { toast.dismiss('embedded'); } catch {}
-                    toast.success('Tx Success');
-                  }
-                } catch {
-                  try { toast.dismiss('embedded'); } catch {}
-                  toast.success('Tx Success');
-                }
-                // Refresh the greeting after success
-                setTimeout(() => fetchGreeting(), 1000);
-              }}
-            />
-          }
         </div>
       </div>
 

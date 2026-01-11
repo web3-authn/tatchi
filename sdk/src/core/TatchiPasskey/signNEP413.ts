@@ -2,6 +2,8 @@ import type { PasskeyManagerContext } from './index';
 import type { SignNEP413HooksOptions } from '../types/sdkSentEvents';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
 import type { AccountId } from '../types/accountIds';
+import { mergeSignerMode } from '../types/signer-worker';
+import { base64Encode } from '../../utils/encoders';
 
 /**
  * NEP-413 message signing parameters
@@ -27,6 +29,8 @@ export interface SignNEP413MessageResult {
   publicKey?: string;
   /** Base64-encoded signature */
   signature?: string;
+  /** Base64-encoded 32-byte nonce used for signing */
+  nonce?: string;
   /** Optional state parameter */
   state?: string;
   /** Error message if signing failed */
@@ -54,13 +58,15 @@ export async function signNEP413Message(args: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   params: SignNEP413MessageParams,
-  options?: SignNEP413HooksOptions
+  options: SignNEP413HooksOptions
 }): Promise<SignNEP413MessageResult> {
 
   const { context, nearAccountId, params, options } = args;
   const confirmerText = options?.confirmerText;
   const confirmationConfigOverride = options?.confirmationConfig;
-  const { nearClient, webAuthnManager } = context;
+  const { webAuthnManager } = context;
+  const baseSignerMode = webAuthnManager.getUserPreferences().getSignerMode();
+  const signerMode = mergeSignerMode(baseSignerMode, options.signerMode);
 
   try {
     // Emit preparation event
@@ -84,12 +90,13 @@ export async function signNEP413Message(args: {
       throw new Error(`User data not found for ${nearAccountId}`);
     }
 
-    // Generate a nonce + block context for NEP-413 signing
-    const {
-      nextNonce,
-      txBlockHash,
-      txBlockHeight
-    } = await context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(nearClient);
+    // Generate a random 32-byte nonce (NEP-413 expects base64-encoded nonce bytes).
+    const nonceBytes = new Uint8Array(32);
+    if (typeof crypto === 'undefined' || typeof crypto.getRandomValues !== 'function') {
+      throw new Error('Secure random not available to generate NEP-413 nonce');
+    }
+    crypto.getRandomValues(nonceBytes);
+    const nonce = base64Encode(nonceBytes);
 
     // Emit signing progress event
     options?.onEvent?.({
@@ -105,9 +112,10 @@ export async function signNEP413Message(args: {
     const result = await context.webAuthnManager.signNEP413Message({
       message: params.message,
       recipient: params.recipient,
-      nonce: nextNonce,
+      nonce,
       state: params.state || null,
       accountId: nearAccountId,
+      signerMode,
       title: confirmerText?.title,
       body: confirmerText?.body,
       confirmationConfigOverride,
@@ -127,6 +135,7 @@ export async function signNEP413Message(args: {
         accountId: result.accountId,
         publicKey: result.publicKey,
         signature: result.signature,
+        nonce,
         state: result.state
       };
     } else {

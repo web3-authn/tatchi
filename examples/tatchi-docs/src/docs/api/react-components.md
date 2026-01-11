@@ -18,7 +18,7 @@ import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 - `PasskeyAuthMenu` (`@tatchi-xyz/sdk/react/passkey-auth-menu`) – register/login/recover UI (includes “Recover Account with Email” and “Scan and Link Device”)
 - `AccountMenuButton` (`@tatchi-xyz/sdk/react/profile`) – account/profile + settings + device linking
-- `SendTxButtonWithTooltip` (`@tatchi-xyz/sdk/react/embedded`) – embedded tx button with a rich confirmation tooltip
-- `WalletIframeTxButtonHost` (from `@tatchi-xyz/sdk/react`) – lower-level iframe host wrapper
 
 All React exports must be used under `TatchiPasskeyProvider`.
+
+For transactions, render your own UI and call `tatchi.executeAction(...)` or `tatchi.signAndSendTransactions(...)`.

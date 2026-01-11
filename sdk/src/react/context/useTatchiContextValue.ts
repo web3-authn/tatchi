@@ -120,15 +120,15 @@ export function useTatchiContextValue(args: {
   }, [tatchi]);
 
   const executeAction: TatchiContextType['executeAction'] = useCallback((args) => {
-    return tatchi.executeAction(args);
+    return tatchi.executeAction({ ...args, options: { ...(args.options || {}) } });
   }, [tatchi]);
 
   const signNEP413Message: TatchiContextType['signNEP413Message'] = useCallback((args) => {
-    return tatchi.signNEP413Message(args);
+    return tatchi.signNEP413Message({ ...args, options: { ...(args.options || {}) } });
   }, [tatchi]);
 
   const signDelegateAction: TatchiContextType['signDelegateAction'] = useCallback((args) => {
-    return tatchi.signDelegateAction(args);
+    return tatchi.signDelegateAction({ ...args, options: { ...(args.options || {}) } });
   }, [tatchi]);
 
   const getLoginSession: TatchiContextType['getLoginSession'] = useCallback((nearAccountId?: string) => {

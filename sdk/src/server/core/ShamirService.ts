@@ -5,7 +5,7 @@ import type {
   ShamirRemoveServerLockRequest,
   ShamirRemoveServerLockResponse,
 } from './types';
-import { isString } from '../../core/WalletIframe/validation';
+import { isString } from '@/utils/validation';
 import { Shamir3PassUtils, setShamirWasmModuleOverride } from './shamirWorker';
 
 type ShamirConfig = AuthServiceConfig['shamir'];

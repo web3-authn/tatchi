@@ -58,6 +58,10 @@ const WALLET_STUB_RESPONSE_SCRIPT = String.raw`
       if (data.type === 'PM_GET_CONFIRMATION_CONFIG') {
         respond({ theme: 'dark', behavior: 'requireClick', uiMode: 'modal' });
       }
+
+      if (data.type === 'PM_GET_SIGNER_MODE') {
+        respond({ mode: 'local-signer' });
+      }
     };
   };
 `;

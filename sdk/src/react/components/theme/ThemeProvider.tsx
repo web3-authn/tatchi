@@ -155,19 +155,19 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
   syncUserPreferences = true,
 }) => {
   // Make passkey context optional - ThemeProvider can work without it
-  let passkeyManager: any;
+  let tatchi: any;
   let loginState: { isLoggedIn?: boolean } | null = null;
   try {
     const ctx = useTatchi() as any;
-    passkeyManager = ctx?.tatchi;
+    tatchi = ctx?.tatchi;
     loginState = ctx?.loginState;
   } catch {
     // ThemeProvider can work without TatchiContextProvider
-    passkeyManager = null;
+    tatchi = null;
     loginState = null;
   }
   const isControlled = themeProp !== undefined && themeProp !== null;
-  const isWalletIframeMode = !!passkeyManager?.configs?.iframeWallet?.walletOrigin;
+  const isWalletIframeMode = !!tatchi?.configs?.iframeWallet?.walletOrigin;
 
   const baseLight = React.useMemo(() => LIGHT_TOKENS, []);
   const baseDark = React.useMemo(() => DARK_TOKENS, []);
@@ -188,7 +188,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
 
   const [themeState, setThemeState] = React.useState<ThemeName>(() => {
     if (isControlled) return themeProp as ThemeName;
-    const t = passkeyManager?.userPreferences?.getUserTheme?.();
+    const t = tatchi?.userPreferences?.getUserTheme?.();
     if (t === 'light' || t === 'dark') return t;
     const stored = safeLoadStoredTheme();
     if (stored) return stored;
@@ -204,20 +204,20 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
 
   // Subscribe to manager updates if uncontrolled
   React.useEffect(() => {
-    if (isControlled || !passkeyManager) return;
-    const up = passkeyManager.userPreferences;
+    if (isControlled || !tatchi) return;
+    const up = tatchi.userPreferences;
     if (!up?.onThemeChange) return;
     const unsub = up.onThemeChange((t: ThemeName) => setThemeState(t));
     return () => { unsub?.(); };
-  }, [isControlled, passkeyManager]);
+  }, [isControlled, tatchi]);
 
   // Hydrate from persisted user preference when available (post-login)
   React.useEffect(() => {
-    if (isControlled || !passkeyManager || !loginState?.isLoggedIn) return;
+    if (isControlled || !tatchi || !loginState?.isLoggedIn) return;
     // In wallet-iframe mode, persisted preferences live on the wallet origin; the app origin
     // should not attempt to read IndexedDB (it is intentionally disabled).
     if (isWalletIframeMode) return;
-    const up = passkeyManager.userPreferences as any;
+    const up = tatchi.userPreferences as any;
     const fn: undefined | (() => Promise<'dark' | 'light' | null>) = up?.getCurrentUserAccountIdTheme?.bind(up);
     if (!fn) return;
     let cancelled = false;
@@ -232,40 +232,40 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
       }
     })();
     return () => { cancelled = true; };
-  }, [isControlled, isWalletIframeMode, passkeyManager, themeState, loginState?.isLoggedIn]);
+  }, [isControlled, isWalletIframeMode, tatchi, themeState, loginState?.isLoggedIn]);
 
   // On login, propagate current theme to user prefs AND wallet host to avoid "first-click does nothing"
   React.useEffect(() => {
-    if (isControlled || !passkeyManager?.userPreferences || !loginState?.isLoggedIn || !syncUserPreferences) return;
+    if (isControlled || !tatchi?.userPreferences || !loginState?.isLoggedIn || !syncUserPreferences) return;
     // Wallet-iframe mode: wallet host is the source of truth; avoid pushing app theme on login.
     if (isWalletIframeMode) return;
     let cancelled = false;
     void (async () => {
-      const pref = await passkeyManager.userPreferences.getCurrentUserAccountIdTheme?.();
+      const pref = await tatchi.userPreferences.getCurrentUserAccountIdTheme?.();
       if (cancelled) return;
       // If no stored preference yet OR it differs, push current theme
       if (pref !== themeState) {
-        passkeyManager.setUserTheme?.(themeState);
+        tatchi.setUserTheme?.(themeState);
       }
     })();
     return () => { cancelled = true; };
-  }, [isControlled, isWalletIframeMode, passkeyManager, themeState, loginState?.isLoggedIn, syncUserPreferences]);
+  }, [isControlled, isWalletIframeMode, tatchi, themeState, loginState?.isLoggedIn, syncUserPreferences]);
 
   const setTheme = React.useCallback((t: ThemeName) => {
     // Avoid redundant writes and subscription loops
     if (t === themeState) return;
     if (!isControlled) setThemeState(t);
     // Attempt to sync to user preferences (wallet host when available)
-    if (syncUserPreferences && passkeyManager?.setUserTheme) {
-      passkeyManager.setUserTheme(t);
+    if (syncUserPreferences && tatchi?.setUserTheme) {
+      tatchi.setUserTheme(t);
     }
-    // Persist locally when not logged in, or if no passkeyManager available
-    if (!loginState?.isLoggedIn || !passkeyManager || !syncUserPreferences) {
+    // Persist locally when not logged in, or if no tatchi available
+    if (!loginState?.isLoggedIn || !tatchi || !syncUserPreferences) {
       safeStoreTheme(t);
     }
     // If SDK sync failed for any reason, local storage remains as fallback via catchless best-effort above
     onThemeChange?.(t);
-  }, [isControlled, onThemeChange, passkeyManager, themeState, loginState?.isLoggedIn, syncUserPreferences]);
+  }, [isControlled, onThemeChange, tatchi, themeState, loginState?.isLoggedIn, syncUserPreferences]);
 
   const toggleTheme = React.useCallback(() => {
     setTheme(themeState === 'dark' ? 'light' : 'dark');

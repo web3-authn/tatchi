@@ -3,32 +3,33 @@
 // *                        HANDLER 9: SIGN NEP-413 MESSAGE                    *
 // *                                                                            *
 // ******************************************************************************
-use crate::{encoders::base64_standard_encode, WrapKey};
+use crate::{
+    encoders::base64_standard_encode, threshold::signer_backend::Ed25519SignerBackend, WrapKey,
+};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SignNep413Request {
-    #[wasm_bindgen(getter_with_clone)]
-    pub message: String, // Message to sign
-    #[wasm_bindgen(getter_with_clone)]
-    pub recipient: String, // Recipient identifier
-    #[wasm_bindgen(getter_with_clone)]
-    pub nonce: String, // Base64-encoded 32-byte nonce
-    #[wasm_bindgen(getter_with_clone)]
-    pub state: Option<String>, // Optional state
-    #[wasm_bindgen(getter_with_clone, js_name = "accountId")]
-    pub account_id: String, // NEAR account ID
-    #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyData")]
-    pub encrypted_private_key_data: String,
-    /// ChaCha20-Poly1305 nonce (base64url) for `encryptedPrivateKeyData`.
-    #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyChacha20NonceB64u")]
-    pub encrypted_private_key_chacha20_nonce_b64u: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
+    #[serde(default)]
+    pub signer_mode: crate::types::SignerMode,
+    pub message: String,         // Message to sign
+    pub recipient: String,       // Recipient identifier
+    pub nonce: String,           // Base64-encoded 32-byte nonce
+    pub state: Option<String>,   // Optional state
+    pub account_id: String,      // NEAR account ID
+    pub near_public_key: String, // NEAR ed25519 public key (ed25519:<base58>)
+    pub decryption: crate::types::DecryptionPayload,
+    /// Threshold signer config (required when `signer_mode == threshold-signer`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<crate::types::ThresholdSignerConfig>,
     pub session_id: String,
+    /// VRF challenge data required for relayer authorization in threshold mode.
+    pub vrf_challenge: Option<crate::types::VrfChallenge>,
+    /// Serialized WebAuthn authentication credential JSON (used only for relayer authorization in threshold mode).
+    pub credential: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -90,35 +91,62 @@ pub async fn handle_sign_nep413_message(
         ));
     }
 
-    // Decrypt private key using WrapKey material for this session
-    let kek = wrap_key.derive_kek()?;
-    let decrypted_private_key_str = crate::crypto::decrypt_data_chacha20(
-        &request.encrypted_private_key_data,
-        &request.encrypted_private_key_chacha20_nonce_b64u,
-        &kek,
-    )
-    .map_err(|e| format!("Failed to decrypt private key: {}", e))?;
-
-    let signing_key = {
-        use ed25519_dalek::SigningKey;
-
-        let decoded = bs58::decode(
-            decrypted_private_key_str
-                .strip_prefix("ed25519:")
-                .unwrap_or(&decrypted_private_key_str),
-        )
-        .into_vec()
-        .map_err(|e| format!("Invalid private key base58: {}", e))?;
-
-        if decoded.len() < 32 {
-            return Err("Decoded private key too short".to_string());
+    let signer = match request.signer_mode {
+        crate::types::SignerMode::LocalSigner => {
+            Ed25519SignerBackend::from_encrypted_near_private_key(
+                crate::types::SignerMode::LocalSigner,
+                &wrap_key,
+                &request.decryption.encrypted_private_key_data,
+                &request.decryption.encrypted_private_key_chacha20_nonce_b64u,
+            )?
         }
+        crate::types::SignerMode::ThresholdSigner => {
+            let cfg = request
+                .threshold
+                .as_ref()
+                .ok_or_else(|| "Missing threshold signer config".to_string())?;
 
-        let secret_bytes: [u8; 32] = decoded[0..32]
-            .try_into()
-            .map_err(|_| "Invalid secret key length".to_string())?;
+            #[derive(Debug, Clone, Serialize)]
+            #[serde(rename_all = "camelCase")]
+            struct Nep413AuthorizeSigningPayload<'a> {
+                kind: &'a str,
+                near_account_id: &'a str,
+                message: &'a str,
+                recipient: &'a str,
+                nonce: &'a str,
+                #[serde(skip_serializing_if = "Option::is_none")]
+                state: Option<&'a str>,
+            }
 
-        SigningKey::from_bytes(&secret_bytes)
+            let signing_payload_json = {
+                let js_val = serde_wasm_bindgen::to_value(&Nep413AuthorizeSigningPayload {
+                    kind: "nep413",
+                    near_account_id: request.account_id.as_str(),
+                    message: request.message.as_str(),
+                    recipient: request.recipient.as_str(),
+                    nonce: request.nonce.as_str(),
+                    state: request.state.as_deref(),
+                })
+                .map_err(|e| format!("Failed to serialize signingPayload: {e}"))?;
+                js_sys::JSON::stringify(&js_val)
+                    .map_err(|e| format!("JSON.stringify signingPayload failed: {:?}", e))?
+                    .as_string()
+                    .ok_or_else(|| {
+                        "JSON.stringify signingPayload did not return a string".to_string()
+                    })?
+            };
+
+            Ed25519SignerBackend::from_threshold_signer_config(
+                &wrap_key,
+                &request.account_id,
+                &request.near_public_key,
+                "nep413",
+                request.vrf_challenge.clone(),
+                request.credential.clone(),
+                Some(signing_payload_json),
+                cfg,
+            )?
+        }
     };
 
     // Create NEP-413 payload structure for Borsh serialization
@@ -169,16 +197,12 @@ pub async fn handle_sign_nep413_message(
     debug!("RUST: SHA-256 hash computed");
 
     // Sign the hash using the Ed25519 private key
-    use ed25519_dalek::Signer;
-    let signature = signing_key.sign(&hash);
-
-    // Get the public key from the signing key
-    let verifying_key = signing_key.verifying_key();
-    let public_key_bytes = verifying_key.to_bytes();
+    let signature_bytes = signer.sign(hash.as_slice()).await?;
+    let public_key_bytes = signer.public_key_bytes()?;
     let public_key_b58 = format!("ed25519:{}", bs58::encode(&public_key_bytes).into_string());
 
     // Encode signature as base64
-    let signature_b64 = base64_standard_encode(&signature.to_bytes());
+    let signature_b64 = base64_standard_encode(&signature_bytes);
 
     debug!("RUST: NEP-413 message signed successfully");
 

@@ -45,6 +45,16 @@ pub struct VRFInputData {
     #[wasm_bindgen(getter_with_clone, js_name = "blockHash")]
     #[serde(rename = "blockHash")]
     pub block_hash: String,
+    /// Optional base64url-encoded 32-byte digest to bind into the VRF input hash.
+    /// When present, must decode to exactly 32 bytes.
+    #[wasm_bindgen(getter_with_clone, js_name = "intentDigest")]
+    #[serde(rename = "intentDigest")]
+    pub intent_digest: Option<String>,
+    /// Optional base64url-encoded 32-byte digest that binds a relayer session policy into the VRF input hash.
+    /// When present, must decode to exactly 32 bytes.
+    #[wasm_bindgen(getter_with_clone, js_name = "sessionPolicyDigest32")]
+    #[serde(rename = "sessionPolicyDigest32")]
+    pub session_policy_digest_32: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -75,6 +85,14 @@ pub struct VRFChallengeData {
     #[wasm_bindgen(getter_with_clone, js_name = "blockHash")]
     #[serde(rename = "blockHash")]
     pub block_hash: String,
+    /// Optional base64url-encoded 32-byte digest that was included in VRF input derivation.
+    #[wasm_bindgen(getter_with_clone, js_name = "intentDigest")]
+    #[serde(rename = "intentDigest")]
+    pub intent_digest: Option<String>,
+    /// Optional base64url-encoded 32-byte digest that was included in VRF input derivation.
+    #[wasm_bindgen(getter_with_clone, js_name = "sessionPolicyDigest32")]
+    #[serde(rename = "sessionPolicyDigest32")]
+    pub session_policy_digest_32: Option<String>,
 }
 impl VRFChallengeData {
     pub fn to_js_value(&self) -> JsValue {

@@ -138,7 +138,6 @@ pub async fn handle_device2_registration_session(
     let intent_digest = format!("device2-register:{}:{}", near_account_id, device_number);
 
     let confirm_request = SecureConfirmRequest {
-        schemaVersion: 2,
         requestId: &request_id,
         request_type: "registerAccount",
         summary: Summary {

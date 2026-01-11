@@ -58,13 +58,13 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async () => ({}) as any,
+          getAuthenticationCredentialsSerialized: async () => ({ id: 'cred', rawId: 'AA', type: 'public-key', response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw' }, clientExtensionResults: { prf: { results: { first: 'BQ' } } } }) as any,
+          getAuthenticationCredentialsSerializedDualPrf: async () => ({ id: 'cred', rawId: 'AA', type: 'public-key', response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw' }, clientExtensionResults: { prf: { results: { first: 'BQ', second: 'Bg' } } } }) as any,
         },
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'cancel-sign',
         type: types.SecureConfirmationType.SIGN_TRANSACTION,
         summary: {},
@@ -173,16 +173,17 @@ test.describe('confirmTxFlow – defensive paths', () => {
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
 
-      const request = {
-        schemaVersion: 2,
-        requestId: 'cancel-reg',
-        type: types.SecureConfirmationType.REGISTER_ACCOUNT,
-        summary: {},
-        payload: {
-          nearAccountId: 'cancel-reg.testnet',
-          rpcCall: { method: 'register', argsJson: {} },
-        },
-      } as any;
+	      const request = {
+	        requestId: 'cancel-reg',
+	        type: types.SecureConfirmationType.REGISTER_ACCOUNT,
+	        summary: {},
+	        payload: {
+	          nearAccountId: 'cancel-reg.testnet',
+	          deviceNumber: 1,
+	          rpcCall: { method: 'register', argsJson: {} },
+	        },
+	        intentDigest: 'register:cancel-reg.testnet:1',
+	      } as any;
 
       const workerMessages: any[] = [];
       const worker = { postMessage: (msg: any) => workerMessages.push(msg) } as unknown as Worker;
@@ -262,13 +263,13 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async () => ({}) as any,
+          getAuthenticationCredentialsSerialized: async () => ({ id: 'cred', rawId: 'AA', type: 'public-key', response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw' }, clientExtensionResults: { prf: { results: { first: 'BQ' } } } }) as any,
+          getAuthenticationCredentialsSerializedDualPrf: async () => ({ id: 'cred', rawId: 'AA', type: 'public-key', response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw' }, clientExtensionResults: { prf: { results: { first: 'BQ', second: 'Bg' } } } }) as any,
         },
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'cancel-nep',
         type: types.SecureConfirmationType.SIGN_NEP413_MESSAGE,
         summary: {},
@@ -356,7 +357,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'show-key',
         type: types.SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI,
         summary: {},
@@ -407,29 +407,28 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async ({ allowCredentials }: any) => {
+          getAuthenticationCredentialsSerialized: async () => ({ id: 'cred-new', rawId: 'cred-new', type: 'public-key', response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw' }, clientExtensionResults: { prf: { results: { first: 'BQ' } } } }) as any,
+          getAuthenticationCredentialsSerializedDualPrf: async ({ allowCredentials }: any) => {
             capturedAllow = allowCredentials;
-            // Minimal PRF-capable credential stub
             return {
               id: 'cred-new',
-              rawId: new Uint8Array([1, 2]).buffer,
               type: 'public-key',
+              rawId: 'cred-new',
               response: {
-                clientDataJSON: new ArrayBuffer(0),
-                authenticatorData: new ArrayBuffer(0),
-                signature: new ArrayBuffer(0),
-                userHandle: null,
+                clientDataJSON: 'AQ',
+                authenticatorData: 'Ag',
+                signature: 'Aw',
+                userHandle: undefined,
               },
-              getClientExtensionResults: () => ({
-                prf: { results: { first: new Uint8Array(32), second: new Uint8Array(32) } },
-              }),
+              clientExtensionResults: {
+                prf: { results: { first: 'BQ', second: 'Bg' } },
+              },
             } as any;
-          }
+          },
         }
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'decrypt-1',
         type: types.SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF,
         summary: {},
@@ -497,18 +496,12 @@ test.describe('confirmTxFlow – defensive paths', () => {
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
-          getAuthenticationCredentialsInternal: async () => ({
-            id: 'cred',
-            type: 'public-key',
-            rawId: new Uint8Array([1]).buffer,
-            response: {
-              clientDataJSON: new Uint8Array([1]).buffer,
-              authenticatorData: new Uint8Array([2]).buffer,
-              signature: new Uint8Array([3]).buffer,
-              userHandle: null,
-            },
-            getClientExtensionResults: () => ({ prf: { results: {} } }),
-          }) as any,
+          getAuthenticationCredentialsSerialized: async () => {
+            throw new Error('Missing PRF result - PRF evaluation failed: results object is empty');
+          },
+          getAuthenticationCredentialsSerializedDualPrf: async () => {
+            throw new Error('Missing PRF result - PRF evaluation failed: results object is empty');
+          },
         },
         indexedDB: {
           clientDB: {
@@ -517,12 +510,22 @@ test.describe('confirmTxFlow – defensive paths', () => {
             getLastUser: async () => ({ nearAccountId: 'error.testnet', deviceNumber: 1 }),
             getUserByDevice: async () => ({ deviceNumber: 1 }),
           },
-          nearKeysDB: { getEncryptedKey: async () => ({ wrapKeySalt: 'salt-missing-prf' }) },
+          nearKeysDB: {
+            getKeyMaterial: async () => ({
+              kind: 'local_near_sk_v3',
+              nearAccountId: 'error.testnet',
+              deviceNumber: 1,
+              publicKey: 'ed25519:pk',
+              encryptedSk: 'ciphertext-b64u',
+              chacha20NonceB64u: 'nonce-b64u',
+              wrapKeySalt: 'salt-missing-prf',
+              timestamp: Date.now(),
+            }),
+          },
         },
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'prf-fail-sign',
         type: types.SecureConfirmationType.SIGN_TRANSACTION,
         summary: {},
@@ -617,16 +620,17 @@ test.describe('confirmTxFlow – defensive paths', () => {
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
 
-      const request = {
-        schemaVersion: 2,
-        requestId: 'prf-fail-reg',
-        type: types.SecureConfirmationType.REGISTER_ACCOUNT,
-        summary: {},
-        payload: {
-          nearAccountId: 'error-reg.testnet',
-          rpcCall: { method: 'register', argsJson: {} },
-        },
-      } as any;
+	      const request = {
+	        requestId: 'prf-fail-reg',
+	        type: types.SecureConfirmationType.REGISTER_ACCOUNT,
+	        summary: {},
+	        payload: {
+	          nearAccountId: 'error-reg.testnet',
+	          deviceNumber: 1,
+	          rpcCall: { method: 'register', argsJson: {} },
+	        },
+	        intentDigest: 'register:error-reg.testnet:1',
+	      } as any;
 
       const workerMessages: any[] = [];
       const worker = { postMessage: (msg: any) => workerMessages.push(msg) } as unknown as Worker;

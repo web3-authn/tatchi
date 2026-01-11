@@ -5,6 +5,7 @@ import type {
   ShamirConfigEnvInput,
   ZkEmailProverConfigEnvInput,
 } from './types';
+import { toOptionalTrimmedString } from '../../utils/validation';
 
 export const AUTH_SERVICE_CONFIG_DEFAULTS = {
   // Prefer FastNEAR for testnet by default (more reliable in practice).
@@ -24,10 +25,6 @@ function defaultNearRpcUrl(networkId: string): string {
   return AUTH_SERVICE_CONFIG_DEFAULTS.nearRpcUrlTestnet;
 }
 
-function normalizeOptionalString(v: unknown): string {
-  return typeof v === 'string' ? v.trim() : '';
-}
-
 function normalizeZkEmailProverConfig(
   input: AuthServiceConfigInput['zkEmailProver'],
 ): AuthServiceConfig['zkEmailProver'] | undefined {
@@ -35,15 +32,15 @@ function normalizeZkEmailProverConfig(
 
   // Full options object
   if (typeof (input as any).baseUrl === 'string') {
-    const baseUrl = normalizeOptionalString((input as any).baseUrl);
+    const baseUrl = toOptionalTrimmedString((input as any).baseUrl);
     if (!baseUrl) return undefined;
     return input as AuthServiceConfig['zkEmailProver'];
   }
 
   // Env-shaped input
   const envInput = input as ZkEmailProverConfigEnvInput;
-  const baseUrl = normalizeOptionalString(envInput.ZK_EMAIL_PROVER_BASE_URL);
-  const timeoutMsRaw = normalizeOptionalString(envInput.ZK_EMAIL_PROVER_TIMEOUT_MS);
+  const baseUrl = toOptionalTrimmedString(envInput.ZK_EMAIL_PROVER_BASE_URL);
+  const timeoutMsRaw = toOptionalTrimmedString(envInput.ZK_EMAIL_PROVER_TIMEOUT_MS);
 
   const anyProvided = Boolean(baseUrl || timeoutMsRaw);
   if (!anyProvided) return undefined;
@@ -70,9 +67,9 @@ function normalizeShamirConfig(input: AuthServiceConfigInput['shamir']): AuthSer
     const c = input as ShamirConfig;
     // Treat all-empty as disabled for safety
     const anyProvided = Boolean(
-      normalizeOptionalString(c.shamir_p_b64u) ||
-      normalizeOptionalString(c.shamir_e_s_b64u) ||
-      normalizeOptionalString(c.shamir_d_s_b64u),
+      toOptionalTrimmedString(c.shamir_p_b64u) ||
+      toOptionalTrimmedString(c.shamir_e_s_b64u) ||
+      toOptionalTrimmedString(c.shamir_d_s_b64u),
     );
     if (!anyProvided) return undefined;
     return c;
@@ -80,10 +77,10 @@ function normalizeShamirConfig(input: AuthServiceConfigInput['shamir']): AuthSer
 
   // Env-shaped input
   const envInput = input as ShamirConfigEnvInput;
-  const p = normalizeOptionalString(envInput.SHAMIR_P_B64U);
-  const e = normalizeOptionalString(envInput.SHAMIR_E_S_B64U);
-  const d = normalizeOptionalString(envInput.SHAMIR_D_S_B64U);
-  const graceFileEnv = normalizeOptionalString(envInput.SHAMIR_GRACE_KEYS_FILE);
+  const p = toOptionalTrimmedString(envInput.SHAMIR_P_B64U);
+  const e = toOptionalTrimmedString(envInput.SHAMIR_E_S_B64U);
+  const d = toOptionalTrimmedString(envInput.SHAMIR_D_S_B64U);
+  const graceFileEnv = toOptionalTrimmedString(envInput.SHAMIR_GRACE_KEYS_FILE);
 
   const anyProvided = Boolean(p || e || d || graceFileEnv);
   if (!anyProvided) return undefined;
@@ -122,6 +119,7 @@ export function createAuthServiceConfig(input: AuthServiceConfigInput): AuthServ
       || AUTH_SERVICE_CONFIG_DEFAULTS.createAccountAndRegisterGas,
     shamir: normalizeShamirConfig(input.shamir),
     signerWasm: input.signerWasm,
+    thresholdEd25519KeyStore: input.thresholdEd25519KeyStore,
     logger: input.logger,
     zkEmailProver: normalizeZkEmailProverConfig(input.zkEmailProver),
   };
