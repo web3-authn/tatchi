@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createThresholdEd25519ServiceForUnitTests } from '../helpers/thresholdEd25519TestUtils';
 
-test('threshold-ed25519 coordinator fanout: multiple peers are rejected (until multiparty implemented)', async () => {
+test('threshold-ed25519 coordinator fanout: multiple peers configured (selects a peer)', async () => {
   const secretB64u = Buffer.alloc(32, 7).toString('base64url');
   const { svc, sessionStore } = createThresholdEd25519ServiceForUnitTests({
     config: {
@@ -33,17 +33,52 @@ test('threshold-ed25519 coordinator fanout: multiple peers are rejected (until m
     participantIds: [1, 2],
   }, 60_000);
 
-  const init = await svc.thresholdEd25519SignInit({
-    mpcSessionId,
-    relayerKeyId,
-    nearAccountId: userId,
-    signingDigestB64u,
-    clientCommitments: { hiding: 'h', binding: 'b' },
-  });
+  const seen: Array<{ url: string; body: any }> = [];
+  const originalFetch = globalThis.fetch;
+  (globalThis as any).fetch = async (url: any, init?: any) => {
+    const body = (() => {
+      try {
+        return init?.body ? JSON.parse(String(init.body)) : null;
+      } catch {
+        return null;
+      }
+    })();
+    seen.push({ url: String(url), body });
+    return {
+      status: 200,
+      async text() {
+        return JSON.stringify({
+          ok: true,
+          signingSessionId: 'peer-sign-1',
+          relayerCommitments: { hiding: 'rh', binding: 'rb' },
+          relayerVerifyingShareB64u: Buffer.alloc(32, 3).toString('base64url'),
+        });
+      },
+    } as any;
+  };
 
-  expect(init.ok).toBe(false);
-  expect(init.code).toBe('multi_party_not_supported');
-  expect(String(init.message || '')).toContain('coordinatorPeers contains multiple participant ids');
+  let init: any;
+  try {
+    init = await svc.thresholdEd25519SignInit({
+      mpcSessionId,
+      relayerKeyId,
+      nearAccountId: userId,
+      signingDigestB64u,
+      clientCommitments: { hiding: 'h', binding: 'b' },
+    });
+  } finally {
+    (globalThis as any).fetch = originalFetch;
+  }
+
+  expect(init.ok).toBe(true);
+  expect(seen[0]?.url).toBe('https://peer-a.example/threshold-ed25519/internal/sign/init');
+  expect(seen[0]?.body?.clientCommitments).toEqual({ hiding: 'h', binding: 'b' });
+  expect(String(seen[0]?.body?.coordinatorGrant || '')).toContain('.');
+
+  expect(init.participantIds).toEqual([1, 2]);
+  expect(init.commitmentsById?.['1']).toEqual({ hiding: 'h', binding: 'b' });
+  expect(init.commitmentsById?.['2']).toEqual({ hiding: 'rh', binding: 'rb' });
+  expect(init.relayerVerifyingSharesById?.['2']).toBeTruthy();
 });
 
 test.describe.skip('threshold-ed25519 multiparty (2-of-3) [future]', () => {

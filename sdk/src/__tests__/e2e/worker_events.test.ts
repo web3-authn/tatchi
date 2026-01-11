@@ -680,8 +680,9 @@ test.describe('Worker Communication Protocol', () => {
     expect(result.errorEvents).toBeGreaterThan(0);
     expect(result.hasErrorPhase).toBe(true);
     expect(result.resultSuccess === false || result.threw === true).toBe(true);
-    const progressIdx = result.statuses.findIndex((status: string) => status === 'progress');
-    const errorIdx = result.statuses.findIndex((status: string) => status === 'error');
+    const statuses = result.statuses ?? [];
+    const progressIdx = statuses.findIndex((status: string) => status === 'progress');
+    const errorIdx = statuses.findIndex((status: string) => status === 'error');
     expect(progressIdx).toBeGreaterThanOrEqual(0);
     expect(errorIdx).toBeGreaterThan(progressIdx);
     if (result.lastEvent?.status) {
