@@ -74,7 +74,6 @@ test.describe('VRF sessions – warm signing', () => {
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'sess-warm',
         type: types.SecureConfirmationType.SIGN_TRANSACTION,
         summary: {},

@@ -34,7 +34,7 @@ const wasmUrl = resolveWasmUrl('wasm_vrf_worker_bg.wasm', 'vrf-worker');
 console.debug(`[vrf-worker] WASM URL resolved to: ${wasmUrl.href}`);
 
 // Expose the confirmation bridge under the JS name expected by wasm-bindgen.
-// awaitSecureConfirmationV2 expects a schemaVersion=2 SecureConfirmRequest object.
+// awaitSecureConfirmationV2 expects a SecureConfirmRequest object.
 (globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
 
 let wasmReady = false;

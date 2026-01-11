@@ -65,7 +65,6 @@ export async function exportNearKeypairUi({
 
   // Phase 2: show secure UI (VRF-driven viewer)
   const showReq = {
-    schemaVersion: 2 as const,
     requestId: sessionId,
     type: SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI,
     summary: {

@@ -85,7 +85,7 @@ export interface ConfirmAndPrepareSigningSessionResult {
 /**
  * Kick off the SecureConfirm signing flow inside the VRF worker.
  *
- * This creates a schemaVersion=2 `SecureConfirmRequest` (tx / delegate / NEP-413) and sends it to the
+ * This creates a `SecureConfirmRequest` (tx / delegate / NEP-413) and sends it to the
  * VRF worker, which will render UI, collect a WebAuthn credential when needed, and return the
  * `transactionContext` (reserved nonces, block hash/height) needed by the signer worker.
  */
@@ -118,7 +118,6 @@ export async function confirmAndPrepareSigningSession(
       };
 
       request = {
-        schemaVersion: 2,
         requestId: sessionId,
         type: SecureConfirmationType.SIGN_TRANSACTION,
         summary,
@@ -163,7 +162,6 @@ export async function confirmAndPrepareSigningSession(
       };
 
       request = {
-        schemaVersion: 2,
         requestId: sessionId,
         type: SecureConfirmationType.SIGN_TRANSACTION,
         summary,
@@ -190,7 +188,6 @@ export async function confirmAndPrepareSigningSession(
       };
 
       request = {
-        schemaVersion: 2,
         requestId: sessionId,
         type: SecureConfirmationType.SIGN_NEP413_MESSAGE,
         summary,

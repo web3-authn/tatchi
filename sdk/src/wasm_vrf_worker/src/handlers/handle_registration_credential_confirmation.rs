@@ -93,7 +93,6 @@ pub async fn handle_registration_credential_confirmation(
     let intent_digest = format!("register:{}:{}", near_account_id, device_number);
 
     let confirm_request = SecureConfirmRequest {
-        schemaVersion: 2,
         requestId: &request_id,
         request_type: "registerAccount",
         summary: Summary {

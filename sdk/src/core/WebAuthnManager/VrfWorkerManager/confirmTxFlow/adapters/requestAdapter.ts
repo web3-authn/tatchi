@@ -12,7 +12,6 @@ export function validateSecureConfirmRequest(input: unknown): SecureConfirmReque
   }
   if (!isObject(input)) throw new Error('parsed is not an object');
   const p = input as {
-    schemaVersion?: unknown;
     requestId?: unknown;
     type?: unknown;
     summary?: unknown;

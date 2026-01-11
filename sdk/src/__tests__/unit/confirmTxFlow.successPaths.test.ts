@@ -81,7 +81,7 @@ test.describe('confirmTxFlow – success paths', () => {
       };
 
       const request = {
-        schemaVersion: 2, requestId: 'r1', type: types.SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF,
+        requestId: 'r1', type: types.SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF,
         summary: {}, payload: { nearAccountId: 'alice.testnet', publicKey: 'pk' }
       };
 
@@ -190,7 +190,7 @@ test.describe('confirmTxFlow – success paths', () => {
       };
 
 	      const request = {
-	        schemaVersion: 2, requestId: 'r2', type: types.SecureConfirmationType.REGISTER_ACCOUNT,
+	        requestId: 'r2', type: types.SecureConfirmationType.REGISTER_ACCOUNT,
 	        summary: {},
 	        payload: {
 	          nearAccountId: 'bob.testnet',
@@ -343,7 +343,6 @@ test.describe('confirmTxFlow – success paths', () => {
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'r3',
         type: types.SecureConfirmationType.SIGN_TRANSACTION,
         summary: {},
@@ -505,7 +504,6 @@ test.describe('confirmTxFlow – success paths', () => {
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'r-nep',
         type: types.SecureConfirmationType.SIGN_NEP413_MESSAGE,
         summary: {},

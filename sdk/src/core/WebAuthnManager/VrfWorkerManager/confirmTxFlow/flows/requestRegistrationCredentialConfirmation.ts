@@ -47,7 +47,6 @@ export async function requestRegistrationCredentialConfirmation({
     deviceNumber: number;
     rpcCall: { contractId: string; nearRpcUrl: string; nearAccountId: string };
   }, RegistrationSummary> = {
-    schemaVersion: 2,
     requestId,
     type: SecureConfirmationType.REGISTER_ACCOUNT,
     summary: {

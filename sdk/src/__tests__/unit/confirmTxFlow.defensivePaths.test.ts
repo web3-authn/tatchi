@@ -65,7 +65,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'cancel-sign',
         type: types.SecureConfirmationType.SIGN_TRANSACTION,
         summary: {},
@@ -175,7 +174,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
       };
 
 	      const request = {
-	        schemaVersion: 2,
 	        requestId: 'cancel-reg',
 	        type: types.SecureConfirmationType.REGISTER_ACCOUNT,
 	        summary: {},
@@ -272,7 +270,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'cancel-nep',
         type: types.SecureConfirmationType.SIGN_NEP413_MESSAGE,
         summary: {},
@@ -360,7 +357,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'show-key',
         type: types.SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI,
         summary: {},
@@ -433,7 +429,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'decrypt-1',
         type: types.SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF,
         summary: {},
@@ -531,7 +526,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
       };
 
       const request = {
-        schemaVersion: 2,
         requestId: 'prf-fail-sign',
         type: types.SecureConfirmationType.SIGN_TRANSACTION,
         summary: {},
@@ -627,7 +621,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
       };
 
 	      const request = {
-	        schemaVersion: 2,
 	        requestId: 'prf-fail-reg',
 	        type: types.SecureConfirmationType.REGISTER_ACCOUNT,
 	        summary: {},

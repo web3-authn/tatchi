@@ -122,7 +122,6 @@ export type SecureConfirmPayload = SecureConfirmPayloadByType[keyof SecureConfir
 export type SecureConfirmSummary = SecureConfirmSummaryByType[keyof SecureConfirmSummaryByType];
 
 export interface SecureConfirmRequest<TPayload = SecureConfirmPayload, TSummary = SecureConfirmSummary> {
-  schemaVersion: 2;
   requestId: string;
   type: SecureConfirmationType;
   summary: TSummary;
@@ -199,9 +198,10 @@ export interface SignNep413Payload {
 // Type guards
 export function isSecureConfirmRequestV2(x: unknown): x is SecureConfirmRequest {
   return isObject(x)
-    && (x as { schemaVersion?: unknown }).schemaVersion === 2
     && isString((x as { type?: unknown }).type)
-    && isString((x as { requestId?: unknown }).requestId);
+    && isString((x as { requestId?: unknown }).requestId)
+    && (x as { summary?: unknown }).summary != null
+    && (x as { payload?: unknown }).payload != null;
 }
 
 // Serialized WebAuthn credential (authentication or registration)

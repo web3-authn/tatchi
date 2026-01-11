@@ -71,7 +71,6 @@ pub struct DecryptPrivateKeyWithPrfPayload<'a> {
 #[derive(Serialize)]
 #[allow(non_snake_case)]
 pub struct SecureConfirmRequest<'a, TSummary, TPayload> {
-    pub schemaVersion: u32,
     pub requestId: &'a str,
     #[serde(rename = "type")]
     pub request_type: &'static str,

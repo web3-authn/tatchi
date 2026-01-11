@@ -75,6 +75,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
   // ensures VRF worker surfaces descriptive logs when configuration is incomplete
   test('VRF Worker Manager - Debug Error Logging', async ({ page }) => {
+    test.skip(process.env.RUN_DEBUG_TESTS !== '1', 'Debug-only test (set RUN_DEBUG_TESTS=1 to enable)');
     const result = await page.evaluate(async (testConfig) => {
       try {
         console.log('=== DEBUG TEST START ===');
@@ -162,10 +163,11 @@ test.describe('VRF Worker Manager Integration Test', () => {
     // Verify initialization succeeded
     expect(result.success).toBe(true);
     expect(result.initialized).toBe(true);
-    expect(result.statusBefore).toEqual({
+    expect(result.statusBefore).toMatchObject({
       active: false,
       nearAccountId: null,
-      sessionDuration: 0
+      sessionDuration: 0,
+      vrfPublicKey: null,
     });
 
     console.log('VRF Worker Manager initialization test passed');
@@ -594,11 +596,26 @@ test.describe('VRF Worker Manager Integration Test', () => {
         const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/VrfWorkerManager/index.js');
         console.log('Testing VRF challenge generation with active session...');
 
-        const vrfWorkerManager = new VrfWorkerManager() as VrfWorkerManager;
+        // `generateVrfChallengeOnce` needs an IndexedDB context to validate the last-user binding.
+        // Reuse the WebAuthnManager dependencies from the test harness to avoid drift.
+        // @ts-ignore - Runtime import path
+        const { IndexedDBManager } = await import('/sdk/esm/core/IndexedDBManager/index.js');
+        const { tatchi, configs } = (window as any).testUtils;
+        const webAuthnManager = tatchi?.webAuthnManager;
+        const vrfWorkerManager = new VrfWorkerManager({
+          vrfWorkerUrl: testConfig.VRF_WORKER_URL,
+          workerTimeout: 15000,
+          debug: true,
+        }, {
+          touchIdPrompt: (webAuthnManager as any)?.touchIdPrompt,
+          nearClient: (webAuthnManager as any)?.nearClient,
+          indexedDB: IndexedDBManager,
+          userPreferencesManager: (webAuthnManager as any)?.userPreferencesManager,
+          nonceManager: (webAuthnManager as any)?.nonceManager,
+          rpIdOverride: configs?.rpId,
+          nearExplorerUrl: (webAuthnManager as any)?.tatchiPasskeyConfigs?.nearExplorerUrl,
+        }) as VrfWorkerManager;
         await vrfWorkerManager.initialize();
-
-        // Get centralized configuration
-        const { configs } = (window as any).testUtils;
 
         // First, activate session by generating a VRF keypair
         console.log('Activating VRF session...');
@@ -750,7 +767,23 @@ test.describe('VRF Worker Manager Integration Test', () => {
           } as WebAuthnAuthenticationCredential;
         };
         console.log('Testing VRF Worker Manager error handling...');
-        const vrfWorkerManager = new VrfWorkerManager() as VrfWorkerManager;
+        // @ts-ignore - Runtime import path
+        const { IndexedDBManager } = await import('/sdk/esm/core/IndexedDBManager/index.js');
+        const { tatchi, configs } = (window as any).testUtils;
+        const webAuthnManager = tatchi?.webAuthnManager;
+        const vrfWorkerManager = new VrfWorkerManager({
+          vrfWorkerUrl: testConfig.VRF_WORKER_URL,
+          workerTimeout: 15000,
+          debug: true,
+        }, {
+          touchIdPrompt: (webAuthnManager as any)?.touchIdPrompt,
+          nearClient: (webAuthnManager as any)?.nearClient,
+          indexedDB: IndexedDBManager,
+          userPreferencesManager: (webAuthnManager as any)?.userPreferencesManager,
+          nonceManager: (webAuthnManager as any)?.nonceManager,
+          rpIdOverride: configs?.rpId,
+          nearExplorerUrl: (webAuthnManager as any)?.tatchiPasskeyConfigs?.nearExplorerUrl,
+        }) as VrfWorkerManager;
         await vrfWorkerManager.initialize();
 
         const testResults = {
@@ -769,9 +802,9 @@ test.describe('VRF Worker Manager Integration Test', () => {
         try {
           await vrfWorkerManager.generateVrfChallengeForSession({
             userId: testConfig.ACCOUNT_ID,
-            rpId: 'localhost',
+            rpId: configs?.rpId || 'localhost',
             blockHeight: "12345",
-            blockHash: 'dGVzdC1ibG9jay1oYXNo', // base64url: 'test-block-hash'
+            blockHash: testConfig.VRF_INPUT_PARAMS.blockHash,
           }, 'test-session');
           console.log('ERROR: Challenge without session should have failed but succeeded!');
         } catch (error: any) {

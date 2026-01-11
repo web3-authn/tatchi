@@ -330,7 +330,12 @@ export function handleInfrastructureErrors(result: { success: boolean; error?: s
       return true;
     }
     // Real relay server sometimes lacks funds; treat as infra flake and skip
-    if (result.error.includes('LackBalanceForState') || result.error.includes('Atomic registration failed')) {
+    if (
+      result.error.includes('LackBalanceForState')
+      || result.error.includes('NotEnoughBalance')
+      || result.error.includes('InvalidTxError: NotEnoughBalance')
+      || result.error.includes('Atomic registration failed')
+    ) {
       console.warn('⚠️  Test skipped due to relay server insufficient balance (infra condition)');
       console.warn('   Use mocked relay server for deterministic tests or fund the relayer account.');
       console.warn(`   Error: ${result.error}`);
