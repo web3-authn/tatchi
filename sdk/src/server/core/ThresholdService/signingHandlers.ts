@@ -295,11 +295,19 @@ export class ThresholdEd25519SigningHandlers {
       }
 
       const relayerIds = groupParticipantIds.filter((id) => id !== this.clientParticipantId);
-      const peer = this.coordinatorPeers.find((p) => relayerIds.includes(p.id)) || null;
-      if (!peer) {
+      let peerId: number | null = null;
+      let peerCandidates: ThresholdCoordinatorPeer[] = [];
+      for (const id of relayerIds) {
+        const candidates = this.coordinatorPeers.filter((p) => p.id === id);
+        if (candidates.length) {
+          peerId = id;
+          peerCandidates = candidates;
+          break;
+        }
+      }
+      if (!peerId || peerCandidates.length === 0) {
         return { ok: false, code: 'missing_config', message: `Missing coordinator peer for participantIds=[${relayerIds.join(',')}]` };
       }
-      const peerId = peer.id;
       const signerParticipantIds =
         normalizeThresholdEd25519ParticipantIds([this.clientParticipantId, peerId]) || [this.clientParticipantId, peerId];
 
@@ -318,22 +326,48 @@ export class ThresholdEd25519SigningHandlers {
         return { ok: false, code: 'missing_config', message: 'THRESHOLD_COORDINATOR_SHARED_SECRET_B64U is required for coordinator peer fanout' };
       }
 
-      const initUrl = `${peer.relayerUrl}/threshold-ed25519/internal/sign/init`;
-      const peerInit = await this.postJsonWithTimeout(initUrl, {
-        coordinatorGrant: grant,
-        clientCommitments,
-      }, 10_000);
-      if (!peerInit.ok) return peerInit;
+      let peerRelayerUrl: string | null = null;
+      let peerSigningSessionId: string | null = null;
+      let relayerCommitments: ThresholdEd25519Commitments | null = null;
+      let relayerVerifyingShareB64u: string | null = null;
+      let lastPeerErr: { code: string; message: string } | null = null;
 
-      const initJson = peerInit.json as ThresholdEd25519PeerSignInitResponse;
-      if (!initJson?.ok) {
-        return { ok: false, code: initJson?.code || 'internal', message: initJson?.message || 'peer sign/init failed' };
+      for (const peer of peerCandidates) {
+        const initUrl = `${peer.relayerUrl}/threshold-ed25519/internal/sign/init`;
+        const peerInit = await this.postJsonWithTimeout(initUrl, {
+          coordinatorGrant: grant,
+          clientCommitments,
+        }, 10_000);
+        if (!peerInit.ok) {
+          lastPeerErr = peerInit;
+          continue;
+        }
+
+        const initJson = peerInit.json as ThresholdEd25519PeerSignInitResponse;
+        if (!initJson?.ok) {
+          lastPeerErr = { code: initJson?.code || 'internal', message: initJson?.message || 'peer sign/init failed' };
+          continue;
+        }
+        const candidateSigningSessionId = toOptionalTrimmedString(initJson.signingSessionId);
+        const candidateCommitments = initJson.relayerCommitments;
+        const candidateVerifyingShareB64u = toOptionalTrimmedString(initJson.relayerVerifyingShareB64u);
+        if (!candidateSigningSessionId || !candidateCommitments?.hiding || !candidateCommitments?.binding || !candidateVerifyingShareB64u) {
+          lastPeerErr = { code: 'internal', message: 'peer sign/init produced incomplete output' };
+          continue;
+        }
+
+        peerRelayerUrl = peer.relayerUrl;
+        peerSigningSessionId = candidateSigningSessionId;
+        relayerCommitments = candidateCommitments;
+        relayerVerifyingShareB64u = candidateVerifyingShareB64u;
+        break;
       }
-      const peerSigningSessionId = toOptionalTrimmedString(initJson.signingSessionId);
-      const relayerCommitments = initJson.relayerCommitments;
-      const relayerVerifyingShareB64u = toOptionalTrimmedString(initJson.relayerVerifyingShareB64u);
-      if (!peerSigningSessionId || !relayerCommitments?.hiding || !relayerCommitments?.binding || !relayerVerifyingShareB64u) {
-        return { ok: false, code: 'internal', message: 'peer sign/init produced incomplete output' };
+      if (!peerRelayerUrl || !peerSigningSessionId || !relayerCommitments || !relayerVerifyingShareB64u) {
+        return {
+          ok: false,
+          code: lastPeerErr?.code || 'unavailable',
+          message: lastPeerErr?.message || 'No coordinator peer available for sign/init',
+        };
       }
 
       const signingSessionId = this.createThresholdEd25519SigningSessionId();
@@ -361,7 +395,7 @@ export class ThresholdEd25519SigningHandlers {
           [String(peerId)]: peerSigningSessionId,
         },
         peerRelayerUrlsById: {
-          [String(peerId)]: peer.relayerUrl,
+          [String(peerId)]: peerRelayerUrl,
         },
         peerCoordinatorGrantsById: {
           [String(peerId)]: grant,
@@ -652,21 +686,45 @@ export class ThresholdEd25519SigningHandlers {
         return { ok: false, code: 'internal', message: 'coordinator signing session missing peer mapping' };
       }
 
-      const finalizeUrl = `${peerRelayerUrl}/threshold-ed25519/internal/sign/finalize`;
-      const peerFinalize = await this.postJsonWithTimeout(finalizeUrl, {
-        coordinatorGrant: peerCoordinatorGrant,
-        signingSessionId: peerSigningSessionId,
-        clientSignatureShareB64u,
-      }, 10_000);
-      if (!peerFinalize.ok) return peerFinalize;
+      const candidates = [
+        peerRelayerUrl,
+        ...this.coordinatorPeers.filter((p) => p.id === peerId).map((p) => p.relayerUrl),
+      ].filter((url, idx, arr) => arr.indexOf(url) === idx);
 
-      const finalizeJson = peerFinalize.json as ThresholdEd25519PeerSignFinalizeResponse;
-      if (!finalizeJson?.ok) {
-        return { ok: false, code: finalizeJson?.code || 'internal', message: finalizeJson?.message || 'peer sign/finalize failed' };
+      let relayerSignatureShareB64u: string | null = null;
+      let lastPeerErr: { code: string; message: string } | null = null;
+
+      for (const relayerUrl of candidates) {
+        const finalizeUrl = `${relayerUrl}/threshold-ed25519/internal/sign/finalize`;
+        const peerFinalize = await this.postJsonWithTimeout(finalizeUrl, {
+          coordinatorGrant: peerCoordinatorGrant,
+          signingSessionId: peerSigningSessionId,
+          clientSignatureShareB64u,
+        }, 10_000);
+        if (!peerFinalize.ok) {
+          lastPeerErr = peerFinalize;
+          continue;
+        }
+
+        const finalizeJson = peerFinalize.json as ThresholdEd25519PeerSignFinalizeResponse;
+        if (!finalizeJson?.ok) {
+          lastPeerErr = { code: finalizeJson?.code || 'internal', message: finalizeJson?.message || 'peer sign/finalize failed' };
+          continue;
+        }
+        const share = toOptionalTrimmedString(finalizeJson.relayerSignatureShareB64u);
+        if (!share) {
+          lastPeerErr = { code: 'internal', message: 'peer sign/finalize produced empty signature share' };
+          continue;
+        }
+        relayerSignatureShareB64u = share;
+        break;
       }
-      const relayerSignatureShareB64u = toOptionalTrimmedString(finalizeJson.relayerSignatureShareB64u);
       if (!relayerSignatureShareB64u) {
-        return { ok: false, code: 'internal', message: 'peer sign/finalize produced empty signature share' };
+        return {
+          ok: false,
+          code: lastPeerErr?.code || 'unavailable',
+          message: lastPeerErr?.message || 'No coordinator peer available for sign/finalize',
+        };
       }
 
       return {

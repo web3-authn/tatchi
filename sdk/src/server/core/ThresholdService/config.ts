@@ -41,19 +41,20 @@ export function parseThresholdCoordinatorPeers(input: unknown): ThresholdCoordin
   if (!Array.isArray(raw) || raw.length === 0) return null;
 
   const out: ThresholdCoordinatorPeer[] = [];
-  const seen = new Set<number>();
+  const seen = new Set<string>();
   for (const item of raw) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
     const rec = item as Record<string, unknown>;
     const id = normalizeThresholdEd25519ParticipantId(rec.id);
     const relayerUrl = toOptionalTrimmedString(rec.relayerUrl)?.replace(/\/+$/, '');
     if (!id || !relayerUrl) return null;
-    if (seen.has(id)) continue;
-    seen.add(id);
+    const key = `${id}:${relayerUrl}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push({ id, relayerUrl });
   }
 
-  out.sort((a, b) => a.id - b.id);
+  out.sort((a, b) => (a.id - b.id) || a.relayerUrl.localeCompare(b.relayerUrl));
   return out.length ? out : null;
 }
 
@@ -110,4 +111,3 @@ export function parseThresholdEd25519ParticipantIds2p(input: {
 
   return { clientParticipantId, relayerParticipantId, participantIds2p };
 }
-

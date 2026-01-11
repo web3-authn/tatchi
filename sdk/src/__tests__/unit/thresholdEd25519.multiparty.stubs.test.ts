@@ -81,6 +81,92 @@ test('threshold-ed25519 coordinator fanout: multiple peers configured (selects a
   expect(init.relayerVerifyingSharesById?.['2']).toBeTruthy();
 });
 
+test('threshold-ed25519 coordinator fanout: redundant peers for same participant id (fallback)', async () => {
+  const secretB64u = Buffer.alloc(32, 7).toString('base64url');
+  const { svc, sessionStore } = createThresholdEd25519ServiceForUnitTests({
+    config: {
+      THRESHOLD_NODE_ROLE: 'coordinator',
+      THRESHOLD_COORDINATOR_PEERS: JSON.stringify([
+        { id: 2, relayerUrl: 'https://peer-a.example' },
+        { id: 2, relayerUrl: 'https://peer-b.example' },
+      ]),
+      THRESHOLD_COORDINATOR_SHARED_SECRET_B64U: secretB64u,
+    },
+  });
+
+  const mpcSessionId = 'mpc-test-peer-fallback';
+  const signingDigestB64u = Buffer.alloc(32, 9).toString('base64url');
+  const clientVerifyingShareB64u = Buffer.alloc(32, 5).toString('base64url');
+  const relayerKeyId = 'ed25519:dummy';
+  const userId = 'alice.near';
+  const rpId = 'example.com';
+
+  await sessionStore.putMpcSession(mpcSessionId, {
+    expiresAtMs: Date.now() + 60_000,
+    relayerKeyId,
+    purpose: 'near_tx',
+    intentDigestB64u: Buffer.alloc(32, 1).toString('base64url'),
+    signingDigestB64u,
+    userId,
+    rpId,
+    clientVerifyingShareB64u,
+    participantIds: [1, 2],
+  }, 60_000);
+
+  const seen: Array<{ url: string; body: any }> = [];
+  const originalFetch = globalThis.fetch;
+  (globalThis as any).fetch = async (url: any, init?: any) => {
+    const u = String(url);
+    const body = (() => {
+      try {
+        return init?.body ? JSON.parse(String(init.body)) : null;
+      } catch {
+        return null;
+      }
+    })();
+    seen.push({ url: u, body });
+
+    if (u.startsWith('https://peer-a.example/threshold-ed25519/internal/sign/init')) {
+      return {
+        status: 200,
+        async text() {
+          return JSON.stringify({ ok: false, code: 'internal', message: 'peer-a down' });
+        },
+      } as any;
+    }
+    return {
+      status: 200,
+      async text() {
+        return JSON.stringify({
+          ok: true,
+          signingSessionId: 'peer-sign-1',
+          relayerCommitments: { hiding: 'rh', binding: 'rb' },
+          relayerVerifyingShareB64u: Buffer.alloc(32, 3).toString('base64url'),
+        });
+      },
+    } as any;
+  };
+
+  let init: any;
+  try {
+    init = await svc.thresholdEd25519SignInit({
+      mpcSessionId,
+      relayerKeyId,
+      nearAccountId: userId,
+      signingDigestB64u,
+      clientCommitments: { hiding: 'h', binding: 'b' },
+    });
+  } finally {
+    (globalThis as any).fetch = originalFetch;
+  }
+
+  expect(init.ok).toBe(true);
+  expect(seen.map((s) => s.url)).toEqual([
+    'https://peer-a.example/threshold-ed25519/internal/sign/init',
+    'https://peer-b.example/threshold-ed25519/internal/sign/init',
+  ]);
+});
+
 test.describe.skip('threshold-ed25519 multiparty (2-of-3) [future]', () => {
   test('coordinator fanout to 2 relayer participants + aggregate (stub)', async () => {
     // Intended shape (future):

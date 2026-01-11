@@ -1,20 +1,24 @@
-# MPC Signing Refactor Plan (toward 3+ parties, keep current 2P)
+# MPC Signing Refactor Plan (keep 2P; enable relayer-fleet t-of-n, DKG later)
 
 ## Goal
 Refactor the current **2-party threshold Ed25519 (FROST)** implementation so that moving to **3+ parties (t-of-n)** is a *drop-in* architectural change:
 - keep **today’s 2P flow** working (same product behavior),
 - make data models, session storage, and protocol orchestration **n-party ready**,
-- minimize future surface-area changes when adding more relayer signers and/or DKG.
+- minimize future surface-area changes when adding relayer-fleet t-of-n and/or a true DKG ceremony.
 
 This is a refactor plan, not an immediate migration to 3+ parties.
 
 ## Terminology
 - **Party**: an independent trust domain holding a key share (e.g., client + relayer are 2 parties today).
 - **Instance**: a horizontally scaled copy of the same relayer party (same trust domain).
+- **Relayer fleet**: a set of relayer servers we operate (optionally across multiple clouds/regions).
+- **Logical relayer participant**: the *single* external threshold participant representing the relayer fleet (still “the relayer” from the client’s POV).
+- **Relayer cosigner**: an internal relayer node holding a *share of the logical relayer participant’s* secret material (t-of-n internally).
 
 Important: “serverless/cluster safe” and “3+ parties” are related but distinct.
 - The current “derived relayer share” approach can make the relayer **stateless across instances**, but it does **not** automatically create additional independent parties.
-- True 3+ parties implies **multiple independently-operated relayers** (distinct secrets, distinct failure domains), which typically requires DKG (or a dealer-split ceremony), and usually implies on-chain key rotation for the new group public key.
+- In our model, the external cryptographic signer set remains **2-party** (client + logical relayer), because the client share must remain deterministically derived from passkey PRF (account recovery requirement).
+- “3P+” resilience comes from splitting the **relayer** side internally across the relayer fleet (internal t-of-n cosigning), while the client still talks to a single logical relayer participant.
 
 ## Non-goals (for this refactor)
 - Implementing 3+ party signing end-to-end right now.
@@ -172,9 +176,9 @@ But refactor keygen into a “strategy” interface:
 
 Future strategies:
 - **Stateless relayer party (today’s goal)**: derived-share mode using a relayer master secret makes a *single relayer party* stateless across instances.
-- **Dealer-split (3+ parties, non-interactive at runtime)**: a trusted ceremony generates shares for each independent relayer party + the client, and distributes them securely; relayers persist their share (or persist a seed that can deterministically re-derive it).
-- **DKG (3+ parties, no dealer)**: participants run a DKG protocol to produce shares + group PK.
-  - Expect on-chain key rotation (new access key) per DKG run unless you are willing to keep a long-lived on-chain key and run proactive refreshes that preserve the same public key (complex).
+- **Relayer-fleet t-of-n (preferred 3P+ path)**: keep the *external* signer set as 2-party (client + logical relayer), but split the logical relayer participant internally across multiple relayer cosigners.
+  - v1: dealer-split deterministic relayer cosigner shares (restart-robust / “stateless” relayer nodes).
+  - v2: replace dealer-split with true DKG between relayer cosigners (no single relayer service can derive all shares).
 
 Note: “each relayer derives its share from its own master secret” is not, by itself, sufficient to create a common FROST group key across parties without some coordination/ceremony. If relayers do not share a common secret/seed or run a DKG, their shares will not correspond to the same group public key.
 
@@ -225,13 +229,13 @@ Add a new suite skeleton for future n-party tests (skipped initially):
 - [x] Make threshold participant IDs configurable (client + server) with defaults.
 
 ### Phase 4 — Multi-party “stubs” (compile-time ready, feature-flagged)
-- [x] Add participant list plumbing end-to-end (SDK → signer worker → relayer service) without enabling >2 by default.
-- [x] Add “multi-party disabled” runtime guards with clear error messages if `participants.length > 2` (until we implement).
+- [x] Add participant list plumbing end-to-end (SDK → signer worker → relayer service).
+- [x] Remove hard `participants.length > 2` rejections (keep current 2-party signing by selecting a 2-party signer set).
 - [x] Add skipped tests showing intended flows for 2-of-3.
 
 ### Phase 4B — Aggregator-coordinated signing (Option B)
 - [x] Define coordinator-facing endpoints: `/threshold-ed25519/sign/init` and `/threshold-ed25519/sign/finalize`.
-- [x] Implement coordinator fanout to downstream relayers (2P stub; multi-peer support is still disabled):
+- [x] Implement coordinator fanout to downstream relayers (2P stub; multi-peer config selects a peer, not concurrent fanout):
   - internal function calls when running as a single service,
   - HTTP fanout when relayers are separate services/parties.
 - [x] Add role-gated routing so the same relayer code can run as:
@@ -245,12 +249,12 @@ Add a new suite skeleton for future n-party tests (skipped initially):
   - coordinator issues a signed internal auth grant to relayers, or
   - coordinator forwards WebAuthn/VRF evidence and relayers verify independently.
 - [x] Add unit tests for coordinator fanout (2P stub; mocked downstream).
-- [ ] Extend tests to cover coordinator mode with 2 relayer participants (2-of-3; mocked downstream).
+- [x] Add unit test asserting multi-peer coordinator config selects a peer (until multiparty implemented).
 
 ### Phase 5 — Docs + migration notes
-- [ ] Document the participant model, signer sets, and how it maps to 2P today.
-- [ ] Document future 3+ party options (client fanout vs aggregator).
-- [ ] Document the keygen strategy interface and what changes when moving to DKG.
+- [x] Document the participant model, signer sets, and how it maps to 2P today.
+- [x] Document future 3+ party options (client fanout vs aggregator).
+- [x] Document the keygen strategy interface and what changes when moving to DKG.
 
 ## Acceptance criteria for this refactor
 - No user-visible regressions in the existing 2P threshold signing flows (tx/delegate/NEP-413).
@@ -258,44 +262,65 @@ Add a new suite skeleton for future n-party tests (skipped initially):
 - Code paths for FROST rounds are written against `participants[]` and `commitmentsById`, not hard-coded “client vs one relayer”.
 - Adding a second relayer participant should require **adding new implementation**, not rewriting existing modules.
 
-## True 3+ Party Signing (Phased TODO)
+## Relayer Fleet t-of-n (Phased TODO)
 
-This section is intentionally *post-refactor*: it assumes the current participant-aware coordinator architecture is in place, and outlines what’s needed for **real 3+ parties (t-of-n)**.
+This section is intentionally *post-refactor*: it assumes the current participant-aware coordinator architecture is in place, and outlines what’s needed for **3P+ resilience** while keeping the *external* signer set as **2-party** (client + logical relayer).
 
-### Phase 6 — Key Setup (DKG / dealer-split)
-- [ ] Pick a concrete key setup approach for 3+ parties (dealer-split vs DKG vs hybrid), and define the trust assumptions.
-- [ ] Define the on-chain rotation story: how the new group public key becomes an access key (migration is a non-goal, so this can assume a clean re-enroll / rotate).
-- [ ] Define share lifecycle: backups/recovery, refresh/proactive rotation (optional), and compromise response.
-- [ ] Define how participant ids are assigned/managed for n parties (stable ids, collisions, ordering, “client always id=1?” policy).
+### Phase 6 — Relayer Cosigner Key Setup (dealer-split first; DKG later)
 
-### Phase 7 — Multi-party Signing Orchestration (coordinator mode)
-- [ ] Remove 2P-only guards (feature-flag behind `participants.length > 2` until complete) and implement n-party transcript handling end-to-end.
-- [ ] Implement coordinator fanout to multiple peers concurrently with per-peer timeouts and partial failure handling (t-of-n semantics).
-- [ ] Implement signer-set selection: decide which participants are required for a given signature (policy-driven, health-driven, or fixed).
-- [ ] Tighten coordinator→peer authorization: ensure per-signature grants are scoped to `(mpcSessionId, signerSet, digest, expiry)` and enforce on peers.
+**Phase 6A (v1): dealer-split deterministic relayer cosigner shares**
+- [ ] Define dealer config (single-operator):
+  - `THRESHOLD_ED25519_DEALER_MASTER_SECRET_B64U` (32 bytes; stored in KMS/secret manager; ideally only on coordinator/dealer).
+  - `relayerKeyId` / “key binding” inputs used to deterministically derive the *same* relayer cosigner shares for a given threshold key.
+- [ ] Define deterministic relayer secret splitting:
+  - deterministically derive a relayer secret scalar `s_rel` from dealer secret + binding data,
+  - deterministically derive per-cosigner shares whose recombination yields `s_rel` (t-of-n),
+  - compute the relayer verifying share `P_rel = G * s_rel` (and therefore the external group public key when combined with the PRF-derived client verifying share).
+- [ ] Define secure share distribution to relayer cosigners:
+  - internal endpoint returns **only** the requesting cosigner’s share (auth’d by internal grant / mTLS),
+  - cosigners keep the share in memory; on restart they re-fetch (no per-cosigner persistence required).
+- [ ] Define the on-chain rotation story (still required): new external group public key becomes an access key (clean rotate).
+- [ ] Define cosigner lifecycle: compromise response (rotate), backups (optional), and operational playbooks.
+- [ ] Define cosigner id assignment policy and config wiring (stable ids, ordering, env/config).
 
-### Phase 8 — Protocol + Cryptography
-- [ ] Implement n-party FROST aggregation in the signer worker against `{participantIds, commitmentsById, signatureSharesById}` (no 2P shortcuts).
-- [ ] Add signature-share verification and clear error surfaces per participant (bad share vs missing share vs stale transcript).
-- [ ] Add transcript binding checks for n parties (commitment maps, verifying share maps, binding factor computation inputs).
+**Phase 6B (future): true DKG between relayer cosigners**
+- [ ] Implement relayer cosigner DKG ceremony (see `docs/dkg.md`).
+- [ ] Replace dealer-split with DKG between relayer cosigners (no single relayer service can derive all shares).
+- [ ] Define restart robustness (encrypted share persistence vs re-fetchable encrypted blobs).
+- [ ] Define upgrade path from dealer-split keys to DKG keys (clean rotate; no migration tooling).
+
+### Phase 7 — Relayer Cosigner Orchestration (internal t-of-n)
+- [ ] Define internal cosigner protocol so the relayer fleet can behave like a single “logical relayer participant”:
+  - internal Round 1: cosigners produce nonce commitments; coordinator combines into one relayer commitment transcript for the client.
+  - internal Round 2: cosigners produce partial signature-share contributions; coordinator combines into one relayer signature share for the client.
+- [ ] Implement cosigner selection + timeouts (t-of-n): health-driven selection, partial failure handling, retry semantics.
+- [ ] Tighten internal authorization: ensure cosigners only contribute for `(mpcSessionId, relayerKeyId, signerSet, signingDigest, expiry)` scoped grants.
+
+### Phase 8 — Relayer-side Protocol + Cryptography
+- [ ] Specify the exact internal math so the relayer fleet outputs **valid outer-protocol** values for the logical relayer participant:
+  - commitments and signature share must match what a single holder of `s_rel` would produce.
+- [ ] Add verification and clear error surfaces per cosigner (bad share vs missing share vs stale transcript).
+- [ ] Add transcript binding checks (internal commitments, binding factors, nonce reuse prevention).
 
 ### Phase 9 — Ops, Hardening, and UX
-- [ ] Add coordinator/peer health + discovery UX: deterministic peer list config, health checks, and operator diagnostics.
-- [ ] Add rate limits and abuse controls per endpoint (authorize/session/sign) appropriate for multi-party mode.
-- [ ] Add a minimal production deployment guide for coordinator + peers (secrets, CORS, cookie/JWT session wiring).
+- [ ] Add relayer cosigner health + discovery UX: deterministic peer list config, health checks, and operator diagnostics.
+- [ ] Add rate limits and abuse controls per endpoint (authorize/session/sign/internal-cosign) appropriate for fleet mode.
+- [ ] Add a minimal production deployment guide for coordinator + cosigners (secrets, internal auth, cookie/JWT session wiring).
 
 ### Phase 10 — Tests + Docs
-- [ ] Turn the existing skipped “2-of-3” tests into real tests (mock peers) and add “3-of-3” + failure-mode suites.
-- [ ] Add e2e coverage for delegate/NEP-413/batch in threshold mode (parity with near_tx).
-- [ ] Document the 3+ party trust model and key setup ceremony (and explicitly call out non-goal: migration tooling).
+- [ ] Add unit tests for relayer-internal t-of-n cosigning (2-of-3, 3-of-5) with failure-mode suites.
+- [ ] Add e2e coverage for threshold flows (tx/delegate/NEP-413/batch) in relayer-fleet mode.
+- [ ] Document the relayer-fleet trust model and key setup (dealer-split now; DKG later) and explicitly call out non-goal: migration tooling.
 
 ## Refactor
 
 TODO (from reviewing `git diff`):
 
-- [ ] **Split `ThresholdEd25519Service.ts`**: extract config parsing, keygen strategy, session persistence, coordinator fanout, peer endpoints, and key-material resolution into smaller modules.
-- [ ] **Centralize config/env parsing**: reduce drift for `THRESHOLD_NODE_ROLE`, `THRESHOLD_COORDINATOR_PEERS`, and participant id normalization across server + tests + docs.
-- [ ] **Remove redundant record fields once stable**: keep only map-shaped transcript fields (`commitmentsById`, `relayerVerifyingSharesById`, `relayerSignatureSharesById`) and drop legacy 2P-only fields.
-- [ ] **Unify participant-id resolution logic (Rust)**: avoid duplicate/heuristic relayer-id resolution between `signer_backend.rs` and `relayer_http.rs`.
+- [x] **Split `ThresholdEd25519Service.ts`**: extract config parsing, keygen strategy, session persistence, coordinator fanout, peer endpoints, and key-material resolution into smaller modules.
+- [x] **Centralize config/env parsing**: reduce drift for `THRESHOLD_NODE_ROLE`, `THRESHOLD_COORDINATOR_PEERS`, and participant id normalization across server + tests + docs.
+- [x] **Remove redundant record fields once stable**: keep only map-shaped transcript fields (`commitmentsById`, `relayerVerifyingSharesById`, `relayerSignatureSharesById`) and drop legacy 2P-only fields.
+- [x] **Unify participant-id resolution logic (Rust)**: avoid duplicate/heuristic relayer-id resolution between `signer_backend.rs` and `relayer_http.rs`.
+- [x] **Parse/validate once at entry points**: keep strict validation but reduce repeated `toOptionalTrimmedString` noise across service + handlers.
 - [ ] **Make errors more uniform across boundaries**: standardize error codes/messages across server ↔ WASM ↔ SDK for threshold flows.
-- [ ] **Test harness cleanup**: factor coordinator wiring into a single helper and expand coverage for delegate/NEP-413/batch + 2-of-3 mocked peers.
+- [x] **Test harness cleanup**: factor coordinator wiring into a single helper.
+- [ ] **Test coverage expansion**: expand coverage for delegate/NEP-413/batch + 2-of-3 mocked peers.
