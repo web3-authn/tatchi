@@ -1,25 +1,6 @@
 use std::fmt;
 use wasm_bindgen::JsValue;
 
-// Parse payload error with message name context
-pub struct ParsePayloadError {
-    pub message_name: String,
-    pub serde_error: serde_wasm_bindgen::Error,
-}
-
-impl ParsePayloadError {
-    pub fn new(message_name: &str, serde_error: serde_wasm_bindgen::Error) -> Self {
-        Self {
-            message_name: message_name.to_string(),
-            serde_error,
-        }
-    }
-}
-
-fn should_redact_parse_payload_details(message_name: &str) -> bool {
-    matches!(message_name, "SIGN_TRANSACTION_WITH_KEYPAIR")
-}
-
 #[derive(Clone, Copy)]
 enum QuoteStyle {
     Plain,
@@ -27,7 +8,7 @@ enum QuoteStyle {
 }
 
 impl QuoteStyle {
-    fn value_quote(self) -> &'static str {
+    fn quote(self) -> &'static str {
         match self {
             QuoteStyle::Plain => "\"",
             QuoteStyle::Escaped => "\\\"",
@@ -36,41 +17,61 @@ impl QuoteStyle {
 
     fn skip_value(self, s: &str) -> Option<&str> {
         match self {
-            QuoteStyle::Plain => skip_quoted_value(s),
+            QuoteStyle::Plain => skip_plain_quoted_value(s),
             QuoteStyle::Escaped => skip_escaped_quoted_value(s),
         }
     }
 }
 
-const REDACTED: &str = "[redacted]";
-const KEY_PATTERNS: [(&str, QuoteStyle); 4] = [
+const REDACTED: &str = "[REDACTED]";
+const SECRET_STRING_FIELDS: [(&str, QuoteStyle); 32] = [
     ("\"nearPrivateKey\"", QuoteStyle::Plain),
     ("\"near_private_key\"", QuoteStyle::Plain),
     ("\\\"nearPrivateKey\\\"", QuoteStyle::Escaped),
     ("\\\"near_private_key\\\"", QuoteStyle::Escaped),
+
+    ("\"wrapKeySeed\"", QuoteStyle::Plain),
+    ("\"wrap_key_seed\"", QuoteStyle::Plain),
+    ("\\\"wrapKeySeed\\\"", QuoteStyle::Escaped),
+    ("\\\"wrap_key_seed\\\"", QuoteStyle::Escaped),
+
+    ("\"prfOutput\"", QuoteStyle::Plain),
+    ("\"prf_output\"", QuoteStyle::Plain),
+    ("\\\"prfOutput\\\"", QuoteStyle::Escaped),
+    ("\\\"prf_output\\\"", QuoteStyle::Escaped),
+
+    ("\"prfFirst\"", QuoteStyle::Plain),
+    ("\"prfSecond\"", QuoteStyle::Plain),
+    ("\\\"prfFirst\\\"", QuoteStyle::Escaped),
+    ("\\\"prfSecond\\\"", QuoteStyle::Escaped),
+
+    ("\"prf_first\"", QuoteStyle::Plain),
+    ("\"prf_second\"", QuoteStyle::Plain),
+    ("\\\"prf_first\\\"", QuoteStyle::Escaped),
+    ("\\\"prf_second\\\"", QuoteStyle::Escaped),
+
+    ("\"chacha20PrfOutput\"", QuoteStyle::Plain),
+    ("\"ed25519PrfOutput\"", QuoteStyle::Plain),
+    ("\\\"chacha20PrfOutput\\\"", QuoteStyle::Escaped),
+    ("\\\"ed25519PrfOutput\\\"", QuoteStyle::Escaped),
+
+    ("\"chacha20PrfOutputBase64\"", QuoteStyle::Plain),
+    ("\"ed25519PrfOutputBase64\"", QuoteStyle::Plain),
+    ("\\\"chacha20PrfOutputBase64\\\"", QuoteStyle::Escaped),
+    ("\\\"ed25519PrfOutputBase64\\\"", QuoteStyle::Escaped),
+
+    ("\"prfSecondB64u\"", QuoteStyle::Plain),
+    ("\"prf_second_b64u\"", QuoteStyle::Plain),
+    ("\\\"prfSecondB64u\\\"", QuoteStyle::Escaped),
+    ("\\\"prf_second_b64u\\\"", QuoteStyle::Escaped),
 ];
 
-fn scrub_near_private_key(input: &str) -> String {
-    if !input.contains("nearPrivateKey") && !input.contains("near_private_key") {
-        return input.to_string();
-    }
-
+fn scrub_json_string_fields(input: &str, patterns: &[(&str, QuoteStyle)]) -> String {
     let mut output = input.to_string();
-    for (pattern, style) in KEY_PATTERNS {
-        output = scrub_json_string_field(&output, pattern, style);
+    for (pattern, quote_style) in patterns {
+        output = scrub_json_string_field(&output, pattern, *quote_style);
     }
     output
-}
-
-pub fn scrub_error_message(message: &str) -> String {
-    scrub_near_private_key(message)
-}
-
-pub fn scrub_js_error_value(err: JsValue) -> JsValue {
-    match err.as_string() {
-        Some(message) => JsValue::from_str(&scrub_error_message(&message)),
-        None => err,
-    }
 }
 
 fn scrub_json_string_field(input: &str, key_pattern: &str, quote_style: QuoteStyle) -> String {
@@ -95,7 +96,7 @@ fn scrub_json_string_field(input: &str, key_pattern: &str, quote_style: QuoteSty
         out.push_str(ws);
         rest = after_ws;
 
-        let quote = quote_style.value_quote();
+        let quote = quote_style.quote();
         let Some(after_open) = rest.strip_prefix(quote) else {
             out.push_str(rest);
             return out;
@@ -130,7 +131,7 @@ where
     s.split_at(end)
 }
 
-fn skip_quoted_value(s: &str) -> Option<&str> {
+fn skip_plain_quoted_value(s: &str) -> Option<&str> {
     let mut escaped = false;
     for (idx, ch) in s.char_indices() {
         if escaped {
@@ -152,20 +153,50 @@ fn skip_escaped_quoted_value(s: &str) -> Option<&str> {
     s.find("\\\"").map(|idx| &s[idx + 2..])
 }
 
-fn format_parse_payload_error(
-    message_name: &str,
-    serde_error: &serde_wasm_bindgen::Error,
-) -> String {
-    let message = if should_redact_parse_payload_details(message_name) {
-        format!("Invalid payload for {}", message_name)
+pub fn scrub_error_message(message: &str) -> String {
+    let scrubbed = scrub_json_string_fields(message, &SECRET_STRING_FIELDS);
+    if scrubbed.contains("\"prf\"") || scrubbed.contains("\\\"prf\\\"") {
+        scrub_json_string_fields(
+            &scrubbed,
+            &[
+                ("\"first\"", QuoteStyle::Plain),
+                ("\"second\"", QuoteStyle::Plain),
+                ("\\\"first\\\"", QuoteStyle::Escaped),
+                ("\\\"second\\\"", QuoteStyle::Escaped),
+            ],
+        )
     } else {
-        format!("Invalid payload for {}: {}", message_name, serde_error)
-    };
-    scrub_error_message(&message)
+        scrubbed
+    }
+}
+
+pub fn scrub_js_error_value(err: JsValue) -> JsValue {
+    if let Some(message) = err.as_string() {
+        return JsValue::from_str(&scrub_error_message(&message));
+    }
+    JsValue::from_str(&scrub_error_message(&format!("{err:?}")))
+}
+
+/// Parse payload error with message name context.
+///
+/// Important: `serde_wasm_bindgen::Error` can embed the full JS value in its
+/// Display representation (including secrets).
+pub struct ParsePayloadError {
+    pub message_name: String,
+    pub serde_error: serde_wasm_bindgen::Error,
+}
+
+impl ParsePayloadError {
+    pub fn new(message_name: &str, serde_error: serde_wasm_bindgen::Error) -> Self {
+        Self {
+            message_name: message_name.to_string(),
+            serde_error,
+        }
+    }
 }
 
 impl fmt::Debug for ParsePayloadError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ParsePayloadError")
             .field("message_name", &self.message_name)
             .field(
@@ -196,6 +227,22 @@ impl From<ParsePayloadError> for JsValue {
     fn from(err: ParsePayloadError) -> Self {
         JsValue::from_str(&scrub_error_message(&err.to_string()))
     }
+}
+
+fn should_redact_parse_payload_details(message_name: &str) -> bool {
+    matches!(message_name, "SIGN_TRANSACTION_WITH_KEYPAIR")
+}
+
+fn format_parse_payload_error(
+    message_name: &str,
+    serde_error: &serde_wasm_bindgen::Error,
+) -> String {
+    let message = if should_redact_parse_payload_details(message_name) {
+        format!("Invalid payload for {}", message_name)
+    } else {
+        format!("Invalid payload for {}: {}", message_name, serde_error)
+    };
+    scrub_error_message(&message)
 }
 
 // Custom error type for KDF operations

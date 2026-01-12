@@ -157,9 +157,7 @@ pub fn send_progress_message(message_type: u32, step: u32, message: &str, data: 
 #[wasm_bindgen]
 pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsValue> {
     init_worker();
-    handle_signer_message_inner(message_val)
-        .await
-        .map_err(scrub_js_error_value)
+    handle_signer_message_inner(message_val).await.map_err(scrub_js_error_value)
 }
 
 async fn handle_signer_message_inner(message_val: JsValue) -> Result<JsValue, JsValue> {
@@ -281,6 +279,7 @@ async fn handle_signer_message_inner(message_val: JsValue) -> Result<JsValue, Js
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
+        WorkerRequestType::HealthCheck => JsValue::from_bool(true),
     };
 
     // At this point, response_payload is the successful JsValue result.
@@ -315,6 +314,7 @@ async fn handle_signer_message_inner(message_val: JsValue) -> Result<JsValue, Js
         WorkerRequestType::SignAddKeyThresholdPublicKeyNoPrompt => {
             WorkerResponseType::SignAddKeyThresholdPublicKeyNoPromptSuccess
         }
+        WorkerRequestType::HealthCheck => WorkerResponseType::HealthCheckSuccess,
     };
 
     // Debug logging for response type
