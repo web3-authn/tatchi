@@ -105,6 +105,41 @@ function normalizeShamirConfig(input: AuthServiceConfigInput['shamir']): AuthSer
   };
 }
 
+function normalizeThresholdEd25519KeyStoreConfig(
+  input: AuthServiceConfigInput['thresholdEd25519KeyStore'],
+): AuthServiceConfig['thresholdEd25519KeyStore'] | undefined {
+  if (!input) return undefined;
+  if (typeof input !== 'object' || Array.isArray(input)) return undefined;
+
+  const c = input as Record<string, unknown>;
+  const anyProvided = Boolean(
+    // Minimal (env-shaped)
+    toOptionalTrimmedString(c.THRESHOLD_ED25519_SHARE_MODE)
+    || toOptionalTrimmedString(c.THRESHOLD_ED25519_MASTER_SECRET_B64U)
+    || toOptionalTrimmedString(c.THRESHOLD_NODE_ROLE)
+    || toOptionalTrimmedString(c.THRESHOLD_COORDINATOR_SHARED_SECRET_B64U)
+    || toOptionalTrimmedString(c.THRESHOLD_ED25519_RELAYER_COSIGNERS)
+    || toOptionalTrimmedString(c.THRESHOLD_ED25519_RELAYER_COSIGNER_ID)
+    || toOptionalTrimmedString(c.THRESHOLD_ED25519_RELAYER_COSIGNER_T)
+    || toOptionalTrimmedString(c.THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID)
+    || toOptionalTrimmedString(c.THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID)
+    || toOptionalTrimmedString(c.THRESHOLD_ED25519_AUTH_PREFIX)
+    || toOptionalTrimmedString(c.THRESHOLD_ED25519_SESSION_PREFIX)
+    || toOptionalTrimmedString(c.THRESHOLD_ED25519_KEYSTORE_PREFIX)
+    // Explicit store config (kind-shaped)
+    || toOptionalTrimmedString(c.kind)
+    || toOptionalTrimmedString(c.url)
+    || toOptionalTrimmedString(c.token)
+    || toOptionalTrimmedString(c.redisUrl)
+    // Env-shaped store toggles
+    || toOptionalTrimmedString(c.UPSTASH_REDIS_REST_URL)
+    || toOptionalTrimmedString(c.UPSTASH_REDIS_REST_TOKEN)
+    || toOptionalTrimmedString(c.REDIS_URL),
+  );
+  if (!anyProvided) return undefined;
+  return input;
+}
+
 export function createAuthServiceConfig(input: AuthServiceConfigInput): AuthServiceConfig {
   const networkId = String(input.networkId || '').trim() || AUTH_SERVICE_CONFIG_DEFAULTS.networkId;
   const config: AuthServiceConfig = {
@@ -119,7 +154,7 @@ export function createAuthServiceConfig(input: AuthServiceConfigInput): AuthServ
       || AUTH_SERVICE_CONFIG_DEFAULTS.createAccountAndRegisterGas,
     shamir: normalizeShamirConfig(input.shamir),
     signerWasm: input.signerWasm,
-    thresholdEd25519KeyStore: input.thresholdEd25519KeyStore,
+    thresholdEd25519KeyStore: normalizeThresholdEd25519KeyStoreConfig(input.thresholdEd25519KeyStore),
     logger: input.logger,
     zkEmailProver: normalizeZkEmailProverConfig(input.zkEmailProver),
   };

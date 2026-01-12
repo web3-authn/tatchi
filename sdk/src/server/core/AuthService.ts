@@ -7,6 +7,8 @@ import { formatGasToTGas, formatYoctoToNear } from './utils';
 import { parseContractExecutionError } from './errors';
 import { toOptionalTrimmedString } from '../../utils/validation';
 import { coerceThresholdEd25519ShareMode, coerceThresholdNodeRole } from './ThresholdService/config';
+import type { ThresholdSigningService as ThresholdSigningServiceType } from './ThresholdService';
+import { createThresholdSigningService } from './ThresholdService';
 import initSignerWasm, {
   handle_signer_message,
   WorkerRequestType,
@@ -112,6 +114,8 @@ export class AuthService {
   private relayerPublicKey: string = '';
   private signerWasmReady = false;
   private readonly logger: NormalizedLogger;
+  private thresholdSigningServiceInitialized = false;
+  private thresholdSigningService: ThresholdSigningServiceType | null = null;
 
   // Transaction queue to prevent nonce conflicts
   private transactionQueue: Promise<any> = Promise.resolve();
@@ -178,6 +182,28 @@ export class AuthService {
   async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
     await this._ensureSignerAndRelayerAccount();
     return this.nearClient.viewAccessKeyList(accountId);
+  }
+
+  /**
+   * Lazily constructs the threshold signing service when `thresholdEd25519KeyStore` is configured.
+   * Routers may call this to auto-enable `/threshold-ed25519/*` endpoints.
+   */
+  getThresholdSigningService(): ThresholdSigningServiceType | null {
+    if (this.thresholdSigningServiceInitialized) return this.thresholdSigningService;
+    this.thresholdSigningServiceInitialized = true;
+
+    if (!this.config.thresholdEd25519KeyStore) {
+      this.thresholdSigningService = null;
+      return null;
+    }
+
+    this.thresholdSigningService = createThresholdSigningService({
+      authService: this,
+      thresholdEd25519KeyStore: this.config.thresholdEd25519KeyStore,
+      logger: this.logger,
+      isNode: this.isNodeEnvironment(),
+    });
+    return this.thresholdSigningService;
   }
 
   getWebAuthnContractId(): string {
