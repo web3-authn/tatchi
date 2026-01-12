@@ -27,6 +27,8 @@ pub enum WorkerRequestType {
     /// Single-purpose internal signing path for post-registration activation:
     /// Sign AddKey(thresholdPublicKey) for receiverId == nearAccountId without VRF/confirmTxFlow.
     SignAddKeyThresholdPublicKeyNoPrompt,
+    /// Lightweight health check to validate wasm message parsing.
+    HealthCheck,
 }
 
 impl From<u32> for WorkerRequestType {
@@ -43,6 +45,7 @@ impl From<u32> for WorkerRequestType {
             8 => WorkerRequestType::SignDelegateAction,
             9 => WorkerRequestType::DeriveThresholdEd25519ClientVerifyingShare,
             10 => WorkerRequestType::SignAddKeyThresholdPublicKeyNoPrompt,
+            11 => WorkerRequestType::HealthCheck,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }
@@ -65,6 +68,7 @@ impl WorkerRequestType {
             WorkerRequestType::SignAddKeyThresholdPublicKeyNoPrompt => {
                 "SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT"
             }
+            WorkerRequestType::HealthCheck => "HEALTH_CHECK",
         }
     }
 }
@@ -88,6 +92,7 @@ pub fn worker_request_type_name(request_type: WorkerRequestType) -> &'static str
         WorkerRequestType::SignAddKeyThresholdPublicKeyNoPrompt => {
             "SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT"
         }
+        WorkerRequestType::HealthCheck => "HEALTH_CHECK",
     }
 }
 
@@ -142,6 +147,8 @@ pub enum WorkerResponseType {
     // Internal post-registration activation helper
     SignAddKeyThresholdPublicKeyNoPromptSuccess = 24,
     SignAddKeyThresholdPublicKeyNoPromptFailure = 25,
+    HealthCheckSuccess = 26,
+    HealthCheckFailure = 27,
 }
 impl From<WorkerResponseType> for u32 {
     fn from(value: WorkerResponseType) -> Self {
@@ -182,6 +189,8 @@ impl From<u32> for WorkerResponseType {
             23 => WorkerResponseType::DeriveThresholdEd25519ClientVerifyingShareFailure,
             24 => WorkerResponseType::SignAddKeyThresholdPublicKeyNoPromptSuccess,
             25 => WorkerResponseType::SignAddKeyThresholdPublicKeyNoPromptFailure,
+            26 => WorkerResponseType::HealthCheckSuccess,
+            27 => WorkerResponseType::HealthCheckFailure,
             _ => panic!("Invalid WorkerResponseType value: {}", value),
         }
     }
@@ -254,6 +263,8 @@ pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static 
         WorkerResponseType::SignAddKeyThresholdPublicKeyNoPromptFailure => {
             "SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT_FAILURE"
         }
+        WorkerResponseType::HealthCheckSuccess => "HEALTH_CHECK_SUCCESS",
+        WorkerResponseType::HealthCheckFailure => "HEALTH_CHECK_FAILURE",
     }
 }
 
