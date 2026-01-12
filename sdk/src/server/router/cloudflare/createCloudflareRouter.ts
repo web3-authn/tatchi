@@ -36,12 +36,15 @@ export interface CloudflareRelayContext {
 
 export function createCloudflareRouter(service: AuthService, opts: RelayRouterOptions = {}): FetchHandler {
   const notFound = () => new Response('Not Found', { status: 404 });
-  const threshold = (() => {
-    if (opts.threshold !== undefined) return opts.threshold;
-    const fn = (service as unknown as { getThresholdSigningService?: () => unknown }).getThresholdSigningService;
-    if (typeof fn === 'function') return fn.call(service) as RelayRouterOptions['threshold'];
-    return undefined;
-  })();
+
+  const thresholdFromService = (): RelayRouterOptions['threshold'] | undefined => {
+    const maybe = service as unknown as { getThresholdSigningService?: () => RelayRouterOptions['threshold'] | null };
+    return typeof maybe.getThresholdSigningService === 'function'
+      ? (maybe.getThresholdSigningService() ?? undefined)
+      : undefined;
+  };
+
+  const threshold = opts.threshold !== undefined ? opts.threshold : thresholdFromService();
   const effectiveOpts: RelayRouterOptions = { ...opts, threshold };
 
   const mePath = effectiveOpts.sessionRoutes?.auth || '/session/auth';
