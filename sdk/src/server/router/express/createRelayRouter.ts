@@ -29,9 +29,12 @@ export interface ExpressRelayContext {
 
 export function createRelayRouter(service: AuthService, opts: RelayRouterOptions = {}): ExpressRouter {
   const router = express.Router();
-  const threshold = opts.threshold === undefined
-    ? service.getThresholdSigningService()
-    : opts.threshold;
+  const threshold = (() => {
+    if (opts.threshold !== undefined) return opts.threshold;
+    const fn = (service as unknown as { getThresholdSigningService?: () => unknown }).getThresholdSigningService;
+    if (typeof fn === 'function') return fn.call(service) as RelayRouterOptions['threshold'];
+    return undefined;
+  })();
   const effectiveOpts: RelayRouterOptions = { ...opts, threshold };
 
   const mePath = effectiveOpts.sessionRoutes?.auth || '/session/auth';
