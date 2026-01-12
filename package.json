@@ -12,6 +12,7 @@
     "examples:next-js": "pnpm -C examples/next-js dev",
     "examples:docs": "pnpm -C examples/tatchi-docs gen:home-snippets && concurrently --kill-others --names app,docs \"pnpm -C examples/tatchi-docs dev\" \"pnpm docs:dev\"",
     "server": "EXPECTED_ORIGIN=https://example.localhost EXPECTED_WALLET_ORIGIN=https://wallet.example.localhost pnpm -C examples/relay-server dev",
+    "server:3-relays": "EXPECTED_ORIGIN=https://example.localhost EXPECTED_WALLET_ORIGIN=https://wallet.example.localhost pnpm -C examples/relay-server dev:threshold:3relays",
     "server:iphone": "EXPECTED_ORIGIN=https://pta-m4.local EXPECTED_WALLET_ORIGIN=https://pta-m4.local:8443 pnpm -C examples/relay-server dev",
     "gen:shamir": "pnpm -C examples/relay-server run gen:shamir",
     "docs:dev": "cd examples/tatchi-docs/src && vitepress dev --port 5222",

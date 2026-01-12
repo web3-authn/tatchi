@@ -23,10 +23,10 @@ import type {
   ThresholdEd25519AuthorizeWithSessionRequest,
   ThresholdEd25519KeygenRequest,
   ThresholdEd25519KeygenResponse,
-  ThresholdEd25519PeerSignInitRequest,
-  ThresholdEd25519PeerSignInitResponse,
-  ThresholdEd25519PeerSignFinalizeRequest,
-  ThresholdEd25519PeerSignFinalizeResponse,
+  ThresholdEd25519CosignInitRequest,
+  ThresholdEd25519CosignInitResponse,
+  ThresholdEd25519CosignFinalizeRequest,
+  ThresholdEd25519CosignFinalizeResponse,
   ThresholdEd25519SignInitRequest,
   ThresholdEd25519SignInitResponse,
   ThresholdEd25519SignFinalizeRequest,
@@ -50,14 +50,16 @@ import {
 import { alphabetizeStringify, sha256BytesUtf8 } from '../../../utils/digests';
 import {
   normalizeThresholdEd25519ParticipantIds,
+  normalizeThresholdEd25519ParticipantId,
 } from '../../../threshold/participants';
 import type { ThresholdEd25519ShareMode } from './config';
 import {
   coerceThresholdEd25519ShareMode,
   coerceThresholdNodeRole,
-  parseThresholdCoordinatorPeers,
   parseThresholdCoordinatorSharedSecretBytes,
   parseThresholdEd25519ParticipantIds2p,
+  parseThresholdRelayerCosignerThreshold,
+  parseThresholdRelayerCosigners,
   validateThresholdEd25519MasterSecretB64u,
 } from './config';
 import { ThresholdEd25519SigningHandlers } from './signingHandlers';
@@ -312,7 +314,7 @@ function parseThresholdEd25519SessionRequest(
   };
 }
 
-export class ThresholdEd25519Service {
+export class ThresholdSigningService {
   private readonly logger: NormalizedLogger;
   private readonly keyStore: ThresholdEd25519KeyStore;
   private readonly sessionStore: ThresholdEd25519SessionStore;
@@ -354,9 +356,16 @@ export class ThresholdEd25519Service {
     const cfg = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
 
     const nodeRole = coerceThresholdNodeRole(cfg.THRESHOLD_NODE_ROLE);
-    const coordinatorPeers = parseThresholdCoordinatorPeers(cfg.THRESHOLD_COORDINATOR_PEERS) || [];
     const coordinatorSharedSecretBytes =
       parseThresholdCoordinatorSharedSecretBytes(cfg.THRESHOLD_COORDINATOR_SHARED_SECRET_B64U);
+    const relayerCosigners = parseThresholdRelayerCosigners(cfg.THRESHOLD_ED25519_RELAYER_COSIGNERS) || [];
+    const relayerCosignerThreshold = parseThresholdRelayerCosignerThreshold(cfg.THRESHOLD_ED25519_RELAYER_COSIGNER_T);
+    const relayerCosignerIdRaw = cfg.THRESHOLD_ED25519_RELAYER_COSIGNER_ID;
+    const relayerCosignerId =
+      relayerCosignerIdRaw === undefined ? null : normalizeThresholdEd25519ParticipantId(relayerCosignerIdRaw);
+    if (nodeRole === 'cosigner' && !relayerCosignerId) {
+      throw new Error('THRESHOLD_ED25519_RELAYER_COSIGNER_ID is required when THRESHOLD_NODE_ROLE=cosigner');
+    }
 
     const ids = parseThresholdEd25519ParticipantIds2p({
       THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID: cfg.THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
@@ -391,7 +400,9 @@ export class ThresholdEd25519Service {
     this.signingHandlers = new ThresholdEd25519SigningHandlers({
       logger: this.logger,
       nodeRole,
-      coordinatorPeers,
+      relayerCosigners,
+      relayerCosignerThreshold,
+      relayerCosignerId,
       coordinatorSharedSecretBytes,
       clientParticipantId: this.clientParticipantId,
       relayerParticipantId: this.relayerParticipantId,
@@ -402,7 +413,7 @@ export class ThresholdEd25519Service {
       viewAccessKeyList: this.viewAccessKeyList,
       resolveRelayerKeyMaterial: (args) => this.resolveRelayerKeyMaterial(args),
     });
-	  }
+  }
 
 	  private async resolveRelayerKeyMaterial(input: {
 	    relayerKeyId: string;
@@ -1064,12 +1075,12 @@ export class ThresholdEd25519Service {
     return await this.signingHandlers.thresholdEd25519SignInit(request);
   }
 
-  async thresholdEd25519PeerSignInit(request: ThresholdEd25519PeerSignInitRequest): Promise<ThresholdEd25519PeerSignInitResponse> {
-    return await this.signingHandlers.thresholdEd25519PeerSignInit(request);
+  async thresholdEd25519CosignInit(request: ThresholdEd25519CosignInitRequest): Promise<ThresholdEd25519CosignInitResponse> {
+    return await this.signingHandlers.thresholdEd25519CosignInit(request);
   }
 
-  async thresholdEd25519PeerSignFinalize(request: ThresholdEd25519PeerSignFinalizeRequest): Promise<ThresholdEd25519PeerSignFinalizeResponse> {
-    return await this.signingHandlers.thresholdEd25519PeerSignFinalize(request);
+  async thresholdEd25519CosignFinalize(request: ThresholdEd25519CosignFinalizeRequest): Promise<ThresholdEd25519CosignFinalizeResponse> {
+    return await this.signingHandlers.thresholdEd25519CosignFinalize(request);
   }
 
   async thresholdEd25519SignFinalize(request: ThresholdEd25519SignFinalizeRequest): Promise<ThresholdEd25519SignFinalizeResponse> {

@@ -38,6 +38,11 @@ extra requirements and limitations compared to the Express example.
 - If you enable Shamir rotation, configure the cron schedule in `[triggers]`
   and set `ENABLE_ROTATION="1"`.
 
+### Threshold signing (optional)
+
+Threshold signing endpoints are enabled only when you provide:
+- `THRESHOLD_ED25519_MASTER_SECRET_B64U` (32 bytes, base64url) via `wrangler secret put`.
+
 ### Session configuration (optional)
 
 The Worker mints sessions only when you provide a SessionService. No JWT library

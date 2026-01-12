@@ -3,9 +3,9 @@ import { json, readJson } from '../http';
 import { thresholdEd25519StatusCode } from '../../../threshold/statusCodes';
 import type {
   ThresholdEd25519AuthorizeResponse,
+  ThresholdEd25519CosignFinalizeRequest,
+  ThresholdEd25519CosignInitRequest,
   ThresholdEd25519KeygenRequest,
-  ThresholdEd25519PeerSignFinalizeRequest,
-  ThresholdEd25519PeerSignInitRequest,
   ThresholdEd25519SignFinalizeRequest,
   ThresholdEd25519SignInitRequest,
   ThresholdEd25519SessionRequest,
@@ -39,8 +39,8 @@ export async function handleThresholdEd25519(ctx: CloudflareRelayContext): Promi
     && pathname !== '/threshold-ed25519/authorize'
     && pathname !== '/threshold-ed25519/sign/init'
     && pathname !== '/threshold-ed25519/sign/finalize'
-    && pathname !== '/threshold-ed25519/internal/sign/init'
-    && pathname !== '/threshold-ed25519/internal/sign/finalize'
+    && pathname !== '/threshold-ed25519/internal/cosign/init'
+    && pathname !== '/threshold-ed25519/internal/cosign/finalize'
   ) {
     return null;
   }
@@ -198,22 +198,24 @@ export async function handleThresholdEd25519(ctx: CloudflareRelayContext): Promi
       });
       return json(result, { status: thresholdEd25519StatusCode(result) });
     }
-    case '/threshold-ed25519/internal/sign/init': {
+    case '/threshold-ed25519/internal/cosign/init': {
       if (!threshold) {
         ctx.logger.warn('[threshold-ed25519] request', { route: pathname, method: ctx.method, configured: false });
         return json({ ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' }, { status: 503 });
       }
-      if (!threshold.thresholdEd25519PeerSignInit) {
-        const result = { ok: false, code: 'not_found', message: 'threshold-ed25519 peer endpoints are not enabled on this server' };
+      if (!threshold.thresholdEd25519CosignInit) {
+        const result = { ok: false, code: 'not_found', message: 'threshold-ed25519 cosigner endpoints are not enabled on this server' };
         return json(result, { status: thresholdEd25519StatusCode(result) });
       }
-      const b = (body || {}) as ThresholdEd25519PeerSignInitRequest;
+      const b = (body || {}) as ThresholdEd25519CosignInitRequest;
       ctx.logger.info('[threshold-ed25519] request', {
         route: pathname,
         method: ctx.method,
         coordinatorGrant_len: typeof b.coordinatorGrant === 'string' ? b.coordinatorGrant.length : undefined,
+        signingSessionId: typeof b.signingSessionId === 'string' ? b.signingSessionId : undefined,
+        cosignerShareB64u_len: typeof b.cosignerShareB64u === 'string' ? b.cosignerShareB64u.length : undefined,
       });
-      const result = await threshold.thresholdEd25519PeerSignInit(b);
+      const result = await threshold.thresholdEd25519CosignInit(b);
       ctx.logger.info('[threshold-ed25519] response', {
         route: pathname,
         status: thresholdEd25519StatusCode(result),
@@ -222,24 +224,24 @@ export async function handleThresholdEd25519(ctx: CloudflareRelayContext): Promi
       });
       return json(result, { status: thresholdEd25519StatusCode(result) });
     }
-    case '/threshold-ed25519/internal/sign/finalize': {
+    case '/threshold-ed25519/internal/cosign/finalize': {
       if (!threshold) {
         ctx.logger.warn('[threshold-ed25519] request', { route: pathname, method: ctx.method, configured: false });
         return json({ ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' }, { status: 503 });
       }
-      if (!threshold.thresholdEd25519PeerSignFinalize) {
-        const result = { ok: false, code: 'not_found', message: 'threshold-ed25519 peer endpoints are not enabled on this server' };
+      if (!threshold.thresholdEd25519CosignFinalize) {
+        const result = { ok: false, code: 'not_found', message: 'threshold-ed25519 cosigner endpoints are not enabled on this server' };
         return json(result, { status: thresholdEd25519StatusCode(result) });
       }
-      const b = (body || {}) as ThresholdEd25519PeerSignFinalizeRequest;
+      const b = (body || {}) as ThresholdEd25519CosignFinalizeRequest;
       ctx.logger.info('[threshold-ed25519] request', {
         route: pathname,
         method: ctx.method,
         coordinatorGrant_len: typeof b.coordinatorGrant === 'string' ? b.coordinatorGrant.length : undefined,
         signingSessionId: typeof b.signingSessionId === 'string' ? b.signingSessionId : undefined,
-        clientSignatureShareB64u_len: typeof b.clientSignatureShareB64u === 'string' ? b.clientSignatureShareB64u.length : undefined,
+        cosignerIds_len: Array.isArray(b.cosignerIds) ? b.cosignerIds.length : undefined,
       });
-      const result = await threshold.thresholdEd25519PeerSignFinalize(b);
+      const result = await threshold.thresholdEd25519CosignFinalize(b);
       ctx.logger.info('[threshold-ed25519] response', {
         route: pathname,
         status: thresholdEd25519StatusCode(result),

@@ -8,7 +8,8 @@
     "build:watch": "tsc -w --preserveWatchOutput",
     "gen:shamir": "node ./scripts/generateShamirKeys.mjs",
     "start": "node dist/index.js",
-    "dev": "node ./scripts/dev.mjs"
+    "dev": "node ./scripts/dev.mjs",
+    "dev:threshold:3relays": "node ./scripts/dev-threshold-3relays.mjs"
   },
   "keywords": [],
   "author": "",

@@ -79,13 +79,10 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = () => {
           }
         },
         waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
-        afterCall: (success: boolean, result?: any) => {
-          if (success && result?.transactionId) {
-            // Reset greeting input on any successful transaction
-            setGreetingInput("");
-            // Transaction executed successfully - fetch the updated greeting
-            fetchGreeting();
-          }
+        afterCall: async (success: boolean) => {
+          if (!success) return;
+          setGreetingInput("");
+          await fetchGreeting();
         }
       }
     });

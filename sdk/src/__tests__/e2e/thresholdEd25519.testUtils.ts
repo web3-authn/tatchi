@@ -3,7 +3,7 @@ import bs58 from 'bs58';
 import { setupBasicPasskeyTest } from '../setup';
 import { DEFAULT_TEST_CONFIG } from '../setup/config';
 import { AuthService } from '../../server/core/AuthService';
-import { createThresholdEd25519ServiceFromAuthService } from '../../server/core/ThresholdService';
+import { createThresholdSigningService } from '../../server/core/ThresholdService';
 import type { VerifyAuthenticationRequest, VerifyAuthenticationResponse } from '../../server/core/types';
 import type { ThresholdEd25519KeyStoreConfigInput } from '../../server/core/types';
 import { makeSessionAdapter } from '../relayer/helpers';
@@ -28,7 +28,7 @@ export function makeAuthServiceForThreshold(
   thresholdEd25519KeyStore?: ThresholdEd25519KeyStoreConfigInput | null,
 ): {
   service: AuthService;
-  threshold: ReturnType<typeof createThresholdEd25519ServiceFromAuthService>;
+  threshold: ReturnType<typeof createThresholdSigningService>;
 } {
   const svc = new AuthService({
     relayerAccountId: 'relayer.testnet',
@@ -54,7 +54,7 @@ export function makeAuthServiceForThreshold(
       return { keys };
     };
 
-  const threshold = createThresholdEd25519ServiceFromAuthService({
+  const threshold = createThresholdSigningService({
     authService: svc,
     thresholdEd25519KeyStore: thresholdEd25519KeyStore ?? { THRESHOLD_NODE_ROLE: 'coordinator' },
     logger: null,

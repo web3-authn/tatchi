@@ -76,7 +76,6 @@ export const THRESHOLD_ED25519_2P_PARTICIPANT_IDS = [
 // Threshold node roles.
 // Coordinator is the default because it exposes the public `/threshold-ed25519/sign/*` endpoints.
 export const THRESHOLD_NODE_ROLE_COORDINATOR = 'coordinator' as const;
-export const THRESHOLD_NODE_ROLE_PARTICIPANT = 'participant' as const;
 export const THRESHOLD_NODE_ROLE_DEFAULT = THRESHOLD_NODE_ROLE_COORDINATOR;
 
 export const DEFAULT_EMAIL_RECOVERY_CONTRACTS: EmailRecoveryContracts = {

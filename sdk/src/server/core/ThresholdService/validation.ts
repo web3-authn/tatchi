@@ -132,6 +132,7 @@ export type ParsedThresholdEd25519SigningSessionRecord = {
   rpId: string;
   clientVerifyingShareB64u: string;
   commitmentsById: ParsedThresholdEd25519CommitmentsById;
+  relayerSigningShareB64u?: string;
   relayerNoncesB64u: string;
   participantIds: number[];
 };
@@ -146,6 +147,7 @@ export function parseThresholdEd25519SigningSessionRecord(raw: unknown): ParsedT
   const rpId = toOptionalString(raw.rpId);
   const clientVerifyingShareB64u = toOptionalString(raw.clientVerifyingShareB64u);
   const commitmentsById = parseThresholdEd25519CommitmentsById(raw.commitmentsById);
+  const relayerSigningShareB64u = toOptionalString(raw.relayerSigningShareB64u);
   const relayerNoncesB64u = toOptionalString(raw.relayerNoncesB64u);
   const participantIds =
     normalizeThresholdEd25519ParticipantIds(raw.participantIds)
@@ -172,6 +174,7 @@ export function parseThresholdEd25519SigningSessionRecord(raw: unknown): ParsedT
     rpId,
     clientVerifyingShareB64u,
     commitmentsById,
+    ...(relayerSigningShareB64u ? { relayerSigningShareB64u } : {}),
     relayerNoncesB64u,
     participantIds,
   };
@@ -191,21 +194,24 @@ export function parseThresholdEd25519StringById(raw: unknown): ParsedThresholdEd
   return Object.keys(out).length ? out : null;
 }
 
-export type ParsedThresholdEd25519CoordinatorSigningSessionRecord = {
-  expiresAtMs: number;
-  mpcSessionId: string;
-  relayerKeyId: string;
-  signingDigestB64u: string;
-  userId: string;
-  rpId: string;
-  clientVerifyingShareB64u: string;
-  commitmentsById: ParsedThresholdEd25519CommitmentsById;
-  participantIds: number[];
-  peerSigningSessionIdsById: ParsedThresholdEd25519StringById;
-  peerRelayerUrlsById: ParsedThresholdEd25519StringById;
-  peerCoordinatorGrantsById: ParsedThresholdEd25519StringById;
-  relayerVerifyingSharesById: ParsedThresholdEd25519StringById;
-};
+export type ParsedThresholdEd25519CoordinatorSigningSessionRecord =
+  {
+    mode: 'cosigner';
+    expiresAtMs: number;
+    mpcSessionId: string;
+    relayerKeyId: string;
+    signingDigestB64u: string;
+    userId: string;
+    rpId: string;
+    clientVerifyingShareB64u: string;
+    commitmentsById: ParsedThresholdEd25519CommitmentsById;
+    participantIds: number[];
+    groupPublicKey: string;
+    cosignerIds: number[];
+    cosignerRelayerUrlsById: ParsedThresholdEd25519StringById;
+    cosignerCoordinatorGrantsById: ParsedThresholdEd25519StringById;
+    relayerVerifyingSharesById: ParsedThresholdEd25519StringById;
+  };
 
 export function parseThresholdEd25519CoordinatorSigningSessionRecord(raw: unknown): ParsedThresholdEd25519CoordinatorSigningSessionRecord | null {
   if (!isObject(raw)) return null;
@@ -220,9 +226,6 @@ export function parseThresholdEd25519CoordinatorSigningSessionRecord(raw: unknow
   const participantIds =
     normalizeThresholdEd25519ParticipantIds(raw.participantIds)
     || [...THRESHOLD_ED25519_2P_PARTICIPANT_IDS];
-  const peerSigningSessionIdsById = parseThresholdEd25519StringById(raw.peerSigningSessionIdsById);
-  const peerRelayerUrlsById = parseThresholdEd25519StringById(raw.peerRelayerUrlsById);
-  const peerCoordinatorGrantsById = parseThresholdEd25519StringById(raw.peerCoordinatorGrantsById);
   const relayerVerifyingSharesById = parseThresholdEd25519StringById(raw.relayerVerifyingSharesById);
 
   if (!isValidNumber(expiresAtMs)) return null;
@@ -234,15 +237,21 @@ export function parseThresholdEd25519CoordinatorSigningSessionRecord(raw: unknow
     !rpId ||
     !clientVerifyingShareB64u ||
     !commitmentsById ||
-    !peerSigningSessionIdsById ||
-    !peerRelayerUrlsById ||
-    !peerCoordinatorGrantsById ||
     !relayerVerifyingSharesById
   ) {
     return null;
   }
 
+  const mode = toOptionalString(raw.mode);
+  if (mode !== 'cosigner') return null;
+
+  const groupPublicKey = toOptionalString(raw.groupPublicKey);
+  const cosignerIds = normalizeThresholdEd25519ParticipantIds(raw.cosignerIds);
+  const cosignerRelayerUrlsById = parseThresholdEd25519StringById(raw.cosignerRelayerUrlsById);
+  const cosignerCoordinatorGrantsById = parseThresholdEd25519StringById(raw.cosignerCoordinatorGrantsById);
+  if (!groupPublicKey || !cosignerIds || !cosignerRelayerUrlsById || !cosignerCoordinatorGrantsById) return null;
   return {
+    mode: 'cosigner',
     expiresAtMs,
     mpcSessionId,
     relayerKeyId,
@@ -252,9 +261,10 @@ export function parseThresholdEd25519CoordinatorSigningSessionRecord(raw: unknow
     clientVerifyingShareB64u,
     commitmentsById,
     participantIds,
-    peerSigningSessionIdsById,
-    peerRelayerUrlsById,
-    peerCoordinatorGrantsById,
+    groupPublicKey,
+    cosignerIds,
+    cosignerRelayerUrlsById,
+    cosignerCoordinatorGrantsById,
     relayerVerifyingSharesById,
   };
 }

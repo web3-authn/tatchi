@@ -3,7 +3,7 @@ import {
   AuthService,
   parseBool,
   requireEnvVar,
-  createThresholdEd25519ServiceFromAuthService,
+  createThresholdSigningService,
 } from '@tatchi-xyz/sdk/server';
 import { createRelayRouter, startKeyRotationCronjob } from '@tatchi-xyz/sdk/server/router/express';
 
@@ -24,6 +24,9 @@ const thresholdEd25519KeyStore = {
   // Share mode + deterministic relayer share derivation (optional)
   THRESHOLD_ED25519_SHARE_MODE: env.THRESHOLD_ED25519_SHARE_MODE,
   THRESHOLD_ED25519_MASTER_SECRET_B64U: env.THRESHOLD_ED25519_MASTER_SECRET_B64U,
+  // Node role + coordinator/cosigner wiring (optional)
+  THRESHOLD_NODE_ROLE: env.THRESHOLD_NODE_ROLE,
+  THRESHOLD_COORDINATOR_SHARED_SECRET_B64U: env.THRESHOLD_COORDINATOR_SHARED_SECRET_B64U,
   // Optional persistence for sessions/shares (recommended for prod)
   UPSTASH_REDIS_REST_URL: env.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: env.UPSTASH_REDIS_REST_TOKEN,
@@ -59,7 +62,7 @@ const authService = new AuthService({
   },
 });
 
-const threshold = createThresholdEd25519ServiceFromAuthService({
+const threshold = createThresholdSigningService({
   authService,
   thresholdEd25519KeyStore,
   logger: console,

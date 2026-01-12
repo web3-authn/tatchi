@@ -3,6 +3,8 @@ use curve25519_dalek::constants::ED25519_BASEPOINT_POINT;
 use curve25519_dalek::edwards::CompressedEdwardsY;
 use curve25519_dalek::edwards::EdwardsPoint;
 use curve25519_dalek::scalar::Scalar as CurveScalar;
+use curve25519_dalek::traits::Identity;
+use frost_ed25519::Group;
 use hkdf::Hkdf;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -518,6 +520,237 @@ pub fn threshold_ed25519_round2_sign(args: JsValue) -> Result<JsValue, JsValue> 
     .map_err(|e| JsValue::from_str(&format!("Failed to serialize round2 output: {e}")))
 }
 
+fn threshold_ed25519_round2_sign_cosigner_bytes(args: Round2SignArgs) -> Result<[u8; 32], String> {
+    let share_bytes = base64_url_decode(args.relayer_signing_share_b64u.trim())
+        .map_err(|e| format!("Invalid relayerSigningShareB64u: {e}"))?;
+    if share_bytes.len() != 32 {
+        return Err(format!(
+            "relayerSigningShareB64u must be 32 bytes, got {}",
+            share_bytes.len()
+        ));
+    }
+    let share_scalar = Option::<CurveScalar>::from(CurveScalar::from_canonical_bytes(
+        share_bytes
+            .as_slice()
+            .try_into()
+            .expect("checked length above"),
+    ))
+    .ok_or_else(|| "Invalid relayer signing share scalar".to_string())?;
+
+    let nonces_bytes = base64_url_decode(args.relayer_nonces_b64u.trim())
+        .map_err(|e| format!("Invalid relayerNoncesB64u: {e}"))?;
+    let nonces = frost_ed25519::round1::SigningNonces::deserialize(&nonces_bytes)
+        .map_err(|e| format!("Invalid relayer signing nonces: {e}"))?;
+
+    // Extract nonce scalars via serialization (internals feature not required).
+    let hiding_bytes = nonces.hiding().serialize();
+    if hiding_bytes.len() != 32 {
+        return Err("Invalid hiding nonce encoding".to_string());
+    }
+    let binding_bytes = nonces.binding().serialize();
+    if binding_bytes.len() != 32 {
+        return Err("Invalid binding nonce encoding".to_string());
+    }
+    let hiding_scalar = Option::<CurveScalar>::from(CurveScalar::from_canonical_bytes(
+        hiding_bytes
+            .as_slice()
+            .try_into()
+            .expect("checked length above"),
+    ))
+    .ok_or_else(|| "Invalid hiding nonce scalar".to_string())?;
+    let binding_scalar = Option::<CurveScalar>::from(CurveScalar::from_canonical_bytes(
+        binding_bytes
+            .as_slice()
+            .try_into()
+            .expect("checked length above"),
+    ))
+    .ok_or_else(|| "Invalid binding nonce scalar".to_string())?;
+
+    let message = base64_url_decode(args.signing_digest_b64u.trim())
+        .map_err(|e| format!("Invalid signingDigestB64u: {e}"))?;
+
+    let group_pk_bytes = bs58::decode(args.group_public_key.trim().strip_prefix("ed25519:").unwrap_or(args.group_public_key.trim()))
+        .into_vec()
+        .map_err(|e| format!("Invalid group public key base58: {e}"))?;
+    if group_pk_bytes.len() != 32 {
+        return Err(format!(
+            "Invalid group public key length: expected 32 bytes, got {}",
+            group_pk_bytes.len()
+        ));
+    }
+    let group_pk_bytes: [u8; 32] = group_pk_bytes
+        .as_slice()
+        .try_into()
+        .expect("checked length above");
+
+    let verifying_key = frost_ed25519::VerifyingKey::deserialize(&group_pk_bytes)
+        .map_err(|e| format!("Invalid group public key: {e}"))?;
+
+    let client_id = args.client_participant_id.unwrap_or(1u16);
+    let relayer_id = args.relayer_participant_id.unwrap_or(2u16);
+    if client_id == relayer_id {
+        return Err(
+            "Invalid participant identifiers: clientParticipantId must differ from relayerParticipantId"
+                .to_string(),
+        );
+    }
+
+    let relayer_identifier: frost_ed25519::Identifier = relayer_id
+        .try_into()
+        .map_err(|_| "Invalid relayer identifier".to_string())?;
+    let client_identifier: frost_ed25519::Identifier = client_id
+        .try_into()
+        .map_err(|_| "Invalid client identifier".to_string())?;
+
+    // Parse commitments (client + *aggregated* relayer commitments).
+    let client_hiding = base64_url_decode(args.client_commitments.hiding.trim())
+        .map_err(|e| format!("Invalid client commitments.hiding: {e}"))?;
+    let client_binding = base64_url_decode(args.client_commitments.binding.trim())
+        .map_err(|e| format!("Invalid client commitments.binding: {e}"))?;
+    let client_hiding = frost_ed25519::round1::NonceCommitment::deserialize(&client_hiding)
+        .map_err(|e| format!("Invalid client hiding commitment: {e}"))?;
+    let client_binding = frost_ed25519::round1::NonceCommitment::deserialize(&client_binding)
+        .map_err(|e| format!("Invalid client binding commitment: {e}"))?;
+    let client_commitments =
+        frost_ed25519::round1::SigningCommitments::new(client_hiding, client_binding);
+
+    let relayer_hiding = base64_url_decode(args.relayer_commitments.hiding.trim())
+        .map_err(|e| format!("Invalid relayer commitments.hiding: {e}"))?;
+    let relayer_binding = base64_url_decode(args.relayer_commitments.binding.trim())
+        .map_err(|e| format!("Invalid relayer commitments.binding: {e}"))?;
+    let relayer_hiding = frost_ed25519::round1::NonceCommitment::deserialize(&relayer_hiding)
+        .map_err(|e| format!("Invalid relayer hiding commitment: {e}"))?;
+    let relayer_binding = frost_ed25519::round1::NonceCommitment::deserialize(&relayer_binding)
+        .map_err(|e| format!("Invalid relayer binding commitment: {e}"))?;
+    let relayer_commitments =
+        frost_ed25519::round1::SigningCommitments::new(relayer_hiding, relayer_binding);
+
+    let mut commitments_map = BTreeMap::new();
+    commitments_map.insert(client_identifier, client_commitments);
+    commitments_map.insert(relayer_identifier, relayer_commitments);
+    let signing_package = frost_ed25519::SigningPackage::new(commitments_map, &message);
+
+    // Compute binding factors (rho) using the same preimages as frost-core.
+    let preimages = signing_package
+        .binding_factor_preimages(&verifying_key, &[])
+        .map_err(|e| format!("Failed to compute binding factor preimages: {e}"))?;
+    let mut rho_by_id: BTreeMap<frost_ed25519::Identifier, CurveScalar> = BTreeMap::new();
+    for (id, preimage) in preimages {
+        let rho = <frost_ed25519::Ed25519Sha512 as frost_ed25519::Ciphersuite>::H1(
+            preimage.as_slice(),
+        );
+        rho_by_id.insert(id, rho);
+    }
+    let rho_relayer = rho_by_id
+        .get(&relayer_identifier)
+        .ok_or_else(|| "Missing relayer binding factor".to_string())?;
+
+    // Compute group commitment R = sum(hiding_i) + sum(rho_i * binding_i)
+    let mut group_commitment: EdwardsPoint = EdwardsPoint::identity();
+    for (id, c) in signing_package.signing_commitments() {
+        let hiding_bytes = c
+            .hiding()
+            .serialize()
+            .map_err(|e| format!("Invalid hiding commitment: {e}"))?;
+        if hiding_bytes.len() != 32 {
+            return Err("Invalid hiding commitment encoding".to_string());
+        }
+        let hiding = frost_ed25519::Ed25519Group::deserialize(
+            hiding_bytes
+                .as_slice()
+                .try_into()
+                .expect("checked length above"),
+        )
+        .map_err(|e| format!("Invalid hiding commitment: {e}"))?;
+
+        let binding_bytes = c
+            .binding()
+            .serialize()
+            .map_err(|e| format!("Invalid binding commitment: {e}"))?;
+        if binding_bytes.len() != 32 {
+            return Err("Invalid binding commitment encoding".to_string());
+        }
+        let binding = frost_ed25519::Ed25519Group::deserialize(
+            binding_bytes
+                .as_slice()
+                .try_into()
+                .expect("checked length above"),
+        )
+        .map_err(|e| format!("Invalid binding commitment: {e}"))?;
+
+        let rho = rho_by_id
+            .get(id)
+            .ok_or_else(|| "Missing binding factor for commitment".to_string())?;
+        group_commitment = group_commitment + hiding + (binding * (*rho));
+    }
+    let group_commitment_bytes = frost_ed25519::Ed25519Group::serialize(&group_commitment)
+        .map_err(|e| format!("Invalid group commitment: {e}"))?;
+
+    // Compute challenge c = H2(encode(R) || encode(Y) || msg)
+    let vk_bytes = verifying_key
+        .serialize()
+        .map_err(|e| format!("Invalid verifying key: {e}"))?;
+    let mut challenge_preimage = Vec::new();
+    challenge_preimage.extend_from_slice(group_commitment_bytes.as_ref());
+    challenge_preimage.extend_from_slice(vk_bytes.as_ref());
+    challenge_preimage.extend_from_slice(message.as_slice());
+    let challenge =
+        <frost_ed25519::Ed25519Sha512 as frost_ed25519::Ciphersuite>::H2(
+            challenge_preimage.as_slice(),
+        );
+
+    // For 2-of-2, compute Lagrange coefficient for the relayer signer at x=0:
+    //   lambda_relayer = x_client / (x_client - x_relayer)
+    let xc = CurveScalar::from(client_id as u64);
+    let xr = CurveScalar::from(relayer_id as u64);
+    let denom = xc - xr;
+    if denom == CurveScalar::ZERO {
+        return Err("Invalid participant identifiers".to_string());
+    }
+    let lambda_relayer = xc * denom.invert();
+
+    // Signature share scalar:
+    //   z_i = r_i^hiding + rho_relayer * r_i^binding + lambda_relayer * share_i * challenge
+    let z = hiding_scalar
+        + (binding_scalar * (*rho_relayer))
+        + (lambda_relayer * share_scalar * challenge);
+    Ok(z.to_bytes())
+}
+
+/// Internal helper for the relayer-fleet "cosigner" mode.
+///
+/// In this mode, the relayer participant's (id=2 in the 2-party scheme) secret share is split
+/// across multiple relayer servers (cosigners). Each cosigner holds:
+/// - a Shamir share of the *relayer signing share* (not the group secret), and
+/// - its own per-signature nonces.
+///
+/// The coordinator aggregates:
+/// - relayer commitments (hiding/binding) by point addition, and
+/// - relayer signature shares by scalar addition.
+///
+/// We cannot call `frost_ed25519::round2::sign` on each cosigner using the *aggregated* relayer
+/// commitments because `sign` checks that the commitments match the signer's own nonces.
+/// Instead, we compute the signature-share scalar directly using the same binding factors,
+/// group commitment, Lagrange coefficient (2-party signer set), and challenge as the normal flow.
+#[wasm_bindgen]
+pub fn threshold_ed25519_round2_sign_cosigner(args: JsValue) -> Result<JsValue, JsValue> {
+    let args: Round2SignArgs = serde_wasm_bindgen::from_value(args)
+        .map_err(|e| JsValue::from_str(&format!("Invalid round2 args: {e}")))?;
+    let z_bytes = threshold_ed25519_round2_sign_cosigner_bytes(args)
+        .map_err(|e| JsValue::from_str(&e))?;
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Out {
+        relayer_signature_share_b64u: String,
+    }
+
+    serde_wasm_bindgen::to_value(&Out {
+        relayer_signature_share_b64u: base64_url_encode(z_bytes.as_ref()),
+    })
+    .map_err(|e| JsValue::from_str(&format!("Failed to serialize round2 output: {e}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -839,6 +1072,309 @@ mod tests {
         let sig = ed25519_dalek::Signature::from_bytes(&sig);
 
         vk.verify(&msg_digest, &sig)
+            .expect("ed25519-dalek should verify group signature");
+    }
+
+    #[test]
+    fn relayer_fleet_cosigner_round2_sign_cosigner_aggregates_and_verifies() {
+        // This test exercises the relayer-fleet ("internal t-of-n") cosigner model:
+        //
+        // - Externally (from the client's POV), the signing set is still 2-party FROST:
+        //     participant 1 = client, participant 2 = relayer
+        // - Internally (inside the relayer fleet), participant 2's secret signing share is split
+        //   across multiple relayer servers (cosigners).
+        //
+        // The goal: cosigners compute partial contributions using
+        // `threshold_ed25519_round2_sign_cosigner`, the coordinator sums them, and the resulting
+        // (client share + relayer share) aggregates into a valid Ed25519 signature under the same
+        // 2-party group public key.
+
+        // Step 0 (test setup): fixed inputs for deterministic share derivation (client + relayer)
+        let master_secret = [99u8; 32];
+        let near_account_id = "alice.near";
+        let rp_id = "example.com";
+        let wrap_key = WrapKey {
+            wrap_key_seed: base64_url_encode(&[7u8; 32]),
+            wrap_key_salt: base64_url_encode(&[8u8; 32]),
+        };
+
+        // Step 1 (client): derive the client signing share (secret scalar) and verifying share (public point)
+        let client_signing_share_bytes =
+            crate::threshold::threshold_client_share::derive_threshold_client_signing_share_bytes_v1(
+                &wrap_key,
+                near_account_id,
+            )
+            .expect("client signing share should derive");
+        let client_verifying_share_bytes =
+            crate::threshold::threshold_client_share::derive_threshold_client_verifying_share_bytes_v1(
+                &wrap_key,
+                near_account_id,
+            )
+            .expect("client verifying share should derive");
+
+        // Step 2 (client -> coordinator relayer): key material lookup / derivation via `/threshold-ed25519/keygen`
+        let relayer_scalar = derive_threshold_relayer_share_scalar_v1(
+            &master_secret,
+            near_account_id,
+            rp_id,
+            &client_verifying_share_bytes,
+        )
+        .expect("relayer share should derive");
+        let relayer_verifying_share_bytes = (ED25519_BASEPOINT_POINT * relayer_scalar)
+            .compress()
+            .to_bytes();
+
+        // Step 3 (coordinator relayer): compute the 2-of-2 group public key (what the chain verifies with)
+        let client_point = CompressedEdwardsY(client_verifying_share_bytes)
+            .decompress()
+            .expect("client verifying share must decompress");
+        let relayer_point = CompressedEdwardsY(relayer_verifying_share_bytes)
+            .decompress()
+            .expect("relayer verifying share must decompress");
+        let group_pk_bytes = compute_threshold_ed25519_group_public_key_2p_from_verifying_shares(
+            client_point,
+            relayer_point,
+            1,
+            2,
+        )
+        .expect("group pk should compute");
+
+        let verifying_key = frost_ed25519::VerifyingKey::deserialize(&group_pk_bytes)
+            .expect("group verifying key must deserialize");
+        let group_public_key = format!("ed25519:{}", bs58::encode(&group_pk_bytes).into_string());
+
+        // Step 4 (client): locally prepare key packages for standard 2-party FROST.
+        let client_identifier: frost_ed25519::Identifier = 1u16.try_into().unwrap();
+        let relayer_identifier: frost_ed25519::Identifier = 2u16.try_into().unwrap();
+
+        let client_signing_share =
+            frost_ed25519::keys::SigningShare::deserialize(&client_signing_share_bytes)
+                .expect("client signing share must deserialize");
+        let client_verifying_share =
+            frost_ed25519::keys::VerifyingShare::deserialize(&client_verifying_share_bytes)
+                .expect("client verifying share must deserialize");
+        let client_key_package = frost_ed25519::keys::KeyPackage::new(
+            client_identifier,
+            client_signing_share,
+            client_verifying_share,
+            verifying_key,
+            2,
+        );
+
+        let relayer_verifying_share =
+            frost_ed25519::keys::VerifyingShare::deserialize(&relayer_verifying_share_bytes)
+                .expect("relayer verifying share must deserialize");
+
+        // Fixed message digest (represents `signing_digest_32` / `signingDigestB64u` in HTTP routes).
+        let msg_digest = Sha256::digest(b"cosigner-round2-sign-test");
+        let msg_digest_b64u = base64_url_encode(msg_digest.as_slice());
+
+        // Step 5 (client): Round 1 commitments (computed locally before calling `/threshold-ed25519/sign/init`)
+        let mut rng = frost_ed25519::rand_core::OsRng;
+        let (client_nonces, client_commitments) =
+            frost_ed25519::round1::commit(client_key_package.signing_share(), &mut rng);
+
+        // Step 6 (coordinator relayer): split the *relayer signing share* (participant 2 share) across the fleet.
+        //
+        // Step 6a (coordinator -> relayer2): coordinator sends `cosignerShareB64u` in
+        //   `POST /threshold-ed25519/internal/cosign/init`
+        //
+        // Step 6b (relayer2): each cosigner generates its own nonces + commitments from its share.
+        let cosigner_ids_all = [1u16, 2u16, 3u16];
+        let a1 = relayer_scalar; // non-zero; chosen so y_i can't be 0 for small cosigner ids
+        let mut shares_by_cosigner_id: BTreeMap<u16, CurveScalar> = BTreeMap::new();
+        for id in cosigner_ids_all {
+            let x = CurveScalar::from(id as u64);
+            let y = relayer_scalar + (a1 * x);
+            assert!(y != CurveScalar::ZERO, "derived cosigner share must be non-zero");
+            shares_by_cosigner_id.insert(id, y);
+        }
+
+        // Coordinator picks any 2 cosigners (t=2). Here we select {1,2}.
+        let selected_cosigner_ids = [1u16, 2u16];
+
+        // Lagrange coefficients at x=0 for the selected cosigner set.
+        // (Coordinator computes this; each cosigner is sent an implicitly "weighted" share.)
+        let lagrange_at_zero = |id: u16| -> CurveScalar {
+            let x_i = CurveScalar::from(id as u64);
+            let mut num = CurveScalar::ONE;
+            let mut den = CurveScalar::ONE;
+            for j in selected_cosigner_ids {
+                if j == id {
+                    continue;
+                }
+                let x_j = CurveScalar::from(j as u64);
+                num *= x_j;
+                den *= x_j - x_i;
+            }
+            num * den.invert()
+        };
+
+        let y1 = *shares_by_cosigner_id.get(&1).unwrap();
+        let y2 = *shares_by_cosigner_id.get(&2).unwrap();
+        let eff1 = lagrange_at_zero(1) * y1;
+        let eff2 = lagrange_at_zero(2) * y2;
+        assert_eq!(
+            eff1 + eff2,
+            relayer_scalar,
+            "weighted cosigner shares must reconstruct relayer share"
+        );
+
+        // Step 7 (coordinator relayer): Round 1 cosigner fanout.
+        //
+        // Step 7a (coordinator -> relayer1/relayer2): send client commitments + cosigner share.
+        // Step 7b (relayer1/relayer2): return commitments; coordinator aggregates them into the
+        // relayer participant's (id=2) commitments.
+        let cosigner1_share =
+            frost_ed25519::keys::SigningShare::deserialize(&y1.to_bytes())
+                .expect("cosigner1 share must deserialize");
+        let cosigner2_share =
+            frost_ed25519::keys::SigningShare::deserialize(&y2.to_bytes())
+                .expect("cosigner2 share must deserialize");
+
+        let (cosigner1_nonces, cosigner1_commitments) =
+            frost_ed25519::round1::commit(&cosigner1_share, &mut rng);
+        let (cosigner2_nonces, cosigner2_commitments) =
+            frost_ed25519::round1::commit(&cosigner2_share, &mut rng);
+
+        let sum_points = |a: &[u8], b: &[u8]| -> [u8; 32] {
+            let a: [u8; 32] = a.try_into().expect("commitment must be 32 bytes");
+            let b: [u8; 32] = b.try_into().expect("commitment must be 32 bytes");
+            let a = frost_ed25519::Ed25519Group::deserialize(&a)
+                .expect("commitment must deserialize");
+            let b = frost_ed25519::Ed25519Group::deserialize(&b)
+                .expect("commitment must deserialize");
+            frost_ed25519::Ed25519Group::serialize(&(a + b))
+                .expect("aggregated commitment must serialize")
+        };
+
+        let relayer_hiding_bytes = sum_points(
+            &cosigner1_commitments
+                .hiding()
+                .serialize()
+                .expect("cosigner1 hiding must serialize"),
+            &cosigner2_commitments
+                .hiding()
+                .serialize()
+                .expect("cosigner2 hiding must serialize"),
+        );
+        let relayer_binding_bytes = sum_points(
+            &cosigner1_commitments
+                .binding()
+                .serialize()
+                .expect("cosigner1 binding must serialize"),
+            &cosigner2_commitments
+                .binding()
+                .serialize()
+                .expect("cosigner2 binding must serialize"),
+        );
+
+        let relayer_commitments = frost_ed25519::round1::SigningCommitments::new(
+            frost_ed25519::round1::NonceCommitment::deserialize(&relayer_hiding_bytes)
+                .expect("relayer hiding commitment must deserialize"),
+            frost_ed25519::round1::NonceCommitment::deserialize(&relayer_binding_bytes)
+                .expect("relayer binding commitment must deserialize"),
+        );
+
+        // Step 8 (client/coordinator): build the signing package from *client commitments* and the
+        // *aggregated relayer commitments* returned by `/threshold-ed25519/sign/init`.
+        let mut commitments_map = BTreeMap::new();
+        commitments_map.insert(client_identifier, client_commitments);
+        commitments_map.insert(relayer_identifier, relayer_commitments);
+        let signing_package = frost_ed25519::SigningPackage::new(commitments_map, msg_digest.as_slice());
+
+        // Step 9 (client): Round 2 client signature share (sent to coordinator via `/threshold-ed25519/sign/finalize`)
+        let client_sig_share =
+            frost_ed25519::round2::sign(&signing_package, &client_nonces, &client_key_package)
+                .expect("client round2 sign should succeed");
+
+        // Step 10 (coordinator -> relayer1/relayer2): `/threshold-ed25519/internal/cosign/finalize`
+        // coordinator sends (1) the aggregated commitments for participant 2, (2) group PK, and
+        // (3) the signing digest. Each cosigner returns a *partial* relayer signature share scalar.
+        let client_commitments_wire = CommitmentsWire {
+            hiding: base64_url_encode(
+                &client_commitments
+                    .hiding()
+                    .serialize()
+                    .expect("client hiding must serialize"),
+            ),
+            binding: base64_url_encode(
+                &client_commitments
+                    .binding()
+                    .serialize()
+                    .expect("client binding must serialize"),
+            ),
+        };
+        let relayer_commitments_wire = CommitmentsWire {
+            hiding: base64_url_encode(relayer_hiding_bytes.as_ref()),
+            binding: base64_url_encode(relayer_binding_bytes.as_ref()),
+        };
+
+        let cosigner1_nonces_b64u = base64_url_encode(
+            &cosigner1_nonces
+                .serialize()
+                .expect("cosigner1 nonces must serialize"),
+        );
+        let cosigner2_nonces_b64u = base64_url_encode(
+            &cosigner2_nonces
+                .serialize()
+                .expect("cosigner2 nonces must serialize"),
+        );
+
+        let cosigner1_z_bytes = threshold_ed25519_round2_sign_cosigner_bytes(Round2SignArgs {
+            client_participant_id: Some(1),
+            relayer_participant_id: Some(2),
+            relayer_signing_share_b64u: base64_url_encode(eff1.to_bytes().as_ref()),
+            relayer_nonces_b64u: cosigner1_nonces_b64u,
+            group_public_key: group_public_key.clone(),
+            signing_digest_b64u: msg_digest_b64u.clone(),
+            client_commitments: client_commitments_wire.clone(),
+            relayer_commitments: relayer_commitments_wire.clone(),
+        })
+        .expect("cosigner1 round2 must succeed");
+
+        let cosigner2_z_bytes = threshold_ed25519_round2_sign_cosigner_bytes(Round2SignArgs {
+            client_participant_id: Some(1),
+            relayer_participant_id: Some(2),
+            relayer_signing_share_b64u: base64_url_encode(eff2.to_bytes().as_ref()),
+            relayer_nonces_b64u: cosigner2_nonces_b64u,
+            group_public_key: group_public_key.clone(),
+            signing_digest_b64u: msg_digest_b64u,
+            client_commitments: client_commitments_wire,
+            relayer_commitments: relayer_commitments_wire,
+        })
+        .expect("cosigner2 round2 must succeed");
+
+        // Step 11 (coordinator): sum cosigner partials into the relayer participant's signature share.
+        let z1 = Option::<CurveScalar>::from(CurveScalar::from_canonical_bytes(cosigner1_z_bytes))
+            .expect("z1 must be canonical");
+        let z2 = Option::<CurveScalar>::from(CurveScalar::from_canonical_bytes(cosigner2_z_bytes))
+            .expect("z2 must be canonical");
+        let relayer_z = (z1 + z2).to_bytes();
+        let relayer_sig_share = frost_ed25519::round2::SignatureShare::deserialize(&relayer_z)
+            .expect("relayer signature share must deserialize");
+
+        // Step 12 (client/coordinator): aggregate client+relayer signature shares into a final signature.
+        let mut verifying_shares = BTreeMap::new();
+        verifying_shares.insert(client_identifier, client_verifying_share);
+        verifying_shares.insert(relayer_identifier, relayer_verifying_share);
+        let pubkey_package =
+            frost_ed25519::keys::PublicKeyPackage::new(verifying_shares, verifying_key);
+
+        let mut signature_shares = BTreeMap::new();
+        signature_shares.insert(client_identifier, client_sig_share);
+        signature_shares.insert(relayer_identifier, relayer_sig_share);
+        let group_signature = frost_ed25519::aggregate(&signing_package, &signature_shares, &pubkey_package)
+            .expect("aggregate should succeed");
+
+        let sig_bytes = group_signature
+            .serialize()
+            .expect("signature serialization should succeed");
+        let vk = ed25519_dalek::VerifyingKey::from_bytes(&group_pk_bytes)
+            .expect("ed25519 group pk must be valid");
+        let sig: [u8; 64] = sig_bytes.as_slice().try_into().expect("signature must be 64 bytes");
+        let sig = ed25519_dalek::Signature::from_bytes(&sig);
+        vk.verify(msg_digest.as_slice(), &sig)
             .expect("ed25519-dalek should verify group signature");
     }
 }

@@ -7,7 +7,7 @@ import { promises as fs } from 'node:fs';
 // Import from built SDK to avoid TS transpilation for tests
 import {
   AuthService,
-  createThresholdEd25519ServiceFromAuthService,
+  createThresholdSigningService,
   handleApplyServerLock,
   handleGetShamirKeyInfo,
   handleRemoveServerLock,
@@ -71,7 +71,7 @@ async function main() {
   } catch { }
 
   // Threshold signing services (in-memory stores are sufficient for test runs).
-  const threshold = createThresholdEd25519ServiceFromAuthService({
+  const threshold = createThresholdSigningService({
     authService,
     thresholdEd25519KeyStore: { kind: 'in-memory' },
     logger: null,

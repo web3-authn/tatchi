@@ -186,6 +186,7 @@ export function makeFakeAuthService(overrides: Partial<{
   verifyAuthenticationResponse: AuthService['verifyAuthenticationResponse'];
   createAccountAndRegisterUser: AuthService['createAccountAndRegisterUser'];
   getRorOrigins: AuthService['getRorOrigins'];
+  getThresholdSigningService: AuthService['getThresholdSigningService'];
   shamirService: unknown;
   emailRecovery: unknown;
 }> = {}): AuthService {
@@ -195,6 +196,7 @@ export function makeFakeAuthService(overrides: Partial<{
     createAccountAndRegisterUser: overrides.createAccountAndRegisterUser
       || (async () => ({ success: false, error: 'not implemented' })),
     getRorOrigins: overrides.getRorOrigins || (async () => []),
+    getThresholdSigningService: overrides.getThresholdSigningService || (() => null),
     shamirService: overrides.shamirService ?? null,
     emailRecovery: overrides.emailRecovery ?? null,
   };
