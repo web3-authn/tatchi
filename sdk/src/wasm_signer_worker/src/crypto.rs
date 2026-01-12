@@ -3,7 +3,6 @@ use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 use getrandom::getrandom;
 use hkdf::Hkdf;
-use log::debug;
 use sha2::Sha256;
 
 use crate::config::{
@@ -169,10 +168,6 @@ pub(crate) fn derive_ed25519_key_from_prf_output(
     let near_private_key = format!("ed25519:{}", private_key_b58);
     let near_public_key = format!("ed25519:{}", public_key_b58);
 
-    debug!(
-        "Successfully derived Ed25519 key for account: {}",
-        account_id
-    );
     Ok((near_private_key, near_public_key))
 }
 

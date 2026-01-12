@@ -4,7 +4,6 @@
 // *                                                                            *
 // ******************************************************************************
 
-use log::debug;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -47,11 +46,6 @@ pub async fn handle_threshold_ed25519_derive_client_verifying_share(
     if near_account_id.is_empty() {
         return Err("Missing nearAccountId".to_string());
     }
-
-    debug!(
-        "[rust wasm]: derive threshold client verifying share for account {}",
-        near_account_id
-    );
 
     let client_verifying_share_b64u =
         crate::threshold::threshold_client_share::derive_threshold_client_verifying_share_b64u_v1(

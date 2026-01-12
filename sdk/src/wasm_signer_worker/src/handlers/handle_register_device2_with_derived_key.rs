@@ -127,22 +127,12 @@ pub async fn handle_register_device2_with_derived_key(
     wrap_key: WrapKey,
     prf_second_b64u: String,
 ) -> Result<RegisterDevice2WithDerivedKeyResult, String> {
-    debug!(
-        "[rust wasm signer]: Starting Device2 combined registration for account {}",
-        request.near_account_id
-    );
-
     // === STEP 1: Derive NEAR keypair from PRF.second ===
     let (near_private_key, near_public_key) = crate::crypto::derive_ed25519_key_from_prf_output(
         &prf_second_b64u,
         &request.near_account_id,
     )
     .map_err(|e| format!("Failed to derive ed25519 key from PRF.second: {}", e))?;
-
-    debug!(
-        "[rust wasm signer]: Derived Device2 NEAR keypair, public key: {}",
-        near_public_key
-    );
 
     // === STEP 2: Encrypt NEAR private key with KEK ===
     let kek = wrap_key
@@ -153,7 +143,7 @@ pub async fn handle_register_device2_with_derived_key(
         .map_err(|e| format!("Failed to decode wrapKeySalt: {}", e))?;
 
     let encryption_result = crate::crypto::encrypt_data_chacha20(&near_private_key, &kek)
-        .map_err(|e| format!("Failed to encrypt Device2 private key: {}", e))?
+        .map_err(|_| "Failed to encrypt Device2 private key".to_string())?
         .with_wrap_key_salt(&wrap_key_salt_bytes);
 
     // === STEP 3: Parse private key to extract signing key ===
@@ -167,7 +157,7 @@ pub async fn handle_register_device2_with_derived_key(
     // Decode the base58-encoded private key
     let private_key_bytes = bs58::decode(private_key_str)
         .into_vec()
-        .map_err(|e| format!("Failed to decode private key: {}", e))?;
+        .map_err(|_| "Failed to decode private key".to_string())?;
 
     if private_key_bytes.len() != 64 {
         return Err(format!(
@@ -195,11 +185,6 @@ pub async fn handle_register_device2_with_derived_key(
 
     let registration_tx =
         build_device2_registration_transaction(&request, &public_key_bytes, function_call_args)?;
-
-    debug!(
-        "[rust wasm signer]: Built Device2 registration transaction for contract {}",
-        request.contract_id
-    );
 
     // === STEP 5: Sign transaction with derived NEAR keypair ===
     use ed25519_dalek::Signer;

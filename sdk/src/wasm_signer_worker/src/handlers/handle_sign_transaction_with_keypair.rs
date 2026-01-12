@@ -13,7 +13,7 @@ use crate::types::wasm_to_json::WasmSignedTransaction;
 use bs58;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SignTransactionWithKeyPairRequest {
     pub near_private_key: String, // ed25519:... format
@@ -23,6 +23,19 @@ pub struct SignTransactionWithKeyPairRequest {
     pub block_hash: String,
     #[serde(deserialize_with = "deserialize_actions_flexible")]
     pub actions: Vec<ActionParams>,
+}
+
+impl std::fmt::Debug for SignTransactionWithKeyPairRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SignTransactionWithKeyPairRequest")
+            .field("near_private_key", &"*****")
+            .field("signer_account_id", &self.signer_account_id)
+            .field("receiver_id", &self.receiver_id)
+            .field("nonce", &self.nonce)
+            .field("block_hash", &self.block_hash)
+            .field("actions", &self.actions)
+            .finish()
+    }
 }
 
 fn deserialize_actions_flexible<'de, D>(deserializer: D) -> Result<Vec<ActionParams>, D::Error>
@@ -100,7 +113,7 @@ pub async fn handle_sign_transaction_with_keypair(
     // Decode the base58-encoded private key
     let private_key_bytes = bs58::decode(private_key_str)
         .into_vec()
-        .map_err(|e| format!("Failed to decode private key: {}", e))?;
+        .map_err(|_| "Failed to decode private key".to_string())?;
 
     if private_key_bytes.len() != 64 {
         return Err(format!(
@@ -117,8 +130,6 @@ pub async fn handle_sign_transaction_with_keypair(
     // Create SigningKey from seed
     let signing_key = ed25519_dalek::SigningKey::from_bytes(&seed_bytes);
     let public_key_bytes = signing_key.verifying_key().to_bytes();
-
-    logs.push("Private key parsed and signing key created".to_string());
 
     // Use structured actions directly
     let action_params = request.actions.clone();

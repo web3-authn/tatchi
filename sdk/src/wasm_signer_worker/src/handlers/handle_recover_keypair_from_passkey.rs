@@ -80,11 +80,6 @@ pub async fn handle_recover_keypair_from_passkey(
         .results
         .second
         .ok_or_else(|| "Missing PRF output (second) in credential".to_string())?;
-
-    debug!(
-        "RUST: Parsed authentication credential with ID: {}",
-        request.credential.id
-    );
     // Use account hint if provided, otherwise generate placeholder
     let account_id = request
         .account_id_hint
@@ -104,9 +99,6 @@ pub async fn handle_recover_keypair_from_passkey(
     let encryption_result = crate::crypto::encrypt_data_chacha20(&private_key, &kek)
         .map_err(|e| format!("Failed to encrypt private key: {}", e))?
         .with_wrap_key_salt(&wrap_key_salt_bytes);
-
-    debug!("[rust wasm]: Successfully derived NEAR keypair and encrypted with ChaCha20Poly1305");
-    debug!("[rust wasm]: Key recovery from authentication credential successful");
 
     Ok(RecoverKeypairResult::new(
         public_key,

@@ -88,8 +88,6 @@ pub async fn handle_derive_near_keypair_and_encrypt(
     wrap_key: WrapKey,
     prf_second_b64u: String,
 ) -> Result<DeriveNearKeypairAndEncryptResult, String> {
-    debug!("[rust wasm]: starting PRF-based keypair derivation (secure MessagePort flow)");
-
     // Derive Ed25519 keypair from PRF.second (delivered securely via MessagePort)
     let (near_private_key, near_public_key) = crate::crypto::derive_ed25519_key_from_prf_output(
         &prf_second_b64u,
@@ -103,7 +101,7 @@ pub async fn handle_derive_near_keypair_and_encrypt(
     let wrap_key_salt_bytes = crate::encoders::base64_url_decode(wrap_key.salt_b64u())
         .map_err(|e| format!("Failed to decode wrapKeySalt: {}", e))?;
     let encryption_result = crate::crypto::encrypt_data_chacha20(&near_private_key, &kek)
-        .map_err(|e| format!("Failed to encrypt private key: {}", e))?
+        .map_err(|_| "Failed to encrypt private key".to_string())?
         .with_wrap_key_salt(&wrap_key_salt_bytes);
 
     // Return structured result
