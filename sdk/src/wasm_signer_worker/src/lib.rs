@@ -20,6 +20,7 @@ use crate::types::worker_messages::{
     worker_response_type_name, SignerWorkerMessage, SignerWorkerResponse, WorkerRequestType,
     WorkerResponseType,
 };
+use crate::error::scrub_js_error_value;
 use crate::types::*;
 use crate::wrap_key_handshake::{get_prf_second_b64u, get_wrap_key_shards};
 use log::debug;
@@ -156,7 +157,12 @@ pub fn send_progress_message(message_type: u32, step: u32, message: &str, data: 
 #[wasm_bindgen]
 pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsValue> {
     init_worker();
+    handle_signer_message_inner(message_val)
+        .await
+        .map_err(scrub_js_error_value)
+}
 
+async fn handle_signer_message_inner(message_val: JsValue) -> Result<JsValue, JsValue> {
     // Parse the outer `{ type, payload }` envelope from JS into a strongly
     // typed `WorkerRequestType` and raw `payload` value.
     let SignerWorkerMessage {

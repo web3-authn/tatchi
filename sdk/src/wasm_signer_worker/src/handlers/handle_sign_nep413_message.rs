@@ -6,7 +6,6 @@
 use crate::{
     encoders::base64_standard_encode, threshold::signer_backend::Ed25519SignerBackend, WrapKey,
 };
-use log::debug;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 

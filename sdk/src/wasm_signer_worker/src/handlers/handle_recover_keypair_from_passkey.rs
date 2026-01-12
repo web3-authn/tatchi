@@ -5,7 +5,6 @@
 // ******************************************************************************
 
 use crate::{types::SerializedCredential, WrapKey};
-use log::debug;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
