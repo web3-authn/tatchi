@@ -158,25 +158,38 @@ export type ThresholdEd25519KeyStoreEnvInput = {
   THRESHOLD_ED25519_SHARE_MODE?: string;
   /**
    * Threshold node role.
-   * - "coordinator" (default): exposes `/threshold-ed25519/sign/*` and can fan out to peers when configured.
-   * - "participant": does not expose public signing endpoints; intended for coordinator fanout peers.
+   * - "coordinator" (default): exposes `/threshold-ed25519/sign/*` and can fan out to cosigners when configured.
+   * - "cosigner": does not expose public signing endpoints; intended for internal relayer-fleet t-of-n cosigning.
    */
   THRESHOLD_NODE_ROLE?: string;
   /**
-   * Optional coordinator peer list (JSON).
-   * Intended for future multi-relayer fanout mode.
-   *
-   * Example:
-   * `THRESHOLD_COORDINATOR_PEERS=[{"id":2,"relayerUrl":"https://relayer-a.example"},{"id":3,"relayerUrl":"https://relayer-b.example"}]`
-   */
-  THRESHOLD_COORDINATOR_PEERS?: string;
-  /**
    * 32-byte base64url shared secret used to authenticate coordinator→peer calls.
    *
-   * When set, participant relayers can expose internal endpoints that accept
+   * When set, cosigner relayers can expose internal endpoints that accept
    * coordinator-signed grants (HMAC-SHA256).
    */
   THRESHOLD_COORDINATOR_SHARED_SECRET_B64U?: string;
+  /**
+   * Optional relayer-fleet cosigner list (JSON) for internal t-of-n cosigning.
+   *
+   * When configured on a coordinator node, the coordinator can fan out to relayer cosigners
+   * (internal-only nodes) and combine their partials into a single outer relayer signature share.
+   *
+   * Example:
+   * `THRESHOLD_ED25519_RELAYER_COSIGNERS=[{"cosignerId":1,"relayerUrl":"https://cosigner-a.internal"},{"cosignerId":2,"relayerUrl":"https://cosigner-b.internal"},{"cosignerId":3,"relayerUrl":"https://cosigner-c.internal"}]`
+   */
+  THRESHOLD_ED25519_RELAYER_COSIGNERS?: string;
+  /**
+   * Internal relayer cosigner id for this node (u16, >= 1).
+   * Required when running `THRESHOLD_NODE_ROLE=cosigner`.
+   */
+  THRESHOLD_ED25519_RELAYER_COSIGNER_ID?: string;
+  /**
+   * Internal relayer cosigner threshold `T` (integer, >= 1).
+   * When set together with `THRESHOLD_ED25519_RELAYER_COSIGNERS`, the coordinator will wait for
+   * `T` cosigners per signing round.
+   */
+  THRESHOLD_ED25519_RELAYER_COSIGNER_T?: string;
 };
 
 /**
@@ -591,42 +604,55 @@ export interface ThresholdEd25519SignFinalizeResponse {
   relayerSignatureSharesById?: Record<string, string>;
 }
 
-// ==========================================
-// Threshold Ed25519 (internal coordinator RPC)
-// ==========================================
+// =======================================
+// Threshold Ed25519 (internal cosigner RPC)
+// =======================================
 
-/**
- * Internal endpoint used by a coordinator node to ask a participant relayer to run
- * round-1 commitments without requiring the participant to verify WebAuthn/VRF/session JWT.
- */
-export interface ThresholdEd25519PeerSignInitRequest {
-  /** Coordinator-signed grant that scopes the request to `{ userId, relayerKeyId, signingDigestB64u }`. */
+export interface ThresholdEd25519CosignInitRequest {
   coordinatorGrant: string;
+  signingSessionId: string;
+  /**
+   * Base64url-encoded 32-byte relayer cosigner signing share (a Shamir share; unweighted).
+   * The cosigner derives its effective outer-protocol share from this and the selected cosigner set.
+   */
+  cosignerShareB64u: string;
   clientCommitments: {
     hiding: string;
     binding: string;
   };
 }
 
-export interface ThresholdEd25519PeerSignInitResponse {
+export interface ThresholdEd25519CosignInitResponse {
   ok: boolean;
   code?: string;
   message?: string;
-  signingSessionId?: string;
   relayerCommitments?: {
     hiding: string;
     binding: string;
   };
-  relayerVerifyingShareB64u?: string;
 }
 
-export interface ThresholdEd25519PeerSignFinalizeRequest {
+export interface ThresholdEd25519CosignFinalizeRequest {
   coordinatorGrant: string;
   signingSessionId: string;
-  clientSignatureShareB64u: string;
+  /**
+   * The selected cosigner id set used for internal Shamir/Lagrange interpolation.
+   * Must include this cosigner's configured id.
+   */
+  cosignerIds: number[];
+  /** NEAR ed25519 public key string (`ed25519:<base58>`). */
+  groupPublicKey: string;
+  /**
+   * The combined outer-protocol relayer commitments (sum across the selected cosigners).
+   * This must match what the client used for its signing transcript.
+   */
+  relayerCommitments: {
+    hiding: string;
+    binding: string;
+  };
 }
 
-export interface ThresholdEd25519PeerSignFinalizeResponse {
+export interface ThresholdEd25519CosignFinalizeResponse {
   ok: boolean;
   code?: string;
   message?: string;

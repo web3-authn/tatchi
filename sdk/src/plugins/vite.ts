@@ -252,9 +252,15 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
       server.middlewares.use((req: any, res: any, next: any) => {
         if (!req.url) return next()
         const url = req.url.split('?')[0]
-        if (url === walletServicePath) {
+        const isWalletRoute = url === walletServicePath || url === `${walletServicePath}/` || url === `${walletServicePath}//`
+        if (isWalletRoute) {
           res.statusCode = 200
           res.setHeader('Content-Type', 'text/html; charset=utf-8')
+          // Important: allow embedding this wallet HTML into COEP=require-corp apps even
+          // when the wallet itself is not running with COEP enabled.
+          // Without CORP, the iframe can be blocked and remain on an opaque 'null' origin,
+          // causing CONNECT/READY handshake timeouts in the parent.
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
           applyCoepCorpIfNeeded(res, coepMode)
           res.end(html)
           return
@@ -503,17 +509,23 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
             '',
             `${walletServicePath}`,
             '  Cross-Origin-Opener-Policy: unsafe-none',
+            // Always allow COEP=require-corp apps to embed wallet HTML, even when
+            // the wallet host itself is not using COEP.
+            '  Cross-Origin-Resource-Policy: cross-origin',
             `  Permissions-Policy: ${permissionsPolicy}`,
             `  Content-Security-Policy: ${walletCsp}`,
             `${walletServicePath}/`,
             '  Cross-Origin-Opener-Policy: unsafe-none',
+            '  Cross-Origin-Resource-Policy: cross-origin',
             `  Permissions-Policy: ${permissionsPolicy}`,
             `  Content-Security-Policy: ${walletCsp}`,
             '/export-viewer',
             '  Cross-Origin-Opener-Policy: unsafe-none',
+            '  Cross-Origin-Resource-Policy: cross-origin',
             `  Permissions-Policy: ${permissionsPolicy}`,
             '/export-viewer/',
             '  Cross-Origin-Opener-Policy: unsafe-none',
+            '  Cross-Origin-Resource-Policy: cross-origin',
             `  Permissions-Policy: ${permissionsPolicy}`,
             // Offline export cache policy (no-cache for HTML/SW; immutable for other assets)
             '/offline-export',

@@ -35,25 +35,33 @@ export type ThresholdEd25519SigningSessionRecord = {
   rpId: string;
   clientVerifyingShareB64u: string;
   commitmentsById: ThresholdEd25519CommitmentsById;
+  /**
+   * Optional relayer signing share material for internal flows (e.g. relayer-fleet cosigners).
+   * For normal relayer signing sessions this should be re-derived from key material instead.
+   */
+  relayerSigningShareB64u?: string;
   relayerNoncesB64u: string;
   participantIds: number[];
 };
 
-export type ThresholdEd25519CoordinatorSigningSessionRecord = {
-  expiresAtMs: number;
-  mpcSessionId: string;
-  relayerKeyId: string;
-  signingDigestB64u: string;
-  userId: string;
-  rpId: string;
-  clientVerifyingShareB64u: string;
-  commitmentsById: ThresholdEd25519CommitmentsById;
-  participantIds: number[];
-  peerSigningSessionIdsById: Record<string, string>;
-  peerRelayerUrlsById: Record<string, string>;
-  peerCoordinatorGrantsById: Record<string, string>;
-  relayerVerifyingSharesById: Record<string, string>;
-};
+export type ThresholdEd25519CoordinatorSigningSessionRecord =
+  {
+    mode: 'cosigner';
+    expiresAtMs: number;
+    mpcSessionId: string;
+    relayerKeyId: string;
+    signingDigestB64u: string;
+    userId: string;
+    rpId: string;
+    clientVerifyingShareB64u: string;
+    commitmentsById: ThresholdEd25519CommitmentsById;
+    participantIds: number[];
+    groupPublicKey: string;
+    cosignerIds: number[];
+    cosignerRelayerUrlsById: Record<string, string>;
+    cosignerCoordinatorGrantsById: Record<string, string>;
+    relayerVerifyingSharesById: Record<string, string>;
+  };
 
 export interface ThresholdEd25519SessionStore {
   putMpcSession(id: string, record: ThresholdEd25519MpcSessionRecord, ttlMs: number): Promise<void>;

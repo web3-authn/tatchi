@@ -5,14 +5,14 @@ import { base64UrlEncode } from '../../utils/encoders';
 import { alphabetizeStringify, sha256BytesUtf8 } from '../../utils/digests';
 import { ActionType, type ActionArgsWasm } from '../../core/types/actions';
 import { AuthService } from '../../server/core/AuthService';
-import { createThresholdEd25519ServiceFromAuthService } from '../../server/core/ThresholdService';
+import { createThresholdSigningService } from '../../server/core/ThresholdService';
 import type { VerifyAuthenticationRequest, VerifyAuthenticationResponse } from '../../server/core/types';
 import { createRelayRouter } from '../../server/router/express-adaptor';
 import { createCloudflareRouter } from '../../server/router/cloudflare-adaptor';
 import { threshold_ed25519_compute_near_tx_signing_digests } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
 import { callCf, fetchJson, makeCfCtx, makeSessionAdapter, startExpressRouter } from './helpers';
 
-function makeAuthServiceForThreshold(): { service: AuthService; threshold: ReturnType<typeof createThresholdEd25519ServiceFromAuthService> } {
+function makeAuthServiceForThreshold(): { service: AuthService; threshold: ReturnType<typeof createThresholdSigningService> } {
   const svc = new AuthService({
     relayerAccountId: 'relayer.testnet',
     relayerPrivateKey: 'ed25519:dummy',
@@ -38,7 +38,7 @@ function makeAuthServiceForThreshold(): { service: AuthService; threshold: Retur
       return { keys: [{ public_key: key, access_key: { nonce: 0, permission: 'FullAccess' } }] };
     };
 
-  const threshold = createThresholdEd25519ServiceFromAuthService({
+  const threshold = createThresholdSigningService({
     authService: svc,
     thresholdEd25519KeyStore: { kind: 'in-memory' },
     logger: null,

@@ -16,19 +16,21 @@ export function coerceThresholdEd25519ShareMode(input: unknown): ThresholdEd2551
   return 'auto';
 }
 
-export type ThresholdNodeRole = 'participant' | 'coordinator';
+export type ThresholdNodeRole = 'cosigner' | 'coordinator';
 
 export function coerceThresholdNodeRole(input: unknown): ThresholdNodeRole {
   const role = toOptionalTrimmedString(input);
-  return role === 'participant' ? 'participant' : 'coordinator';
+  if (role === 'cosigner') return 'cosigner';
+  if (role === 'coordinator') return 'coordinator';
+  return 'coordinator';
 }
 
-export type ThresholdCoordinatorPeer = {
-  id: number;
+export type ThresholdRelayerCosignerPeer = {
+  cosignerId: number;
   relayerUrl: string;
 };
 
-export function parseThresholdCoordinatorPeers(input: unknown): ThresholdCoordinatorPeer[] | null {
+export function parseThresholdRelayerCosigners(input: unknown): ThresholdRelayerCosignerPeer[] | null {
   const asJson = (raw: string): unknown => {
     try {
       return JSON.parse(raw);
@@ -40,22 +42,32 @@ export function parseThresholdCoordinatorPeers(input: unknown): ThresholdCoordin
   const raw = typeof input === 'string' ? asJson(input) : input;
   if (!Array.isArray(raw) || raw.length === 0) return null;
 
-  const out: ThresholdCoordinatorPeer[] = [];
+  const out: ThresholdRelayerCosignerPeer[] = [];
   const seen = new Set<string>();
   for (const item of raw) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
     const rec = item as Record<string, unknown>;
-    const id = normalizeThresholdEd25519ParticipantId(rec.id);
+    const cosignerId = normalizeThresholdEd25519ParticipantId(rec.cosignerId);
     const relayerUrl = toOptionalTrimmedString(rec.relayerUrl)?.replace(/\/+$/, '');
-    if (!id || !relayerUrl) return null;
-    const key = `${id}:${relayerUrl}`;
+    if (!cosignerId || !relayerUrl) return null;
+    const key = `${cosignerId}:${relayerUrl}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ id, relayerUrl });
+    out.push({ cosignerId, relayerUrl });
   }
 
-  out.sort((a, b) => (a.id - b.id) || a.relayerUrl.localeCompare(b.relayerUrl));
+  out.sort((a, b) => (a.cosignerId - b.cosignerId) || a.relayerUrl.localeCompare(b.relayerUrl));
   return out.length ? out : null;
+}
+
+export function parseThresholdRelayerCosignerThreshold(input: unknown): number | null {
+  const raw = toOptionalTrimmedString(input);
+  if (!raw) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const t = Math.floor(n);
+  if (t < 1) return null;
+  return t;
 }
 
 export function parseThresholdCoordinatorSharedSecretBytes(input: unknown): Uint8Array | null {

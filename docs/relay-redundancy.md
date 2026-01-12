@@ -83,22 +83,36 @@ We are keeping the **external** cryptographic signer set as **2-party**:
 - client share is deterministically derived from passkey PRF (recovery requirement),
 - the “relayer” is one logical participant from the client’s POV.
 
-To get 3P+ **resilience** without changing the client-facing protocol, the relayer side becomes a fleet:
+To get 3P+ **resilience** without changing the client-facing protocol, the relayer side becomes a fleet with internal `t-of-n` cosigning:
 
 - Run **3 relayer nodes** (same operator):
-  - 1 **coordinator** relayer (exposes `/threshold-ed25519/sign/*`),
-  - 2 **participant** relayer instances (expose `/threshold-ed25519/internal/sign/*`), each able to serve the same logical relayer participant.
-- Coordinator config supports multiple peer URLs for the same relayer participant id:
-  - `THRESHOLD_COORDINATOR_PEERS=[{ id: 2, relayerUrl: "https://relay2..." }, { id: 2, relayerUrl: "https://relay3..." }]`
-  - coordinator tries peers sequentially (simple failover).
+  - 1 **coordinator** relayer (public; exposes `/threshold-ed25519/sign/*`),
+  - 2 **cosigner** relayers (internal-only; expose `/threshold-ed25519/internal/cosign/*`).
+- Coordinator uses `T-of-N` relayer cosigners to produce the single “logical relayer” commitment + signature share required by the *outer* 2-party protocol.
+  - internal endpoints: `POST /threshold-ed25519/internal/cosign/init` and `POST /threshold-ed25519/internal/cosign/finalize`
+  - internal auth: coordinator signs a short-lived grant using `THRESHOLD_COORDINATOR_SHARED_SECRET_B64U` (HMAC)
 
-Resulting availability target (today):
-- Threshold signing requires **at least 2 of the 3 relayers healthy** (coordinator + any 1 participant instance).
-- If only the coordinator is up, signing fails fast with a clear “no relayer peers available” error.
+Coordinator config:
+- `THRESHOLD_ED25519_RELAYER_COSIGNERS=[{ cosignerId, relayerUrl }, ...]` (includes itself if the coordinator also acts as a cosigner)
+- `THRESHOLD_ED25519_RELAYER_COSIGNER_T=2` (for 2-of-3)
+- each process sets `THRESHOLD_NODE_ROLE=coordinator|cosigner` and its own `THRESHOLD_ED25519_RELAYER_COSIGNER_ID`
+
+Resulting availability target:
+- Threshold signing requires **at least 2 of the 3 relayers healthy** (coordinator + any 1 cosigner for `T=2`).
+- In this 3-relay cosigner topology, if only the coordinator is up, signing fails fast with a clear “not enough relayer cosigners available” error.
 
 Notes:
-- This improves availability, but does **not** yet enforce a cryptographic 2-of-3 on the relayer side.
-- True relayer-fleet 2-of-3 (different relayer cosigner shares) is planned in `docs/mpc-signing-refactor.md`.
+- This keeps the *client-facing* protocol strictly 2-party (client + logical relayer) while improving relayer fleet availability.
+- True “no single relayer can reconstruct the logical relayer secret” hardening can be added later by switching the relayer fleet from dealer-split → DKG (see `docs/dkg.md`).
+
+### Single relay vs relayer fleet (seamless switching)
+
+From the SDK/client’s POV, cosigners are an internal implementation detail: the client still talks to the **coordinator** over the same `/threshold-ed25519/*` API and signs against the same **2-party group public key**.
+
+Practical implications:
+- **Single relay deployment** works: coordinator signs directly as the logical relayer participant (equivalent to internal `n=1, t=1`).
+- **Multi-relay deployment** works: coordinator fans out to cosigners, aggregates internal commitments + signature contributions, then continues the outer 2-party signing with the client.
+- You can switch between **1 relay** and **2+ relays** without client-side changes *as long as the logical relayer key material stays the same* (e.g. `THRESHOLD_ED25519_SHARE_MODE=derived` with a stable `THRESHOLD_ED25519_MASTER_SECRET_B64U`, or a shared persistent keystore in `kv` mode). If the relayer share changes, the group public key changes and accounts must re-enroll.
 
 ## Redundancy strategy (funded relaying)
 

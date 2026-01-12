@@ -19,8 +19,8 @@ export {
 } from './core/shamirWorker';
 export { ShamirService } from './core/ShamirService';
 export {
-  ThresholdEd25519Service,
-  createThresholdEd25519ServiceFromAuthService,
+  ThresholdSigningService,
+  createThresholdSigningService,
   createThresholdEd25519KeyStore,
   createThresholdEd25519SessionStore,
 } from './core/ThresholdService';

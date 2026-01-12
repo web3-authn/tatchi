@@ -25,6 +25,28 @@ relay-server.localhost {
 	reverse_proxy 127.0.0.1:3000
 }
 
+# Relay server (cosigner instance #1)
+relay-server2.localhost {
+	tls internal
+	encode gzip
+	log {
+		output stdout
+		format console
+	}
+	reverse_proxy 127.0.0.1:3001
+}
+
+# Relay server (cosigner instance #2)
+relay-server3.localhost {
+	tls internal
+	encode gzip
+	log {
+		output stdout
+		format console
+	}
+	reverse_proxy 127.0.0.1:3002
+}
+
 # ZK prover server listening on port 5588 (may or may not be up)
 # needed for zk-email recovery tests
 zk-email-prover.localhost {
@@ -64,4 +86,26 @@ pta-m4.local:8444 {
 		format console
 	}
 	reverse_proxy 127.0.0.1:3000
+}
+
+# Relay server cosigner #1
+pta-m4.local:8445 {
+	tls internal
+	encode gzip
+	log {
+		output stdout
+		format console
+	}
+	reverse_proxy 127.0.0.1:3001
+}
+
+# Relay server cosigner #2
+pta-m4.local:8446 {
+	tls internal
+	encode gzip
+	log {
+		output stdout
+		format console
+	}
+	reverse_proxy 127.0.0.1:3002
 }

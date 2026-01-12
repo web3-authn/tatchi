@@ -108,7 +108,7 @@ The signing APIs and transcript types are already keyed by **participant id** (`
 
 In a multi-relayer setup:
 - The wallet always talks to a **single coordinator relayer** (`THRESHOLD_NODE_ROLE=coordinator`) for `/threshold-ed25519/sign/*`.
-- The coordinator fans out to **participant relayers** (`THRESHOLD_NODE_ROLE=participant`) via internal endpoints (`/threshold-ed25519/internal/sign/*`) authenticated by a per-signature coordinator grant (`THRESHOLD_COORDINATOR_SHARED_SECRET_B64U`).
+- The coordinator fans out to **cosigner relayers** (`THRESHOLD_NODE_ROLE=cosigner`) via internal endpoints (`/threshold-ed25519/internal/cosign/*`) authenticated by a per-signature coordinator grant (`THRESHOLD_COORDINATOR_SHARED_SECRET_B64U`).
 - Moving to true 3+ party signing also requires a multi-party key setup (e.g. DKG/dealer-split) and on-chain rotation to the new group public key.
 
 ## Protocol Math

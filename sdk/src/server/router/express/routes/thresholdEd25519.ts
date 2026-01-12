@@ -1,9 +1,9 @@
 import type { Request, Response, Router as ExpressRouter } from 'express';
 import type { ExpressRelayContext } from '../createRelayRouter';
 import type {
+  ThresholdEd25519CosignFinalizeRequest,
+  ThresholdEd25519CosignInitRequest,
   ThresholdEd25519KeygenRequest,
-  ThresholdEd25519PeerSignFinalizeRequest,
-  ThresholdEd25519PeerSignInitRequest,
   ThresholdEd25519SignFinalizeRequest,
   ThresholdEd25519SignInitRequest,
   ThresholdEd25519SessionRequest,
@@ -54,20 +54,25 @@ async function handle<T extends { ok: boolean; code?: string; message?: string }
 }
 
 export function registerThresholdEd25519Routes(router: ExpressRouter, ctx: ExpressRelayContext): void {
+  ctx.logger.info('[threshold-ed25519] routes', {
+    enabled: Boolean(ctx.opts.threshold),
+  });
+
   // Threshold Ed25519 (2-party) routes (scaffolding).
   // These routes establish the relayer as a co-signer and will eventually run a 2-round FROST flow.
-  router.get('/threshold-ed25519/healthz', async (_req: Request, res: Response) => {
-    const threshold = ctx.opts.threshold;
-    if (!threshold) {
-      res.status(503).json({
-        ok: false,
-        configured: false,
-        code: 'threshold_disabled',
-        message: 'Threshold signing is not configured on this server',
-      });
-      return;
-    }
-    res.status(200).json({ ok: true, configured: true });
+  router.get('/threshold-ed25519/healthz', async (req: Request, res: Response) => {
+    await handle(ctx, req, res, '/threshold-ed25519/healthz', {}, async () => {
+      const threshold = ctx.opts.threshold;
+      if (!threshold) {
+        return {
+          ok: false,
+          configured: false,
+          code: 'threshold_disabled',
+          message: 'Threshold signing is not configured on this server',
+        };
+      }
+      return { ok: true, configured: true };
+    });
   });
 
   router.post('/threshold-ed25519/keygen', async (req: Request, res: Response) => {
@@ -196,38 +201,40 @@ export function registerThresholdEd25519Routes(router: ExpressRouter, ctx: Expre
     });
   });
 
-  // Internal coordinator → peer route (feature-gated by shared secret).
-  router.post('/threshold-ed25519/internal/sign/init', async (req: Request, res: Response) => {
-    const body = (req.body || {}) as ThresholdEd25519PeerSignInitRequest;
-    await handle(ctx, req, res, '/threshold-ed25519/internal/sign/init', {
+  // Internal coordinator → cosigner route (feature-gated by shared secret).
+  router.post('/threshold-ed25519/internal/cosign/init', async (req: Request, res: Response) => {
+    const body = (req.body || {}) as ThresholdEd25519CosignInitRequest;
+    await handle(ctx, req, res, '/threshold-ed25519/internal/cosign/init', {
       coordinatorGrant_len: typeof body.coordinatorGrant === 'string' ? body.coordinatorGrant.length : undefined,
+      signingSessionId: typeof body.signingSessionId === 'string' ? body.signingSessionId : undefined,
+      cosignerShareB64u_len: typeof body.cosignerShareB64u === 'string' ? body.cosignerShareB64u.length : undefined,
     }, async () => {
       const threshold = ctx.opts.threshold;
       if (!threshold) {
         return { ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' };
       }
-      if (!threshold.thresholdEd25519PeerSignInit) {
-        return { ok: false, code: 'not_found', message: 'threshold-ed25519 peer endpoints are not enabled on this server' };
+      if (!threshold.thresholdEd25519CosignInit) {
+        return { ok: false, code: 'not_found', message: 'threshold-ed25519 cosigner endpoints are not enabled on this server' };
       }
-      return threshold.thresholdEd25519PeerSignInit(body);
+      return threshold.thresholdEd25519CosignInit(body);
     });
   });
 
-  router.post('/threshold-ed25519/internal/sign/finalize', async (req: Request, res: Response) => {
-    const body = (req.body || {}) as ThresholdEd25519PeerSignFinalizeRequest;
-    await handle(ctx, req, res, '/threshold-ed25519/internal/sign/finalize', {
+  router.post('/threshold-ed25519/internal/cosign/finalize', async (req: Request, res: Response) => {
+    const body = (req.body || {}) as ThresholdEd25519CosignFinalizeRequest;
+    await handle(ctx, req, res, '/threshold-ed25519/internal/cosign/finalize', {
       coordinatorGrant_len: typeof body.coordinatorGrant === 'string' ? body.coordinatorGrant.length : undefined,
       signingSessionId: typeof body.signingSessionId === 'string' ? body.signingSessionId : undefined,
-      clientSignatureShareB64u_len: typeof body.clientSignatureShareB64u === 'string' ? body.clientSignatureShareB64u.length : undefined,
+      cosignerIds_len: Array.isArray(body.cosignerIds) ? body.cosignerIds.length : undefined,
     }, async () => {
       const threshold = ctx.opts.threshold;
       if (!threshold) {
         return { ok: false, code: 'threshold_disabled', message: 'Threshold signing is not configured on this server' };
       }
-      if (!threshold.thresholdEd25519PeerSignFinalize) {
-        return { ok: false, code: 'not_found', message: 'threshold-ed25519 peer endpoints are not enabled on this server' };
+      if (!threshold.thresholdEd25519CosignFinalize) {
+        return { ok: false, code: 'not_found', message: 'threshold-ed25519 cosigner endpoints are not enabled on this server' };
       }
-      return threshold.thresholdEd25519PeerSignFinalize(body);
+      return threshold.thresholdEd25519CosignFinalize(body);
     });
   });
 }

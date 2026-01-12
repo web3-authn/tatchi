@@ -1,5 +1,5 @@
-export { ThresholdEd25519Service } from './ThresholdEd25519Service';
-export { createThresholdEd25519ServiceFromAuthService } from './createThresholdEd25519ServiceFromAuthService';
+export { ThresholdSigningService } from './ThresholdSigningService';
+export { createThresholdSigningService } from './createThresholdSigningService';
 export {
   createThresholdEd25519KeyStore,
   type ThresholdEd25519KeyStore,

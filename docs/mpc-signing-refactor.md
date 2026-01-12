@@ -19,6 +19,7 @@ Important: “serverless/cluster safe” and “3+ parties” are related but di
 - The current “derived relayer share” approach can make the relayer **stateless across instances**, but it does **not** automatically create additional independent parties.
 - In our model, the external cryptographic signer set remains **2-party** (client + logical relayer), because the client share must remain deterministically derived from passkey PRF (account recovery requirement).
 - “3P+” resilience comes from splitting the **relayer** side internally across the relayer fleet (internal t-of-n cosigning), while the client still talks to a single logical relayer participant.
+- Cosigners are an internal implementation detail: running **1 relay** (no downstream cosigners) vs **2+ relays** (coordinator + cosigners) should be seamless for the client as long as the logical relayer share (and therefore the 2-party group public key) stays stable.
 
 ## Non-goals (for this refactor)
 - Implementing 3+ party signing end-to-end right now.
@@ -97,9 +98,9 @@ Refactor them internally so that the code paths operate on:
 - `participants[]` (even if length is 1 for “this relayer instance”),
 - a common “sign init/finalize” transcript type keyed by participant id.
 
-Future: when adding multi-relayer signing, keep `/threshold-ed25519/sign/*` stable and introduce an internal coordinator RPC:
-- `POST /threshold-ed25519/internal/sign/init`
-- `POST /threshold-ed25519/internal/sign/finalize`
+Future: when adding relayer-fleet signing, keep `/threshold-ed25519/sign/*` stable and introduce an internal cosigner RPC:
+- `POST /threshold-ed25519/internal/cosign/init`
+- `POST /threshold-ed25519/internal/cosign/finalize`
 
 ### 4) Define the multi-party orchestration strategy (client vs aggregator)
 Decision: **Option B (coordinator-relayer fanout, client aggregation)**.
@@ -126,15 +127,15 @@ This refactor should keep the code structured so either option can be implemente
 
 #### Deployment model (same code everywhere; role via env var)
 We can keep a single “relayer” codebase/binary and select behavior via environment configuration:
-- `THRESHOLD_NODE_ROLE=participant|coordinator` (default `coordinator`)
-  - `participant`: exposes only internal coordinator RPC endpoints (`/threshold-ed25519/internal/sign/*`) for that relayer’s share.
-  - `coordinator`: exposes public signing endpoints (`/threshold-ed25519/sign/*`) and performs fanout to peer relayers.
-- `THRESHOLD_COORDINATOR_PEERS=...` (only for `coordinator`)
-  - a list of participant relayer endpoints + ids the coordinator can fan out to.
-  - `THRESHOLD_COORDINATOR_SHARED_SECRET_B64U` must be shared with participant relayers to validate coordinator grants.
+- `THRESHOLD_NODE_ROLE=coordinator|cosigner` (default `coordinator`)
+  - `coordinator`: exposes public signing endpoints (`/threshold-ed25519/sign/*`) and performs fanout to cosigners when configured.
+  - `cosigner`: exposes only internal cosigner RPC endpoints (`/threshold-ed25519/internal/cosign/*`).
+- `THRESHOLD_ED25519_RELAYER_COSIGNERS=...` + `THRESHOLD_ED25519_RELAYER_COSIGNER_T=...` (for `coordinator`)
+  - a list of relayer cosigner endpoints + ids the coordinator can fan out to (internal `t-of-n`).
+  - `THRESHOLD_COORDINATOR_SHARED_SECRET_B64U` must be shared with cosigners to validate coordinator grants.
 
 Statelessness goals:
-- Each relayer participant remains stateless for long-lived key share material by using a derived-share mode (relayer master secret) where possible.
+- Coordinator can remain stateless for long-lived key share material by using a derived-share mode (relayer master secret) where possible.
 - The coordinator still needs **ephemeral** state: a TTL transcript store keyed by `signingSessionId` (KV preferred; in-memory only for dev).
 
 #### Option B concrete flow (2-round FROST; multi-relayer ready)
@@ -152,14 +153,14 @@ Assume participants are:
 
 **Round 1: Commitments (`POST /threshold-ed25519/sign/init`)**
 - Client → coordinator: `{ mpcSessionId, relayerKeyId, nearAccountId, signingDigestB64u, clientCommitments }`
-- Coordinator → each relayer: `POST /threshold-ed25519/internal/sign/init` (coordinatorGrant + clientCommitments)
-- Coordinator → client: `{ signingSessionId, commitmentsById, relayerVerifyingSharesById, participantIds }`
+- Coordinator → relayer cosigners: `POST /threshold-ed25519/internal/cosign/init` (coordinatorGrant + signingSessionId + cosignerShareB64u + clientCommitments)
+- Coordinator → client: `{ signingSessionId, commitmentsById, relayerVerifyingSharesById, participantIds }` (still the 2P signer set: `[clientId, relayerId]`)
 
 **Round 2: Signature shares + aggregation (`POST /threshold-ed25519/sign/finalize`)**
 - Client computes its signature share locally using the aggregated commitment transcript.
 - Client → coordinator: `{ signingSessionId, clientSignatureShareB64u }`
-- Coordinator → each relayer: `POST /threshold-ed25519/internal/sign/finalize` (coordinatorGrant + peerSigningSessionId + clientSignatureShareB64u)
-- Coordinator → client: `{ relayerSignatureSharesById }`
+- Coordinator → relayer cosigners: `POST /threshold-ed25519/internal/cosign/finalize` (coordinatorGrant + signingSessionId + cosignerIds + groupPublicKey + relayerCommitments)
+- Coordinator → client: `{ relayerSignatureSharesById }` (contains only the logical relayer participant id)
 - Client aggregates `{ clientShare + relayerShares }` into the final Ed25519 signature (in the signer worker).
 
 Important invariant: for each downstream relayer, coordinator must ensure the relayer’s share is only used for:
@@ -235,21 +236,19 @@ Add a new suite skeleton for future n-party tests (skipped initially):
 
 ### Phase 4B — Aggregator-coordinated signing (Option B)
 - [x] Define coordinator-facing endpoints: `/threshold-ed25519/sign/init` and `/threshold-ed25519/sign/finalize`.
-- [x] Implement coordinator fanout to downstream relayers (2P stub; multi-peer config selects a peer, not concurrent fanout):
-  - internal function calls when running as a single service,
-  - HTTP fanout when relayers are separate services/parties.
+- [x] Implement coordinator fanout to internal relayer cosigners (wait for `T`) and aggregate commitments + signature shares.
 - [x] Add role-gated routing so the same relayer code can run as:
-  - `THRESHOLD_NODE_ROLE=participant` (no coordinator endpoints),
-  - `THRESHOLD_NODE_ROLE=coordinator` (enables `/threshold-ed25519/sign/*` endpoints).
-- [x] Define a peer discovery/config format for coordinator fanout (env var or config file):
-  - `THRESHOLD_COORDINATOR_PEERS=[{ id, relayerUrl }, ...]`.
+  - `THRESHOLD_NODE_ROLE=cosigner` (internal relayer-fleet cosigner endpoints only),
+  - `THRESHOLD_NODE_ROLE=coordinator` (public `/threshold-ed25519/sign/*` endpoints; may also act as a cosigner).
+- [x] Define relayer cosigner discovery/config format (env var or config file):
+  - `THRESHOLD_ED25519_RELAYER_COSIGNERS=[{ cosignerId, relayerUrl }, ...]`
+  - `THRESHOLD_ED25519_RELAYER_COSIGNER_T=<t>`
 - [x] Store per-signature transcript in TTL KV keyed by `signingSessionId`:
   - signer set, digest(s), commitments, and any authorization binding needed for downstream enforcement.
 - [x] Decide downstream auth model:
   - coordinator issues a signed internal auth grant to relayers, or
   - coordinator forwards WebAuthn/VRF evidence and relayers verify independently.
-- [x] Add unit tests for coordinator fanout (2P stub; mocked downstream).
-- [x] Add unit test asserting multi-peer coordinator config selects a peer (until multiparty implemented).
+- [x] Add unit tests for relayer-fleet cosigning (2-of-3; mocked downstream).
 
 ### Phase 5 — Docs + migration notes
 - [x] Document the participant model, signer sets, and how it maps to 2P today.
@@ -266,61 +265,88 @@ Add a new suite skeleton for future n-party tests (skipped initially):
 
 This section is intentionally *post-refactor*: it assumes the current participant-aware coordinator architecture is in place, and outlines what’s needed for **3P+ resilience** while keeping the *external* signer set as **2-party** (client + logical relayer).
 
-### Phase 6 — Relayer Cosigner Key Setup (dealer-split first; DKG later)
+Key idea: we keep the *outer* FROST signer set as 2-party for product/recovery reasons, but implement **internal t-of-n cosigning inside the relayer fleet** so that the fleet behaves like a single “logical relayer participant”.
+- From the client’s POV, it’s still 2P: `participantIds=[clientParticipantId, relayerParticipantId]`.
+- Internally, the relayer participant is implemented by `T-of-N` relayer cosigners, which jointly produce the relayer’s outer-protocol commitments + signature share.
 
-**Phase 6A (v1): dealer-split deterministic relayer cosigner shares**
-- [ ] Define dealer config (single-operator):
-  - `THRESHOLD_ED25519_DEALER_MASTER_SECRET_B64U` (32 bytes; stored in KMS/secret manager; ideally only on coordinator/dealer).
-  - `relayerKeyId` / “key binding” inputs used to deterministically derive the *same* relayer cosigner shares for a given threshold key.
-- [ ] Define deterministic relayer secret splitting:
-  - deterministically derive a relayer secret scalar `s_rel` from dealer secret + binding data,
-  - deterministically derive per-cosigner shares whose recombination yields `s_rel` (t-of-n),
-  - compute the relayer verifying share `P_rel = G * s_rel` (and therefore the external group public key when combined with the PRF-derived client verifying share).
-- [ ] Define secure share distribution to relayer cosigners:
-  - internal endpoint returns **only** the requesting cosigner’s share (auth’d by internal grant / mTLS),
-  - cosigners keep the share in memory; on restart they re-fetch (no per-cosigner persistence required).
-- [ ] Define the on-chain rotation story (still required): new external group public key becomes an access key (clean rotate).
-- [ ] Define cosigner lifecycle: compromise response (rotate), backups (optional), and operational playbooks.
-- [ ] Define cosigner id assignment policy and config wiring (stable ids, ordering, env/config).
+### Phase 6 — Relayer Fleet Key Setup (dealer-split first; DKG later)
 
-**Phase 6B (future): true DKG between relayer cosigners**
-- [ ] Implement relayer cosigner DKG ceremony (see `docs/dkg.md`).
-- [ ] Replace dealer-split with DKG between relayer cosigners (no single relayer service can derive all shares).
-- [ ] Define restart robustness (encrypted share persistence vs re-fetchable encrypted blobs).
-- [ ] Define upgrade path from dealer-split keys to DKG keys (clean rotate; no migration tooling).
+**Why dealer-split first (vs a true FROST DKG ceremony)?**
+- **Deterministic client share (recovery requirement)**: our client signing share must remain a deterministic function of WebAuthn PRF outputs so we can deterministically recover the same key material on new devices. A “true” multi-party DKG across client + relayers would randomize the client share (or require persisting DKG state), breaking that model.
+- **Restart-robust relayer fleet**: in v1 we want relayer cosigners to be stateless across restarts. Dealer-split with a KMS-held master secret can deterministically re-derive cosigner shares on demand; a DKG ceremony typically requires durable storage of the resulting shares + metadata.
+- **Single-operator reality**: all relayers are run by us. The main value of DKG (“no single dealer can derive all shares”) is less urgent initially than shipping a simple, operable, restart-robust system.
+- **Clean upgrade path later**: moving dealer-split → DKG is a key rotation: mint a new relayer secret via DKG, compute a new outer group public key, and rotate the on-chain access key (no migration tooling).
 
-### Phase 7 — Relayer Cosigner Orchestration (internal t-of-n)
-- [ ] Define internal cosigner protocol so the relayer fleet can behave like a single “logical relayer participant”:
-  - internal Round 1: cosigners produce nonce commitments; coordinator combines into one relayer commitment transcript for the client.
-  - internal Round 2: cosigners produce partial signature-share contributions; coordinator combines into one relayer signature share for the client.
-- [ ] Implement cosigner selection + timeouts (t-of-n): health-driven selection, partial failure handling, retry semantics.
-- [ ] Tighten internal authorization: ensure cosigners only contribute for `(mpcSessionId, relayerKeyId, signerSet, signingDigest, expiry)` scoped grants.
+**Phase 6A (v1): dealer-split deterministic cosigner shares (restart-robust)**
+- [x] Define fleet topology + identifiers:
+  - outer participant ids remain `{ clientParticipantId, relayerParticipantId }` (still 2P),
+  - internal `cosignerId`s are separate (e.g. `1..N`) and used only for Shamir/Lagrange interpolation (not exposed to clients).
+- [x] Define coordinator/cosigner config (single operator / same trust domain):
+  - `THRESHOLD_ED25519_RELAYER_COSIGNERS=[{ cosignerId, relayerUrl }, ...]`
+  - `THRESHOLD_ED25519_RELAYER_COSIGNER_T=<t>`
+  - each process sets `THRESHOLD_ED25519_RELAYER_COSIGNER_ID=<id>` and `THRESHOLD_NODE_ROLE=coordinator|cosigner`
+  - internal auth secret: `THRESHOLD_COORDINATOR_SHARED_SECRET_B64U=<32b base64url>`
+- [x] Define deterministic relayer secret split:
+  - obtain the logical relayer signing share scalar `s_rel` via the existing relayer keystore mode (`kv` or `derived`),
+  - deterministically derive a Shamir polynomial from `s_rel` and `t`, and compute per-cosigner shares `s_i`,
+  - cosigner IDs are used only for interpolation and are never exposed to clients.
+- [x] Define secure share distribution + caching:
+  - coordinator sends only the requesting cosigner’s share `s_i` via `POST /threshold-ed25519/internal/cosign/init` (auth’d by an HMAC grant),
+  - cosigners store `s_i` + nonces in the signing session record; on restart they simply re-run `/sign/init`.
+- [ ] Define rotation story:
+  - explicit `epoch`/rotation input produces a new `s_rel` and therefore a new outer group public key (clean rotate on-chain),
+  - operational playbook for compromise response (rotate) and routine rotations.
+
+
+### Phase 7 — Relayer Fleet Cosigning (internal t-of-n)
+- [x] Define internal cosigner endpoints (not public) to support:
+  - internal Round 1: cosigner generates nonce commitments + stores nonces (scoped to `signingSessionId`),
+  - internal Round 2: cosigner returns a partial contribution that allows the coordinator to produce a single outer relayer signature share.
+- [x] Implement coordinator fanout + combination (wait for `T`):
+  - Round 1: coordinator requests commitments from multiple cosigners, combines them into one outer relayer commitment pair (Lagrange-weighted), and stores the transcript in the signing session record.
+  - Round 2: coordinator requests partials from `T` cosigners that have a matching Round 1 transcript, combines them into one outer relayer signature share, and returns it on the existing `/threshold-ed25519/sign/finalize` API.
+- [x] Failure handling + retries:
+  - timeouts and health-driven cosigner selection,
+  - if a cosigner drops between Round 1 and Round 2, either use a spare cosigner that already produced commitments, or restart the signing flow (`/sign/init`) to get a fresh transcript.
+- [x] Tighten internal authorization: cosigners only contribute for scoped grants like `(mpcSessionId, relayerKeyId, signingDigest, expiry, cosignerId)` (and optionally the chosen `T-of-N` set hash).
 
 ### Phase 8 — Relayer-side Protocol + Cryptography
-- [ ] Specify the exact internal math so the relayer fleet outputs **valid outer-protocol** values for the logical relayer participant:
-  - commitments and signature share must match what a single holder of `s_rel` would produce.
-- [ ] Add verification and clear error surfaces per cosigner (bad share vs missing share vs stale transcript).
-- [ ] Add transcript binding checks (internal commitments, binding factors, nonce reuse prevention).
+- [x] Specify the exact internal math so the fleet outputs **valid outer-protocol** values for the logical relayer participant:
+  - combined commitments must match a single nonce pair `(r_hiding, r_binding)` under `s_rel`,
+  - combined relayer signature share must match what a single holder of `s_rel` would produce for the outer signing package.
+- [x] Nonce safety invariants: nonces are single-use, bound to the outer transcript, and cleaned up (no reuse across retries).
+- [ ] Add verification + clear error surfaces:
+  - malformed/missing cosigner responses vs internal auth failures vs stale transcript,
+  - (optional) coordinator verifies the combined relayer signature share before returning it (defense-in-depth).
+- [ ] Define persistence requirements for HA:
+  - if we want coordinator failover mid-signature, persist internal transcript + selected cosigner set (and/or cosigner nonce state) in shared KV/Redis,
+  - otherwise prefer “retry / restart signing session” semantics.
 
 ### Phase 9 — Ops, Hardening, and UX
+- [ ] Define deployment topology:
+  - coordinator is public-facing (handles `/threshold-ed25519/sign/*`),
+  - cosigners are private/internal-only (no public access; reachable only from coordinator).
 - [ ] Add relayer cosigner health + discovery UX: deterministic peer list config, health checks, and operator diagnostics.
 - [ ] Add rate limits and abuse controls per endpoint (authorize/session/sign/internal-cosign) appropriate for fleet mode.
 - [ ] Add a minimal production deployment guide for coordinator + cosigners (secrets, internal auth, cookie/JWT session wiring).
 
 ### Phase 10 — Tests + Docs
-- [ ] Add unit tests for relayer-internal t-of-n cosigning (2-of-3, 3-of-5) with failure-mode suites.
+- [x] Add unit tests for relayer-internal t-of-n cosigning (2-of-3; mocked cosigner downstream).
+- [ ] Add unit tests for relayer-internal t-of-n cosigning (3-of-5) with failure-mode suites.
+- [x] Add local dev wiring for 3 relays: `pnpm run server:3-relays` + `examples/vite/Caddyfile` routes.
+- [ ] Add integration coverage for coordinator + cosigners in local dev (2-of-3 up) and document retry behavior on cosigner restarts.
 - [ ] Add e2e coverage for threshold flows (tx/delegate/NEP-413/batch) in relayer-fleet mode.
-- [ ] Document the relayer-fleet trust model and key setup (dealer-split now; DKG later) and explicitly call out non-goal: migration tooling.
+- [x] Document the relayer-fleet trust model and key setup (dealer-split now; DKG later) and explicitly call out non-goal: migration tooling.
 
 ## Refactor
 
 TODO (from reviewing `git diff`):
 
-- [x] **Split `ThresholdEd25519Service.ts`**: extract config parsing, keygen strategy, session persistence, coordinator fanout, peer endpoints, and key-material resolution into smaller modules.
-- [x] **Centralize config/env parsing**: reduce drift for `THRESHOLD_NODE_ROLE`, `THRESHOLD_COORDINATOR_PEERS`, and participant id normalization across server + tests + docs.
+- [x] **Split `ThresholdSigningService.ts`**: extract config parsing, keygen strategy, session persistence, coordinator fanout, peer endpoints, and key-material resolution into smaller modules.
+- [x] **Centralize config/env parsing**: reduce drift for `THRESHOLD_NODE_ROLE`, `THRESHOLD_ED25519_RELAYER_COSIGNERS`, and participant id normalization across server + tests + docs.
 - [x] **Remove redundant record fields once stable**: keep only map-shaped transcript fields (`commitmentsById`, `relayerVerifyingSharesById`, `relayerSignatureSharesById`) and drop legacy 2P-only fields.
 - [x] **Unify participant-id resolution logic (Rust)**: avoid duplicate/heuristic relayer-id resolution between `signer_backend.rs` and `relayer_http.rs`.
 - [x] **Parse/validate once at entry points**: keep strict validation but reduce repeated `toOptionalTrimmedString` noise across service + handlers.
 - [ ] **Make errors more uniform across boundaries**: standardize error codes/messages across server ↔ WASM ↔ SDK for threshold flows.
 - [x] **Test harness cleanup**: factor coordinator wiring into a single helper.
-- [ ] **Test coverage expansion**: expand coverage for delegate/NEP-413/batch + 2-of-3 mocked peers.
+- [ ] **Test coverage expansion**: expand coverage for delegate/NEP-413/batch (2-of-3 mocked peers is done).

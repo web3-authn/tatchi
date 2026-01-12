@@ -3,13 +3,13 @@ import { toOptionalTrimmedString } from '../../../utils/validation';
 import { bytesEqual32, isObject, parseThresholdEd25519MpcSessionRecord } from './validation';
 import { normalizeThresholdEd25519ParticipantId } from '../../../threshold/participants';
 
-export type ThresholdEd25519CoordinatorGrantV1 = {
+export type ThresholdEd25519CosignerGrantV1 = {
   v: 1;
-  typ: 'threshold_ed25519_coordinator_grant_v1';
+  typ: 'threshold_ed25519_cosigner_grant_v1';
   iat: number;
   exp: number;
   mpcSessionId: string;
-  peerParticipantId: number;
+  cosignerId: number;
   mpcSession: unknown;
 };
 
@@ -19,6 +19,18 @@ function toArrayBufferCopy(bytes: Uint8Array): ArrayBuffer {
   const ab = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(ab).set(bytes);
   return ab;
+}
+
+async function signHmacJsonToken(input: {
+  secretBytes: Uint8Array | null;
+  keyPromise: Promise<CryptoKey> | null;
+  payload: unknown;
+}): Promise<{ token: string | null; keyPromise: Promise<CryptoKey> | null }> {
+  const { key, keyPromise } = await ensureCoordinatorHmacKey({ secretBytes: input.secretBytes, keyPromise: input.keyPromise });
+  if (!key) return { token: null, keyPromise };
+  const payloadBytes = new TextEncoder().encode(JSON.stringify(input.payload));
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, toArrayBufferCopy(payloadBytes)));
+  return { token: `${base64UrlEncode(payloadBytes)}.${base64UrlEncode(sig)}`, keyPromise };
 }
 
 async function ensureCoordinatorHmacKey(input: {
@@ -36,29 +48,40 @@ async function ensureCoordinatorHmacKey(input: {
   return { key: await keyPromise, keyPromise };
 }
 
-export async function signThresholdEd25519CoordinatorGrantV1(input: {
+export async function signThresholdEd25519CosignerGrantV1(input: {
   secretBytes: Uint8Array | null;
   keyPromise: Promise<CryptoKey> | null;
-  payload: ThresholdEd25519CoordinatorGrantV1;
+  payload: ThresholdEd25519CosignerGrantV1;
 }): Promise<{ token: string | null; keyPromise: Promise<CryptoKey> | null }> {
-  const { key, keyPromise } = await ensureCoordinatorHmacKey({ secretBytes: input.secretBytes, keyPromise: input.keyPromise });
-  if (!key) return { token: null, keyPromise };
-  const payloadBytes = new TextEncoder().encode(JSON.stringify(input.payload));
-  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, toArrayBufferCopy(payloadBytes)));
-  return { token: `${base64UrlEncode(payloadBytes)}.${base64UrlEncode(sig)}`, keyPromise };
+  return await signHmacJsonToken(input);
 }
 
-export async function verifyThresholdEd25519CoordinatorGrantV1(input: {
+async function verifyHmacJsonToken(input: {
   secretBytes: Uint8Array | null;
   keyPromise: Promise<CryptoKey> | null;
   token: unknown;
+  missingSecretMessage: string;
+  expectedTyp: string;
 }): Promise<
-  { ok: true; keyPromise: Promise<CryptoKey> | null; grant: ThresholdEd25519CoordinatorGrantV1; mpcSession: ParsedThresholdEd25519MpcSession }
-  | { ok: false; keyPromise: Promise<CryptoKey> | null; code: string; message: string }
+  | {
+      ok: true;
+      keyPromise: Promise<CryptoKey> | null;
+      payload: Record<string, unknown>;
+      iat: number;
+      exp: number;
+      mpcSessionId: string;
+      mpcSession: ParsedThresholdEd25519MpcSession;
+    }
+  | {
+      ok: false;
+      keyPromise: Promise<CryptoKey> | null;
+      code: string;
+      message: string;
+    }
 > {
   const { key, keyPromise } = await ensureCoordinatorHmacKey({ secretBytes: input.secretBytes, keyPromise: input.keyPromise });
   if (!key) {
-    return { ok: false, keyPromise, code: 'not_found', message: 'threshold-ed25519 coordinator grants are not enabled on this server' };
+    return { ok: false, keyPromise, code: 'not_found', message: input.missingSecretMessage };
   }
 
   const raw = toOptionalTrimmedString(input.token);
@@ -96,7 +119,7 @@ export async function verifyThresholdEd25519CoordinatorGrantV1(input: {
   }
 
   const g = parsed as Record<string, unknown>;
-  if (g.typ !== 'threshold_ed25519_coordinator_grant_v1' || g.v !== 1) {
+  if (g.typ !== input.expectedTyp || g.v !== 1) {
     return { ok: false, keyPromise, code: 'unauthorized', message: 'Invalid coordinatorGrant type' };
   }
   const iat = Number(g.iat);
@@ -109,10 +132,6 @@ export async function verifyThresholdEd25519CoordinatorGrantV1(input: {
     return { ok: false, keyPromise, code: 'unauthorized', message: 'coordinatorGrant expired' };
   }
 
-  const peerParticipantId = normalizeThresholdEd25519ParticipantId(g.peerParticipantId);
-  if (!peerParticipantId) {
-    return { ok: false, keyPromise, code: 'unauthorized', message: 'Invalid coordinatorGrant peerParticipantId' };
-  }
   const mpcSessionId = toOptionalTrimmedString(g.mpcSessionId);
   if (!mpcSessionId) {
     return { ok: false, keyPromise, code: 'unauthorized', message: 'Invalid coordinatorGrant mpcSessionId' };
@@ -126,16 +145,42 @@ export async function verifyThresholdEd25519CoordinatorGrantV1(input: {
     return { ok: false, keyPromise, code: 'unauthorized', message: 'coordinatorGrant mpcSession expired' };
   }
 
+  return { ok: true, keyPromise, payload: g, iat, exp, mpcSessionId, mpcSession };
+}
+
+export async function verifyThresholdEd25519CosignerGrantV1(input: {
+  secretBytes: Uint8Array | null;
+  keyPromise: Promise<CryptoKey> | null;
+  token: unknown;
+}): Promise<
+  { ok: true; keyPromise: Promise<CryptoKey> | null; grant: ThresholdEd25519CosignerGrantV1; mpcSession: ParsedThresholdEd25519MpcSession }
+  | { ok: false; keyPromise: Promise<CryptoKey> | null; code: string; message: string }
+> {
+  const verified = await verifyHmacJsonToken({
+    secretBytes: input.secretBytes,
+    keyPromise: input.keyPromise,
+    token: input.token,
+    missingSecretMessage: 'threshold-ed25519 cosigner grants are not enabled on this server',
+    expectedTyp: 'threshold_ed25519_cosigner_grant_v1',
+  });
+  if (!verified.ok) return verified;
+  const { payload: g, iat, exp, mpcSessionId, mpcSession, keyPromise } = verified;
+
+  const cosignerId = normalizeThresholdEd25519ParticipantId(g.cosignerId);
+  if (!cosignerId) {
+    return { ok: false, keyPromise, code: 'unauthorized', message: 'Invalid coordinatorGrant cosignerId' };
+  }
+
   return {
     ok: true,
     keyPromise,
     grant: {
       v: 1,
-      typ: 'threshold_ed25519_coordinator_grant_v1',
+      typ: 'threshold_ed25519_cosigner_grant_v1',
       iat,
       exp,
       mpcSessionId,
-      peerParticipantId,
+      cosignerId,
       mpcSession: g.mpcSession,
     },
     mpcSession,
