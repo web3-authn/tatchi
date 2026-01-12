@@ -45,6 +45,11 @@ EXPECTED_WALLET_ORIGIN = "https://wallet.tatchi.xyz, https://web3authn.org"
 # Optional: explicitly enable cron and rotation (defaults to disabled)
 # ENABLE_ROTATION = "0"
 
+# Optional: Threshold signing (2-party FROST).
+#
+# This Worker example enables threshold signing only when the master secret is provided:
+#   wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U
+
 # Observability (Workers Logs). Requires appropriate Cloudflare plan.
 [observability]
   [observability.logs]

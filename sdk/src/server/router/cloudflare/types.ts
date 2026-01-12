@@ -32,6 +32,10 @@ export interface RelayCloudflareWorkerEnv {
   EXPECTED_WALLET_ORIGIN?: string;
   ENABLE_ROTATION?: string;
   RECOVER_EMAIL_RECIPIENT?: string;
+
+  // Optional: Threshold signing (2-party FROST).
+  // This example enables threshold endpoints when this secret is present.
+  THRESHOLD_ED25519_MASTER_SECRET_B64U?: string;
 }
 
 export interface CfExecutionContext {
@@ -57,4 +61,3 @@ export interface CfEmailMessage {
 export type FetchHandler = (request: Request, env?: CfEnv, ctx?: CfExecutionContext) => Promise<Response>;
 export type ScheduledHandler = (event: CfScheduledEvent, env?: CfEnv, ctx?: CfExecutionContext) => Promise<void>;
 export type EmailHandler = (message: CfEmailMessage, env?: CfEnv, ctx?: CfExecutionContext) => Promise<void>;
-
