@@ -1,0 +1,7 @@
+/* Stable, importable stylesheet for PasskeyAuthMenu (library consumers).
+ *
+ * This file is built to `dist/esm/react/components/PasskeyAuthMenu/styles.css`
+ * so apps can import a single CSS file without relying on hashed asset names.
+ */
+@import './PasskeyAuthMenu.css';
+

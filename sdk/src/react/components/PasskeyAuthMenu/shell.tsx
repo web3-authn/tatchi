@@ -3,9 +3,14 @@ import { PasskeyAuthMenuSkeletonInner } from './skeleton';
 import { PasskeyAuthMenuThemeScope } from './themeScope';
 import type { PasskeyAuthMenuProps } from './types';
 import { useTheme } from '../theme';
+import { ensurePasskeyAuthMenuStyles } from './ensureStyles';
 
 function createClientLazy() {
-  return React.lazy(() => import('./client').then((m) => ({ default: m.PasskeyAuthMenuClient })));
+  return React.lazy(() =>
+    Promise.all([ensurePasskeyAuthMenuStyles(), import('./client')]).then(([, m]) => ({
+      default: m.PasskeyAuthMenuClient,
+    }))
+  );
 }
 
 class LazyErrorBoundary extends React.Component<
@@ -49,6 +54,14 @@ export const PasskeyAuthMenu: React.FC<PasskeyAuthMenuProps> = (props) => {
   // Align with the SDK Theme boundary when present (TatchiPasskeyProvider wraps one by default).
   // Falls back to system preference when used standalone.
   const { theme } = useTheme();
+
+  const useIsomorphicLayoutEffect =
+    typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
+
+  useIsomorphicLayoutEffect(() => {
+    // Best-effort: ensure stylesheet link exists before first paint to reduce FOUC.
+    void ensurePasskeyAuthMenuStyles();
+  }, []);
 
   React.useEffect(() => {
     setIsClient(true);

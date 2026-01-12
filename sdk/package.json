@@ -88,6 +88,7 @@
       "require": "./dist/cjs/react/components/PasskeyAuthMenu/preload.js",
       "types": "./dist/types/src/react/components/PasskeyAuthMenu/preload.d.ts"
     },
+    "./react/passkey-auth-menu/styles": "./dist/esm/react/components/PasskeyAuthMenu/styles.css",
     "./react/passkey-auth-menu2": {
       "import": "./dist/esm/react/components/PasskeyAuthMenu/shell.js",
       "require": "./dist/cjs/react/components/PasskeyAuthMenu/shell.js",
@@ -108,6 +109,7 @@
       "require": "./dist/cjs/react/components/PasskeyAuthMenu/preload.js",
       "types": "./dist/types/src/react/components/PasskeyAuthMenu/preload.d.ts"
     },
+    "./react/passkey-auth-menu2/styles": "./dist/esm/react/components/PasskeyAuthMenu/styles.css",
     "./react/provider": {
       "import": "./dist/esm/react/context/TatchiPasskeyProvider.js",
       "require": "./dist/cjs/react/context/TatchiPasskeyProvider.js",
@@ -156,7 +158,9 @@
       ]
     }
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
     "build": "./scripts/build-dev.sh",
     "build:prod": "./scripts/build-prod.sh",

@@ -1,3 +1,8 @@
+/* Marker used by JS entrypoints to detect when PasskeyAuthMenu styles are present */
+:root {
+  --w3a-passkey-auth-menu-styles-loaded: 1;
+}
+
 /* Root container */
 .w3a-signup-menu-root {
   position: relative; /* relative position to anchor back button */

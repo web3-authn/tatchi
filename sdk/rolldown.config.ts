@@ -454,6 +454,15 @@ const configs = [
       assetFileNames: 'styles.css'
     },
   },
+  // PasskeyAuthMenu CSS build - stable, per-component stylesheet for consumers
+  {
+    input: 'src/react/components/PasskeyAuthMenu/styles.css',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/react/components/PasskeyAuthMenu`,
+      format: 'esm',
+      assetFileNames: 'styles.css'
+    },
+  },
   // WASM VRF Worker build for server usage - includes WASM binary
   {
     input: 'src/wasm_vrf_worker/pkg/wasm_vrf_worker.js',

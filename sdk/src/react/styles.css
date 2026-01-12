@@ -18,6 +18,9 @@
 
 /* Global default z-index tokens for wallet overlay + SDK modals */
 :root {
+  /* Marker used by component entrypoints to detect when global SDK React styles are present */
+  --w3a-sdk-react-styles-loaded: 1;
+
   /* Base z-index for wallet iframe overlay (host surface) */
   --w3a-wallet-overlay-z: 2147483646;
   /* Offset used by SDK modals that should sit just under the wallet overlay */
