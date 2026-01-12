@@ -77,14 +77,14 @@ sequenceDiagram
   participant App as Wallet (iframe UI)
   participant VRF as VRF Worker
   participant Signer as Signer Worker
-  participant Relay as Relayer (coordinator)
+  participant Relay as Relayer (public)
 
   Note over App,VRF: 1) Confirm + VRF/WebAuthn (freshness + user presence)
   App->>VRF: confirmAndPrepareSigningSession(intent)
   VRF-->>Signer: MessagePort: WrapKeySeed + wrapKeySalt
   VRF-->>App: intentDigest, transactionContext, vrfChallenge?, credential?
 
-  Note over Signer,Relay: 2) Authorize digest + payload on relay
+  Note over Signer,Relay: 2) Authorize digest + payload on relayer
   Signer->>Relay: POST /threshold-ed25519/authorize (or via session token)
   Relay-->>Signer: mpcSessionId
 
@@ -98,18 +98,66 @@ sequenceDiagram
   Signer->>Signer: aggregate(clientShare, relayerSharesById) => Ed25519 signature
 ```
 
+## Relayer Fleet Cosigner Mode (coordinator fanout)
+
+Cosigner mode keeps the *outer* protocol as **2-party** (client + logical relayer), but implements the relayer participant internally as a **T-of-N relayer fleet**:
+- With **1 relayer**, the relayer simply responds to `/threshold-ed25519/sign/*` directly (no fanout).
+- With **2+ relayers**, one relayer runs as the **coordinator** (`THRESHOLD_NODE_ROLE=coordinator`) and fans out to **cosigners** (`THRESHOLD_NODE_ROLE=cosigner`) via internal endpoints.
+
+As long as the logical relayer share is derived from the same master secret (or otherwise kept consistent), accounts can switch between single-relay and fleet mode seamlessly (same outer 2P group public key / verifying shares).
+
+```mermaid
+sequenceDiagram
+  participant Signer as Signer Worker (client)
+  participant Coord as Relayer (coordinator)
+  participant Cos2 as Relayer (cosigner #2)
+  participant Cos3 as Relayer (cosigner #3)
+
+  Note over Signer,Coord: Outer 2P signing: client + logical relayer
+  Note over Coord,Cos3: Internal t-of-n: coordinator + cosigners
+
+  Note over Signer,Coord: Round 1 (outer): client commitments -> coordinator
+  Signer->>Coord: POST /threshold-ed25519/sign/init (clientCommitments)
+
+  Note over Coord,Cos3: Round 1 (internal): coordinator fanout
+  Coord->>Cos2: POST /threshold-ed25519/internal/cosign/init (grant + signingSessionId + cosignerShareB64u)
+  Coord->>Cos3: POST /threshold-ed25519/internal/cosign/init (grant + signingSessionId + cosignerShareB64u)
+  Cos2-->>Coord: cosigner commitments/partials
+  Cos3-->>Coord: cosigner commitments/partials
+  Coord->>Coord: Combine T cosigners => one logical relayer commitment
+
+  Note over Signer,Coord: Round 1 response (outer): commitments keyed by participant id
+  Coord-->>Signer: commitmentsById (clientId + relayerId)
+
+  Note over Signer,Coord: Round 2 (outer): client signature share -> coordinator
+  Signer->>Coord: POST /threshold-ed25519/sign/finalize (clientSignatureShareB64u)
+
+  Note over Coord,Cos3: Round 2 (internal): coordinator fanout
+  Coord->>Cos2: POST /threshold-ed25519/internal/cosign/finalize (grant + transcript)
+  Coord->>Cos3: POST /threshold-ed25519/internal/cosign/finalize (grant + transcript)
+  Cos2-->>Coord: cosigner partial
+  Cos3-->>Coord: cosigner partial
+  Coord->>Coord: Combine T cosigners => one logical relayer signature share
+
+  Note over Signer,Coord: Round 2 response (outer): relayer signature share keyed by participant id
+  Coord-->>Signer: relayerSignatureSharesById (relayerId only)
+  Signer->>Signer: Aggregate => final Ed25519 signature
+```
+
 ## Troubleshooting
 
 - If `/threshold-ed25519/sign/*` returns `404` with `threshold-ed25519 signing endpoints are not enabled on this server`, ensure you are calling a relayer configured as the **coordinator** (`THRESHOLD_NODE_ROLE=coordinator`).
+- In cosigner mode, `/threshold-ed25519/internal/cosign/*` endpoints are internal-only and are not meant to be called by clients.
 
-## Extending to 3+ parties
+## Extending to 3+ relays (relayer fleet)
 
-The signing APIs and transcript types are already keyed by **participant id** (`commitmentsById`, `relayerVerifyingSharesById`, `relayerSignatureSharesById`). This means adding more relayer participants does not require changing the client-facing endpoints.
+Cosigner mode is the intended “3+” scaling path today: it improves availability/resilience by running multiple relayers, while keeping the external cryptographic signer set as **2-party** (client + logical relayer).
 
 In a multi-relayer setup:
 - The wallet always talks to a **single coordinator relayer** (`THRESHOLD_NODE_ROLE=coordinator`) for `/threshold-ed25519/sign/*`.
 - The coordinator fans out to **cosigner relayers** (`THRESHOLD_NODE_ROLE=cosigner`) via internal endpoints (`/threshold-ed25519/internal/cosign/*`) authenticated by a per-signature coordinator grant (`THRESHOLD_COORDINATOR_SHARED_SECRET_B64U`).
-- Moving to true 3+ party signing also requires a multi-party key setup (e.g. DKG/dealer-split) and on-chain rotation to the new group public key.
+
+Note: the protocol types are keyed by **participant id** (`commitmentsById`, `relayerVerifyingSharesById`, `relayerSignatureSharesById`) because the outer FROST protocol needs stable ids (client + logical relayer). Cosigner ids are internal-only.
 
 ## Protocol Math
 

@@ -48,7 +48,7 @@ import init, {
   attach_wrap_key_seed_port,
   handle_signer_message,
 } from '../wasm_signer_worker/pkg/wasm_signer_worker.js';
-import { resolveWasmUrl } from './sdkPaths/wasm-loader';
+import { initializeWasm as initializeWasmWithFallback, resolveWasmUrl } from './sdkPaths/wasm-loader';
 import { errorMessage } from '../utils/errors';
 import { WorkerControlMessage } from './workerControlMessages';
 
@@ -64,6 +64,7 @@ import { WorkerControlMessage } from './workerControlMessages';
 
 // Resolve WASM URL using the centralized resolution strategy
 const wasmUrl = resolveWasmUrl('wasm_signer_worker_bg.wasm', 'Signer Worker');
+console.debug(`[signer-worker] WASM URL resolved to: ${wasmUrl.href}`);
 // SecureConfirm bridge removed: signer no longer initiates confirmations
 
 let wasmInitPromise: Promise<void> | null = null;
@@ -144,7 +145,11 @@ async function initializeWasm(): Promise<void> {
   if (wasmInitPromise) return wasmInitPromise;
   wasmInitPromise = (async () => {
     try {
-      await init({ module_or_path: wasmUrl });
+      await initializeWasmWithFallback({
+        workerName: 'signer-worker',
+        wasmUrl,
+        initFunction: init as any,
+      });
     } catch (error: any) {
       // Allow retry if init fails (e.g., transient path/config issues during dev).
       wasmInitPromise = null;

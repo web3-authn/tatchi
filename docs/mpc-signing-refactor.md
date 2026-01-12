@@ -1,4 +1,4 @@
-# MPC Signing Refactor Plan (keep 2P; enable relayer-fleet t-of-n, DKG later)
+# MPC Signing Refactor Plan (keep 2P; relayer-fleet cosigners; DKG later)
 
 ## Goal
 Refactor the current **2-party threshold Ed25519 (FROST)** implementation so that moving to **3+ parties (t-of-n)** is a *drop-in* architectural change:
@@ -12,13 +12,14 @@ This is a refactor plan, not an immediate migration to 3+ parties.
 - **Party**: an independent trust domain holding a key share (e.g., client + relayer are 2 parties today).
 - **Instance**: a horizontally scaled copy of the same relayer party (same trust domain).
 - **Relayer fleet**: a set of relayer servers we operate (optionally across multiple clouds/regions).
-- **Logical relayer participant**: the *single* external threshold participant representing the relayer fleet (still “the relayer” from the client’s POV).
-- **Relayer cosigner**: an internal relayer node holding a *share of the logical relayer participant’s* secret material (t-of-n internally).
+- **Logical relayer signer**: the *single* external threshold signer representing the relayer fleet (still “the relayer” from the client’s POV).
+- **Relayer cosigner**: an internal relayer node holding a *share of the logical relayer signer’s* secret material (t-of-n internally).
+- **(Outer) participant id**: the FROST participant identifier in the *outer* 2-party protocol (`clientParticipantId`, `relayerParticipantId`). We keep these stable; relayer cosigner ids are internal-only.
 
 Important: “serverless/cluster safe” and “3+ parties” are related but distinct.
 - The current “derived relayer share” approach can make the relayer **stateless across instances**, but it does **not** automatically create additional independent parties.
 - In our model, the external cryptographic signer set remains **2-party** (client + logical relayer), because the client share must remain deterministically derived from passkey PRF (account recovery requirement).
-- “3P+” resilience comes from splitting the **relayer** side internally across the relayer fleet (internal t-of-n cosigning), while the client still talks to a single logical relayer participant.
+- “3P+” resilience comes from splitting the **relayer** side internally across the relayer fleet (internal t-of-n cosigning), while the client still talks to a single logical relayer signer.
 - Cosigners are an internal implementation detail: running **1 relay** (no downstream cosigners) vs **2+ relays** (coordinator + cosigners) should be seamless for the client as long as the logical relayer share (and therefore the 2-party group public key) stays stable.
 
 ## Non-goals (for this refactor)
@@ -232,7 +233,6 @@ Add a new suite skeleton for future n-party tests (skipped initially):
 ### Phase 4 — Multi-party “stubs” (compile-time ready, feature-flagged)
 - [x] Add participant list plumbing end-to-end (SDK → signer worker → relayer service).
 - [x] Remove hard `participants.length > 2` rejections (keep current 2-party signing by selecting a 2-party signer set).
-- [x] Add skipped tests showing intended flows for 2-of-3.
 
 ### Phase 4B — Aggregator-coordinated signing (Option B)
 - [x] Define coordinator-facing endpoints: `/threshold-ed25519/sign/init` and `/threshold-ed25519/sign/finalize`.
@@ -248,7 +248,6 @@ Add a new suite skeleton for future n-party tests (skipped initially):
 - [x] Decide downstream auth model:
   - coordinator issues a signed internal auth grant to relayers, or
   - coordinator forwards WebAuthn/VRF evidence and relayers verify independently.
-- [x] Add unit tests for relayer-fleet cosigning (2-of-3; mocked downstream).
 
 ### Phase 5 — Docs + migration notes
 - [x] Document the participant model, signer sets, and how it maps to 2P today.
@@ -260,6 +259,7 @@ Add a new suite skeleton for future n-party tests (skipped initially):
 - Email recovery + linkDevice + VRF warm sessions continue to enable threshold signing immediately.
 - Code paths for FROST rounds are written against `participants[]` and `commitmentsById`, not hard-coded “client vs one relayer”.
 - Adding a second relayer participant should require **adding new implementation**, not rewriting existing modules.
+- Client can switch between **single-relay** mode and **relayer-fleet cosigner** mode seamlessly (same outer 2P group public key / verifying shares).
 
 ## Relayer Fleet t-of-n (Phased TODO)
 
@@ -293,9 +293,9 @@ Key idea: we keep the *outer* FROST signer set as 2-party for product/recovery r
 - [x] Define secure share distribution + caching:
   - coordinator sends only the requesting cosigner’s share `s_i` via `POST /threshold-ed25519/internal/cosign/init` (auth’d by an HMAC grant),
   - cosigners store `s_i` + nonces in the signing session record; on restart they simply re-run `/sign/init`.
-- [ ] Define rotation story:
-  - explicit `epoch`/rotation input produces a new `s_rel` and therefore a new outer group public key (clean rotate on-chain),
-  - operational playbook for compromise response (rotate) and routine rotations.
+- [ ] Define internal rotation story:
+  - rotate internal cosigner shares without changing the outer 2P group public key (reshare the same logical relayer secret `s_rel` across the fleet),
+  - rotate internal coordinator↔cosigner auth material (`THRESHOLD_COORDINATOR_SHARED_SECRET_B64U`), and document rollout order.
 
 
 ### Phase 7 — Relayer Fleet Cosigning (internal t-of-n)
@@ -318,25 +318,16 @@ Key idea: we keep the *outer* FROST signer set as 2-party for product/recovery r
 - [ ] Add verification + clear error surfaces:
   - malformed/missing cosigner responses vs internal auth failures vs stale transcript,
   - (optional) coordinator verifies the combined relayer signature share before returning it (defense-in-depth).
-- [ ] Define persistence requirements for HA:
-  - if we want coordinator failover mid-signature, persist internal transcript + selected cosigner set (and/or cosigner nonce state) in shared KV/Redis,
-  - otherwise prefer “retry / restart signing session” semantics.
+- [ ] Standardize error codes/messages across server ↔ WASM ↔ SDK for threshold flows.
 
-### Phase 9 — Ops, Hardening, and UX
-- [ ] Define deployment topology:
-  - coordinator is public-facing (handles `/threshold-ed25519/sign/*`),
-  - cosigners are private/internal-only (no public access; reachable only from coordinator).
-- [ ] Add relayer cosigner health + discovery UX: deterministic peer list config, health checks, and operator diagnostics.
-- [ ] Add rate limits and abuse controls per endpoint (authorize/session/sign/internal-cosign) appropriate for fleet mode.
-- [ ] Add a minimal production deployment guide for coordinator + cosigners (secrets, internal auth, cookie/JWT session wiring).
-
-### Phase 10 — Tests + Docs
+### Phase 10 — Tests
 - [x] Add unit tests for relayer-internal t-of-n cosigning (2-of-3; mocked cosigner downstream).
 - [ ] Add unit tests for relayer-internal t-of-n cosigning (3-of-5) with failure-mode suites.
 - [x] Add local dev wiring for 3 relays: `pnpm run server:3-relays` + `examples/vite/Caddyfile` routes.
 - [ ] Add integration coverage for coordinator + cosigners in local dev (2-of-3 up) and document retry behavior on cosigner restarts.
 - [ ] Add e2e coverage for threshold flows (tx/delegate/NEP-413/batch) in relayer-fleet mode.
 - [x] Document the relayer-fleet trust model and key setup (dealer-split now; DKG later) and explicitly call out non-goal: migration tooling.
+- [x] Document that cosigner mode is transparent: 1 relay or N relays can serve the same client accounts as long as they share the same logical relayer secret.
 
 ## Refactor
 
@@ -347,6 +338,4 @@ TODO (from reviewing `git diff`):
 - [x] **Remove redundant record fields once stable**: keep only map-shaped transcript fields (`commitmentsById`, `relayerVerifyingSharesById`, `relayerSignatureSharesById`) and drop legacy 2P-only fields.
 - [x] **Unify participant-id resolution logic (Rust)**: avoid duplicate/heuristic relayer-id resolution between `signer_backend.rs` and `relayer_http.rs`.
 - [x] **Parse/validate once at entry points**: keep strict validation but reduce repeated `toOptionalTrimmedString` noise across service + handlers.
-- [ ] **Make errors more uniform across boundaries**: standardize error codes/messages across server ↔ WASM ↔ SDK for threshold flows.
 - [x] **Test harness cleanup**: factor coordinator wiring into a single helper.
-- [ ] **Test coverage expansion**: expand coverage for delegate/NEP-413/batch (2-of-3 mocked peers is done).

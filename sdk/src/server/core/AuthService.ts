@@ -6,6 +6,7 @@ import { createAuthServiceConfig } from './config';
 import { formatGasToTGas, formatYoctoToNear } from './utils';
 import { parseContractExecutionError } from './errors';
 import { toOptionalTrimmedString } from '../../utils/validation';
+import { errorMessage } from '../../utils/errors';
 import { coerceThresholdEd25519ShareMode, coerceThresholdNodeRole } from './ThresholdService/config';
 import type { ThresholdSigningService as ThresholdSigningServiceType } from './ThresholdService';
 import { createThresholdSigningService } from './ThresholdService';
@@ -433,11 +434,12 @@ export class AuthService {
         };
 
       } catch (error: any) {
+        const msg = errorMessage(error) || 'Unknown account creation error';
         this.logger.error(`Account creation failed for ${request.accountId}:`, error);
         return {
           success: false,
-          error: error.message || 'Unknown account creation error',
-          message: `Failed to create account ${request.accountId}: ${error.message}`
+          error: msg,
+          message: `Failed to create account ${request.accountId}: ${msg}`
         };
       }
     }, `create account ${request.accountId}`);
@@ -514,11 +516,12 @@ export class AuthService {
         };
 
       } catch (error: any) {
+        const msg = errorMessage(error) || 'Unknown atomic registration error';
         this.logger.error(`Atomic registration failed for ${request.new_account_id}:`, error);
         return {
           success: false,
-          error: error.message || 'Unknown atomic registration error',
-          message: `Failed to create and register account ${request.new_account_id}: ${error.message}`
+          error: msg,
+          message: `Failed to create and register account ${request.new_account_id}: ${msg}`
         };
       }
     }, `atomic create and register ${request.new_account_id}`);

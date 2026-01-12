@@ -130,16 +130,41 @@ export async function initializeWasm(options: WasmLoaderOptions): Promise<any> {
     }
 
     try {
-      console.debug(`[${workerName}]: Fetching WASM from network:`, wasmUrl.href);
-      const response = await fetch(wasmUrl.href);
-      if (!response.ok) throw new Error(`Failed to fetch WASM: ${response.status} ${response.statusText}`);
-      const arrayBuffer = await response.arrayBuffer();
-      const wasmModule = await WebAssembly.compile(arrayBuffer);
-      await initFunction({ module_or_path: wasmModule as any });
-      if (validateFunction) await validateFunction();
-      if (testFunction) await testFunction();
-      console.debug(`[${workerName}]: WASM initialized via network fallback`);
-      return true;
+      const fetchAndInit = async (url: URL, label: string): Promise<void> => {
+        console.debug(`[${workerName}]: Fetching WASM (${label}):`, url.href);
+        const response = await fetch(url.href, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Failed to fetch WASM: ${response.status} ${response.statusText}`);
+        const arrayBuffer = await response.arrayBuffer();
+        const wasmModule = await WebAssembly.compile(arrayBuffer);
+        await initFunction({ module_or_path: wasmModule as any });
+        if (validateFunction) await validateFunction();
+        if (testFunction) await testFunction();
+      };
+
+      try {
+        await fetchAndInit(wasmUrl, 'network fallback');
+        console.debug(`[${workerName}]: WASM initialized via network fallback`);
+        return true;
+      } catch (networkError: any) {
+        const msg = String(networkError?.message || networkError || '');
+        const looksLikeStaleCacheMismatch =
+          msg.includes('__wbindgen_closure_wrapper') ||
+          msg.includes('function import requires a callable') ||
+          /WebAssembly\.instantiate\(\): Import #\d+ "wbg"/.test(msg);
+
+        // This class of error is commonly caused by a stale cached `.wasm` being served
+        // alongside a newer worker JS bundle (wasm-bindgen import table mismatch).
+        // Retry once with a cache-busting query param to force a fresh fetch.
+        if (looksLikeStaleCacheMismatch) {
+          const busted = new URL(wasmUrl.href);
+          busted.searchParams.set('v', String(Date.now()));
+          await fetchAndInit(busted, 'cache-bust retry');
+          console.debug(`[${workerName}]: WASM initialized after cache-bust retry`);
+          return true;
+        }
+
+        throw networkError;
+      }
     } catch (networkError: any) {
       console.error(`[${workerName}]: All WASM initialization methods failed`);
       const helpfulMessage = `\n${workerName.toUpperCase()} WASM initialization failed. This may be due to:\n1. Server MIME type configuration (WASM files should be served with 'application/wasm')\n2. Network connectivity issues\n3. CORS policy restrictions\n4. Missing WASM files in deployment\n5. SDK packaging problems\n\nOriginal error: ${networkError?.message}\n`.trim();

@@ -6,7 +6,7 @@ import init, {
   attach_wrap_key_seed_port,
   handle_message,
 } from '../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
-import { resolveWasmUrl } from './sdkPaths/wasm-loader';
+import { initializeWasm as initializeWasmWithFallback, resolveWasmUrl } from './sdkPaths/wasm-loader';
 import type {
   VRFWorkerMessage,
   WasmVrfWorkerRequestType,
@@ -47,7 +47,11 @@ async function initializeWasmModule(): Promise<void> {
   try {
     // Prefer explicit URL init so bundlers resolve the asset from node_modules
     // Use new single-object signature to avoid deprecation warning
-    await init({ module_or_path: wasmUrl as any });
+    await initializeWasmWithFallback({
+      workerName: 'vrf-worker',
+      wasmUrl,
+      initFunction: init as any,
+    });
     // Mark WASM as ready and process any queued messages
     wasmReady = true;
     await processQueuedMessages();
