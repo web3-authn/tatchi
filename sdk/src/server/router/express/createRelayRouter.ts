@@ -16,6 +16,7 @@ import { registerSignedDelegateRoutes } from './routes/signedDelegate';
 import { registerThresholdEd25519Routes } from './routes/thresholdEd25519';
 import { registerVerifyAuthenticationResponse } from './routes/verifyAuthenticationResponse';
 import { registerWellKnownRoutes } from './routes/wellKnown';
+import { resolveThresholdOption } from '../routerOptions';
 
 export interface ExpressRelayContext {
   service: AuthService;
@@ -30,25 +31,16 @@ export interface ExpressRelayContext {
 export function createRelayRouter(service: AuthService, opts: RelayRouterOptions = {}): ExpressRouter {
   const router = express.Router();
 
-  const thresholdFromService = (): RelayRouterOptions['threshold'] | undefined => {
-    const maybe = service as unknown as { getThresholdSigningService?: () => RelayRouterOptions['threshold'] | null };
-    return typeof maybe.getThresholdSigningService === 'function'
-      ? (maybe.getThresholdSigningService() ?? undefined)
-      : undefined;
-  };
-
-  const threshold = opts.threshold !== undefined ? opts.threshold : thresholdFromService();
+  const threshold = resolveThresholdOption(service, opts);
   const effectiveOpts: RelayRouterOptions = { ...opts, threshold };
 
   const mePath = effectiveOpts.sessionRoutes?.auth || '/session/auth';
   const logoutPath = effectiveOpts.sessionRoutes?.logout || '/session/logout';
   const logger = coerceRouterLogger(effectiveOpts.logger);
-  const signedDelegatePath = (() => {
-    if (!effectiveOpts.signedDelegate) return '';
-    const path = ensureLeadingSlash(effectiveOpts.signedDelegate.route);
-    if (!path) throw new Error('RelayRouterOptions.signedDelegate.route is required');
-    return path;
-  })();
+  let signedDelegatePath = '';
+  if (effectiveOpts.signedDelegate) {
+    signedDelegatePath = ensureLeadingSlash(effectiveOpts.signedDelegate.route) || '/signed-delegate';
+  }
   const signedDelegatePolicy = effectiveOpts.signedDelegate?.policy;
 
   installCors(router, effectiveOpts);
