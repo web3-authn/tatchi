@@ -12,6 +12,8 @@ export type ThresholdEd25519ShareMode = 'auto' | 'kv' | 'derived';
 
 export function coerceThresholdEd25519ShareMode(input: unknown): ThresholdEd25519ShareMode {
   const mode = toOptionalTrimmedString(input);
+  // Accept a small alias set for env var ergonomics.
+  if (mode === 'derive') return 'derived';
   if (mode === 'kv' || mode === 'derived' || mode === 'auto') return mode;
   return 'auto';
 }
