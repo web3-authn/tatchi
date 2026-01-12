@@ -15,11 +15,6 @@ interface SetGreetingHook {
   fetchGreeting: () => Promise<GreetingResult>;
 }
 
-// Module-level flag to prevent concurrent requests across all instances
-let globalFetchInProgress = false;
-let lastGlobalFetchTime = 0;
-const MIN_FETCH_INTERVAL = 1000; // 1 second minimum between fetches
-
 export const useSetGreeting = (): SetGreetingHook => {
   const nearClient = useNearClient();
   const [onchainGreeting, setOnchainGreeting] = useState<string | null>(null);
@@ -30,41 +25,47 @@ export const useSetGreeting = (): SetGreetingHook => {
   const isCurrentlyFetching = useRef<boolean>(false);
   const hasFetchedOnMount = useRef<boolean>(false);
 
+  const normalizeGreeting = (result: unknown): string | null => {
+    if (typeof result === 'string') return result;
+    if (result && typeof result === 'object') {
+      const v = (result as { greeting?: unknown; message?: unknown; hello?: unknown });
+      if (typeof v.greeting === 'string') return v.greeting;
+      if (typeof v.message === 'string') return v.message;
+      if (typeof v.hello === 'string') return v.hello;
+    }
+    return null;
+  };
+
   const fetchGreeting = async (): Promise<GreetingResult> => {
-    const now = Date.now();
-
-    // Global concurrent protection
-    if (globalFetchInProgress) {
-      return { success: false, error: 'Already fetching globally' };
-    }
-
-    // Rate limiting protection
-    if (now - lastGlobalFetchTime < MIN_FETCH_INTERVAL) {
-      return { success: false, error: 'Rate limited' };
-    }
-
     // Instance-level concurrent protection
     if (isCurrentlyFetching.current) {
       return { success: false, error: 'Already fetching' };
     }
 
-    globalFetchInProgress = true;
     isCurrentlyFetching.current = true;
-    lastGlobalFetchTime = now;
     setIsLoading(true);
     setError(null);
 
     try {
-      const result = await nearClient.view<string>({
-        account: WEBAUTHN_CONTRACT_ID,
-        method: 'get_greeting',
-        args: {}
-      });
+      // Prefer get_hello (newer contract shape); fall back to get_greeting for older deployments.
+      let raw: unknown;
+      try {
+        raw = await nearClient.view<unknown>({
+          account: WEBAUTHN_CONTRACT_ID,
+          method: 'get_hello',
+          args: {},
+        });
+      } catch {
+        raw = await nearClient.view<unknown>({
+          account: WEBAUTHN_CONTRACT_ID,
+          method: 'get_greeting',
+          args: {},
+        });
+      }
 
-      const greeting = result;
+      const greeting = normalizeGreeting(raw);
       setOnchainGreeting(greeting);
-
-      return { success: true, greeting };
+      return { success: true, greeting: greeting ?? undefined };
     } catch (err: any) {
       console.error("Error fetching greeting:", err);
       const errorMessage = err.message || 'Failed to fetch greeting';
@@ -77,7 +78,6 @@ export const useSetGreeting = (): SetGreetingHook => {
     } finally {
       setIsLoading(false);
       isCurrentlyFetching.current = false;
-      globalFetchInProgress = false;
     }
   };
 

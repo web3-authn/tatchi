@@ -191,7 +191,7 @@ export const DemoMultiTx: React.FC = () => {
       style={{ margin: '1rem 0rem 10rem 0rem', zIndex: 1 }}
     >
       <h2 className="section-title">
-        Example 3: Multiple Transactions
+        Example 2: Multiple Transactions
       </h2>
       <div className="section-caption">
         Sign mutliple NEAR transactions with one TouchID prompt

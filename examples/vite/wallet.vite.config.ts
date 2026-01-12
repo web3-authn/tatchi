@@ -20,6 +20,15 @@ export default defineConfig(({ mode }) => {
   const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost'
   const walletServicePath = env.VITE_WALLET_SERVICE_PATH || '/wallet-service'
   const sdkBasePath = env.VITE_SDK_BASE_PATH || '/sdk'
+  // Keep COEP behavior aligned with the app dev server.
+  // If the app runs with COEP=require-corp, the wallet iframe must also emit CORP headers
+  // (via coepMode='strict') or the iframe may be blocked and remain on an opaque/null origin.
+  const coepMode = (() => {
+    const override = (env.VITE_COEP_MODE || '').trim()
+    if (override === 'off') return 'off'
+    if (override === 'strict') return 'strict'
+    return walletOrigin.startsWith('chrome-extension://') ? 'off' : 'strict'
+  })()
   // Surface VITE_* into process.env so SDK dev plugins (Node-side) can read them
   if (env.VITE_WEBAUTHN_CONTRACT_ID) process.env.VITE_WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID
   if (env.VITE_NEAR_RPC_URL) process.env.VITE_NEAR_RPC_URL = env.VITE_NEAR_RPC_URL
@@ -33,7 +42,7 @@ export default defineConfig(({ mode }) => {
       allowedHosts: ['wallet.example.localhost', 'pta-m4.local'],
     },
     plugins: [
-      tatchiWallet({ walletOrigin, walletServicePath, sdkBasePath, enableDebugRoutes: true, emitHeaders: true }),
+      tatchiWallet({ walletOrigin, walletServicePath, sdkBasePath, enableDebugRoutes: true, emitHeaders: true, coepMode }),
     ],
     cacheDir: 'node_modules/.vite-wallet',
     // Use cacheDir to avoid lock contention with vite.config.ts (app-server).
