@@ -15,12 +15,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
       RECOVER_EMAIL_RECIPIENT: ${{ vars.RECOVER_EMAIL_RECIPIENT }}
-      RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
       WORKER_NAME: w3a-relay-prod
-      RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
-      SHAMIR_P_B64U: ${{ secrets.SHAMIR_P_B64U }}
-      SHAMIR_E_S_B64U: ${{ secrets.SHAMIR_E_S_B64U }}
-      SHAMIR_D_S_B64U: ${{ secrets.SHAMIR_D_S_B64U }}
       # Optional: Threshold signing (2p FROST; derived relayer share)
       THRESHOLD_ED25519_SHARE_MODE: derive
       THRESHOLD_ED25519_MASTER_SECRET_B64U: ${{ secrets.THRESHOLD_ED25519_MASTER_SECRET_B64U }}
@@ -66,21 +61,6 @@ jobs:
             exit 1
           fi
 
-          # Required secrets (persist across deploys).
-          test -n "${RELAYER_PRIVATE_KEY:-}" || (echo "Missing required secret: RELAYER_PRIVATE_KEY" >&2; exit 1)
-          test -n "${SHAMIR_P_B64U:-}" || (echo "Missing required secret: SHAMIR_P_B64U" >&2; exit 1)
-          test -n "${SHAMIR_E_S_B64U:-}" || (echo "Missing required secret: SHAMIR_E_S_B64U" >&2; exit 1)
-          test -n "${SHAMIR_D_S_B64U:-}" || (echo "Missing required secret: SHAMIR_D_S_B64U" >&2; exit 1)
-
-          printf '%s' "$RELAYER_PRIVATE_KEY" \
-            | pnpm -C examples/relay-cloudflare-worker exec wrangler secret put RELAYER_PRIVATE_KEY --name "$WORKER_NAME"
-          printf '%s' "$SHAMIR_P_B64U" \
-            | pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_P_B64U --name "$WORKER_NAME"
-          printf '%s' "$SHAMIR_E_S_B64U" \
-            | pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_E_S_B64U --name "$WORKER_NAME"
-          printf '%s' "$SHAMIR_D_S_B64U" \
-            | pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_D_S_B64U --name "$WORKER_NAME"
-
           # Optional: set/update secrets for threshold signing (persist across deploys).
           if [ -n "${THRESHOLD_ED25519_MASTER_SECRET_B64U:-}" ]; then
             printf '%s' "$THRESHOLD_ED25519_MASTER_SECRET_B64U" \
@@ -90,9 +70,6 @@ jobs:
           # Build worker vars (avoid setting empty strings).
           ARGS=(--var RECOVER_EMAIL_RECIPIENT="${RECOVER_EMAIL_RECIPIENT}")
           ARGS+=(--var THRESHOLD_ED25519_SHARE_MODE="${THRESHOLD_ED25519_SHARE_MODE}")
-          if [ -n "${RELAYER_URL:-}" ]; then
-            ARGS+=(--var RELAYER_URL="${RELAYER_URL}")
-          fi
 
           pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --name "$WORKER_NAME" "${ARGS[@]}"
 

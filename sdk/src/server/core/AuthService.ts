@@ -158,17 +158,15 @@ export class AuthService {
     • webAuthnContractId: ${this.config.webAuthnContractId}
     • accountInitialBalance: ${this.config.accountInitialBalance} (${formatYoctoToNear(this.config.accountInitialBalance)} NEAR)
     • createAccountAndRegisterGas: ${this.config.createAccountAndRegisterGas} (${formatGasToTGas(this.config.createAccountAndRegisterGas)})
-    ${
-      this.config.shamir
+    ${this.config.shamir
         ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...`
         : '• shamir: not configured'
-    }
+      }
     • ${summarizeThresholdEd25519Config(this.config.thresholdEd25519KeyStore)}
-    ${
-      this.config.zkEmailProver?.baseUrl
+    ${this.config.zkEmailProver?.baseUrl
         ? `• zkEmailProver: ${this.config.zkEmailProver.baseUrl}`
         : `• zkEmailProver: not configured`
-    }
+      }
     `);
   }
 
@@ -345,7 +343,7 @@ export class AuthService {
         const module = await WebAssembly.compile(ab);
         await initSignerWasm({ module_or_path: module });
         return;
-      } catch {} // throw at end of function
+      } catch { } // throw at end of function
     }
 
     // 2) Fallback: pass file path directly (supported in some environments)
@@ -354,7 +352,7 @@ export class AuthService {
         const filePath = fileURLToPath(url);
         await initSignerWasm({ module_or_path: filePath as unknown as InitInput });
         return;
-      } catch {} // throw at end of function
+      } catch { } // throw at end of function
     }
 
     throw new Error('[AuthService] Failed to initialize signer WASM from filesystem candidates');
@@ -395,7 +393,7 @@ export class AuthService {
         // Build actions for CreateAccount + Transfer + AddKey(FullAccess)
         const actions: ActionArgsWasm[] = [
           { action_type: ActionType.CreateAccount },
-          { action_type: ActionType.Transfer, deposit: initialBalance },
+          { action_type: ActionType.Transfer, deposit: String(initialBalance) },
           {
             action_type: ActionType.AddKey,
             public_key: request.publicKey,
@@ -483,8 +481,8 @@ export class AuthService {
             action_type: ActionType.FunctionCall,
             method_name: 'create_account_and_register_user',
             args: JSON.stringify(contractArgs),
-            gas: this.config.createAccountAndRegisterGas,
-            deposit: this.config.accountInitialBalance
+            gas: String(this.config.createAccountAndRegisterGas),
+            deposit: String(this.config.accountInitialBalance)
           }
         ];
         actions.forEach(validateActionArgsWasm);
@@ -770,12 +768,20 @@ export class AuthService {
       response = await handle_signer_message(message);
     } catch (e: unknown) {
       const msg = errorMessage(e);
+      // Log payload for debugging (redacting private key)
+      this.logger.error('Signer WASM rejected message:', {
+        error: msg,
+        payload: JSON.stringify(message, (key, value) =>
+          key === 'nearPrivateKey' ? '[REDACTED]' : value
+        )
+      });
+
       // This specific error is intentionally redacted inside the WASM worker.
       // When it occurs in production, it's commonly due to a JS/WASM version mismatch
       // (the JS message schema changed but an old worker wasm is still deployed).
       if (msg.includes('Invalid payload for SIGN_TRANSACTION_WITH_KEYPAIR')) {
         throw new Error(
-          'Signer WASM rejected SIGN_TRANSACTION_WITH_KEYPAIR payload. Rebuild + redeploy the relayer so the bundled `wasm_signer_worker.js` and `wasm_signer_worker_bg.wasm` come from the same build.',
+          `Signer WASM rejected SIGN_TRANSACTION_WITH_KEYPAIR payload: ${msg}. Rebuild + redeploy the relayer so the bundled \`wasm_signer_worker.js\` and \`wasm_signer_worker_bg.wasm\` come from the same build.`,
         );
       }
       throw (e instanceof Error ? e : new Error(msg || 'Signing failed'));
