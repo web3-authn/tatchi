@@ -11,6 +11,7 @@ import { createRandomVRFChallenge } from '../../../../types/vrf-worker';
 import { addLitCancelListener } from '../../../LitComponents/lit-events';
 import { ensureDefined } from '../../../LitComponents/ensure-defined';
 import { W3A_EXPORT_VIEWER_IFRAME_ID } from '../../../LitComponents/tags';
+import { __isWalletIframeHostMode } from '../../../../WalletIframe/host-mode';
 import type { ExportViewerIframeElement } from '../../../LitComponents/ExportPrivateKey/iframe-host';
 import {
   getNearAccountId,
@@ -88,7 +89,51 @@ export async function handleLocalOnlyFlow(
   // DECRYPT_PRIVATE_KEY_WITH_PRF: collect an authentication credential (with PRF extension results)
   // and return it to the VRF worker; VRF worker extracts PRF outputs internally.
   if (request.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF) {
+    if (__isWalletIframeHostMode()) {
+      confirmationConfig.uiMode = 'skip';
+      confirmationConfig.behavior = 'autoProceed';
+    }
+
     const vrfChallenge = createRandomVRFChallenge() as VRFChallenge;
+    // When this flow is initiated via worker→host messaging (wallet-iframe mode),
+    // there is typically no transient user activation. If confirmationConfig chooses
+    // a visible UI mode (modal/drawer), prompt first so the click lands inside the
+    // wallet iframe and grants activation for the subsequent WebAuthn call.
+    if (confirmationConfig.uiMode !== 'skip') {
+      // Provide a sensible title/body for non-transaction flows so the confirmer
+      // doesn't fall back to "Register with Passkey" (txSigningRequests is empty).
+      try {
+        const op = (transactionSummary as any)?.operation as string | undefined;
+        const warning = (transactionSummary as any)?.warning as string | undefined;
+        if (!transactionSummary.title) transactionSummary.title = op || 'Decrypt Private Key';
+        if (!transactionSummary.body) {
+          transactionSummary.body = warning || 'Confirm to authenticate with your passkey.';
+        }
+      } catch { }
+
+      const uiVrfChallenge: Partial<VRFChallenge> = (() => {
+        try {
+          return {
+            ...vrfChallenge,
+            userId: nearAccountId,
+            rpId: adapters.vrf.getRpId(),
+          } as Partial<VRFChallenge>;
+        } catch {
+          return { ...vrfChallenge, userId: nearAccountId } as Partial<VRFChallenge>;
+        }
+      })();
+
+      const { confirmed, error: uiError } = await session.promptUser({ vrfChallenge: uiVrfChallenge });
+      if (!confirmed) {
+        window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
+        return session.confirmAndCloseModal({
+          requestId: request.requestId,
+          intentDigest: getIntentDigest(request),
+          confirmed: false,
+          error: uiError,
+        });
+      }
+    }
     try {
       const credential = await adapters.webauthn.collectAuthenticationCredentialWithPRF({
         nearAccountId,
