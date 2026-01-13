@@ -7,19 +7,35 @@ on:
         description: "R2 prefix override (auto | releases | releases-dev | custom)"
         required: false
         default: "auto"
-  push:
-    branches: [ main, dev ]
-    tags: [ "v*" ]
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
 
 jobs:
   publish-sdk-r2:
     runs-on: ubuntu-latest
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          (
+            github.event.workflow_run.head_branch == 'main' ||
+            github.event.workflow_run.head_branch == 'dev' ||
+            startsWith(github.event.workflow_run.head_branch, 'v')
+          )
+        )
+      }}
     environment:
-      name: ${{ github.ref_name == 'dev' && 'staging' || 'production' }}
+      name: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'dev') && 'staging' || (github.ref_name == 'dev') && 'staging' || 'production' }}
     permissions:
       contents: read
       id-token: write # for cosign keyless signing
     env:
+      PUBLISH_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      PUBLISH_REF_NAME: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
       R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
       AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -29,6 +45,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
@@ -59,6 +76,45 @@ jobs:
 
       - name: Build SDK (sdk, production)
         run: pnpm build:sdk-prod
+
+      # For workflow_dispatch runs, execute the same test suite as CI before publishing.
+      - name: Install Playwright (Chromium + system deps)
+        if: github.event_name == 'workflow_dispatch'
+        run: pnpm -C sdk exec playwright install --with-deps chromium
+
+      - name: Type-check SDK
+        if: github.event_name == 'workflow_dispatch'
+        run: pnpm -C sdk type-check
+
+      - name: Assert generated palette CSS
+        if: github.event_name == 'workflow_dispatch'
+        run: node sdk/scripts/assert-palette-css.mjs
+
+      - name: Run wallet-iframe tests
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          USE_RELAY_SERVER: '1'
+          NO_CADDY: '1'
+          VITE_WALLET_DEV_CSP: 'strict'
+        run: pnpm -C sdk test:wallet-iframe
+
+      - name: Run lit-components tests
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          NO_CADDY: '1'
+          VITE_WALLET_DEV_CSP: 'strict'
+        run: pnpm -C sdk test:lit-components
+
+      - name: Run unit tests
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          NO_CADDY: '1'
+          VITE_WALLET_DEV_CSP: 'strict'
+        run: pnpm -C sdk test:unit
+
+      - name: Run relayer (server) tests
+        if: github.event_name == 'workflow_dispatch'
+        run: pnpm -C sdk test:relayer
 
       - name: Validate R2 secrets are present
         run: |
@@ -114,16 +170,16 @@ jobs:
           # - main -> releases/<sha>
           # - dev  -> releases-dev/<sha>
           # - tag  -> releases/<sha> + releases/<tag> (see next step)
-          INPUT_PREFIX="${{ github.event.inputs.prefix || 'auto' }}"
+          INPUT_PREFIX="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.prefix || 'auto' }}"
           if [ "$INPUT_PREFIX" != "auto" ]; then
             BASE_PREFIX="$INPUT_PREFIX"
-          elif [ "${{ github.ref_name }}" = "dev" ]; then
+          elif [ "${PUBLISH_REF_NAME}" = "dev" ]; then
             BASE_PREFIX="releases-dev"
           else
             BASE_PREFIX="releases"
           fi
 
-          PREFIX="${BASE_PREFIX}/${{ github.sha }}"
+          PREFIX="${BASE_PREFIX}/${PUBLISH_SHA}"
           echo "Publishing to s3://$R2_BUCKET/$PREFIX" >&2
 
           aws s3 sync sdk/dist "s3://$R2_BUCKET/$PREFIX" \
@@ -137,20 +193,27 @@ jobs:
               --metadata-directive REPLACE
           done
 
-      - name: Optionally publish under tag name when releasing
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Optionally publish tag aliases (v*)
         run: |
           set -euxo pipefail
-          PREFIX="releases/${{ github.ref_name }}"
-          echo "Publishing tag alias to s3://$R2_BUCKET/$PREFIX" >&2
+          TAGS="$(git tag --points-at "${PUBLISH_SHA}" | grep -E '^v' || true)"
+          if [ -z "$TAGS" ]; then
+            echo "No v* tags point at ${PUBLISH_SHA}; skipping tag alias publish" >&2
+            exit 0
+          fi
 
-          aws s3 sync sdk/dist "s3://$R2_BUCKET/$PREFIX" \
-            --endpoint-url "$R2_ENDPOINT" --delete
+          for TAG in $TAGS; do
+            PREFIX="releases/${TAG}"
+            echo "Publishing tag alias to s3://$R2_BUCKET/$PREFIX" >&2
 
-          for f in $(find sdk/dist -name "*.wasm" -type f); do
-            key=${f#sdk/dist/}
-            aws s3 cp "$f" "s3://$R2_BUCKET/$PREFIX/$key" \
-              --endpoint-url "$R2_ENDPOINT" \
-              --content-type application/wasm \
-              --metadata-directive REPLACE
+            aws s3 sync sdk/dist "s3://$R2_BUCKET/$PREFIX" \
+              --endpoint-url "$R2_ENDPOINT" --delete
+
+            for f in $(find sdk/dist -name "*.wasm" -type f); do
+              key=${f#sdk/dist/}
+              aws s3 cp "$f" "s3://$R2_BUCKET/$PREFIX/$key" \
+                --endpoint-url "$R2_ENDPOINT" \
+                --content-type application/wasm \
+                --metadata-directive REPLACE
+            done
           done
