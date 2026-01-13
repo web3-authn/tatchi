@@ -18,7 +18,7 @@ import { VrfWorkerManager } from '../VrfWorkerManager';
 import { VRFChallenge } from '../../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../../types/actions';
 import type { DelegateActionInput } from '../../types/delegate';
-import type { onProgressEvents } from '../../types/sdkSentEvents';
+import type { onProgressEvents, RegistrationEventStep3 } from '../../types/sdkSentEvents';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { AccountId } from "../../types/accountIds";
 import { TransactionContext } from '../../types/rpc';
@@ -581,7 +581,7 @@ export class SignerWorkerManager {
     contractId: string;
     nearRpcUrl: string;
     authenticatorOptions?: AuthenticatorOptions; // Authenticator options for registration check
-    onEvent?: (update: onProgressEvents) => void;
+    onEvent?: (update: RegistrationEventStep3) => void;
   }): Promise<{
     success: boolean;
     verified?: boolean;

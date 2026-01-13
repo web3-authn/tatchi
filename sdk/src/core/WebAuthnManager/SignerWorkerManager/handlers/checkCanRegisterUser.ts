@@ -4,7 +4,7 @@ import type { CheckCanRegisterUserResult } from '../../../rpcCalls';
 import { checkCanRegisterUserContractCall } from '../../../rpcCalls';
 import { serializeRegistrationCredentialWithPRF, removePrfOutputGuard } from '../../credentialsHelpers';
 import { VRFChallenge } from '../../../types/vrf-worker';
-import type { onProgressEvents } from '../../../types/sdkSentEvents';
+import { RegistrationPhase, RegistrationStatus, type RegistrationEventStep3 } from '../../../types/sdkSentEvents';
 import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
 import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
@@ -27,7 +27,7 @@ export async function checkCanRegisterUser({
   contractId: string;
   nearRpcUrl: string;
   authenticatorOptions?: AuthenticatorOptions; // Authenticator options for registration check
-  onEvent?: (update: onProgressEvents) => void;
+  onEvent?: (update: RegistrationEventStep3) => void;
 }): Promise<{
   success: boolean;
   verified?: boolean;
@@ -60,9 +60,9 @@ export async function checkCanRegisterUser({
 
     onEvent?.({
       step: 3,
-      phase: 'REGISTRATION_CONTRACT_PRE_CHECK' as any,
-      status: 'PROGRESS' as any,
-      message: 'Calling check_can_register_user on contract...',
+      phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK,
+      status: RegistrationStatus.PROGRESS,
+      message: 'Running webauthn contract registration checks...',
     });
 
     // PRF outputs must never be sent over the network. Strip them before
@@ -90,9 +90,10 @@ export async function checkCanRegisterUser({
 
     onEvent?.({
       step: 3,
-      phase: 'REGISTRATION_CONTRACT_PRE_CHECK' as any,
-      status: result.verified ? 'SUCCESS' as any : 'ERROR' as any,
+      phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK,
+      status: result.verified ? RegistrationStatus.SUCCESS : RegistrationStatus.ERROR,
       message: result.verified ? 'Registration pre-check succeeded' : (result.error || 'Registration pre-check failed'),
+      ...(result.verified ? {} : { error: result.error || 'Registration pre-check failed' }),
     });
 
     return {

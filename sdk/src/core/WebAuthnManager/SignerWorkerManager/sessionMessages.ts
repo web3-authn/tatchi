@@ -45,17 +45,38 @@ export type SignerWorkerControlMessage =
   | AttachWrapKeySeedPortErrorMessage
   | WorkerReadyMessage;
 
+export type SessionMessage = Record<string, unknown> & {
+  type: string;
+  sessionId?: string;
+  error?: string;
+};
+
+function asSessionMessage(msg: unknown): SessionMessage | null {
+  if (!isObject(msg)) return null;
+  if (typeof msg.type !== 'string') return null;
+  if (msg.sessionId != null && typeof msg.sessionId !== 'string') return null;
+  if (msg.error != null && typeof msg.error !== 'string') return null;
+  return msg as SessionMessage;
+}
+
 /**
  * Type guard to check if a message is a control message.
  */
 export function isSignerWorkerControlMessage(msg: unknown): msg is SignerWorkerControlMessage {
-  if (!isObject(msg) || typeof (msg as any).type !== 'string') {
+  if (!isObject(msg) || typeof msg.type !== 'string') {
     return false;
   }
-  const type = (msg as any).type;
-  return type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK
-    || type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR
-    || type === WorkerControlMessage.WORKER_READY;
+
+  switch (msg.type) {
+    case WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK:
+      return typeof msg.sessionId === 'string';
+    case WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR:
+      return typeof msg.sessionId === 'string' && typeof msg.error === 'string';
+    case WorkerControlMessage.WORKER_READY:
+      return typeof msg.ready === 'boolean';
+    default:
+      return false;
+  }
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -84,7 +105,7 @@ export function waitForSessionMessage(
     /** Timeout in milliseconds */
     timeoutMs?: number;
     /** Custom message validator - return true to resolve, false to ignore, throw to reject */
-    validator?: (msg: any) => boolean;
+    validator?: (msg: SessionMessage) => boolean;
   }
 ): Promise<void> {
   const {
@@ -105,13 +126,11 @@ export function waitForSessionMessage(
       ));
     }, timeoutMs);
 
-    const messageHandler = (event: MessageEvent) => {
-      const msg = event.data;
+    const messageHandler = (event: MessageEvent<unknown>) => {
+      const msg = asSessionMessage(event.data);
 
       // Skip if message doesn't have a type
-      if (!msg || typeof msg.type !== 'string') {
-        return;
-      }
+      if (!msg) return;
 
       // Check if sessionId matches (if specified)
       if (sessionId && msg.sessionId !== sessionId) {

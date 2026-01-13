@@ -10,6 +10,7 @@ import {
   type ConfirmationConfig,
   type RpcCallPayload,
   type SignerMode,
+  type TransactionResponse,
   type WorkerSuccessResponse,
   getThresholdBehaviorFromSignerMode,
 } from '../../../types/signer-worker';
@@ -481,18 +482,17 @@ function extractSigningEvidenceFromConfirmation(confirmation: {
 }
 
 function requireOkSignTransactionsWithActionsResponse(
-  response: unknown
+  response: TransactionResponse
 ): WorkerSuccessResponse<typeof WorkerRequestType.SignTransactionsWithActions> {
-  if (!isSignTransactionsWithActionsSuccess(response as any)) {
-    if (isWorkerError(response as any)) {
-      throw new Error((response as any).payload?.error || 'Batch transaction signing failed');
+  if (!isSignTransactionsWithActionsSuccess(response)) {
+    if (isWorkerError(response)) {
+      throw new Error(response.payload.error || 'Batch transaction signing failed');
     }
     throw new Error('Batch transaction signing failed');
   }
 
-  const resp = response as WorkerSuccessResponse<typeof WorkerRequestType.SignTransactionsWithActions>;
-  if (!resp.payload.success) {
-    throw new Error(resp.payload.error || 'Batch transaction signing failed');
+  if (!response.payload.success) {
+    throw new Error(response.payload.error || 'Batch transaction signing failed');
   }
-  return resp;
+  return response;
 }

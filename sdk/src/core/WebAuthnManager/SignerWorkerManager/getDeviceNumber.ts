@@ -25,7 +25,7 @@ export async function getLastLoggedInDeviceNumber(
   const accountId = toAccountId(nearAccountId);
   const last = await clientDB.getLastUser();
   if (last && last.nearAccountId === accountId) {
-    const deviceNumber = parseDeviceNumber((last as any).deviceNumber, { min: 1 });
+    const deviceNumber = parseDeviceNumber(last.deviceNumber, { min: 1 });
     if (deviceNumber !== null) {
       return deviceNumber;
     }

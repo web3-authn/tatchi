@@ -23,7 +23,7 @@ import {
   VRFChallenge
 } from '../types/vrf-worker';
 import { ActionType, type ActionArgsWasm, type TransactionInputWasm } from '../types/actions';
-import type { RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/sdkSentEvents';
+import type { RegistrationEventStep3, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/sdkSentEvents';
 import type { SignTransactionResult, TatchiConfigs } from '../types/tatchi';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
@@ -1480,7 +1480,7 @@ export class WebAuthnManager {
     credential: WebAuthnRegistrationCredential,
     vrfChallenge: VRFChallenge,
     authenticatorOptions?: AuthenticatorOptions;
-    onEvent?: (update: onProgressEvents) => void
+    onEvent?: (update: RegistrationEventStep3) => void
   }): Promise<{
     success: boolean;
     verified?: boolean;

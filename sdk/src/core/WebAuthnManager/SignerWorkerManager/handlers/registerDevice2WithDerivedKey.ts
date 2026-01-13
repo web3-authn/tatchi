@@ -3,6 +3,7 @@ import type { LocalNearSkV3Material } from '../../../IndexedDBManager/passkeyNea
 import {
   WorkerRequestType,
   isRegisterDevice2WithDerivedKeySuccess,
+  type WasmSignedTransaction,
 } from '../../../types/signer-worker';
 import { AccountId, toAccountId } from "../../../types/accountIds";
 import { SignerWorkerManagerContext } from '..';
@@ -49,18 +50,26 @@ export async function registerDevice2WithDerivedKey({
   wrapKeySalt: string;
   deviceNumber?: number;
   deterministicVrfPublicKey?: string;
-}): Promise<{
-  success: boolean;
-  publicKey: string;
-  signedTransaction: any;
-  wrapKeySalt: string;
-  encryptedData?: string;
-  /**
-   * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
-   */
-  chacha20NonceB64u?: string;
-  error?: string;
-}> {
+}): Promise<
+  | {
+    success: true;
+    publicKey: string;
+    signedTransaction: WasmSignedTransaction;
+    wrapKeySalt: string;
+    encryptedData: string;
+    /**
+     * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for the encrypted private key.
+     */
+    chacha20NonceB64u: string;
+  }
+  | {
+    success: false;
+    publicKey: '';
+    signedTransaction: null;
+    wrapKeySalt: '';
+    error: string;
+  }
+> {
   try {
     if (!sessionId) {
       throw new Error('Missing sessionId for Device2 registration');

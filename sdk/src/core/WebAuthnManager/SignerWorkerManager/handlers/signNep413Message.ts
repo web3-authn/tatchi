@@ -3,6 +3,7 @@ import {
   isSignNep413MessageSuccess,
   isWorkerError,
   type ConfirmationConfig,
+  type Nep413SigningResponse,
   type SignerMode,
   type WorkerSuccessResponse,
 } from '../../../types/signer-worker';
@@ -330,13 +331,13 @@ function extractSigningEvidenceFromConfirmation(confirmation: {
 }
 
 function requireOkSignNep413MessageResponse(
-  response: unknown,
+  response: Nep413SigningResponse,
 ): WorkerSuccessResponse<typeof WorkerRequestType.SignNep413Message> {
-  if (!isSignNep413MessageSuccess(response as any)) {
-    if (isWorkerError(response as any)) {
-      throw new Error((response as any).payload?.error || 'NEP-413 signing failed');
+  if (!isSignNep413MessageSuccess(response)) {
+    if (isWorkerError(response)) {
+      throw new Error(response.payload.error || 'NEP-413 signing failed');
     }
     throw new Error('NEP-413 signing failed');
   }
-  return response as WorkerSuccessResponse<typeof WorkerRequestType.SignNep413Message>;
+  return response;
 }

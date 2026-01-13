@@ -8,6 +8,7 @@ import {
   RpcCallPayload,
   type SignerMode,
   WorkerRequestType,
+  type DelegateSignResponse,
   isWorkerError,
   isSignDelegateActionSuccess,
   type WorkerSuccessResponse,
@@ -398,18 +399,17 @@ function extractSigningEvidenceFromConfirmation(confirmation: {
 }
 
 function requireOkSignDelegateActionResponse(
-  response: unknown
+  response: DelegateSignResponse
 ): WorkerSuccessResponse<typeof WorkerRequestType.SignDelegateAction> {
-  if (!isSignDelegateActionSuccess(response as any)) {
-    if (isWorkerError(response as any)) {
-      throw new Error((response as any).payload?.error || 'Delegate action signing failed');
+  if (!isSignDelegateActionSuccess(response)) {
+    if (isWorkerError(response)) {
+      throw new Error(response.payload.error || 'Delegate action signing failed');
     }
     throw new Error('Delegate action signing failed');
   }
 
-  const resp = response as WorkerSuccessResponse<typeof WorkerRequestType.SignDelegateAction>;
-  if (!resp.payload.success || !resp.payload.signedDelegate || !resp.payload.hash) {
-    throw new Error(resp.payload.error || 'Delegate action signing failed');
+  if (!response.payload.success || !response.payload.signedDelegate || !response.payload.hash) {
+    throw new Error(response.payload.error || 'Delegate action signing failed');
   }
-  return resp;
+  return response;
 }
