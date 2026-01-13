@@ -1,15 +1,7 @@
-name = "w3a-relay"
+name = "w3a-relay-prod"
 main = "src/worker.ts"
 compatibility_date = "2024-09-24"
 compatibility_flags = ["nodejs_compat"]
-
-# Use custom esbuild configuration for WASM modules
-[build]
-command = ""
-
-[build.custom_build]
-# Tell esbuild to use binary loader for WASM
-esbuild_config = "esbuild.config.js"
 
 # Configure module rules for WASM imports
 [[rules]]
@@ -38,9 +30,39 @@ RELAYER_URL = "https://relay.tatchi.xyz"
 #   wrangler secret put SHAMIR_D_S_B64U
 # Required at runtime by src/worker.ts
 
-# Optional CORS
-EXPECTED_ORIGIN = "https://tatchi.xyz, https://staging.tatchi.xyz"
-EXPECTED_WALLET_ORIGIN = "https://wallet.web3authn.org, https://wallet-staging.web3authn.org"
+# Optional CORS (production allowlist)
+EXPECTED_ORIGIN = "https://tatchi.xyz"
+EXPECTED_WALLET_ORIGIN = "https://wallet.web3authn.org"
+
+# Production worker env (explicit; matches GitHub Environment name)
+[env.production]
+name = "w3a-relay-prod"
+
+[env.production.vars]
+RELAYER_ACCOUNT_ID = "w3a-relayer.testnet"
+NEAR_RPC_URL = "https://test.rpc.fastnear.com"
+NETWORK_ID = "testnet"
+WEBAUTHN_CONTRACT_ID = "w3a-v1.testnet"
+ACCOUNT_INITIAL_BALANCE = "40000000000000000000000" # 0.04 NEAR
+CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
+RELAYER_URL = "https://relay.tatchi.xyz"
+EXPECTED_ORIGIN = "https://tatchi.xyz"
+EXPECTED_WALLET_ORIGIN = "https://wallet.web3authn.org"
+
+# Staging worker (separate Worker name + tighter CORS allowlist)
+[env.staging]
+name = "w3a-relay-staging"
+
+[env.staging.vars]
+RELAYER_ACCOUNT_ID = "w3a-relayer.testnet"
+NEAR_RPC_URL = "https://test.rpc.fastnear.com"
+NETWORK_ID = "testnet"
+WEBAUTHN_CONTRACT_ID = "w3a-v1.testnet"
+ACCOUNT_INITIAL_BALANCE = "40000000000000000000000" # 0.04 NEAR
+CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
+RELAYER_URL = "https://relay-staging.tatchi.xyz"
+EXPECTED_ORIGIN = "https://staging.tatchi.xyz"
+EXPECTED_WALLET_ORIGIN = "https://wallet-staging.web3authn.org"
 
 # Optional: explicitly enable cron and rotation (defaults to disabled)
 # ENABLE_ROTATION = "0"
@@ -56,4 +78,3 @@ EXPECTED_WALLET_ORIGIN = "https://wallet.web3authn.org, https://wallet-staging.w
   enabled = true
   head_sampling_rate = 1
   invocation_logs = true
-  persist = true

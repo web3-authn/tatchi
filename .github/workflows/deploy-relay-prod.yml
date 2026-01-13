@@ -71,7 +71,7 @@ jobs:
           ARGS=(--var RECOVER_EMAIL_RECIPIENT="${RECOVER_EMAIL_RECIPIENT}")
           ARGS+=(--var THRESHOLD_ED25519_SHARE_MODE="${THRESHOLD_ED25519_SHARE_MODE}")
 
-          pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --name "$WORKER_NAME" "${ARGS[@]}"
+          pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --env production "${ARGS[@]}"
 
       - name: Configure Email Routing for RECOVER_EMAIL_RECIPIENT
         env:
