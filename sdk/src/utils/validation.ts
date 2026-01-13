@@ -54,6 +54,31 @@ export function toOriginOrUndefined(input?: string): string | undefined {
   }
 }
 
+/**
+ * Strict origin sanitizer for Related Origin Requests (ROR).
+ * - Allows `https://<host>[:port]` and `http://localhost[:port]` only.
+ * - Rejects paths (except `/`), queries, and hashes.
+ * - Normalizes hostname casing.
+ */
+export function toRorOriginOrNull(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const raw = toTrimmedString(value);
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    const scheme = u.protocol;
+    const host = u.hostname.toLowerCase();
+    const port = u.port ? `:${u.port}` : '';
+    const isHttps = scheme === 'https:';
+    const isLocalhostHttp = scheme === 'http:' && host === 'localhost';
+    if (!isHttps && !isLocalhostHttp) return null;
+    if ((u.pathname && u.pathname !== '/') || u.search || u.hash) return null;
+    return `${scheme}//${host}${port}`;
+  } catch {
+    return null;
+  }
+}
+
 /** Collapse a string into a single line by normalizing whitespace. */
 export function toSingleLine(value: unknown): string {
   return String(value ?? '')
@@ -159,6 +184,17 @@ export function validateNearAccountId(
   }
 
   return { valid: true };
+}
+
+/**
+ * Lightweight NEAR account ID validation used by server-side helpers.
+ * - length: 2..64
+ * - chars: lowercase letters, digits, `_`, `.`, `-`
+ */
+export function isValidAccountId(accountId: unknown): accountId is string {
+  if (typeof accountId !== 'string') return false;
+  if (!accountId || accountId.length < 2 || accountId.length > 64) return false;
+  return /^[a-z0-9_.-]+$/.test(accountId);
 }
 
 // ===========================

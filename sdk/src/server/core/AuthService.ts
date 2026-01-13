@@ -5,7 +5,7 @@ import { toPublicKeyStringFromSecretKey } from './nearKeys';
 import { createAuthServiceConfig } from './config';
 import { formatGasToTGas, formatYoctoToNear } from './utils';
 import { parseContractExecutionError } from './errors';
-import { toOptionalTrimmedString } from '../../utils/validation';
+import { isValidAccountId, toOptionalTrimmedString, toRorOriginOrNull } from '../../utils/validation';
 import { coerceThresholdEd25519ShareMode, coerceThresholdNodeRole } from './ThresholdService/config';
 import type { ThresholdSigningService as ThresholdSigningServiceType } from './ThresholdService';
 import { createThresholdSigningService } from './ThresholdService';
@@ -40,7 +40,7 @@ import {
   type DelegateActionPolicy,
 } from '../delegateAction';
 import { coerceLogger, type NormalizedLogger } from './logger';
-import { errorMessage } from '../../utils/errors';
+import { errorMessage, toError } from '../../utils/errors';
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -375,7 +375,7 @@ export class AuthService {
 
     return this.queueTransaction(async () => {
       try {
-        if (!this.isValidAccountId(request.accountId)) {
+        if (!isValidAccountId(request.accountId)) {
           throw new Error(`Invalid account ID format: ${request.accountId}`);
         }
 
@@ -453,7 +453,7 @@ export class AuthService {
 
     return this.queueTransaction(async () => {
       try {
-        if (!this.isValidAccountId(request.new_account_id)) {
+        if (!isValidAccountId(request.new_account_id)) {
           throw new Error(`Invalid account ID format: ${request.new_account_id}`);
         }
 
@@ -612,31 +612,17 @@ export class AuthService {
     const method = toOptionalTrimmedString(opts?.method) || 'get_allowed_origins';
     const args = opts?.args ?? {};
 
-    const isValidOrigin = (s: unknown): string | null => {
-      if (typeof s !== 'string' || !s) return null;
-      try {
-        const u = new URL(s.trim());
-        const scheme = u.protocol;
-        const host = u.hostname.toLowerCase();
-        const port = u.port ? `:${u.port}` : '';
-        if (scheme !== 'https:' && !(scheme === 'http:' && host === 'localhost')) return null;
-        if ((u.pathname && u.pathname !== '/') || u.search || u.hash) return null;
-        return `${scheme}//${host}${port}`;
-      } catch { return null; }
-    };
-
     try {
       const result = await this.nearClient.view<unknown, unknown>({ account: contractId, method, args });
-      const list: string[] = (() => {
-        if (Array.isArray(result)) return result.filter((v): v is string => typeof v === 'string');
-        if (isObject(result) && Array.isArray(result.origins)) {
-          return (result.origins as unknown[]).filter((v): v is string => typeof v === 'string');
-        }
-        return [];
-      })();
+      let list: unknown[] = [];
+      if (Array.isArray(result)) {
+        list = result;
+      } else if (isObject(result) && Array.isArray(result.origins)) {
+        list = result.origins;
+      }
       const out = new Set<string>();
       for (const item of list) {
-        const norm = isValidOrigin(item);
+        const norm = toRorOriginOrNull(item);
         if (norm) out.add(norm);
       }
       return Array.from(out);
@@ -644,14 +630,6 @@ export class AuthService {
       this.logger.warn('[AuthService] getRorOrigins failed:', e);
       return [];
     }
-  }
-
-  private isValidAccountId(accountId: string): boolean {
-    if (!accountId || accountId.length < 2 || accountId.length > 64) {
-      return false;
-    }
-    const validPattern = /^[a-z0-9_.-]+$/;
-    return validPattern.test(accountId);
   }
 
   /**
@@ -662,23 +640,24 @@ export class AuthService {
     const isNotFound = (m: string) => /does not exist|UNKNOWN_ACCOUNT|unknown\s+account/i.test(m);
     const isRetryable = (m: string) => /server error|internal|temporar|timeout|too many requests|429|empty response|rpc request failed/i.test(m);
     const attempts = 3;
-    let lastErr: any = null;
+    let lastErr: Error | null = null;
     for (let i = 1; i <= attempts; i++) {
       try {
         const view = await this.nearClient.viewAccount(accountId);
         return !!view;
-      } catch (error: any) {
-        lastErr = error;
-        const msg = String(error?.message || '');
-        // Some providers embed the useful string only inside a nested JSON `details` object.
-        // Normalize both message and details (if available) into one searchable blob.
-        const detailsBlob = (() => {
+      } catch (error: unknown) {
+        const err = toError(error);
+        lastErr = err;
+        const msg = err.message;
+        const details = (err as { details?: unknown }).details;
+        let detailsBlob = '';
+        if (details) {
           try {
-            const d = (error && typeof error === 'object' && 'details' in error) ? (error as any).details : undefined;
-            if (!d) return '';
-            return typeof d === 'string' ? d : JSON.stringify(d);
-          } catch { return ''; }
-        })();
+            detailsBlob = typeof details === 'string' ? details : JSON.stringify(details);
+          } catch {
+            detailsBlob = '';
+          }
+        }
         const combined = `${msg}\n${detailsBlob}`;
         if (isNotFound(combined)) return false;
         if (isRetryable(msg) && i < attempts) {
@@ -691,11 +670,11 @@ export class AuthService {
           this.logger.warn(`[AuthService] Assuming account '${accountId}' not found after retryable RPC errors:`, msg);
           return false;
         }
-        this.logger.error(`Error checking account existence for ${accountId}:`, error);
-        throw error;
+        this.logger.error(`Error checking account existence for ${accountId}:`, err);
+        throw err;
       }
     }
-    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+    throw lastErr || new Error('Unknown error');
   }
 
   /**
