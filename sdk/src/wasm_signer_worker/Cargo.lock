@@ -889,7 +889,7 @@ dependencies = [
 
 [[package]]
 name = "wasm_signer_worker"
-version = "0.4.0"
+version = "0.4.3"
 dependencies = [
  "base64ct",
  "borsh",
