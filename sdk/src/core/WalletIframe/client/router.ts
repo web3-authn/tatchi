@@ -106,7 +106,7 @@ import {
 import type { DelegateActionInput } from '../../types/delegate';
 import { IframeTransport } from './IframeTransport';
 import OverlayController, { type DOMRectLike } from './overlay-controller';
-import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, isBoolean } from '@/utils/validation';
+import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, isBoolean, toBasePath } from '@/utils/validation';
 import type { WalletUIRegistry } from '../host/iframe-lit-element-registry';
 import { toError } from '../../../utils/errors';
 import {
@@ -242,13 +242,22 @@ export class WalletIframeRouter {
       autoMount: true,
       ...(options?.testOptions || {}),
     };
+    const normalizedServicePath = (() => {
+      const p = toBasePath(options?.servicePath, '/wallet-service');
+      return p === '/' ? '/wallet-service' : p;
+    })();
+    const normalizedSdkBasePath = (() => {
+      const p = toBasePath(options?.sdkBasePath, '/sdk');
+      return p === '/' ? '/sdk' : p;
+    })();
     this.opts = {
       connectTimeoutMs: 8000,
       requestTimeoutMs: 20000,
-      servicePath: '/wallet-service',
-      sdkBasePath: '/sdk',
-      testOptions,
       ...options,
+      // Normalize path-like options so empty strings don't accidentally become the wallet origin root.
+      servicePath: normalizedServicePath,
+      sdkBasePath: normalizedSdkBasePath,
+      testOptions,
       signerMode: options.signerMode ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.signerMode,
     } as Required<WalletIframeRouterOptions>;
     this.walletOriginUrl = parsedOrigin;

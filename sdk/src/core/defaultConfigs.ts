@@ -1,5 +1,6 @@
 import type { EmailRecoveryContracts, TatchiConfigs, TatchiConfigsInput } from './types/tatchi';
 import { coerceSignerMode } from './types/signer-worker';
+import { toTrimmedString } from '@/utils';
 
 // Default SDK configs suitable for local dev.
 // Cross-origin wallet isolation is recommended; set iframeWallet in your app config when you have a dedicated origin.
@@ -147,16 +148,16 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
         ?? defaults.emailRecoveryContracts?.emailDkimVerifierContract,
     },
     iframeWallet: {
-      walletOrigin: overrides.iframeWallet?.walletOrigin
-        ?? defaults.iframeWallet?.walletOrigin,
-      walletServicePath: overrides.iframeWallet?.walletServicePath
-        ?? defaults.iframeWallet?.walletServicePath
-        ?? '/wallet-service',
-      sdkBasePath: overrides.iframeWallet?.sdkBasePath
-        ?? defaults.iframeWallet?.sdkBasePath
-        ?? '/sdk',
-      rpIdOverride: overrides.iframeWallet?.rpIdOverride
-        ?? defaults.iframeWallet?.rpIdOverride,
+      walletOrigin: toTrimmedString(overrides.iframeWallet?.walletOrigin)
+        || toTrimmedString(defaults.iframeWallet?.walletOrigin),
+      walletServicePath: toTrimmedString(overrides.iframeWallet?.walletServicePath)
+        || toTrimmedString(defaults.iframeWallet?.walletServicePath)
+        || '/wallet-service',
+      sdkBasePath: toTrimmedString(overrides.iframeWallet?.sdkBasePath)
+        || toTrimmedString(defaults.iframeWallet?.sdkBasePath)
+        || '/sdk',
+      rpIdOverride: toTrimmedString(overrides.iframeWallet?.rpIdOverride)
+        || toTrimmedString(defaults.iframeWallet?.rpIdOverride),
     }
   };
   if (!merged.contractId) {
