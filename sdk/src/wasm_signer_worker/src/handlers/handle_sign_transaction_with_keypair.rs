@@ -3,6 +3,8 @@
 // *                 HANDLER: SIGN TRANSACTION WITH KEYPAIR                   *
 // *                                                                            *
 // ******************************************************************************
+use std::fmt;
+
 use crate::actions::ActionParams;
 use crate::handlers::handle_sign_transactions_with_actions::TransactionSignResult;
 use crate::transaction::{
@@ -13,7 +15,7 @@ use crate::types::wasm_to_json::WasmSignedTransaction;
 use bs58;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SignTransactionWithKeyPairRequest {
     pub near_private_key: String, // ed25519:... format
@@ -23,6 +25,19 @@ pub struct SignTransactionWithKeyPairRequest {
     pub block_hash: String,
     #[serde(deserialize_with = "deserialize_actions_flexible")]
     pub actions: Vec<ActionParams>,
+}
+
+impl fmt::Debug for SignTransactionWithKeyPairRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SignTransactionWithKeyPairRequest")
+            .field("near_private_key", &"[REDACTED]")
+            .field("signer_account_id", &self.signer_account_id)
+            .field("receiver_id", &self.receiver_id)
+            .field("nonce", &self.nonce)
+            .field("block_hash", &self.block_hash)
+            .field("actions", &self.actions)
+            .finish()
+    }
 }
 
 fn deserialize_actions_flexible<'de, D>(deserializer: D) -> Result<Vec<ActionParams>, D::Error>
@@ -169,4 +184,25 @@ pub async fn handle_sign_transaction_with_keypair(
         logs,
         None,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SignTransactionWithKeyPairRequest;
+
+    #[test]
+    fn debug_redacts_near_private_key() {
+        let req = SignTransactionWithKeyPairRequest {
+            near_private_key: "ed25519:SECRET_PRIVATE_KEY".to_string(),
+            signer_account_id: "signer.near".to_string(),
+            receiver_id: "receiver.near".to_string(),
+            nonce: "1".to_string(),
+            block_hash: "11111111111111111111111111111111".to_string(),
+            actions: Vec::new(),
+        };
+
+        let dbg_str = format!("{req:?}");
+        assert!(!dbg_str.contains("SECRET_PRIVATE_KEY"));
+        assert!(dbg_str.contains("[REDACTED]"));
+    }
 }
