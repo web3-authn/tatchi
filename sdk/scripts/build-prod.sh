@@ -57,6 +57,48 @@ if node ./scripts/generate-w3a-components-css.mjs; then print_success "w3a-compo
 print_step "Bundling with Rolldown (production)..."
 if NODE_ENV=production npx rolldown -c rolldown.config.ts --minify; then print_success "Rolldown bundling completed"; else print_error "Rolldown bundling failed"; exit 1; fi
 
+print_step "Restoring wasm-pack JS glue (rolldown --minify breaks serde_wasm_bindgen parsing)..."
+# Rolldown's minifier can corrupt wasm-bindgen generated JS glue code, causing runtime errors like:
+#   "Invalid payload for SIGN_TRANSACTION_WITH_KEYPAIR: invalid type: JsValue(Object(...)), expected struct ..."
+# Fix: keep Rolldown minification for SDK bundles, but ship the original wasm-pack JS for the WASM worker pkgs.
+mkdir -p "$BUILD_ESM/wasm_signer_worker/pkg" "$BUILD_ESM/wasm_vrf_worker/pkg"
+cp "$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker.js" "$BUILD_ESM/wasm_signer_worker/pkg/wasm_signer_worker.js"
+cp "$SOURCE_WASM_VRF/pkg/wasm_vrf_worker.js" "$BUILD_ESM/wasm_vrf_worker/pkg/wasm_vrf_worker.js"
+print_success "WASM JS glue restored"
+
+print_step "Sanity check: signer WASM can parse SIGN_TRANSACTION_WITH_KEYPAIR payload..."
+node --input-type=module - <<'NODE'
+import { readFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import bs58 from 'bs58';
+import initSignerWasm, { handle_signer_message, WorkerRequestType } from './dist/esm/wasm_signer_worker/pkg/wasm_signer_worker.js';
+
+const wasmBytes = readFileSync('./dist/esm/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm');
+const ab = wasmBytes.buffer.slice(wasmBytes.byteOffset, wasmBytes.byteOffset + wasmBytes.byteLength);
+const module = await WebAssembly.compile(ab);
+await initSignerWasm({ module_or_path: module });
+
+const nearPrivateKey = `ed25519:${bs58.encode(randomBytes(64))}`;
+const blockHash = bs58.encode(randomBytes(32));
+const msg = {
+  type: WorkerRequestType.SignTransactionWithKeyPair,
+  payload: {
+    nearPrivateKey,
+    signerAccountId: 'w3a-relayer.testnet',
+    receiverId: 'someone.testnet',
+    nonce: '1',
+    blockHash,
+    actions: [{ action_type: 'CreateAccount' }],
+  },
+};
+
+const res = await handle_signer_message(msg);
+if (!res || res.type !== 5 || !res.payload?.success) {
+  throw new Error(`Unexpected signer response: ${JSON.stringify(res)}`);
+}
+NODE
+print_success "Signer WASM payload parsing OK"
+
 print_step "Bundling workers with Bun (minified)..."
 if [ -z "$BUN_BIN" ]; then print_error "Bun not found. Install Bun or ensure it is on PATH."; exit 1; fi
 if "$BUN_BIN" build "$SOURCE_CORE/web3authn-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify \
