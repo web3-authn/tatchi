@@ -27,49 +27,6 @@ pub struct SignTransactionWithKeyPairRequest {
     pub actions: Vec<ActionParams>,
 }
 
-impl SignTransactionWithKeyPairRequest {
-    pub fn try_from_js(val: &wasm_bindgen::JsValue) -> Result<Self, String> {
-        let get_string = |name: &str, js_val: &wasm_bindgen::JsValue| -> Result<String, String> {
-            let v = js_sys::Reflect::get(js_val, &wasm_bindgen::JsValue::from_str(name))
-                .map_err(|_| format!("Failed to access {}", name))?;
-            if v.is_undefined() || v.is_null() {
-                return Err(format!("{} is required", name));
-            }
-            v.as_string().ok_or_else(|| format!("{} must be a string", name))
-        };
-
-        let near_private_key = get_string("nearPrivateKey", val)?;
-        let signer_account_id = get_string("signerAccountId", val)?;
-        let receiver_id = get_string("receiverId", val)?;
-        let nonce = get_string("nonce", val)?;
-        let block_hash = get_string("blockHash", val)?;
-
-        let actions_val = js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("actions"))
-             .map_err(|_| "Failed to access actions".to_string())?;
-
-        // Manual implementation of deserialize_actions_flexible logic
-        let actions: Vec<ActionParams> = if actions_val.is_string() {
-            let json_str = actions_val.as_string().unwrap();
-            let parsed = js_sys::JSON::parse(&json_str)
-                .map_err(|e| format!("Failed to parse actions JSON string: {:?}", e))?;
-            serde_wasm_bindgen::from_value(parsed)
-                .map_err(|e| format!("Failed to deserialize actions from JSON: {}", e))?
-        } else {
-             serde_wasm_bindgen::from_value(actions_val)
-                .map_err(|e| format!("Failed to deserialize actions array: {}", e))?
-        };
-
-        Ok(Self {
-            near_private_key,
-            signer_account_id,
-            receiver_id,
-            nonce,
-            block_hash,
-            actions,
-        })
-    }
-}
-
 impl fmt::Debug for SignTransactionWithKeyPairRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SignTransactionWithKeyPairRequest")

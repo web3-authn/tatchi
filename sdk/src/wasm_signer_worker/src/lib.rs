@@ -227,10 +227,8 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         // NOTE: Does not need wrapKeySeed, wrapKeySalt -> MessagePort
         // The only method that does not require VRF Worker to sign
         WorkerRequestType::SignTransactionWithKeyPair => {
-             // Use manual parsing to avoid strict serde_wasm_bindgen struct mapping issues
-             // with the plain JS payload object.
-            let request = SignTransactionWithKeyPairRequest::try_from_js(&payload_js)
-                 .map_err(|e| JsValue::from_str(&format!("Invalid payload for SIGN_TRANSACTION_WITH_KEYPAIR: {}", e)))?;
+            let request: SignTransactionWithKeyPairRequest =
+                parse_typed_payload(&payload_js, request_type)?;
             let result = handlers::handle_sign_transaction_with_keypair(request).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?

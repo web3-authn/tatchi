@@ -55,12 +55,11 @@ print_step "Generating CSS variables from palette.json (w3a-components.css)..."
 if node ./scripts/generate-w3a-components-css.mjs; then print_success "w3a-components.css generated"; else print_error "Failed to generate w3a-components.css"; exit 1; fi
 
 print_step "Bundling with Rolldown (production)..."
-if NODE_ENV=production npx rolldown -c rolldown.config.ts --minify; then print_success "Rolldown bundling completed"; else print_error "Rolldown bundling failed"; exit 1; fi
+# NOTE: Avoid Rolldown minification here. It has historically corrupted wasm-bindgen
+# generated JS glue code in production builds.
+if NODE_ENV=production npx rolldown -c rolldown.config.ts; then print_success "Rolldown bundling completed"; else print_error "Rolldown bundling failed"; exit 1; fi
 
-print_step "Restoring wasm-pack JS glue (rolldown --minify breaks serde_wasm_bindgen parsing)..."
-# Rolldown's minifier can corrupt wasm-bindgen generated JS glue code, causing runtime errors like:
-#   "Invalid payload for SIGN_TRANSACTION_WITH_KEYPAIR: invalid type: JsValue(Object(...)), expected struct ..."
-# Fix: keep Rolldown minification for SDK bundles, but ship the original wasm-pack JS for the WASM worker pkgs.
+print_step "Restoring wasm-pack JS glue (ship exact wasm-bindgen output)..."
 mkdir -p "$BUILD_ESM/wasm_signer_worker/pkg" "$BUILD_ESM/wasm_vrf_worker/pkg"
 cp "$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker.js" "$BUILD_ESM/wasm_signer_worker/pkg/wasm_signer_worker.js"
 cp "$SOURCE_WASM_VRF/pkg/wasm_vrf_worker.js" "$BUILD_ESM/wasm_vrf_worker/pkg/wasm_vrf_worker.js"
@@ -99,11 +98,11 @@ if (!res || res.type !== 5 || !res.payload?.success) {
 NODE
 print_success "Signer WASM payload parsing OK"
 
-print_step "Bundling workers with Bun (minified)..."
+print_step "Bundling workers with Bun (no minify)..."
 if [ -z "$BUN_BIN" ]; then print_error "Bun not found. Install Bun or ensure it is on PATH."; exit 1; fi
-if "$BUN_BIN" build "$SOURCE_CORE/web3authn-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify \
-  && "$BUN_BIN" build "$SOURCE_CORE/web3authn-vrf.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify \
-  && "$BUN_BIN" build "$SOURCE_CORE/OfflineExport/offline-export-sw.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify; then
+if "$BUN_BIN" build "$SOURCE_CORE/web3authn-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser \
+  && "$BUN_BIN" build "$SOURCE_CORE/web3authn-vrf.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser \
+  && "$BUN_BIN" build "$SOURCE_CORE/OfflineExport/offline-export-sw.ts" --outdir "$BUILD_WORKERS" --format esm --target browser; then
   print_success "Bun worker bundling completed"
 else
   print_error "Bun worker bundling failed"; exit 1
