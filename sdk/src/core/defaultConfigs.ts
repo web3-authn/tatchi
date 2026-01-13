@@ -148,16 +148,23 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
         ?? defaults.emailRecoveryContracts?.emailDkimVerifierContract,
     },
     iframeWallet: {
-      walletOrigin: toTrimmedString(overrides.iframeWallet?.walletOrigin)
-        || toTrimmedString(defaults.iframeWallet?.walletOrigin),
+      // Preserve explicit empty-string walletOrigin ("") because it is used as a sentinel
+      // to disable iframe-wallet mode in tests and some apps.
+      walletOrigin: overrides.iframeWallet?.walletOrigin
+        ?? defaults.iframeWallet?.walletOrigin,
+      rpIdOverride: overrides.iframeWallet?.rpIdOverride
+        ?? defaults.iframeWallet?.rpIdOverride,
+      // IMPORTANT: the following fields are often wired from CI env vars like `VITE_SDK_BASE_PATH`.
+      // When a GitHub Actions env var is missing, expressions like `${{ vars.VITE_SDK_BASE_PATH }}`
+      // frequently become the empty string at build-time. Treat empty strings as "unset" so we
+      // fall back to SDK defaults instead of accidentally generating root-relative URLs like:
+      //   https://wallet.example.com/w3a-components.css  (wrong; should be /sdk/w3a-components.css)
       walletServicePath: toTrimmedString(overrides.iframeWallet?.walletServicePath)
         || toTrimmedString(defaults.iframeWallet?.walletServicePath)
         || '/wallet-service',
       sdkBasePath: toTrimmedString(overrides.iframeWallet?.sdkBasePath)
         || toTrimmedString(defaults.iframeWallet?.sdkBasePath)
         || '/sdk',
-      rpIdOverride: toTrimmedString(overrides.iframeWallet?.rpIdOverride)
-        || toTrimmedString(defaults.iframeWallet?.rpIdOverride),
     }
   };
   if (!merged.contractId) {

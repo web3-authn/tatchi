@@ -254,7 +254,11 @@ export class WalletIframeRouter {
       connectTimeoutMs: 8000,
       requestTimeoutMs: 20000,
       ...options,
-      // Normalize path-like options so empty strings don't accidentally become the wallet origin root.
+      // Normalize path-like options so empty strings (common when CI env vars are unset)
+      // don't accidentally become the wallet origin root. If sdkBasePath becomes "", then:
+      //   new URL("", "https://wallet.example.com") -> "https://wallet.example.com/"
+      // which makes Lit components request CSS from the origin root (Pages SPA fallback),
+      // yielding `Content-Type: text/html` and browser MIME-type errors.
       servicePath: normalizedServicePath,
       sdkBasePath: normalizedSdkBasePath,
       testOptions,
