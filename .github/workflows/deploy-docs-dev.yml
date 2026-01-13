@@ -1,14 +1,12 @@
 name: deploy-docs-dev
 
 on:
-  push:
-    branches: [ dev ]
   workflow_dispatch: {}
 
 jobs:
   deploy-docs-staging:
     runs-on: ubuntu-latest
-    environment: development
+    environment: staging
     permissions:
       contents: read
       deployments: write

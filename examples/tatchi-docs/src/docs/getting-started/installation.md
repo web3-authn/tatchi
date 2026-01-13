@@ -49,7 +49,7 @@ import react from '@vitejs/plugin-react'
 import { tatchiAppServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
-  const walletOrigin = 'https://wallet.tatchi.xyz'
+  const walletOrigin = 'https://wallet.web3authn.org'
   return {
     plugins: [
       react(),
@@ -98,7 +98,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <TatchiPasskeyProvider
       config={{
         iframeWallet: {
-          walletOrigin: "https://wallet.tatchi.xyz",
+          walletOrigin: "https://wallet.web3authn.org",
         },
         relayer: {
           url: "https://relay.tatchi.xyz",
@@ -157,7 +157,7 @@ https://example.localhost
 You should see a registration button, which registers passkey derived wallets onchain.
 
 :::info
-Safari users will need to have their domains allow-listed for the wallet.tatchi.xyz  because safari does not allow cross-origin webauthn registrations.
+Safari users will need to have their domains allow-listed for the wallet.web3authn.org  because safari does not allow cross-origin webauthn registrations.
 
 Contact us and we can add your domain to the [webauthn contract](https://testnet.nearblocks.io/address/w3a-v1.testnet?tab=contract), or selfhost the wallet origin (more on this later).
 :::
@@ -176,7 +176,7 @@ After you've got the SDK installed, we will walk through login, and sending your
 
 **Wallet iframe not connecting**
   - Symptom: actions hang; no network requests to the wallet origin.
-  - Fix: ensure `walletOrigin` is set and uses `https` (this guide uses `https://wallet.tatchi.xyz`). If you changed it, verify the URL is reachable from the browser.
+  - Fix: ensure `walletOrigin` is set and uses `https` (this guide uses `https://wallet.web3authn.org`). If you changed it, verify the URL is reachable from the browser.
 
 **Buttons do nothing**
   - Symptom: calling register/login from effects or timers does nothing.

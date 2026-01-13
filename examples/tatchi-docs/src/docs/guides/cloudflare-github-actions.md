@@ -150,7 +150,7 @@ For Cloudflare Pages (and Netlify), the SDK’s build plugin handles both the wa
   - Import: `tatchiBuildHeaders` from `@tatchi-xyz/sdk/plugins/vite`
   - In `plugins`, add: `tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN })`
 - Provide env vars (Pages project → Environment Variables):
-  - `VITE_WALLET_ORIGIN` (e.g., `https://wallet.tatchi.xyz`)
+  - `VITE_WALLET_ORIGIN` (e.g., `https://wallet.web3authn.org`)
   - Optional: `VITE_WALLET_SERVICE_PATH` (default `/wallet-service`)
   - Optional: `VITE_SDK_BASE_PATH` (default `/sdk`)
 

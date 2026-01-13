@@ -1,0 +1,80 @@
+name: deploy-docs-staging
+
+on:
+  push:
+    branches: [ dev ]
+  workflow_dispatch: {}
+
+jobs:
+  deploy-docs-staging:
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_PAGES_PROJECT: w3a-tatchi-docs-staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: |
+          curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+
+      - name: Setup Bun (for worker bundling step in build scripts)
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install deps (workspace)
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build SDK (sdk, production) for Vite builds
+        run: pnpm build:sdk-prod
+
+      - name: Build site with VitePress
+        env:
+          VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
+          VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
+          VITE_WEBAUTHN_CONTRACT_ID: ${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
+          VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
+          VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
+          VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
+          VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
+          VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH }}
+          VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
+          VITE_SDK_BASE_PATH: ${{ vars.VITE_SDK_BASE_PATH }}
+        run: pnpm docs:build
+
+      - name: Copy SDK runtime assets into VitePress dist
+        run: |
+          mkdir -p examples/tatchi-docs/dist/docs/sdk examples/tatchi-docs/dist/docs/sdk/workers
+          cp -R sdk/dist/esm/sdk/* examples/tatchi-docs/dist/docs/sdk/ || true
+          cp -R sdk/dist/workers/* examples/tatchi-docs/dist/docs/sdk/workers/ || true
+
+      - name: Install Wrangler
+        run: pnpm add -g wrangler@4
+
+      - name: Deploy VitePress site to Cloudflare Pages (staging)
+        run: |
+          wrangler pages deploy examples/tatchi-docs/dist/docs \
+            --project-name "$CF_PAGES_PROJECT" \
+            --branch dev

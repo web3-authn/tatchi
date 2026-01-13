@@ -274,7 +274,7 @@ Troubleshooting
 - Relay preflight CORS
   - Ensure Cloudflare Worker (relay) sets:
     - `EXPECTED_ORIGIN = https://hosted.tatchi.xyz, https://tatchi.xyz`
-    - `EXPECTED_WALLET_ORIGIN = https://web3authn.org, https://wallet.tatchi.xyz`
+    - `EXPECTED_WALLET_ORIGIN = https://web3authn.org, https://wallet.web3authn.org`
   - Preflight should include `Access-Control-Allow-Origin` matching the requesting Origin.
 
 Verification checklist
@@ -297,19 +297,16 @@ ROR manifest and NEAR allowlist
 
 GitHub Actions and Cloudflare Pages
 - Wallet host (Pages):
-  - Use the existing `deploy-cloudflare.yml` wallet job, or the dedicated `deploy-separate-wallet-host.yml` workflow, to publish the wallet example `dist/` to the Pages project (e.g., `web3authn.org`).
-  - Required secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT_WALLET` (e.g., `web3authn`).
+  - Use `deploy-wallet-iframe-staging.yml` (dev) and `deploy-wallet-iframe-prod.yml` (main) to publish the wallet example `dist/` to the Pages projects:
+    - `w3a-wallet-iframe-staging` (staging.web3authn.org)
+    - `w3a-wallet-iframe-prod` (web3authn.org)
+  - Required secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
   - No CI heredocs are needed: the Vite plugin emits `wallet-service/index.html` and `_headers` on build if missing.
 
-- App (Pages):
-  - Add a job to build your app (e.g., `examples/vite`) with the env vars above and deploy to a second Pages project (custom domain `hosted.tatchi.xyz`).
-  - Required secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT_HOSTED` (e.g., `hosted-tatchi`).
-  - Ensure the app’s build emits `_headers` with the `Permissions-Policy` delegating to `https://web3authn.org`.
-
 - GitHub Environments (recommended)
-  - Define environments: `web3authn`, `hosted`, `production`. Put public `VITE_*` in each environment’s `vars`:
+  - Define environments: `staging`, `production`. Put public `VITE_*` in each environment’s `vars`:
     - `VITE_WALLET_ORIGIN`, `VITE_WALLET_SERVICE_PATH`, `VITE_SDK_BASE_PATH`, `VITE_RP_ID_BASE`, `VITE_RELAYER_URL`, `VITE_RELAYER_ACCOUNT_ID`, and optional `VITE_NEAR_*`.
-  - In workflows, set `environment: web3authn` for the wallet host job and `environment: hosted` for the hosted app job; read values via `${{ vars.VITE_* }}`.
+  - In workflows, set `environment: staging` for staging jobs and `environment: production` for prod jobs; read values via `${{ vars.VITE_* }}`.
   - Keep credentials (API tokens, keys) in `secrets`.
 
 Browser compatibility

@@ -1,0 +1,82 @@
+name: deploy-wallet-iframe-staging
+
+on:
+  push:
+    branches: [ dev ]
+  workflow_dispatch: {}
+
+jobs:
+  deploy-wallet-iframe-staging:
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_PAGES_PROJECT: w3a-wallet-iframe-staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: |
+          curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+
+      - name: Setup Bun (for worker bundling step in build scripts)
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install deps (workspace)
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build SDK (sdk, production)
+        run: pnpm build:sdk-prod
+
+      - name: Build wallet iframe (examples/vite)
+        env:
+          VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
+          VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH }}
+          VITE_SDK_BASE_PATH: ${{ vars.VITE_SDK_BASE_PATH }}
+          VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
+          VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
+          VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
+          VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
+          VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
+          VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
+          VITE_WEBAUTHN_CONTRACT_ID: ${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
+        run: pnpm -C examples/vite build
+
+      - name: Copy SDK assets into Pages output
+        run: |
+          mkdir -p examples/vite/dist/sdk examples/vite/dist/sdk/workers
+          rsync -av --delete sdk/dist/esm/sdk/ examples/vite/dist/sdk/
+          if [ -d sdk/dist/workers ]; then
+            rsync -av --delete sdk/dist/workers/ examples/vite/dist/sdk/workers/
+          fi
+
+      - name: Install Wrangler
+        run: pnpm add -g wrangler@4
+
+      - name: Deploy wallet iframe to Cloudflare Pages (staging)
+        run: |
+          wrangler pages deploy examples/vite/dist \
+            --project-name "$CF_PAGES_PROJECT" \
+            --branch dev

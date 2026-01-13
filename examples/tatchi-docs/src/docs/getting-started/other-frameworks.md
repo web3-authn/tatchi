@@ -52,7 +52,7 @@ export default function App({ Component, pageProps }) {
 // next.config.js
 import { tatchiNextApp } from '@tatchi-xyz/sdk/plugins/next'
 
-const walletOrigin = process.env.NEXT_PUBLIC_WALLET_ORIGIN || 'https://wallet.tatchi.xyz'
+const walletOrigin = process.env.NEXT_PUBLIC_WALLET_ORIGIN || 'https://wallet.web3authn.org'
 const isDev = process.env.NODE_ENV !== 'production'
 
 export default tatchiNextApp({
@@ -97,7 +97,7 @@ import { tatchiAppServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vit
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.tatchi.xyz'
+  const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.web3authn.org'
 
   return {
     plugins: [
@@ -145,7 +145,7 @@ import { tatchiAppServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vit
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.tatchi.xyz'
+  const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.web3authn.org'
 
   return {
     plugins: [
@@ -170,7 +170,7 @@ import path from 'node:path'
 import { buildPermissionsPolicy, buildWalletCsp } from '@tatchi-xyz/sdk/plugins/headers'
 
 const app = express()
-const walletOrigin = process.env.WALLET_ORIGIN || 'https://wallet.tatchi.xyz'
+const walletOrigin = process.env.WALLET_ORIGIN || 'https://wallet.web3authn.org'
 
 // App headers: enable cross-origin isolation and delegate WebAuthn
 app.use((req, res, next) => {
@@ -208,7 +208,7 @@ import { TatchiPasskey } from '@tatchi-xyz/sdk'
 
 const tatchi = new TatchiPasskey({
   iframeWallet: {
-    walletOrigin: 'https://wallet.tatchi.xyz'
+    walletOrigin: 'https://wallet.web3authn.org'
   },
   relayer: {
     url: 'https://relay.tatchi.xyz',

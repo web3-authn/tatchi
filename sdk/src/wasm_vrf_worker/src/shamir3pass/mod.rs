@@ -29,14 +29,14 @@ use crate::config::{
 };
 use base64ct::{Base64UrlUnpadded, Encoding};
 use chacha20poly1305::{
-    aead::{generic_array::GenericArray, Aead, Key, OsRng},
+    aead::{generic_array::GenericArray, Aead, Key},
     ChaCha20Poly1305, KeyInit,
 };
+use getrandom::getrandom;
 use hkdf::Hkdf;
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
 use num_traits::{One, Zero};
-use rand_core::RngCore;
 use sha2::Sha256;
 use wasm_bindgen::prelude::*;
 
@@ -175,7 +175,7 @@ impl Shamir3Pass {
 
         for _ in 0..SHAMIR_REJECTION_SAMPLING_MAX_ATTEMPTS {
             let mut buf = vec![0u8; bytes_needed];
-            OsRng.fill_bytes(&mut buf);
+            getrandom(&mut buf).map_err(|_| Shamir3PassError::RandomGenerationFailed)?;
 
             let candidate = BigUint::from_bytes_be(&buf) % &range;
             let k = &self.min_k + candidate;
@@ -252,7 +252,7 @@ impl Shamir3Pass {
         let cipher = ChaCha20Poly1305::new(Key::<ChaCha20Poly1305>::from_slice(&key_bytes));
 
         let mut nonce = [0u8; 12];
-        OsRng.fill_bytes(&mut nonce);
+        getrandom(&mut nonce).map_err(|_| Shamir3PassError::RandomGenerationFailed)?;
         let nonce_ga = GenericArray::from_slice(&nonce);
 
         let ciphertext = cipher

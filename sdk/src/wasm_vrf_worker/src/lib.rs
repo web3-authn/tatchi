@@ -210,12 +210,10 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         // Initial VRF encryption is performed in the DERIVE_VRF_KEYPAIR_FROM_PRF handler during registration
         // So this handler is somewhat redundant, but may be useful for future use cases
         WorkerRequestType::Shamir3PassClientEncryptCurrentVrfKeypair => {
-            let request: Shamir3PassClientEncryptCurrentVrfKeypairRequest =
-                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_shamir3pass_client_encrypt_current_vrf_keypair(
                 manager_rc.clone(),
                 id.clone(),
-                request,
+                Shamir3PassClientEncryptCurrentVrfKeypairRequest {},
             )
             .await
         }
@@ -231,12 +229,10 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         }
         // Server-side helpers used by Node relay-server, they lock and unlock the KEK (key encryption key)
         WorkerRequestType::Shamir3PassGenerateServerKeypair => {
-            let request: Shamir3PassGenerateServerKeypairRequest =
-                parse_typed_payload(payload.clone(), request_type)?;
             handlers::handle_shamir3pass_generate_server_keypair(
                 manager_rc.clone(),
                 id.clone(),
-                request,
+                Shamir3PassGenerateServerKeypairRequest {},
             )
         }
         WorkerRequestType::Shamir3PassApplyServerLock => {

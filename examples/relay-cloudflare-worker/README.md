@@ -21,8 +21,9 @@ extra requirements and limitations compared to the Express example.
 ## WASM bundling
 
 - The signer worker WASM is imported directly from the package sources
-  (`import signerWasm from '@tatchi/core/wasm'`).
-  Wrangler bundles the referenced file automatically; no `[wasm_modules]`
+  (`import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer'` and
+  `import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf'`).
+  Wrangler bundles the referenced files automatically; no `[wasm_modules]`
   section is required in `wrangler.toml`.
 - Do **not** try to `fetch` the WASM from an arbitrary URL at runtime. Workers
   sit behind restricted networking rules and cannot access `file://` or other
@@ -30,11 +31,20 @@ extra requirements and limitations compared to the Express example.
 
 ## Configuration and secrets
 
-- Secrets such as `RELAYER_PRIVATE_KEY`, `SHAMIR_*` values, and any optional
-  JWT configuration must be added via `wrangler secret put`. They are not stored
-  in `wrangler.toml`.
-- Optional CORS settings (`EXPECTED_ORIGIN`, `EXPECTED_WALLET_ORIGIN`) can be
-  set in `wrangler.toml` vars.
+- **Worker secrets** (sensitive) must be added via `wrangler secret put` (or the
+  Cloudflare dashboard). They are not stored in `wrangler.toml`:
+  - Required:
+    - `RELAYER_PRIVATE_KEY`
+    - `SHAMIR_P_B64U`, `SHAMIR_E_S_B64U`, `SHAMIR_D_S_B64U`
+  - Optional:
+    - `THRESHOLD_ED25519_MASTER_SECRET_B64U` (enables 2-party threshold signing)
+- **Worker vars** (non-secret) can be set in `wrangler.toml` `[vars]`, in the
+  Cloudflare dashboard, or at deploy-time via `wrangler deploy --var ...`:
+  - CORS allowlist (recommended to set explicitly if you use cookies):
+    - `EXPECTED_ORIGIN` (e.g. docs/app origin)
+    - `EXPECTED_WALLET_ORIGIN` (e.g. wallet iframe origin)
+  - Chain/runtime config (see `wrangler.toml` defaults):
+    - `RELAYER_ACCOUNT_ID`, `WEBAUTHN_CONTRACT_ID`, `NETWORK_ID`, `NEAR_RPC_URL`, etc.
 - If you enable Shamir rotation, configure the cron schedule in `[triggers]`
   and set `ENABLE_ROTATION="1"`.
 
@@ -42,6 +52,8 @@ extra requirements and limitations compared to the Express example.
 
 Threshold signing endpoints are enabled only when you provide:
 - `THRESHOLD_ED25519_MASTER_SECRET_B64U` (32 bytes, base64url) via `wrangler secret put`.
+
+You do **not** set this via `--var` (it’s a secret).
 
 ### Session configuration (optional)
 
@@ -55,10 +67,10 @@ Example hooks used in this example Worker entry:
 ```ts
 const session = new SessionService({
   jwt: {
-    signToken: ({ payload }) => jwt.sign(payload as any, env.JWT_SECRET || 'dev-insecure', {
+    signToken: ({ payload }) => jwt.sign(payload as any, env.JWT_SECRET || 'dev-token', {
       algorithm: 'HS256', issuer: 'relay-worker-demo', audience: 'tatchi-app-demo', expiresIn: 86400
     }),
-    verifyToken: async (token) => { try { return { valid: true, payload: jwt.verify(token, env.JWT_SECRET || 'dev-insecure') }; } catch { return { valid: false }; } }
+    verifyToken: async (token) => { try { return { valid: true, payload: jwt.verify(token, env.JWT_SECRET || 'dev-token') }; } catch { return { valid: false }; } }
   },
   // Minimal cookie config (defaults are fine for Lax; customize with hooks below if needed)
   cookie: { name: 'w3a_session' }
@@ -115,22 +127,55 @@ Cookie mode and CORS
 
 ## Deployment checklist
 
-1. `pnpm install` (once) inside `examples/relay-cloudflare-worker/`.
+1. From the repo root:
+   - Install workspace deps: `pnpm install`
+   - Build the SDK (required for the Worker bundle): `pnpm build:sdk-prod`
 2. Authenticate: `npx wrangler login` or `npx wrangler config` with an API
    token.
-3. Provision secrets:
+3. Provision required secrets (repeat for each Worker name you deploy):
    ```bash
-   npx wrangler secret put RELAYER_PRIVATE_KEY
-   npx wrangler secret put SHAMIR_P_B64U
-   npx wrangler secret put SHAMIR_E_S_B64U
-   npx wrangler secret put SHAMIR_D_S_B64U
+   # staging worker
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put RELAYER_PRIVATE_KEY --name w3a-relay-staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_P_B64U --name w3a-relay-staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_E_S_B64U --name w3a-relay-staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_D_S_B64U --name w3a-relay-staging
+
+   # prod worker
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put RELAYER_PRIVATE_KEY --name w3a-relay-prod
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_P_B64U --name w3a-relay-prod
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_E_S_B64U --name w3a-relay-prod
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_D_S_B64U --name w3a-relay-prod
    ```
-4. Deploy: `npx wrangler deploy` (Wrangler will bundle the SDK WASM automatically).
-5. Tail logs during testing: `npx wrangler tail`.
+4. Optional: provision threshold signing secret (repeat per worker name):
+   ```bash
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --name w3a-relay-staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --name w3a-relay-prod
+   ```
+5. Deploy:
+   ```bash
+   pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --name w3a-relay-staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --name w3a-relay-prod
+   ```
+6. Tail logs during testing:
+   ```bash
+   pnpm -C examples/relay-cloudflare-worker exec wrangler tail --name w3a-relay-staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler tail --name w3a-relay-prod
+   ```
+
+### CORS allowlist (recommended)
+
+If you want cookie-based sessions (`credentials: 'include'`), you must use an
+explicit allowlist (not `Access-Control-Allow-Origin: *`).
+
+Example mapping:
+- staging: `EXPECTED_ORIGIN=https://staging.tatchi.xyz`, `EXPECTED_WALLET_ORIGIN=https://staging.web3authn.org`
+- prod: `EXPECTED_ORIGIN=https://tatchi.xyz`, `EXPECTED_WALLET_ORIGIN=https://web3authn.org`
 
 ## Local testing tips
 
 - Use `wrangler dev --remote` to run against a real edge runtime. The local
   Miniflare-based dev server cannot emulate the WASM bundling behaviour.
 - The Worker logs detailed signer WASM initialization errors. If you see
-  `Missing SIGNER_WASM module`, verify the `[wasm_modules]` binding and redeploy.
+  a WASM init/import error, re-run `pnpm build:sdk-prod` and verify
+  `examples/relay-cloudflare-worker/wrangler.toml` includes the `CompiledWasm`
+  `[[rules]]` entry for `**/*.wasm`.

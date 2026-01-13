@@ -44,7 +44,7 @@ Apps can be compromised via malicious dependencies, XSS attacks, or supply chain
 - Steal encrypted keys and credentials
 - Modify functions to log sensitive data
 
-The wallet runs at its own dedicated origin (like `https://wallet.tatchi.xyz`) inside an iframe. This origin owns all long-lived secrets:
+The wallet runs at its own dedicated origin (like `https://wallet.web3authn.org`) inside an iframe. This origin owns all long-lived secrets:
 
 - Encrypted vault blobs (`C_near`, `wrapKeySalt`) and authenticator metadata (IndexedDB)
 - Encrypted VRF keypair material (at rest) and VRF session state (in VRF worker memory while unlocked)
@@ -59,7 +59,7 @@ When you configure the SDK, it mounts a hidden iframe from the wallet origin. Th
 <TatchiPasskeyProvider
   config={{
     iframeWallet: {
-      walletOrigin: 'https://wallet.tatchi.xyz',
+      walletOrigin: 'https://wallet.web3authn.org',
       walletServicePath: '/wallet-service',
     },
   }}

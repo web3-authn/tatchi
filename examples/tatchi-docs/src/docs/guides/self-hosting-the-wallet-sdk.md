@@ -28,7 +28,7 @@ Consider self-hosting if you need:
 - **Custom CSP policies**: Specific security requirements beyond the default configuration
 - **Compliance requirements**: Regulatory or organizational policies requiring all code to run on your domains
 
-If you're building a public application and don't have these requirements, using a shared wallet origin (like `wallet.tatchi.xyz`) can simplify deployment while still providing security through origin isolation.
+If you're building a public application and don't have these requirements, using a shared wallet origin (like `wallet.web3authn.org`) can simplify deployment while still providing security through origin isolation.
 
 ## 1) Publish the SDK assets
 

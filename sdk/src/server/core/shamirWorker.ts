@@ -21,12 +21,16 @@ import {
   type ShamirWasmModuleSupplier,
 } from './types.js';
 import { createWasmLoader, isNodeEnvironment } from './wasm-loader.js';
+import { base64UrlDecode, base64UrlEncode } from '../../utils/encoders';
 
 export { SHAMIR_P_B64U, get_shamir_p_b64u };
 
 let wasmInitialized = false;
 let wasmModuleOverride: ShamirWasmModuleSupplier | null = null;
 let wasmInitPromise: Promise<void> | null = null;
+
+const SHAMIR_REJECTION_SAMPLING_MAX_ATTEMPTS = 10;
+const SHAMIR_RANDOM_BYTES_OVERHEAD = 64;
 
 export function setShamirWasmModuleOverride(
   supplier: ShamirWasmModuleSupplier | null
@@ -75,6 +79,88 @@ const vrfWasmLoader = createWasmLoader(initWasm, {
   baseUrl: import.meta.url,
   fallbackUrls: getVrfWasmUrls(),
 });
+
+function bigintFromBytesBE(bytes: Uint8Array): bigint {
+  let out = 0n;
+  for (const b of bytes) {
+    out = (out << 8n) | BigInt(b);
+  }
+  return out;
+}
+
+function bigintToBytesBE(x: bigint): Uint8Array {
+  if (x < 0n) {
+    throw new Error('bigintToBytesBE: negative input');
+  }
+  if (x === 0n) {
+    // Match Rust BigUint::to_bytes_be() which returns an empty vec for zero.
+    return new Uint8Array([]);
+  }
+  const bytes: number[] = [];
+  let v = x;
+  while (v > 0n) {
+    bytes.push(Number(v & 0xffn));
+    v >>= 8n;
+  }
+  bytes.reverse();
+  return new Uint8Array(bytes);
+}
+
+function bitLengthBigint(x: bigint): number {
+  if (x <= 0n) return 0;
+  return x.toString(2).length;
+}
+
+function gcdBigint(a: bigint, b: bigint): bigint {
+  let x = a < 0n ? -a : a;
+  let y = b < 0n ? -b : b;
+  while (y !== 0n) {
+    const t = x % y;
+    x = y;
+    y = t;
+  }
+  return x;
+}
+
+function modInvBigint(a: bigint, m: bigint): bigint | null {
+  // Extended Euclidean algorithm for modular inverse.
+  let t = 0n;
+  let newT = 1n;
+  let r = m;
+  let newR = a % m;
+
+  while (newR !== 0n) {
+    const q = r / newR;
+    [t, newT] = [newT, t - q * newT];
+    [r, newR] = [newR, r - q * newR];
+  }
+
+  if (r !== 1n) return null;
+  const inv = t % m;
+  return inv >= 0n ? inv : inv + m;
+}
+
+async function getSecureRandomBytes(byteLength: number): Promise<Uint8Array> {
+  const out = new Uint8Array(byteLength);
+  const cryptoObj: any = (globalThis as any).crypto;
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    cryptoObj.getRandomValues(out);
+    return out;
+  }
+
+  if (isNodeEnvironment()) {
+    const nodeCrypto: any = await import('node:crypto');
+    if (typeof nodeCrypto.randomFillSync === 'function') {
+      nodeCrypto.randomFillSync(out);
+      return out;
+    }
+    if (typeof nodeCrypto.randomBytes === 'function') {
+      return new Uint8Array(nodeCrypto.randomBytes(byteLength));
+    }
+  }
+
+  throw new Error('Secure random generator unavailable');
+}
 
 /**
  * Ensure Shamir WASM module is initialized
@@ -141,6 +227,50 @@ export class Shamir3PassUtils {
   }
 
   async generateServerKeypair(): Promise<{ e_s_b64u: string; d_s_b64u: string }> {
+    // Make sure we have a configured prime `p` (initialize() is cheap + idempotent).
+    if (!this.p_b64u) {
+      await this.initialize();
+    } else {
+      // Best-effort: keep WASM configured for subsequent lock/unlock calls.
+      try {
+        await ensureWasmInitialized();
+        await configure_shamir_p(this.p_b64u);
+      } catch {
+        // Ignore: keygen is pure JS below; WASM load issues are surfaced when needed.
+      }
+    }
+
+    // Pure JS keygen to avoid WASM `getrandom` issues in Node ESM and other runtimes.
+    const pBytes = base64UrlDecode(this.p_b64u);
+    const p = bigintFromBytesBE(pBytes);
+    if (p <= 3n) {
+      throw new Error('Invalid Shamir prime p');
+    }
+    const pMinus1 = p - 1n;
+    const maxK = p - 2n;
+    const pBits = bitLengthBigint(p);
+    const minK = pBits >= 1024 ? (1n << 64n) : (1n << 32n);
+    const range = maxK - minK;
+    if (range <= 0n) {
+      throw new Error('Shamir prime too small for key generation');
+    }
+
+    const bytesNeeded = Math.ceil(bitLengthBigint(range) / 8) + SHAMIR_RANDOM_BYTES_OVERHEAD;
+
+    for (let attempt = 0; attempt < SHAMIR_REJECTION_SAMPLING_MAX_ATTEMPTS; attempt += 1) {
+      const buf = await getSecureRandomBytes(bytesNeeded);
+      const candidate = bigintFromBytesBE(buf) % range;
+      const e = minK + candidate;
+      if (gcdBigint(e, pMinus1) !== 1n) continue;
+      const d = modInvBigint(e, pMinus1);
+      if (!d) continue;
+
+      const e_s_b64u = base64UrlEncode(bigintToBytesBE(e));
+      const d_s_b64u = base64UrlEncode(bigintToBytesBE(d));
+      return { e_s_b64u, d_s_b64u };
+    }
+
+    // Fallback: attempt WASM-based generation if JS failed (e.g. no crypto available).
     await ensureWasmInitialized();
     const msg: VRFWorkerMessage<Shamir3PassGenerateServerKeypairRequest> = {
       type: 'SHAMIR3PASS_GENERATE_SERVER_KEYPAIR',
@@ -149,10 +279,7 @@ export class Shamir3PassUtils {
     };
     const res = await wasmHandleMessage(msg);
     if (!res?.success) throw new Error(res?.error || 'generateServerKeypair failed');
-    return {
-      e_s_b64u: res.data.e_s_b64u,
-      d_s_b64u: res.data.d_s_b64u
-    };
+    return { e_s_b64u: res.data.e_s_b64u, d_s_b64u: res.data.d_s_b64u };
   }
 
   async applyServerLock(req: ShamirApplyServerLockRequest): Promise<ShamirApplyServerLockResponse> {

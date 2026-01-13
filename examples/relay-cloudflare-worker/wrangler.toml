@@ -39,8 +39,8 @@ RELAYER_URL = "https://relay.tatchi.xyz"
 # Required at runtime by src/worker.ts
 
 # Optional CORS
-EXPECTED_ORIGIN = "https://tatchi.xyz, https://hosted.tatchi.xyz"
-EXPECTED_WALLET_ORIGIN = "https://wallet.tatchi.xyz, https://web3authn.org"
+EXPECTED_ORIGIN = "https://tatchi.xyz, https://staging.tatchi.xyz"
+EXPECTED_WALLET_ORIGIN = "https://wallet.web3authn.org, https://wallet-staging.web3authn.org"
 
 # Optional: explicitly enable cron and rotation (defaults to disabled)
 # ENABLE_ROTATION = "0"

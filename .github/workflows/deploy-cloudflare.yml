@@ -7,8 +7,6 @@ on:
         description: "Deployment environment (must match GitHub Environment name with secrets)"
         required: false
         default: "production"
-  push:
-    branches: [ main ]
 
 jobs:
   build-sdk:

@@ -13,7 +13,7 @@ exposed by the `TatchiPasskeyManager`.
 import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider'
 
 const config = {
-  iframeWallet: { walletOrigin: 'https://wallet.tatchi.xyz' },
+  iframeWallet: { walletOrigin: 'https://wallet.web3authn.org' },
   relayer: {
     url: 'https://relay.tatchi.xyz',
   },

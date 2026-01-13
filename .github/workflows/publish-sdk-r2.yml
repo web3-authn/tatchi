@@ -1,0 +1,156 @@
+name: publish-sdk-r2
+
+on:
+  workflow_dispatch:
+    inputs:
+      prefix:
+        description: "R2 prefix override (auto | releases | releases-dev | custom)"
+        required: false
+        default: "auto"
+  push:
+    branches: [ main, dev ]
+    tags: [ "v*" ]
+
+jobs:
+  publish-sdk-r2:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name == 'dev' && 'staging' || 'production' }}
+    permissions:
+      contents: read
+      id-token: write # for cosign keyless signing
+    env:
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install deps (workspace)
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: |
+          curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Build SDK (sdk, production)
+        run: pnpm build:sdk-prod
+
+      - name: Validate R2 secrets are present
+        run: |
+          set -eu
+          test -n "${R2_ENDPOINT:-}" || (echo "R2_ENDPOINT is not set" >&2; exit 1)
+          test -n "${R2_BUCKET:-}" || (echo "R2_BUCKET is not set" >&2; exit 1)
+          test -n "${AWS_ACCESS_KEY_ID:-}" || (echo "R2_ACCESS_KEY_ID is not set" >&2; exit 1)
+          test -n "${AWS_SECRET_ACCESS_KEY:-}" || (echo "R2_SECRET_ACCESS_KEY is not set" >&2; exit 1)
+
+      - name: Generate sha256 manifest (sorted)
+        run: |
+          cd sdk/dist
+          find . -type f \
+            ! -name "manifest.json" \
+            ! -name "manifest.sig" \
+            -exec sha256sum {} + | sort > manifest.sha256
+
+      - name: Convert manifest to JSON
+        run: |
+          cd sdk/dist
+          python3 - <<'PY'
+          import json, pathlib
+          entries = []
+          for line in pathlib.Path("manifest.sha256").read_text().splitlines():
+            parts = line.split(maxsplit=1)
+            if len(parts) != 2:
+              continue
+            digest, path = parts
+            entries.append({"path": path, "sha256": digest})
+          pathlib.Path("manifest.json").write_text(json.dumps({"files": entries}, indent=2))
+          PY
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Sign manifest with cosign (keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cd sdk/dist
+          cosign sign-blob --yes --output-signature manifest.sig manifest.json
+
+      - name: Install AWS CLI (via pip)
+        run: |
+          python3 -m pip install --user awscli
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Publish to Cloudflare R2 (by commit SHA)
+        run: |
+          set -euxo pipefail
+
+          # Derive default prefix based on ref, unless overridden.
+          # - main -> releases/<sha>
+          # - dev  -> releases-dev/<sha>
+          # - tag  -> releases/<sha> + releases/<tag> (see next step)
+          INPUT_PREFIX="${{ github.event.inputs.prefix || 'auto' }}"
+          if [ "$INPUT_PREFIX" != "auto" ]; then
+            BASE_PREFIX="$INPUT_PREFIX"
+          elif [ "${{ github.ref_name }}" = "dev" ]; then
+            BASE_PREFIX="releases-dev"
+          else
+            BASE_PREFIX="releases"
+          fi
+
+          PREFIX="${BASE_PREFIX}/${{ github.sha }}"
+          echo "Publishing to s3://$R2_BUCKET/$PREFIX" >&2
+
+          aws s3 sync sdk/dist "s3://$R2_BUCKET/$PREFIX" \
+            --endpoint-url "$R2_ENDPOINT" --delete
+
+          for f in $(find sdk/dist -name "*.wasm" -type f); do
+            key=${f#sdk/dist/}
+            aws s3 cp "$f" "s3://$R2_BUCKET/$PREFIX/$key" \
+              --endpoint-url "$R2_ENDPOINT" \
+              --content-type application/wasm \
+              --metadata-directive REPLACE
+          done
+
+      - name: Optionally publish under tag name when releasing
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euxo pipefail
+          PREFIX="releases/${{ github.ref_name }}"
+          echo "Publishing tag alias to s3://$R2_BUCKET/$PREFIX" >&2
+
+          aws s3 sync sdk/dist "s3://$R2_BUCKET/$PREFIX" \
+            --endpoint-url "$R2_ENDPOINT" --delete
+
+          for f in $(find sdk/dist -name "*.wasm" -type f); do
+            key=${f#sdk/dist/}
+            aws s3 cp "$f" "s3://$R2_BUCKET/$PREFIX/$key" \
+              --endpoint-url "$R2_ENDPOINT" \
+              --content-type application/wasm \
+              --metadata-directive REPLACE
+          done

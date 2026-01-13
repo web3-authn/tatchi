@@ -1,0 +1,115 @@
+name: deploy-relay-prod
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  deploy-relay-prod:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      RECOVER_EMAIL_RECIPIENT: ${{ vars.RECOVER_EMAIL_RECIPIENT }}
+      WORKER_NAME: w3a-relay-prod
+      # Optional: Threshold signing (2p FROST; derived relayer share)
+      THRESHOLD_ED25519_SHARE_MODE: derive
+      THRESHOLD_ED25519_MASTER_SECRET_B64U: ${{ secrets.THRESHOLD_ED25519_MASTER_SECRET_B64U }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: |
+          curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+
+      - name: Setup Bun (for worker bundling step in build scripts)
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install deps (workspace)
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build SDK (sdk, production) for Worker bundling
+        run: pnpm build:sdk-prod
+
+      - name: Deploy Cloudflare Worker (relay)
+        run: |
+          set -euo pipefail
+          if [ -z "${RECOVER_EMAIL_RECIPIENT:-}" ]; then
+            echo "RECOVER_EMAIL_RECIPIENT env var is not set in this GitHub Environment" >&2
+            exit 1
+          fi
+
+          # Optional: set/update secrets for threshold signing (persist across deploys).
+          if [ -n "${THRESHOLD_ED25519_MASTER_SECRET_B64U:-}" ]; then
+            printf '%s' "$THRESHOLD_ED25519_MASTER_SECRET_B64U" \
+              | pnpm -C examples/relay-cloudflare-worker exec wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --name "$WORKER_NAME"
+          fi
+
+          # Build worker vars (avoid setting empty strings).
+          ARGS=(--var RECOVER_EMAIL_RECIPIENT="${RECOVER_EMAIL_RECIPIENT}")
+          ARGS+=(--var THRESHOLD_ED25519_SHARE_MODE="${THRESHOLD_ED25519_SHARE_MODE}")
+
+          pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --name "$WORKER_NAME" "${ARGS[@]}"
+
+      - name: Configure Email Routing for RECOVER_EMAIL_RECIPIENT
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CF_ZONE_ID:-}" ]; then
+            echo "CLOUDFLARE_ZONE_ID / CF_ZONE_ID not set; skipping email routing configuration" >&2
+            exit 0
+          fi
+          if [ -z "${RECOVER_EMAIL_RECIPIENT:-}" ]; then
+            echo "RECOVER_EMAIL_RECIPIENT env var is not set in this GitHub Environment" >&2
+            exit 1
+          fi
+          API="https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/email/routing/rules"
+          echo "Creating Email Routing rule for ${RECOVER_EMAIL_RECIPIENT} → ${WORKER_NAME}"
+          # NOTE: Payload schema may need adjustment to match the latest
+          # Cloudflare Email Routing API. See Cloudflare docs for details.
+          curl -sS -X POST "$API" \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data @- << JSON
+          {
+            "enabled": true,
+            "name": "${RECOVER_EMAIL_RECIPIENT} to ${WORKER_NAME}",
+            "matchers": [
+              {
+                "type": "literal",
+                "field": "to",
+                "value": "${RECOVER_EMAIL_RECIPIENT}"
+              }
+            ],
+            "actions": [
+              {
+                "type": "worker",
+                "value": ["${WORKER_NAME}"]
+              }
+            ]
+          }
+          JSON

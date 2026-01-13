@@ -48,7 +48,7 @@ yarn add @tatchi-xyz/sdk
 
 
 ### Developer First
-  - 100% open source. Self‑host and deploy your own WebAuthn contracts, or get started quickly by pointing to the hosted wallet SDK at https://wallet.tatchi.xyz (use the same account to log into multiple apps).
+  - 100% open source. Self‑host and deploy your own WebAuthn contracts, or get started quickly by pointing to the hosted wallet SDK at https://wallet.web3authn.org (use the same account to log into multiple apps).
   - App‑controlled UX. Your app owns the wallet UX and can set transaction confirmation UX policies (require click vs auto‑proceed), themes (dark vs light), ui modes (modal vs drawer).
 
 

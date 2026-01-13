@@ -16,7 +16,7 @@ import { TatchiPasskey, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk'
 const tatchi = new TatchiPasskey({
   ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
   iframeWallet: {
-    walletOrigin: 'https://wallet.tatchi.xyz',
+    walletOrigin: 'https://wallet.web3authn.org',
   },
   relayer: {
     url: 'https://relay.example.com',
