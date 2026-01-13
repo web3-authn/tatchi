@@ -19,6 +19,7 @@ import type { OriginPolicyInput, UserVerificationPolicy } from '../types/authent
 import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
 import {
   getCredentialIdsContractCall,
+  hasAccessKey,
   syncAuthenticatorsContractCall
 } from '../rpcCalls';
 
@@ -113,7 +114,7 @@ export class AccountRecoveryFlow {
         // Then infer the accountId from userHandle (set at registration time)
         const challenge = createRandomVRFChallenge();
         const credential = await this.context.webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
-          // Account is unknown here – salts aren't used downstream for discovery
+          // Account is unknown here – we only need userHandle for inference.
           nearAccountId: '' as AccountId,
           challenge: challenge as VRFChallenge,
           credentialIds: [],
@@ -123,11 +124,16 @@ export class AccountRecoveryFlow {
         const inferredAccountId = parseAccountIdFromUserHandle(credential.response?.userHandle);
 
         const option: PasskeyOption = {
-          credentialId: credential.id,
+          // Use rawId (base64url) consistently with on-chain/IndexedDB credential IDs.
+          credentialId: credential.rawId,
           accountId: inferredAccountId ? toAccountId(inferredAccountId) : null,
           publicKey: '',
           displayName: inferredAccountId ? `${inferredAccountId}` : 'Recovered passkey',
-          credential,
+          // Do not reuse this discovery credential during recovery:
+          // PRF outputs are scoped to the salts used above (nearAccountId=""),
+          // and will not match the real account-specific salts needed to
+          // deterministically derive the correct on-chain access key.
+          credential: null,
         };
         this.availableAccounts = [option];
       }
@@ -398,11 +404,17 @@ export async function recoverAccount(
       throw new Error('Missing wrapKeySalt in recovered key material; re-register to upgrade vault format.');
     }
 
-    // Check if the recovered public key has access to the account
-    const hasAccess = await nearClient.viewAccessKey(accountId, recoveredKeypair.publicKey);
+    // Check if the recovered public key has access to the account.
+    // `viewAccessKey` throws when the key doesn't exist; use the boolean helper instead.
+    const hasAccess = await hasAccessKey(nearClient, accountId, recoveredKeypair.publicKey, { attempts: 1, delayMs: 0 });
 
     if (!hasAccess) {
-      return handleRecoveryError(accountId, `Account ${accountId} was not created with this passkey`, onError, afterCall);
+      return handleRecoveryError(
+        accountId,
+        `Account ${accountId} does not have access key ${recoveredKeypair.publicKey} (check you selected the correct passkey)`,
+        onError,
+        afterCall
+      );
     }
 
     const recoveryResult = await performAccountRecovery({
