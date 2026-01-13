@@ -222,19 +222,13 @@ impl From<ParsePayloadError> for JsValue {
     }
 }
 
-fn should_redact_parse_payload_details(message_name: &str) -> bool {
-    matches!(message_name, "SIGN_TRANSACTION_WITH_KEYPAIR")
-}
-
 fn format_parse_payload_error(
     message_name: &str,
     serde_error: &serde_wasm_bindgen::Error,
 ) -> String {
-    let message = if should_redact_parse_payload_details(message_name) {
-        format!("Invalid payload for {}", message_name)
-    } else {
-        format!("Invalid payload for {}: {}", message_name, serde_error)
-    };
+    // We rely on scrub_error_message to hide secrets.
+    // We want the structural details (e.g. "invalid type: found integer") to remain.
+    let message = format!("Invalid payload for {}: {}", message_name, serde_error);
     scrub_error_message(&message)
 }
 
