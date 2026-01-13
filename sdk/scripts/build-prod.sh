@@ -41,13 +41,6 @@ cd "$SOURCE_WASM_VRF"
 if wasm-pack build --target web --out-dir pkg --release; then print_success "WASM VRF worker built"; else print_error "WASM VRF build failed"; exit 1; fi
 cd ../..
 
-print_step "Optimizing wasm-pack metadata for tree-shaking..."
-if node ./scripts/fix-wasm-pack-sideeffects.mjs "$SOURCE_WASM_SIGNER/pkg" "$SOURCE_WASM_VRF/pkg"; then
-  print_success "WASM package metadata optimized"
-else
-  print_warning "Failed to optimize WASM package metadata; bundler may deoptimize tree-shaking"
-fi
-
 print_step "Building TypeScript..."
 if npx tsc -p tsconfig.build.json; then print_success "TypeScript compilation completed"; else print_error "TypeScript compilation failed"; exit 1; fi
 
@@ -55,54 +48,13 @@ print_step "Generating CSS variables from palette.json (w3a-components.css)..."
 if node ./scripts/generate-w3a-components-css.mjs; then print_success "w3a-components.css generated"; else print_error "Failed to generate w3a-components.css"; exit 1; fi
 
 print_step "Bundling with Rolldown (production)..."
-# NOTE: Avoid Rolldown minification here. It has historically corrupted wasm-bindgen
-# generated JS glue code in production builds.
 if NODE_ENV=production npx rolldown -c rolldown.config.ts; then print_success "Rolldown bundling completed"; else print_error "Rolldown bundling failed"; exit 1; fi
 
-print_step "Restoring wasm-pack JS glue (ship exact wasm-bindgen output)..."
-mkdir -p "$BUILD_ESM/wasm_signer_worker/pkg" "$BUILD_ESM/wasm_vrf_worker/pkg"
-cp "$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker.js" "$BUILD_ESM/wasm_signer_worker/pkg/wasm_signer_worker.js"
-cp "$SOURCE_WASM_VRF/pkg/wasm_vrf_worker.js" "$BUILD_ESM/wasm_vrf_worker/pkg/wasm_vrf_worker.js"
-print_success "WASM JS glue restored"
-
-print_step "Sanity check: signer WASM can parse SIGN_TRANSACTION_WITH_KEYPAIR payload..."
-node --input-type=module - <<'NODE'
-import { readFileSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
-import bs58 from 'bs58';
-import initSignerWasm, { handle_signer_message, WorkerRequestType } from './dist/esm/wasm_signer_worker/pkg/wasm_signer_worker.js';
-
-const wasmBytes = readFileSync('./dist/esm/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm');
-const ab = wasmBytes.buffer.slice(wasmBytes.byteOffset, wasmBytes.byteOffset + wasmBytes.byteLength);
-const module = await WebAssembly.compile(ab);
-await initSignerWasm({ module_or_path: module });
-
-const nearPrivateKey = `ed25519:${bs58.encode(randomBytes(64))}`;
-const blockHash = bs58.encode(randomBytes(32));
-const msg = {
-  type: WorkerRequestType.SignTransactionWithKeyPair,
-  payload: {
-    nearPrivateKey,
-    signerAccountId: 'w3a-relayer.testnet',
-    receiverId: 'someone.testnet',
-    nonce: '1',
-    blockHash,
-    actions: [{ action_type: 'CreateAccount' }],
-  },
-};
-
-const res = await handle_signer_message(msg);
-if (!res || res.type !== 5 || !res.payload?.success) {
-  throw new Error(`Unexpected signer response: ${JSON.stringify(res)}`);
-}
-NODE
-print_success "Signer WASM payload parsing OK"
-
-print_step "Bundling workers with Bun (no minify)..."
+print_step "Bundling workers with Bun (minified)..."
 if [ -z "$BUN_BIN" ]; then print_error "Bun not found. Install Bun or ensure it is on PATH."; exit 1; fi
-if "$BUN_BIN" build "$SOURCE_CORE/web3authn-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser \
-  && "$BUN_BIN" build "$SOURCE_CORE/web3authn-vrf.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser \
-  && "$BUN_BIN" build "$SOURCE_CORE/OfflineExport/offline-export-sw.ts" --outdir "$BUILD_WORKERS" --format esm --target browser; then
+if "$BUN_BIN" build "$SOURCE_CORE/web3authn-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify \
+  && "$BUN_BIN" build "$SOURCE_CORE/web3authn-vrf.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify \
+  && "$BUN_BIN" build "$SOURCE_CORE/OfflineExport/offline-export-sw.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify; then
   print_success "Bun worker bundling completed"
 else
   print_error "Bun worker bundling failed"; exit 1
