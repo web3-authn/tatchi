@@ -1,6 +1,6 @@
 [package]
 name = "wasm_signer_worker"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 description = "Web3Authn Signer worker"
 repository = "https://github.com/web3-authn/sdk"
