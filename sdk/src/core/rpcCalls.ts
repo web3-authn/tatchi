@@ -500,7 +500,7 @@ export async function syncAuthenticatorsContractCall(
   nearClient: NearClient,
   contractId: string,
   accountId: AccountId
-): Promise<Array<{ credentialId: string, authenticator: StoredAuthenticator }>> {
+): Promise<Array<{ credentialId: string, authenticator: StoredAuthenticator, nearPublicKey?: string }>> {
   try {
     const authenticatorsResult = await getAuthenticatorsByUser(nearClient, contractId, accountId);
     if (authenticatorsResult && Array.isArray(authenticatorsResult)) {
@@ -541,6 +541,13 @@ export async function syncAuthenticatorsContractCall(
           return undefined;
         })();
 
+        const nearPublicKey = (() => {
+          const raw = (contractAuthenticator as any).near_public_key;
+          if (typeof raw !== 'string') return undefined;
+          const trimmed = raw.trim();
+          return trimmed ? ensureEd25519Prefix(trimmed) : undefined;
+        })();
+
         return {
           credentialId,
           authenticator: {
@@ -553,7 +560,8 @@ export async function syncAuthenticatorsContractCall(
             // Store the actual device number from contract (no fallback)
             deviceNumber: contractAuthenticator.device_number,
             vrfPublicKeys
-          }
+          },
+          ...(nearPublicKey ? { nearPublicKey } : {})
         };
       });
     }

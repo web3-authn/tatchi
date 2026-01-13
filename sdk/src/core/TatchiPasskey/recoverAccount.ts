@@ -8,7 +8,7 @@ import type {
   WebAuthnAuthenticationCredential
 } from '../types';
 import type { EncryptedVRFKeypair, ServerEncryptedVrfKeypair } from '../types/vrf-worker';
-import { validateNearAccountId } from '../../utils/validation';
+import { ensureEd25519Prefix, validateNearAccountId } from '../../utils/validation';
 import { parseAccountIdFromUserHandle } from '../WebAuthnManager/userHandle';
 import { toAccountId } from '../types/accountIds';
 import { createRandomVRFChallenge } from '../types/vrf-worker';
@@ -17,6 +17,7 @@ import { IndexedDBManager } from '../IndexedDBManager';
 import type { VRFInputData } from '../types/vrf-worker';
 import type { OriginPolicyInput, UserVerificationPolicy } from '../types/authenticatorOptions';
 import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
+import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
 import {
   getCredentialIdsContractCall,
   hasAccessKey,
@@ -103,10 +104,11 @@ export class AccountRecoveryFlow {
   async discover(accountId: string): Promise<PasskeyOptionWithoutCredential[]> {
     try {
       this.phase = 'discovering';
-      const hasValidAccount = !!accountId && validateNearAccountId(accountId).valid;
+      const normalizedAccountId = normalizeRecoveryAccountIdInput(accountId);
+      const hasValidAccount = !!normalizedAccountId && validateNearAccountId(normalizedAccountId).valid;
 
       if (hasValidAccount) {
-        const nearAccountId = toAccountId(accountId);
+        const nearAccountId = toAccountId(normalizedAccountId);
         // Contract-based lookup; no WebAuthn prompt during discovery
         this.availableAccounts = await getRecoverableAccounts(this.context, nearAccountId);
       } else {
@@ -279,6 +281,24 @@ export class AccountRecoveryFlow {
     this.availableAccounts = undefined;
     this.error = undefined;
   }
+}
+
+function normalizeRecoveryAccountIdInput(input: string): string {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+
+  // Common copy/paste: Nearblocks account URL
+  const match = raw.match(/nearblocks\.io\/(?:address|account)\/([^/?#]+)/i);
+  if (match?.[1]) return match[1];
+
+  try {
+    const u = new URL(raw);
+    const parts = String(u.pathname || '').split('/').filter(Boolean);
+    const idx = parts.findIndex((p) => p === 'address' || p === 'account');
+    if (idx >= 0 && parts[idx + 1]) return parts[idx + 1];
+  } catch {}
+
+  return raw;
 }
 
 /**
@@ -609,7 +629,9 @@ async function performAccountRecovery({
       context,
       accountId,
       deviceNumber,
-      credential,
+      localPublicKey: publicKey,
+      wrapKeySalt: String(encryptedKeypair.wrapKeySalt || '').trim(),
+      contractAuthenticators,
     });
 
     // 5. Unlock VRF keypair in memory for immediate use
@@ -789,7 +811,9 @@ async function activateThresholdEnrollment(args: {
   context: PasskeyManagerContext;
   accountId: AccountId;
   deviceNumber: number;
-  credential: WebAuthnAuthenticationCredential;
+  localPublicKey: string;
+  wrapKeySalt: string;
+  contractAuthenticators: Array<{ credentialId: string; authenticator: StoredAuthenticator; nearPublicKey?: string }>;
 }): Promise<void> {
   const deviceNumber = parseDeviceNumber(args.deviceNumber, { min: 1 });
   if (deviceNumber === null) {
@@ -805,13 +829,71 @@ async function activateThresholdEnrollment(args: {
   const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(args.accountId, deviceNumber);
   if (existing) return;
 
-	  const enrollment = await args.context.webAuthnManager.enrollThresholdEd25519Key({
-	    credential: args.credential,
-	    nearAccountId: args.accountId,
-	    deviceNumber,
-	  });
+  // Avoid introducing another TouchID/WebAuthn prompt during account recovery:
+  // best-effort restore of threshold key metadata (no relayer keygen, no AddKey).
+  try {
+    const thresholdPublicKey = await inferThresholdPublicKeyNoPrompt({
+      nearClient: args.context.nearClient,
+      accountId: args.accountId,
+      localPublicKey: args.localPublicKey,
+      contractAuthenticators: args.contractAuthenticators,
+    });
+    if (!thresholdPublicKey) return;
+    if (!args.wrapKeySalt) return;
 
-  if (!enrollment.success) {
-    throw new Error(enrollment.error || 'Threshold enrollment failed');
+    await IndexedDBManager.nearKeysDB.storeKeyMaterial({
+      kind: 'threshold_ed25519_2p_v1',
+      nearAccountId: args.accountId,
+      deviceNumber,
+      publicKey: thresholdPublicKey,
+      wrapKeySalt: args.wrapKeySalt,
+      relayerKeyId: thresholdPublicKey, // default: relayerKeyId := publicKey
+      clientShareDerivation: 'prf_first_v1',
+      participants: buildThresholdEd25519Participants2pV1({
+        relayerKeyId: thresholdPublicKey,
+        relayerUrl: args.context.configs?.relayer?.url,
+        clientShareDerivation: 'prf_first_v1',
+      }),
+      timestamp: Date.now(),
+    });
+  } catch (e) {
+    console.warn('[recoverAccount] Skipping threshold key restoration (non-fatal):', e);
   }
+}
+
+async function inferThresholdPublicKeyNoPrompt(args: {
+  nearClient: PasskeyManagerContext['nearClient'];
+  accountId: AccountId;
+  localPublicKey: string;
+  contractAuthenticators: Array<{ credentialId: string; authenticator: StoredAuthenticator; nearPublicKey?: string }>;
+}): Promise<string | null> {
+  const localKeys = new Set<string>();
+  const localPublicKey = ensureEd25519Prefix(String(args.localPublicKey || '').trim());
+  if (localPublicKey) localKeys.add(localPublicKey);
+
+  for (const entry of args.contractAuthenticators) {
+    const pk = ensureEd25519Prefix(String(entry.nearPublicKey || '').trim());
+    if (pk) localKeys.add(pk);
+  }
+
+  const accessKeyList = await args.nearClient.viewAccessKeyList(String(args.accountId));
+  const onChainKeys = Array.from(
+    new Set(
+      (accessKeyList?.keys || [])
+        .map((k: any) => ensureEd25519Prefix(String(k?.public_key || '').trim()))
+        .filter((k: string) => !!k),
+    ),
+  );
+
+  // Threshold key is any access key not associated with a device-local key.
+  const candidates = onChainKeys.filter((k) => !localKeys.has(k));
+  if (candidates.length === 1) return candidates[0];
+
+  // Fallback: if the account has exactly two keys, treat the "other" key as threshold.
+  if (onChainKeys.length === 2 && localPublicKey) {
+    const other = onChainKeys.find((k) => k !== localPublicKey);
+    return other || null;
+  }
+
+  return null;
 }
