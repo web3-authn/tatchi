@@ -5,7 +5,7 @@ import type {
   ShamirConfigEnvInput,
   ZkEmailProverConfigEnvInput,
 } from './types';
-import { toOptionalTrimmedString } from '../../utils/validation';
+import { toOptionalTrimmedString, toTrimmedString } from '../../utils/validation';
 
 export const AUTH_SERVICE_CONFIG_DEFAULTS = {
   // Prefer FastNEAR for testnet by default (more reliable in practice).
@@ -141,16 +141,16 @@ function normalizeThresholdEd25519KeyStoreConfig(
 }
 
 export function createAuthServiceConfig(input: AuthServiceConfigInput): AuthServiceConfig {
-  const networkId = String(input.networkId || '').trim() || AUTH_SERVICE_CONFIG_DEFAULTS.networkId;
+  const networkId = toTrimmedString(input.networkId) || AUTH_SERVICE_CONFIG_DEFAULTS.networkId;
   const config: AuthServiceConfig = {
-    relayerAccountId: input.relayerAccountId,
-    relayerPrivateKey: input.relayerPrivateKey,
-    webAuthnContractId: input.webAuthnContractId,
-    nearRpcUrl: String(input.nearRpcUrl || '').trim() || defaultNearRpcUrl(networkId),
+    relayerAccountId: toTrimmedString(input.relayerAccountId),
+    relayerPrivateKey: toTrimmedString(input.relayerPrivateKey),
+    webAuthnContractId: toTrimmedString(input.webAuthnContractId),
+    nearRpcUrl: toTrimmedString(input.nearRpcUrl) || defaultNearRpcUrl(networkId),
     networkId: networkId,
-    accountInitialBalance: String(input.accountInitialBalance || '').trim()
+    accountInitialBalance: toTrimmedString(input.accountInitialBalance)
       || AUTH_SERVICE_CONFIG_DEFAULTS.accountInitialBalance,
-    createAccountAndRegisterGas: String(input.createAccountAndRegisterGas || '').trim()
+    createAccountAndRegisterGas: toTrimmedString(input.createAccountAndRegisterGas)
       || AUTH_SERVICE_CONFIG_DEFAULTS.createAccountAndRegisterGas,
     shamir: normalizeShamirConfig(input.shamir),
     signerWasm: input.signerWasm,

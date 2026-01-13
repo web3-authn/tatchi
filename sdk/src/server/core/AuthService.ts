@@ -40,6 +40,7 @@ import {
   type DelegateActionPolicy,
 } from '../delegateAction';
 import { coerceLogger, type NormalizedLogger } from './logger';
+import { errorMessage } from '../../utils/errors';
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -434,10 +435,11 @@ export class AuthService {
 
       } catch (error: any) {
         this.logger.error(`Account creation failed for ${request.accountId}:`, error);
+        const msg = errorMessage(error) || 'Unknown account creation error';
         return {
           success: false,
-          error: error.message || 'Unknown account creation error',
-          message: `Failed to create account ${request.accountId}: ${error.message}`
+          error: msg,
+          message: `Failed to create account ${request.accountId}: ${msg}`
         };
       }
     }, `create account ${request.accountId}`);
@@ -515,10 +517,11 @@ export class AuthService {
 
       } catch (error: any) {
         this.logger.error(`Atomic registration failed for ${request.new_account_id}:`, error);
+        const msg = errorMessage(error) || 'Unknown atomic registration error';
         return {
           success: false,
-          error: error.message || 'Unknown atomic registration error',
-          message: `Failed to create and register account ${request.new_account_id}: ${error.message}`
+          error: msg,
+          message: `Failed to create and register account ${request.new_account_id}: ${msg}`
         };
       }
     }, `atomic create and register ${request.new_account_id}`);
@@ -783,7 +786,21 @@ export class AuthService {
     };
     // uses wasm signer worker's SignTransactionWithKeyPair action,
     // which doesn't require VRF worker session
-    const response = await handle_signer_message(message);
+    let response: unknown;
+    try {
+      response = await handle_signer_message(message);
+    } catch (e: unknown) {
+      const msg = errorMessage(e);
+      // This specific error is intentionally redacted inside the WASM worker.
+      // When it occurs in production, it's commonly due to a JS/WASM version mismatch
+      // (the JS message schema changed but an old worker wasm is still deployed).
+      if (msg.includes('Invalid payload for SIGN_TRANSACTION_WITH_KEYPAIR')) {
+        throw new Error(
+          'Signer WASM rejected SIGN_TRANSACTION_WITH_KEYPAIR payload. Rebuild + redeploy the relayer so the bundled `wasm_signer_worker.js` and `wasm_signer_worker_bg.wasm` come from the same build.',
+        );
+      }
+      throw (e instanceof Error ? e : new Error(msg || 'Signing failed'));
+    }
     const {
       transaction,
       signature,
@@ -876,7 +893,10 @@ export class AuthService {
         } catch (error: any) {
           this.queueStats.failed++;
           this.queueStats.pending--;
-          this.logger.error(`[AuthService] Failed: ${description} (failed: ${this.queueStats.failed}):`, error?.message);
+          this.logger.error(
+            `[AuthService] Failed: ${description} (failed: ${this.queueStats.failed}):`,
+            errorMessage(error) || 'unknown error',
+          );
           throw error;
         }
       })
