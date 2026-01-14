@@ -89,10 +89,6 @@ const emitGradients = () => {
   return names.map((n) => `  --w3a-gradient-${n}: ${gradients[n]};`).join('\n');
 };
 
-// Resolve theme vars from palette.themes if present; otherwise fall back to prior mapping
-const buttonBg = resolveRef(tokens.buttonBackground) || (chroma?.blue?.['500'] || '#3b82f6');
-const buttonHoverBg = resolveRef(tokens.buttonHoverBackground) || (chroma?.blue?.['400'] || '#60a5fa');
-
 // Use centralized theme maps from src/theme/base-styles.js
 const baseStylesPath = path.join(repoRoot, 'src', 'theme', 'base-styles.js');
 const base = await import(pathToFileURL(baseStylesPath).href);
