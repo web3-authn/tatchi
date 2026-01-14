@@ -87,14 +87,35 @@ jobs:
             echo "RECOVER_EMAIL_RECIPIENT env var is not set in this GitHub Environment" >&2
             exit 1
           fi
-          API="https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/email/routing/rules"
-          echo "Creating Email Routing rule for ${RECOVER_EMAIL_RECIPIENT} → ${WORKER_NAME}"
-          # NOTE: Payload schema may need adjustment to match the latest
-          # Cloudflare Email Routing API. See Cloudflare docs for details.
-          curl -sS -X POST "$API" \
-            -H "Authorization: Bearer $CF_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            --data @- << JSON
+          if [ -z "${WORKER_NAME:-}" ]; then
+            echo "WORKER_NAME env var is not set in this GitHub Environment" >&2
+            exit 1
+          fi
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "jq is required on the runner to manage Cloudflare Email Routing rules" >&2
+            exit 1
+          fi
+
+          API_BASE="https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/email/routing/rules"
+          auth=(-H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json")
+
+          echo "Ensuring Email Routing rule for ${RECOVER_EMAIL_RECIPIENT} → ${WORKER_NAME}"
+
+          existing="$(curl -sS -X GET "$API_BASE" "${auth[@]}")"
+          echo "$existing" | jq -e '.success == true' >/dev/null || { echo "$existing"; exit 1; }
+
+          # Delete any existing rules for this recipient (prevents legacy routes like worker:w3a-relay).
+          rule_ids="$(echo "$existing" | jq -r --arg r "$RECOVER_EMAIL_RECIPIENT" '.result[]? | select(.matchers[]? | (.value? == $r)) | .id')"
+          if [ -n "${rule_ids:-}" ]; then
+            echo "$rule_ids" | while read -r id; do
+              [ -z "${id:-}" ] && continue
+              echo "Deleting existing Email Routing rule id=$id for ${RECOVER_EMAIL_RECIPIENT}"
+              del="$(curl -sS -X DELETE "$API_BASE/$id" "${auth[@]}")"
+              echo "$del" | jq -e '.success == true' >/dev/null || { echo "$del"; exit 1; }
+            done
+          fi
+
+          create="$(curl -sS -X POST "$API_BASE" "${auth[@]}" --data @- << JSON
           {
             "enabled": true,
             "name": "${RECOVER_EMAIL_RECIPIENT} to ${WORKER_NAME}",
@@ -113,3 +134,5 @@ jobs:
             ]
           }
           JSON
+          )"
+          echo "$create" | jq -e '.success == true' >/dev/null || { echo "$create"; exit 1; }
