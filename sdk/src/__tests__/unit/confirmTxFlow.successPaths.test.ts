@@ -4,6 +4,8 @@ import { setupBasicPasskeyTest } from '../setup';
 const IMPORT_PATHS = {
   handle: '/sdk/esm/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js',
   types: '/sdk/esm/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/types.js',
+  localOnly: '/sdk/esm/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/flows/localOnly.js',
+  litTags: '/sdk/esm/core/WebAuthnManager/LitComponents/tags.js',
 } as const;
 
 test.describe('confirmTxFlow – success paths', () => {
@@ -105,6 +107,131 @@ test.describe('confirmTxFlow – success paths', () => {
     // LocalOnly decrypt flows should not surface wrap key material on the main thread.
     expect(result.wrapKeySeed).toBeUndefined();
     expect(result.wrapKeySalt).toBeUndefined();
+  });
+
+  test('LocalOnly: decryptPrivateKeyWithPrf skips intermediate confirm UI in wallet-iframe host mode', async ({ page }) => {
+    // Export Private Key UX in wallet-iframe host mode:
+    // - For the initial DECRYPT_PRIVATE_KEY_WITH_PRF step, we should proceed directly to the
+    //   TouchID/WebAuthn prompt (no "Confirm Decryption" UI that requires an extra click).
+    //
+    // Therefore the effective confirmation behavior in host mode must be:
+    // - `uiMode: 'skip'` (skip intermediate confirmer UI entirely)
+    // - `behavior: 'autoProceed'` (no click gating; go straight to TouchID prompt)
+    //
+    // If we ever regress to `uiMode: 'drawer'` + `behavior: 'requireClick'`, the user is forced
+    // to click a redundant drawer before the TouchID prompt appears (the bug that prompted this test).
+    const result = await page.evaluate(async ({ paths }) => {
+      const types = await import(paths.types);
+      const tags = await import(paths.litTags);
+      const localOnly = await import(paths.localOnly);
+
+      // Force wallet-iframe host behavior (test-only global override).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (globalThis as any).__W3A_TEST_WALLET_IFRAME_HOST_MODE__ = true;
+
+      // Detect any attempts to mount confirmation UI during this decrypt flow.
+      const confirmTags = new Set(
+        (tags.CONFIRM_UI_ELEMENT_SELECTORS as string[]).map((t) => String(t).toLowerCase())
+      );
+      const originalCreateElement = document.createElement.bind(document);
+      let createdConfirmUiElements = 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (document as any).createElement = (tagName: any, options?: any) => {
+        if (confirmTags.has(String(tagName).toLowerCase())) {
+          createdConfirmUiElements++;
+        }
+        return originalCreateElement(tagName, options);
+      };
+
+      try {
+        let promptCalls = 0;
+        const ctx: any = {
+          touchIdPrompt: {
+            getRpId: () => 'example.localhost',
+            getAuthenticationCredentialsSerialized: async () => {
+              throw new Error('Expected dual PRF prompt for export/decrypt flow');
+            },
+            getAuthenticationCredentialsSerializedDualPrf: async () => {
+              promptCalls++;
+              return {
+                id: 'auth-cred',
+                rawId: 'CQ',
+                type: 'public-key',
+                response: {
+                  clientDataJSON: 'AQ',
+                  authenticatorData: 'Ag',
+                  signature: 'Aw',
+                  userHandle: undefined,
+                },
+                clientExtensionResults: {
+                  prf: {
+                    results: {
+                      first: 'BQ',
+                      second: 'Bg',
+                    },
+                  },
+                },
+              } as any;
+            },
+          },
+          indexedDB: {
+            clientDB: {
+              getAuthenticatorsByUser: async () => [],
+              ensureCurrentPasskey: async () => ({ authenticatorsForPrompt: [], wrongPasskeyError: undefined }),
+            },
+          },
+        };
+
+        const request = {
+          requestId: 'r-decrypt-host',
+          type: types.SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF,
+          summary: {},
+          payload: { nearAccountId: 'alice.testnet', publicKey: 'pk' },
+        } as any;
+
+        // Simulate a config that would normally mount UI, and assert host-mode overrides it.
+        const confirmationConfig: any = {
+          uiMode: 'drawer',
+          behavior: 'requireClick',
+          autoProceedDelay: 0,
+          theme: 'dark',
+        };
+
+        const msgs: any[] = [];
+        const worker = { postMessage: (m: any) => msgs.push(m) } as unknown as Worker;
+
+        await (localOnly.handleLocalOnlyFlow as Function)(
+          ctx,
+          request,
+          worker,
+          { confirmationConfig, transactionSummary: {} }
+        );
+
+        const resp = msgs[0]?.data;
+        return {
+          confirmed: resp?.confirmed,
+          error: resp?.error,
+          credId: resp?.credential?.id,
+          promptCalls,
+          createdConfirmUiElements,
+          finalUiMode: confirmationConfig.uiMode,
+          finalBehavior: confirmationConfig.behavior,
+        };
+      } finally {
+        // Restore globals for test isolation.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (document as any).createElement = originalCreateElement as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        try { delete (globalThis as any).__W3A_TEST_WALLET_IFRAME_HOST_MODE__; } catch { }
+      }
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.confirmed, result.error || 'unknown error').toBe(true);
+    expect(result.credId).toBe('auth-cred');
+    expect(result.promptCalls).toBe(1);
+    expect(result.createdConfirmUiElements).toBe(0);
+    expect(result.finalUiMode).toBe('skip');
+    expect(result.finalBehavior).toBe('autoProceed');
   });
 
   test('Registration: collects registration credential and emits vrfChallenge + tx context', async ({ page }) => {

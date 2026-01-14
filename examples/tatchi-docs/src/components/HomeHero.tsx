@@ -53,11 +53,11 @@ export function HomeHero() {
           serverless WebAuthn authentication with VRF challenges designed for security and speed.
         </p>
         <h3 className="hero-subtitle">
-          Fearless account sync without servers
+          Fearless account recovery
         </h3>
         <p className="hero-description">
           Your passkey is your wallet.
-          Tatchi derives and secures wallets from Passkeys and saves authenticator details onchain,
+          Tatchi derives wallets from Passkeys and saves authenticator metadata onchain,
           meaning your users can sync accounts, and link multiple devices all by themselves without
           intermediaries.
         </p>

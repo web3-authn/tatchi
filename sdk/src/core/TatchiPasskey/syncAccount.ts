@@ -112,8 +112,8 @@ export class SyncAccountFlow {
         // Contract-based lookup; no WebAuthn prompt during discovery
         this.availableAccounts = await getSyncableAccounts(this.context, nearAccountId);
       } else {
-        // Fallback discovery without a typed account: prompt once to select a passkey
-        // Then infer the accountId from userHandle (set at registration time)
+        // No typed account: prompt once to select a passkey (platform chooser),
+        // then infer the accountId from userHandle (set at registration time).
         const challenge = createRandomVRFChallenge();
         const credential = await this.context.webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
           // Account is unknown here – we only need userHandle for inference.
@@ -125,18 +125,18 @@ export class SyncAccountFlow {
         // Try to infer accountId from userHandle
         const inferredAccountId = parseAccountIdFromUserHandle(credential.response?.userHandle);
 
-	        const option: PasskeyOption = {
-	          // Use rawId (base64url) consistently with on-chain/IndexedDB credential IDs.
-	          credentialId: credential.rawId,
-	          accountId: inferredAccountId ? toAccountId(inferredAccountId) : null,
-	          publicKey: '',
-	          displayName: inferredAccountId ? `${inferredAccountId}` : 'Discovered passkey',
-	          // Do not reuse this discovery credential during sync:
-	          // PRF outputs are scoped to the salts used above (nearAccountId=""),
-	          // and will not match the real account-specific salts needed to
-	          // deterministically derive the correct on-chain access key.
-	          credential: null,
-	        };
+        const option: PasskeyOption = {
+          // Use rawId (base64url) consistently with on-chain/IndexedDB credential IDs.
+          credentialId: credential.rawId,
+          accountId: inferredAccountId ? toAccountId(inferredAccountId) : null,
+          publicKey: '',
+          displayName: inferredAccountId ? `${inferredAccountId}` : 'Discovered passkey',
+          // Do not reuse this discovery credential during sync:
+          // PRF outputs are scoped to the salts used above (nearAccountId=""),
+          // and will not match the real account-specific salts needed to
+          // deterministically derive the correct on-chain access key.
+          credential: null,
+        };
         this.availableAccounts = [option];
       }
 
