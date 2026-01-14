@@ -1,6 +1,5 @@
 {
   "name": "tatchi-docs",
-  "version": "0.22.0",
   "type": "module",
   "private": true,
   "scripts": {

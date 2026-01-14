@@ -1,6 +1,5 @@
 {
   "name": "relay-server",
-  "version": "0.22.0",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
