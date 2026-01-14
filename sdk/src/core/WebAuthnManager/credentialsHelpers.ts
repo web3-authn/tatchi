@@ -213,24 +213,32 @@ export function normalizeAuthenticationCredential(input: unknown): WebAuthnAuthe
 }
 
 /**
- * Removes PRF outputs from the credential
- * @param credential - The WebAuthn credential containing PRF outputs
- * @returns Credential with PRF results cleared
+ * Redacts client extension outputs from the credential before sending it over the network.
+ *
+ * Motivation:
+ * - WebAuthn `clientExtensionResults` may contain sensitive material (e.g. PRF outputs).
+ * - Even when not sensitive, extension outputs can add fingerprinting surface and bloat payloads.
+ *
+ * @param credential - The WebAuthn credential potentially containing extension outputs
+ * @returns Credential with `clientExtensionResults` removed/redacted
  */
 export function removePrfOutputGuard<C extends SerializableCredential>(credential: C): C {
-  const credentialWithoutPrf: C = {
+  // Never leak PRF (or any other extension outputs) outside the wallet runtime.
+  // Use `null` so the field is explicitly redacted in JSON payloads.
+  const response: unknown = (credential as { response?: unknown }).response;
+  const responseWithoutExtensions = isObject(response)
+    ? (() => {
+      const cloned = { ...(response as Record<string, unknown>) };
+      if ('clientExtensionResults' in cloned) cloned.clientExtensionResults = null;
+      return cloned;
+    })()
+    : response;
+
+  return {
     ...credential,
-    clientExtensionResults: {
-      ...credential.clientExtensionResults,
-      prf: {
-        results: {
-          first: undefined,
-          second: undefined
-        }
-      }
-    }
+    response: responseWithoutExtensions,
+    clientExtensionResults: null ,
   } as C;
-  return credentialWithoutPrf;
 }
 
 /////////////////////////////////////////
