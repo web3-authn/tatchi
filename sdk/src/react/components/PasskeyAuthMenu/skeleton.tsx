@@ -41,7 +41,7 @@ export const PasskeyAuthMenuSkeletonInner: React.FC<PasskeyAuthMenuSkeletonProps
         <div className="w3a-seg-track">
           <div className="w3a-seg-button">Register</div>
           <div className="w3a-seg-button">Login</div>
-          <div className="w3a-seg-button">Recover</div>
+          <div className="w3a-seg-button">Sync</div>
         </div>
       </div>
 

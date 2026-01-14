@@ -6,7 +6,7 @@ import type {
   SignNEP413HooksOptions,
   TatchiPasskey,
   TatchiConfigsInput,
-  RecoveryResult,
+  SyncAccountResult,
   LinkDeviceResult,
   SignNEP413MessageParams,
   SignNEP413MessageResult,
@@ -21,7 +21,7 @@ import type {
   DeviceLinkingQRData
 } from '../core/types/linkDevice';
 import type {
-  AccountRecoveryHooksOptions,
+  SyncAccountHooksOptions,
   ActionSSEEvent,
   DelegateActionHooksOptions,
   DelegateActionSSEEvent,
@@ -104,7 +104,7 @@ export interface UseAccountInputReturn extends AccountInputState {
   refreshAccountData: () => Promise<void>;
 }
 
-export type SDKFlowKind = 'login' | 'register' | 'recover' | null;
+export type SDKFlowKind = 'login' | 'register' | 'sync' | null;
 export type SDKFlowStatus = 'idle' | 'in-progress' | 'success' | 'error';
 
 export type SDKFlowState = {
@@ -142,7 +142,7 @@ export interface TatchiContextType {
   tatchi: TatchiPasskey;
 
   /**
-   * SDK progress state for the most recent flow (login/registration/recovery).
+   * SDK progress state for the most recent flow (login/registration/account sync).
    * Used by UI components (e.g., PasskeyAuthMenu) to keep waiting screens visible
    * even when integrators do not return a Promise from their handlers.
    */
@@ -184,11 +184,11 @@ export interface TatchiContextType {
     logs?: string[];
   }>;
 
-  // Account recovery function
-  recoverAccount: (args: {
+  // Account sync function
+  syncAccount: (args: {
     accountId?: string;
-    options?: AccountRecoveryHooksOptions
-  }) => Promise<RecoveryResult>;
+    options?: SyncAccountHooksOptions
+  }) => Promise<SyncAccountResult>;
 
   // Device linking functions
   startDevice2LinkingFlow: (args?: StartDevice2LinkingFlowArgs) => Promise<{
@@ -261,7 +261,7 @@ export type {
   ActionSSEEvent,
   DelegateActionSSEEvent,
   DeviceLinkingSSEEvent,
-  AccountRecoverySSEEvent,
+  SyncAccountSSEEvent,
   EmailRecoverySSEEvent,
 } from '../core/types/sdkSentEvents';
 

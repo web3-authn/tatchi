@@ -6,8 +6,8 @@ import {
   LoginPhase,
   AuthMenuMode,
   DeviceLinkingPhase,
-  AccountRecoveryPhase,
-  AccountRecoveryStatus,
+  SyncAccountPhase,
+  SyncAccountStatus,
   type RegistrationSSEEvent,
   type DeviceLinkingSSEEvent
 } from '@tatchi-xyz/sdk/react'
@@ -76,33 +76,33 @@ export function PasskeyLoginMenu() {
     }
   };
 
-  const onRecover = async () => {
+  const onSync = async () => {
     try {
-      const result = await tatchi.recoverAccountFlow({
+      const result = await tatchi.syncAccount({
         accountId: targetAccountId,
         options: {
           onEvent: async (event: any) => {
             if (
-              event.phase === AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE
-              && event.status === AccountRecoveryStatus.SUCCESS
+              event.phase === SyncAccountPhase.STEP_5_SYNC_ACCOUNT_COMPLETE
+              && event.status === SyncAccountStatus.SUCCESS
             ) {
               await refreshLoginState();
             }
           },
           onError: (error: any) => {
-            console.error('Recovery error:', error);
+            console.error('Sync error:', error);
           }
         }
       });
       if (result?.success) {
-        toast.success(`Account ${targetAccountId} recovered successfully!`);
+        toast.success(`Account ${targetAccountId} synced successfully!`);
         return;
       } else {
         throw new Error(result?.error || 'Unknown error');
       }
     } catch (err: any) {
-      console.error('Recovery error:', err);
-      toast.error(friendlyWebAuthnMessage(err), { id: 'recovery' });
+      console.error('Sync error:', err);
+      toast.error(friendlyWebAuthnMessage(err), { id: 'sync-account' });
       throw err;
     }
   };
@@ -177,7 +177,7 @@ export function PasskeyLoginMenu() {
           defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
           onLogin={onLogin}
           onRegister={onRegister}
-          onRecoverAccount={onRecover}
+          onSyncAccount={onSync}
           linkDeviceOptions={{
             onEvent: onLinkDeviceEvents,
             onError: (error: Error) => {

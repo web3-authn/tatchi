@@ -5,13 +5,13 @@
  * 1. Registration flow
  * 2. Login flow
  * 3. Transfer action flow
- * 4. Recovery flow
+ * 4. Account sync flow
  */
 
 import { test, expect } from '../setup/fixtures';
 import { bypassContractVerification } from '../setup/bypasses';
 import { mockRelayServer, mockAccessKeyLookup, mockSendTransaction } from '../setup/route-mocks';
-import { registerPasskey, loginAndCreateSession, executeTransfer, recoverAccount, clickWalletIframeConfirm } from '../setup/flows';
+import { registerPasskey, loginAndCreateSession, executeTransfer, syncAccount, clickWalletIframeConfirm } from '../setup/flows';
 import { handleInfrastructureErrors, type TestUtils } from '../setup';
 import { printLog } from '../setup/logging';
 import { BUILD_PATHS } from '@build-paths';
@@ -32,7 +32,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
     await page.waitForTimeout(3000);
   });
 
-  test('Complete TatchiPasskey Lifecycle - Registration → Login → Actions → Recovery', async ({ passkey, consoleCapture, page }) => {
+  test('Complete TatchiPasskey Lifecycle - Registration → Login → Actions → Sync', async ({ passkey, consoleCapture, page }) => {
     test.setTimeout(70000);
 
     console.log('');
@@ -177,7 +177,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
       const utils = (window as any).testUtils as TestUtils;
       const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
       if (!publicKey) {
-        console.warn('[flow:recovery] Missing public key, skipping access key wait');
+        console.warn('[flow:sync-account] Missing public key, skipping access key wait');
         return;
       }
 
@@ -189,36 +189,36 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
       while (Date.now() - start < timeoutMs) {
         try {
           await utils.tatchi.getNearClient().viewAccessKey(toAccountId(id), publicKey);
-          console.log('[flow:recovery] Access key indexed – proceeding');
+          console.log('[flow:sync-account] Access key indexed – proceeding');
           return;
         } catch (error) {
           lastError = error;
-          console.log('[flow:recovery] Waiting for access key to index...', error instanceof Error ? error.message : String(error));
+          console.log('[flow:sync-account] Waiting for access key to index...', error instanceof Error ? error.message : String(error));
           await new Promise((resolve) => setTimeout(resolve, intervalMs));
         }
       }
 
       if (lastError) {
-        console.warn('[flow:recovery] Access key still unavailable, continuing with recovery');
+        console.warn('[flow:sync-account] Access key still unavailable, continuing with sync');
       }
     }, { accountId, publicKey: registration.raw?.clientNearPublicKey });
 
-    const recovery = await recoverAccount(passkey, { accountId });
+    const sync = await syncAccount(passkey, { accountId });
 
     printLog('test', `registration events: ${registration.events.length}`, { indent: 1 });
     printLog('test', `login events: ${login.events.length}`, { indent: 1 });
     printLog('test', `transfer events: ${transfer.events.length}`, { indent: 1 });
-    printLog('test', `recovery events: ${recovery.events.length}`, { indent: 1 });
+    printLog('test', `sync events: ${sync.events.length}`, { indent: 1 });
 
     expect(registration.success).toBe(true);
     expect(login.success).toBe(true);
     expect(transfer.success).toBe(true);
 
-    if (!recovery.success) {
-      if (handleInfrastructureErrors({ success: recovery.success, error: recovery.error })) {
+    if (!sync.success) {
+      if (handleInfrastructureErrors({ success: sync.success, error: sync.error })) {
         return;
       }
-      expect(recovery.success).toBe(true);
+      expect(sync.success).toBe(true);
       return;
     }
 

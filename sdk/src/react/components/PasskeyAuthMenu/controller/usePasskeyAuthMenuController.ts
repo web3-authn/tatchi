@@ -38,7 +38,7 @@ export interface PasskeyAuthMenuController {
 export function usePasskeyAuthMenuController(
   props: Pick<
     PasskeyAuthMenuProps,
-    'onLogin' | 'onRegister' | 'onRecoverAccount' | 'defaultMode' | 'headings' | 'linkDeviceOptions'
+    'onLogin' | 'onRegister' | 'onSyncAccount' | 'defaultMode' | 'headings' | 'linkDeviceOptions'
   >,
   runtime: PasskeyAuthMenuRuntime,
 ): PasskeyAuthMenuController {
@@ -193,8 +193,8 @@ export function usePasskeyAuthMenuController(
 
     void (async () => {
       try {
-        if (mode === AuthMenuMode.Recover) {
-          await props.onRecoverAccount?.();
+        if (mode === AuthMenuMode.Sync) {
+          await props.onSyncAccount?.();
           setWaiting(false);
           setMode(AuthMenuMode.Login);
         } else if (mode === AuthMenuMode.Login) {
@@ -220,7 +220,7 @@ export function usePasskeyAuthMenuController(
   }, [
     canSubmit,
     mode,
-    props.onRecoverAccount,
+    props.onSyncAccount,
     props.onLogin,
     props.onRegister,
     setMode,

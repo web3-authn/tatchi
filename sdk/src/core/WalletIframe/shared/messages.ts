@@ -59,8 +59,8 @@ export type ParentToChildType =
   | 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA' // Device1: Scan QR in parent, execute AddKey in iframe
   | 'PM_START_DEVICE2_LINKING_FLOW'     // Device2: Generate QR + poll, render UI in iframe
   | 'PM_STOP_DEVICE2_LINKING_FLOW'      // Device2: Stop/cancel current UI flow
-  // Account recovery flow
-  | 'PM_RECOVER_ACCOUNT_FLOW'
+  // Account sync flow
+  | 'PM_SYNC_ACCOUNT_FLOW'
   // Email recovery flow
   | 'PM_START_EMAIL_RECOVERY'
   | 'PM_FINALIZE_EMAIL_RECOVERY'
@@ -366,7 +366,7 @@ export type ParentToChildEnvelope =
       };
     }>
   | RpcEnvelope<'PM_STOP_DEVICE2_LINKING_FLOW'>
-  | RpcEnvelope<'PM_RECOVER_ACCOUNT_FLOW', { accountId?: string }>
+  | RpcEnvelope<'PM_SYNC_ACCOUNT_FLOW', { accountId?: string }>
   | RpcEnvelope<'PM_START_EMAIL_RECOVERY', PMStartEmailRecoveryPayload>
   | RpcEnvelope<'PM_FINALIZE_EMAIL_RECOVERY', PMFinalizeEmailRecoveryPayload>
   | RpcEnvelope<'PM_STOP_EMAIL_RECOVERY', PMStopEmailRecoveryPayload>;

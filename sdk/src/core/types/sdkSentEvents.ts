@@ -10,7 +10,7 @@ import type {
   SignDelegateActionResult,
   SignTransactionResult,
 } from './tatchi';
-import type { RecoveryResult, SignNEP413MessageResult } from '../TatchiPasskey';
+import type { SyncAccountResult, SignNEP413MessageResult } from '../TatchiPasskey';
 
 //////////////////////////
 // Progress Events Enums
@@ -70,16 +70,16 @@ export enum ActionStatus {
 // Delegate-specific phase alias for filtering
 export { ActionPhase as DelegateActionPhase };
 
-// Account Recovery Enums
-export enum AccountRecoveryPhase {
+// Account Sync Enums
+export enum SyncAccountPhase {
   STEP_1_PREPARATION = 'preparation',
   STEP_2_WEBAUTHN_AUTHENTICATION = 'webauthn-authentication',
   STEP_3_SYNC_AUTHENTICATORS_ONCHAIN = 'sync-authenticators-onchain',
   STEP_4_AUTHENTICATOR_SAVED = 'authenticator-saved',
-  STEP_5_ACCOUNT_RECOVERY_COMPLETE = 'account-recovery-complete',
+  STEP_5_SYNC_ACCOUNT_COMPLETE = 'sync-account-complete',
   ERROR = 'error',
 }
-export enum AccountRecoveryStatus {
+export enum SyncAccountStatus {
   PROGRESS = 'progress',
   SUCCESS = 'success',
   ERROR = 'error',
@@ -136,8 +136,8 @@ export interface AfterCall<T> {
 // Base SSE Event Types (unified for Registration and Actions)
 export interface BaseSSEEvent {
   step: number;
-  phase: RegistrationPhase | LoginPhase | ActionPhase | DeviceLinkingPhase | AccountRecoveryPhase | EmailRecoveryPhase;
-  status: RegistrationStatus | LoginStatus | ActionStatus | DeviceLinkingStatus | AccountRecoveryStatus | EmailRecoveryStatus;
+  phase: RegistrationPhase | LoginPhase | ActionPhase | DeviceLinkingPhase | SyncAccountPhase | EmailRecoveryPhase;
+  status: RegistrationStatus | LoginStatus | ActionStatus | DeviceLinkingStatus | SyncAccountStatus | EmailRecoveryStatus;
   message: string;
 }
 
@@ -165,9 +165,9 @@ export interface BaseDeviceLinkingSSEEvent extends BaseSSEEvent {
 }
 
 // Action-specific events
-export interface BaseAccountRecoveryEvent extends BaseSSEEvent {
-  phase: AccountRecoveryPhase;
-  status: AccountRecoveryStatus;
+export interface BaseSyncAccountEvent extends BaseSSEEvent {
+  phase: SyncAccountPhase;
+  status: SyncAccountStatus;
 }
 
 export interface BaseEmailRecoveryEvent extends BaseSSEEvent {
@@ -458,54 +458,54 @@ export type DeviceLinkingSSEEvent =
   | DeviceLinkingErrorEvent;
 
 /////////////////////////////////////////////
-// SDK-Sent-Events: Account Recovery Event Types
+// SDK-Sent-Events: Account Sync Event Types
 /////////////////////////////////////////////
 
-export interface AccountRecoveryEventStep1 extends BaseAccountRecoveryEvent {
+export interface SyncAccountEventStep1 extends BaseSyncAccountEvent {
   step: 1;
-  phase: AccountRecoveryPhase.STEP_1_PREPARATION;
+  phase: SyncAccountPhase.STEP_1_PREPARATION;
 }
 
-export interface AccountRecoveryEventStep2 extends BaseAccountRecoveryEvent {
+export interface SyncAccountEventStep2 extends BaseSyncAccountEvent {
   step: 2;
-  phase: AccountRecoveryPhase.STEP_2_WEBAUTHN_AUTHENTICATION;
+  phase: SyncAccountPhase.STEP_2_WEBAUTHN_AUTHENTICATION;
 }
 
-export interface AccountRecoveryEventStep3 extends BaseAccountRecoveryEvent {
+export interface SyncAccountEventStep3 extends BaseSyncAccountEvent {
   step: 3;
-  phase: AccountRecoveryPhase.STEP_3_SYNC_AUTHENTICATORS_ONCHAIN;
+  phase: SyncAccountPhase.STEP_3_SYNC_AUTHENTICATORS_ONCHAIN;
   data?: Record<string, unknown>;
   logs?: string[];
 }
 
-export interface AccountRecoveryEventStep4 extends BaseAccountRecoveryEvent {
+export interface SyncAccountEventStep4 extends BaseSyncAccountEvent {
   step: 4;
-  phase: AccountRecoveryPhase.STEP_4_AUTHENTICATOR_SAVED;
-  status: AccountRecoveryStatus.SUCCESS;
+  phase: SyncAccountPhase.STEP_4_AUTHENTICATOR_SAVED;
+  status: SyncAccountStatus.SUCCESS;
   data?: Record<string, unknown>;
 }
 
-export interface AccountRecoveryEventStep5 extends BaseAccountRecoveryEvent {
+export interface SyncAccountEventStep5 extends BaseSyncAccountEvent {
   step: 5;
-  phase: AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE;
-  status: AccountRecoveryStatus.SUCCESS;
+  phase: SyncAccountPhase.STEP_5_SYNC_ACCOUNT_COMPLETE;
+  status: SyncAccountStatus.SUCCESS;
   data?: Record<string, unknown>;
 }
 
-export interface AccountRecoveryError extends BaseAccountRecoveryEvent {
+export interface SyncAccountError extends BaseSyncAccountEvent {
   step: 0;
-  phase: AccountRecoveryPhase.ERROR;
-  status: AccountRecoveryStatus.ERROR;
+  phase: SyncAccountPhase.ERROR;
+  status: SyncAccountStatus.ERROR;
   error: string;
 }
 
-export type AccountRecoverySSEEvent =
-  | AccountRecoveryEventStep1
-  | AccountRecoveryEventStep2
-  | AccountRecoveryEventStep3
-  | AccountRecoveryEventStep4
-  | AccountRecoveryEventStep5
-  | AccountRecoveryError;
+export type SyncAccountSSEEvent =
+  | SyncAccountEventStep1
+  | SyncAccountEventStep2
+  | SyncAccountEventStep3
+  | SyncAccountEventStep4
+  | SyncAccountEventStep5
+  | SyncAccountError;
 
 /////////////////////////////////////////////
 // SDK-Sent-Events: Email Recovery Event Types
@@ -747,16 +747,16 @@ export type SignAndSendDelegateActionHooksOptions =
     afterCall?: AfterCall<SignAndSendDelegateActionResult>;
   };
 
-export interface AccountRecoveryHooksOptions {
-  onEvent?: EventCallback<AccountRecoverySSEEvent>;
+export interface SyncAccountHooksOptions {
+  onEvent?: EventCallback<SyncAccountSSEEvent>;
   onError?: (error: Error) => void;
   waitUntil?: TxExecutionStatus;
 
-  afterCall?: AfterCall<RecoveryResult>;
+  afterCall?: AfterCall<SyncAccountResult>;
 }
 
 export interface SignNEP413HooksOptions {
-  onEvent?: EventCallback<RegistrationSSEEvent | LoginSSEvent | ActionSSEEvent | DeviceLinkingSSEEvent | AccountRecoverySSEEvent | EmailRecoverySSEEvent>;
+  onEvent?: EventCallback<RegistrationSSEEvent | LoginSSEvent | ActionSSEEvent | DeviceLinkingSSEEvent | SyncAccountSSEEvent | EmailRecoverySSEEvent>;
   onError?: (error: Error) => void;
 
   afterCall?: AfterCall<SignNEP413MessageResult>;

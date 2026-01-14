@@ -146,7 +146,7 @@ When you're done, call `logoutAndClearSession()` to clear the in-memory VRF key 
 
 - [Set up other frameworks](./other-frameworks.md): Next.js, Vue, Svelte, Express
 - [React Recipes](/docs/getting-started/react-recipes): convenience components for registration, login, and managing accounts.
-- [API Reference](../api/index.md): export keys, recover accounts, link devices, batch sign/send
+- [API Reference](../api/index.md): export keys, sync accounts, link devices, batch sign/send
 - [Concepts](../concepts/index.md): security model, VRF/PRF, architecture
   - [Architecture](../concepts/architecture.md)
   - [VRF challenges](../concepts/vrf-webauthn.md)

@@ -1,5 +1,5 @@
-import type { AfterCall, AccountRecoverySSEEvent, EventCallback } from '../types/sdkSentEvents';
-import { AccountRecoveryPhase, AccountRecoveryStatus, AccountRecoveryHooksOptions } from '../types/sdkSentEvents';
+import type { AfterCall, SyncAccountSSEEvent, EventCallback } from '../types/sdkSentEvents';
+import { SyncAccountPhase, SyncAccountStatus, SyncAccountHooksOptions } from '../types/sdkSentEvents';
 import type { PasskeyManagerContext } from './index';
 import type {
   AccountId,
@@ -30,10 +30,10 @@ import {
  * - encrypted NEAR keypair
  * - encrypted VRF keypair
  * - webauthn authenticator
- * Provide a way for the user to recover their account from onchain authenticator information with their Passkey.
+ * Provide a way for the user to sync their account from on-chain authenticator information with their passkey.
  */
 
-export interface RecoveryResult {
+export interface SyncAccountResult {
   success: boolean;
   accountId: string;
   publicKey: string;
@@ -46,7 +46,7 @@ export interface RecoveryResult {
   };
 }
 
-export interface AccountLookupResult {
+export interface SyncAccountLookupResult {
   accountId: string;
   publicKey: string;
   hasAccess: boolean;
@@ -75,24 +75,24 @@ export interface PasskeySelection {
 }
 
 /**
- * Account recovery flow with credential encapsulation
+ * Account sync flow with credential encapsulation
  *
  * Usage:
  * ```typescript
- * const flow = new AccountRecoveryFlow(context);
+ * const flow = new SyncAccountFlow(context);
  * const options = await flow.discover(); // Get safe display options
  * // ... user selects account in UI ...
- * const result = await flow.recover({ credentialId, accountId }); // Execute recovery
+ * const result = await flow.sync({ credentialId, accountId }); // Execute sync
  * ```
  */
-export class AccountRecoveryFlow {
+export class SyncAccountFlow {
   private context: PasskeyManagerContext;
-  private options?: AccountRecoveryHooksOptions;
+  private options?: SyncAccountHooksOptions;
   private availableAccounts?: PasskeyOption[]; // Full options with credentials (private)
-  private phase: 'idle' | 'discovering' | 'ready' | 'recovering' | 'complete' | 'error' = 'idle';
+  private phase: 'idle' | 'discovering' | 'ready' | 'syncing' | 'complete' | 'error' = 'idle';
   private error?: Error;
 
-  constructor(context: PasskeyManagerContext, options?: AccountRecoveryHooksOptions) {
+  constructor(context: PasskeyManagerContext, options?: SyncAccountHooksOptions) {
     this.context = context;
     this.options = options;
   }
@@ -104,13 +104,13 @@ export class AccountRecoveryFlow {
   async discover(accountId: string): Promise<PasskeyOptionWithoutCredential[]> {
     try {
       this.phase = 'discovering';
-      const normalizedAccountId = normalizeRecoveryAccountIdInput(accountId);
+      const normalizedAccountId = normalizeSyncAccountIdInput(accountId);
       const hasValidAccount = !!normalizedAccountId && validateNearAccountId(normalizedAccountId).valid;
 
       if (hasValidAccount) {
         const nearAccountId = toAccountId(normalizedAccountId);
         // Contract-based lookup; no WebAuthn prompt during discovery
-        this.availableAccounts = await getRecoverableAccounts(this.context, nearAccountId);
+        this.availableAccounts = await getSyncableAccounts(this.context, nearAccountId);
       } else {
         // Fallback discovery without a typed account: prompt once to select a passkey
         // Then infer the accountId from userHandle (set at registration time)
@@ -125,25 +125,25 @@ export class AccountRecoveryFlow {
         // Try to infer accountId from userHandle
         const inferredAccountId = parseAccountIdFromUserHandle(credential.response?.userHandle);
 
-        const option: PasskeyOption = {
-          // Use rawId (base64url) consistently with on-chain/IndexedDB credential IDs.
-          credentialId: credential.rawId,
-          accountId: inferredAccountId ? toAccountId(inferredAccountId) : null,
-          publicKey: '',
-          displayName: inferredAccountId ? `${inferredAccountId}` : 'Recovered passkey',
-          // Do not reuse this discovery credential during recovery:
-          // PRF outputs are scoped to the salts used above (nearAccountId=""),
-          // and will not match the real account-specific salts needed to
-          // deterministically derive the correct on-chain access key.
-          credential: null,
-        };
+	        const option: PasskeyOption = {
+	          // Use rawId (base64url) consistently with on-chain/IndexedDB credential IDs.
+	          credentialId: credential.rawId,
+	          accountId: inferredAccountId ? toAccountId(inferredAccountId) : null,
+	          publicKey: '',
+	          displayName: inferredAccountId ? `${inferredAccountId}` : 'Discovered passkey',
+	          // Do not reuse this discovery credential during sync:
+	          // PRF outputs are scoped to the salts used above (nearAccountId=""),
+	          // and will not match the real account-specific salts needed to
+	          // deterministically derive the correct on-chain access key.
+	          credential: null,
+	        };
         this.availableAccounts = [option];
       }
 
       if (!this.availableAccounts || this.availableAccounts.length === 0) {
-        console.warn('No recoverable accounts found for this passkey');
+        console.warn('No syncable accounts found for this passkey');
       } else {
-        console.debug(`AccountRecoveryFlow: Found ${this.availableAccounts.length} recoverable accounts`);
+        console.debug(`SyncAccountFlow: Found ${this.availableAccounts.length} syncable accounts`);
       }
 
       this.phase = 'ready';
@@ -160,26 +160,26 @@ export class AccountRecoveryFlow {
       const failure = error instanceof Error ? error : new Error(String(error));
       this.phase = 'error';
       this.error = failure;
-      console.error('AccountRecoveryFlow: Discovery failed:', failure);
+      console.error('SyncAccountFlow: Discovery failed:', failure);
       throw failure;
     }
   }
 
   /**
-   * Phase 2: Execute recovery with user selection
+   * Phase 2: Execute sync with user selection
    * Securely looks up credential based on selection
    */
-  async recover(selection: PasskeySelection): Promise<RecoveryResult> {
+  async sync(selection: PasskeySelection): Promise<SyncAccountResult> {
     if (this.phase !== 'ready') {
-      throw new Error(`Cannot recover - flow is in ${this.phase} phase. Call discover() first.`);
+      throw new Error(`Cannot sync - flow is in ${this.phase} phase. Call discover() first.`);
     }
     if (!this.availableAccounts) {
       throw new Error('No available accounts found. Call discover() first.');
     }
 
     try {
-      this.phase = 'recovering';
-      console.debug(`AccountRecoveryFlow: Recovering account: ${selection.accountId}`);
+      this.phase = 'syncing';
+      console.debug(`SyncAccountFlow: Syncing account: ${selection.accountId}`);
 
       // Securely lookup the full option with credential
       const selectedOption = this.availableAccounts.find(
@@ -231,7 +231,7 @@ export class AccountRecoveryFlow {
         } catch { return undefined; }
       })();
 
-      const recoveryResult = await recoverAccount(
+      const syncResult = await syncAccount(
         this.context,
         selectedOption.accountId,
         this.options,
@@ -240,13 +240,13 @@ export class AccountRecoveryFlow {
       );
 
       this.phase = 'complete';
-      return recoveryResult;
+      return syncResult;
 
     } catch (error: unknown) {
       const failure = error instanceof Error ? error : new Error(String(error));
       this.phase = 'error';
       this.error = failure;
-      console.error('AccountRecoveryFlow: Recovery failed:', failure);
+      console.error('SyncAccountFlow: Sync failed:', failure);
       throw failure;
     }
   }
@@ -283,7 +283,7 @@ export class AccountRecoveryFlow {
   }
 }
 
-function normalizeRecoveryAccountIdInput(input: string): string {
+function normalizeSyncAccountIdInput(input: string): string {
   const raw = String(input || '').trim();
   if (!raw) return '';
 
@@ -302,9 +302,9 @@ function normalizeRecoveryAccountIdInput(input: string): string {
 }
 
 /**
- * Get available passkeys for account recovery
+ * Get available passkeys for account sync
  */
-async function getRecoverableAccounts(
+async function getSyncableAccounts(
   context: PasskeyManagerContext,
   accountId: AccountId
 ): Promise<PasskeyOption[]> {
@@ -335,41 +335,41 @@ async function getAvailablePasskeysForDomain(
   }
   // If no contract credentials found for this specific account, do not fall back
   // to an unrestricted OS credential prompt here. Returning an empty set lets
-  // the caller surface a precise message (no recoverable accounts for this ID),
+  // the caller surface a precise message (no syncable accounts for this ID),
   // avoiding accidental selection of a passkey from a different account.
   return [];
 }
 
 /**
- * Main account recovery function
+ * Main account sync function
  */
-export async function recoverAccount(
+export async function syncAccount(
   context: PasskeyManagerContext,
   accountId: AccountId,
-  options?: AccountRecoveryHooksOptions,
+  options?: SyncAccountHooksOptions,
   reuseCredential?: WebAuthnAuthenticationCredential,
   allowedCredentialIds?: string[]
-): Promise<RecoveryResult> {
+): Promise<SyncAccountResult> {
   const { onEvent, onError, afterCall } = options || {};
   const { webAuthnManager, nearClient, configs } = context;
 
   onEvent?.({
     step: 1,
-    phase: AccountRecoveryPhase.STEP_1_PREPARATION,
-    status: AccountRecoveryStatus.PROGRESS,
-    message: 'Preparing account recovery...',
+    phase: SyncAccountPhase.STEP_1_PREPARATION,
+    status: SyncAccountStatus.PROGRESS,
+    message: 'Preparing account sync...',
   });
 
   try {
     const validation = validateNearAccountId(accountId);
     if (!validation.valid) {
-      return handleRecoveryError(accountId, `Invalid NEAR account ID: ${validation.error}`, onError, afterCall);
+      return handleSyncError(accountId, `Invalid NEAR account ID: ${validation.error}`, onError, afterCall);
     }
 
     onEvent?.({
       step: 2,
-      phase: AccountRecoveryPhase.STEP_2_WEBAUTHN_AUTHENTICATION,
-      status: AccountRecoveryStatus.PROGRESS,
+      phase: SyncAccountPhase.STEP_2_WEBAUTHN_AUTHENTICATION,
+      status: SyncAccountStatus.PROGRESS,
       message: 'Authenticating with contract...',
     });
 
@@ -384,7 +384,7 @@ export async function recoverAccount(
     // picks an unrelated passkey from the platform chooser.
     const passkeyAccount = parseAccountIdFromUserHandle(credential.response?.userHandle);
     if (passkeyAccount && passkeyAccount !== accountId) {
-      return handleRecoveryError(
+      return handleSyncError(
         accountId,
         `Selected passkey belongs to ${passkeyAccount}, not ${accountId}`,
         onError,
@@ -421,7 +421,7 @@ export async function recoverAccount(
       accountId
     );
     if (!recoveredKeypair.wrapKeySalt) {
-      throw new Error('Missing wrapKeySalt in recovered key material; re-register to upgrade vault format.');
+      throw new Error('Missing wrapKeySalt in derived key material; re-register to upgrade vault format.');
     }
 
     // Check if the recovered public key has access to the account.
@@ -429,7 +429,7 @@ export async function recoverAccount(
     const hasAccess = await hasAccessKey(nearClient, accountId, recoveredKeypair.publicKey, { attempts: 1, delayMs: 0 });
 
     if (!hasAccess) {
-      return handleRecoveryError(
+      return handleSyncError(
         accountId,
         `Account ${accountId} does not have access key ${recoveredKeypair.publicKey} (check you selected the correct passkey)`,
         onError,
@@ -437,7 +437,7 @@ export async function recoverAccount(
       );
     }
 
-    const recoveryResult = await performAccountRecovery({
+    const syncResult = await performAccountSync({
       context,
       accountId,
       publicKey: recoveredKeypair.publicKey,
@@ -457,26 +457,26 @@ export async function recoverAccount(
 
     onEvent?.({
       step: 5,
-      phase: AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE,
-      status: AccountRecoveryStatus.SUCCESS,
-      message: 'Account recovery completed successfully',
-      data: { recoveryResult },
+      phase: SyncAccountPhase.STEP_5_SYNC_ACCOUNT_COMPLETE,
+      status: SyncAccountStatus.SUCCESS,
+      message: 'Account sync completed successfully',
+      data: { syncResult },
     });
 
-    afterCall?.(true, recoveryResult);
-    return recoveryResult;
+    afterCall?.(true, syncResult);
+    return syncResult;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     const err = error instanceof Error ? error : new Error(message);
-    // Clear any VRF session that might have been established during recovery
+    // Clear any VRF session that might have been established during sync
     try {
       await webAuthnManager.clearVrfSession();
     } catch (clearError) {
-      console.warn('Failed to clear VRF session after recovery error:', clearError);
+      console.warn('Failed to clear VRF session after sync error:', clearError);
     }
 
     onError?.(err);
-    return handleRecoveryError(accountId, message, onError, afterCall);
+    return handleSyncError(accountId, message, onError, afterCall);
   }
 }
 
@@ -493,7 +493,7 @@ async function getOrCreateCredential(
   if (reuseCredential) {
     const prfResults = reuseCredential.clientExtensionResults?.prf?.results;
     if (!prfResults?.first || !prfResults?.second) {
-      throw new Error('Reused credential missing PRF outputs - cannot proceed with recovery');
+      throw new Error('Reused credential missing PRF outputs - cannot proceed with sync');
     }
     return reuseCredential;
   }
@@ -508,22 +508,22 @@ async function getOrCreateCredential(
 }
 
 /**
- * Handle recovery error
+ * Handle sync error
  */
-function handleRecoveryError(
+function handleSyncError(
   accountId: AccountId,
   errorMessage: string,
   onError?: (error: Error) => void,
-  afterCall?: AfterCall<RecoveryResult>
-): RecoveryResult {
-  console.error('[recoverAccount] Error:', errorMessage);
+  afterCall?: AfterCall<SyncAccountResult>
+): SyncAccountResult {
+  console.error('[syncAccount] Error:', errorMessage);
   onError?.(new Error(errorMessage));
 
-  const errorResult: RecoveryResult = {
+  const errorResult: SyncAccountResult = {
     success: false,
     accountId,
     publicKey: '',
-    message: `Recovery failed: ${errorMessage}`,
+    message: `Sync failed: ${errorMessage}`,
     error: errorMessage
   };
 
@@ -532,10 +532,10 @@ function handleRecoveryError(
 }
 
 /**
- * Perform the actual recovery process
+ * Perform the actual sync process
  * Syncs on-chain data and restores local IndexedDB data
  */
-async function performAccountRecovery({
+async function performAccountSync({
   context,
   accountId,
   publicKey,
@@ -561,17 +561,17 @@ async function performAccountRecovery({
     vrfPublicKey: string
     serverEncryptedVrfKeypair?: ServerEncryptedVrfKeypair
   },
-  onEvent?: EventCallback<AccountRecoverySSEEvent>,
-}): Promise<RecoveryResult> {
+  onEvent?: EventCallback<SyncAccountSSEEvent>,
+}): Promise<SyncAccountResult> {
 
   const { webAuthnManager, nearClient, configs } = context;
 
   try {
-    console.debug(`Performing recovery for account: ${accountId}`);
+    console.debug(`Performing sync for account: ${accountId}`);
     onEvent?.({
       step: 3,
-      phase: AccountRecoveryPhase.STEP_3_SYNC_AUTHENTICATORS_ONCHAIN,
-      status: AccountRecoveryStatus.PROGRESS,
+      phase: SyncAccountPhase.STEP_3_SYNC_AUTHENTICATORS_ONCHAIN,
+      status: SyncAccountStatus.PROGRESS,
       message: 'Syncing authenticators from onchain...',
     });
 
@@ -607,7 +607,7 @@ async function performAccountRecovery({
       credential
     });
 
-    // 4. Restore only the authenticator used for recovery
+    // 4. Restore only the authenticator used for sync
     await restoreAuthenticators({
       webAuthnManager,
       accountId,
@@ -618,8 +618,8 @@ async function performAccountRecovery({
 
     onEvent?.({
       step: 4,
-      phase: AccountRecoveryPhase.STEP_4_AUTHENTICATOR_SAVED,
-      status: AccountRecoveryStatus.SUCCESS,
+      phase: SyncAccountPhase.STEP_4_AUTHENTICATOR_SAVED,
+      status: SyncAccountStatus.SUCCESS,
       message: 'Restored Passkey authenticator...',
     });
 
@@ -635,7 +635,7 @@ async function performAccountRecovery({
     });
 
     // 5. Unlock VRF keypair in memory for immediate use
-    console.debug('Unlocking VRF keypair in memory after account recovery');
+    console.debug('Unlocking VRF keypair in memory after account sync');
     const unlockResult = await webAuthnManager.unlockVRFKeypair({
       nearAccountId: accountId,
       encryptedVrfKeypair: encryptedVrfResult.encryptedVrfKeypair,
@@ -643,30 +643,30 @@ async function performAccountRecovery({
     });
 
     if (!unlockResult.success) {
-      console.warn('Failed to unlock VRF keypair after recovery:', unlockResult.error);
-      // Don't throw error here - recovery was successful, but VRF unlock failed
+      console.warn('Failed to unlock VRF keypair after sync:', unlockResult.error);
+      // Don't throw error here - sync was successful, but VRF unlock failed
     } else {
-      console.debug('VRF keypair unlocked successfully after account recovery');
+      console.debug('VRF keypair unlocked successfully after account sync');
     }
 
     // 6. Initialize current user only after a successful unlock
     try {
       await webAuthnManager.initializeCurrentUser(accountId, context.nearClient);
     } catch (initErr) {
-      console.warn('Failed to initialize current user after recovery:', initErr);
+      console.warn('Failed to initialize current user after sync:', initErr);
     }
 
     return {
       success: true,
       accountId,
       publicKey,
-      message: 'Account successfully recovered',
+      message: 'Account successfully synced',
     };
 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[performAccountRecovery] Error:', error);
-    throw new Error(`Recovery process failed: ${message}`);
+    console.error('[performAccountSync] Error:', error);
+    throw new Error(`Sync process failed: ${message}`);
   }
 }
 
@@ -829,7 +829,7 @@ async function activateThresholdEnrollment(args: {
   const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(args.accountId, deviceNumber);
   if (existing) return;
 
-  // Avoid introducing another TouchID/WebAuthn prompt during account recovery:
+  // Avoid introducing another TouchID/WebAuthn prompt during account sync:
   // best-effort restore of threshold key metadata (no relayer keygen, no AddKey).
   try {
     const thresholdPublicKey = await inferThresholdPublicKeyNoPrompt({
@@ -857,7 +857,7 @@ async function activateThresholdEnrollment(args: {
       timestamp: Date.now(),
     });
   } catch (e) {
-    console.warn('[recoverAccount] Skipping threshold key restoration (non-fatal):', e);
+    console.warn('[syncAccount] Skipping threshold key restoration (non-fatal):', e);
   }
 }
 

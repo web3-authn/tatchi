@@ -9,7 +9,7 @@
 
 import type { FinalExecutionOutcome } from '@near-js/types';
 import type { NearClient, SignedTransaction } from './NearClient';
-import type { ContractStoredAuthenticator } from './TatchiPasskey/recoverAccount';
+import type { ContractStoredAuthenticator } from './TatchiPasskey/syncAccount';
 import type { PasskeyManagerContext } from './TatchiPasskey';
 import type { AccountId } from './types/accountIds';
 import type { DeviceLinkingSSEEvent } from './types/sdkSentEvents';

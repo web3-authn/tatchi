@@ -383,7 +383,7 @@ Conceptually, email recovery is **“LinkDevice without Device 1”**:
   - local storage logic from `storeDeviceAuthenticator`,
   - and login logic from `attemptAutoLogin`.
 
-Implementation‑wise, this should be encapsulated as a dedicated `EmailRecoveryFlow` (mirroring `LinkDeviceFlow` and `AccountRecoveryFlow`) that:
+Implementation‑wise, this should be encapsulated as a dedicated `EmailRecoveryFlow` (mirroring `LinkDeviceFlow` and `SyncAccountFlow`) that:
 
 - exposes a hook‑friendly API (`discover`/`start`/`getState`/`reset`),
 - emits structured events for UI (phases: PREPARE → TOUCH_ID → AWAIT_EMAIL → POLLING → FINALIZING → COMPLETE/ERROR),
@@ -391,24 +391,24 @@ Implementation‑wise, this should be encapsulated as a dedicated `EmailRecovery
 
 ## 10. Implementation TODO (step‑by‑step)
 
-All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`, reusing existing primitives from `linkDevice.ts`, `recoverAccount.ts`, and `NearClient.ts`.
+All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`, reusing existing primitives from `linkDevice.ts`, `syncAccount.ts`, and `NearClient.ts`.
 
 ### 10.1 Design `EmailRecoveryFlow` API
 
-- [ ] Read:
-  - `sdk/src/core/TatchiPasskey/linkDevice.ts` (flow structure, events, retry/polling patterns).
-  - `sdk/src/core/TatchiPasskey/recoverAccount.ts` (recovery flow + VRF derivation).
+  - [ ] Read:
+    - `sdk/src/core/TatchiPasskey/linkDevice.ts` (flow structure, events, retry/polling patterns).
+    - `sdk/src/core/TatchiPasskey/syncAccount.ts` (account sync flow + VRF derivation).
   - `sdk/src/core/types/sdkSentEvents.ts` (event types, phases, status enums).
   - `sdk/src/core/WebAuthnManager/index.ts` (registration + VRF helpers).
   - `sdk/src/core/IndexedDBManager/index.ts` and `sdk/src/core/IndexedDBManager/passkeyClientDB.ts` (appState + recovery email storage).
   - `sdk/src/core/NearClient.ts` (viewAccessKey, sendTransaction, viewBlock helpers).
 - [x] In `sdk/src/core/TatchiPasskey/emailRecovery.ts`:
   - Define `PendingEmailRecovery` (copy the shape from section 3 of this doc).
-  - Define `EmailRecoveryFlowOptions` (callbacks: `onEvent`, `onError`, `afterCall` similar to `AccountRecoveryHooksOptions`).
+  - Define `EmailRecoveryFlowOptions` (callbacks: `onEvent`, `onError`, `afterCall` similar to `SyncAccountHooksOptions`).
   - In `sdk/src/core/types/sdkSentEvents.ts`, define:
     - `EmailRecoveryPhase` enum with phases matching this doc (e.g. PREPARE → TOUCH_ID → AWAIT_EMAIL → POLLING → FINALIZING → COMPLETE/ERROR).
     - `EmailRecoveryStatus` enum (`PROGRESS`/`SUCCESS`/`ERROR`).
-    - `EmailRecoverySSEEvent` type (mirroring `DeviceLinkingSSEEvent` / `AccountRecoverySSEEvent`).
+    - `EmailRecoverySSEEvent` type (mirroring `DeviceLinkingSSEEvent` / `SyncAccountSSEEvent`).
     - Extend any relevant hook options (`SignNEP413HooksOptions` etc.) so `onEvent` can accept `EmailRecoverySSEEvent`.
   - Define public methods:
     - `start(input: { accountId: string }): Promise<void>` – kicks off Phase A.
@@ -519,7 +519,7 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
   - These methods should internally create/reuse a single `EmailRecoveryFlow` and are what the iframe RPC layer will call (wallet host and parent app both rely on this surface).
 - [x] In the React layer:
   - Read reference patterns in:
-    - `sdk/src/react/components/PasskeyAuthMenu/client.tsx` (link device & recovery entrypoints).
+    - `sdk/src/react/components/PasskeyAuthMenu/client.tsx` (link device & account sync entrypoints).
     - `sdk/src/react/components/AccountMenuButton/LinkedDevicesModal.tsx` (device list + access keys).
   - Implement a simple “Recover account with email” flow component/hook that:
     - Collects `accountId`.
@@ -535,7 +535,7 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
   - `buildMailtoUrl` format (`recover <accountId> ed25519:<new_public_key>` subject).
   - Polling logic (success, timeout, cancellation).
   - Finalization flow happy path and retry of registration tx.
-- [ ] Ensure logs mirror existing patterns from `LinkDeviceFlow` and `AccountRecoveryFlow` (consistent prefixes, levels) and include structured fields for:
+- [ ] Ensure logs mirror existing patterns from `LinkDeviceFlow` and `SyncAccountFlow` (consistent prefixes, levels) and include structured fields for:
   - `accountId`, `nearPublicKey`, email recovery status (phase), AddKey detection, registration tx hash / error type.
 - [ ] Double‑check that no sensitive material (PRF output, unencrypted keys) is persisted or logged.
 
@@ -547,7 +547,7 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
   - Add non‑interactive / completion phases (FINALIZING once past WebAuthn, COMPLETE, ERROR) to `HIDE_PHASES`.
 - [x] In `sdk/src/core/WalletIframe/client/router.ts`:
   - Import `EmailRecoverySSEEvent` and include it wherever progress events are typed (e.g. in `SignNEP413HooksOptions.onEvent` unions and any generic progress dispatch logic).
-  - Ensure the router forwards email‑recovery progress events from the iframe to parent callbacks just like device linking and account recovery.
+  - Ensure the router forwards email‑recovery progress events from the iframe to parent callbacks just like device linking and account sync.
 - [x] In `sdk/src/core/WalletIframe/host/wallet-iframe-handlers.ts`:
   - Add new PM handlers for the email recovery flow (e.g. `PM_EMAIL_RECOVERY_START`, `PM_EMAIL_RECOVERY_FINALIZE`, or a single `PM_EMAIL_RECOVERY_FLOW` depending on API shape).
   - Inside those handlers, call the corresponding `TatchiPasskey` methods on the host (`emailRecoveryFlow.start`, `buildMailtoUrl`, `startPolling`, `finalize`) and wire `onEvent: (ev) => postProgress(req.requestId, ev)` so `EmailRecoveryPhase` events reach the client.

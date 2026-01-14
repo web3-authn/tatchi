@@ -12,7 +12,7 @@ export interface PasskeyAuthMenuProps {
   /** Return a Promise to keep the waiting screen visible until the flow completes. */
   onRegister?: () => void | Promise<unknown>;
   /** Return a Promise to keep the waiting screen visible until the flow completes. */
-  onRecoverAccount?: () => void | Promise<unknown>;
+  onSyncAccount?: () => void | Promise<unknown>;
   /** Display SDK progress event messages under the waiting screen. */
   showSDKEvents?: boolean;
   /**

@@ -18,11 +18,11 @@ export function BentoGrid() {
         </div>
       </div>
 
-      <div className="bento-card accent-blue" role="group" aria-labelledby="bento-recovery-title">
+      <div className="bento-card accent-blue" role="group" aria-labelledby="bento-sync-title">
         <div className="bento-content">
           <ScanFace className="bento-icon" aria-hidden />
-          <h3 className="bento-title" id="bento-recovery-title">Account Recovery</h3>
-          <p className="bento-desc">Recover accounts directly from onchain Passkey authenticators with TouchID</p>
+          <h3 className="bento-title" id="bento-sync-title">Account Sync</h3>
+          <p className="bento-desc">Sync accounts directly from onchain Passkey authenticators with TouchID</p>
         </div>
       </div>
       <div className="bento-card accent-blue" role="group" aria-labelledby="bento-linking-title">

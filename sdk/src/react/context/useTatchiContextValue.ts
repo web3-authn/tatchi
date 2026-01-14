@@ -94,8 +94,8 @@ export function useTatchiContextValue(args: {
     return result;
   }, [logout, refreshLoginState, tatchiWithSdkFlow]);
 
-  const recoverAccount: TatchiContextType['recoverAccount'] = useCallback((args) => {
-    return tatchiWithSdkFlow.recoverAccountFlow(args);
+  const syncAccount: TatchiContextType['syncAccount'] = useCallback((args) => {
+    return tatchiWithSdkFlow.syncAccount(args);
   }, [tatchiWithSdkFlow]);
 
   const startDevice2LinkingFlow: TatchiContextType['startDevice2LinkingFlow'] = useCallback(async (args) => {
@@ -164,7 +164,7 @@ export function useTatchiContextValue(args: {
     executeAction,
     signNEP413Message,
     signDelegateAction,
-    recoverAccount,
+    syncAccount,
     startDevice2LinkingFlow,
     stopDevice2LinkingFlow,
     getLoginSession,
@@ -188,7 +188,7 @@ export function useTatchiContextValue(args: {
     executeAction,
     signNEP413Message,
     signDelegateAction,
-    recoverAccount,
+    syncAccount,
     startDevice2LinkingFlow,
     stopDevice2LinkingFlow,
     getLoginSession,

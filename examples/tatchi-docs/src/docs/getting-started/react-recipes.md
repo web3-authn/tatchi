@@ -28,9 +28,9 @@ function Root() {
 }
 ```
 
-## PasskeyAuthMenu – register / login / recover
+## PasskeyAuthMenu – register / login / sync
 
-`PasskeyAuthMenu` is a ready‑made registration/login/recovery menu that wires into the passkey flows exposed by `useTatchi`.
+`PasskeyAuthMenu` is a ready‑made registration/login/account-sync menu that wires into the passkey flows exposed by `useTatchi`.
 
 ```tsx
 import {
@@ -46,7 +46,7 @@ export function PasskeySection() {
     accountInputState,
     registerPasskey,
     loginAndCreateSession,
-    tatchi,
+    syncAccount,
   } = useTatchi()
 
   const targetAccountId = accountInputState.targetAccountId
@@ -66,12 +66,12 @@ export function PasskeySection() {
       },
     })
 
-  const onRecoverAccount = () =>
-    tatchi.recoverAccountFlow({
+  const onSyncAccount = () =>
+    syncAccount({
       accountId: targetAccountId,
       options: {
-        onEvent: (event) => console.log('recovery event', event),
-        onError: (error) => console.error('recovery error', error),
+        onEvent: (event) => console.log('sync event', event),
+        onError: (error) => console.error('sync error', error),
       },
     })
 
@@ -84,7 +84,7 @@ export function PasskeySection() {
       defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
       onLogin={onLogin}
       onRegister={onRegister}
-      onRecoverAccount={onRecoverAccount}
+      onSyncAccount={onSyncAccount}
       emailRecoveryOptions={{
         onEvent: (event) => console.log('email-recovery event', event),
         onError: (error) => console.error('email-recovery error', error),
@@ -98,7 +98,7 @@ export function PasskeySection() {
 }
 ```
 
-`onRecoverAccount` covers passkey-based recovery (e.g. iCloud/Google Password Manager sync). Email-based recovery is built in to the menu via “Recover Account with Email” and emits events through `emailRecoveryOptions`.
+`onSyncAccount` covers passkey-based account sync (e.g. iCloud/Google Password Manager passkey sync). Email-based recovery is built in to the menu via “Recover Account with Email” and emits events through `emailRecoveryOptions`.
 
 ## AccountMenuButton – account menu + device linking
 

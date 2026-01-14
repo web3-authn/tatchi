@@ -1,7 +1,7 @@
 
 export { TatchiPasskey } from './core/TatchiPasskey';
 export { WebAuthnManager } from './core/WebAuthnManager';
-export { AccountRecoveryFlow } from './core/TatchiPasskey';
+export { SyncAccountFlow } from './core/TatchiPasskey';
 export {
   type NearClient,
   MinimalNearClient,
@@ -37,10 +37,10 @@ export type {
 export type {
   RegistrationSSEEvent,
   LoginSSEvent,
-  // Account Recovery
-  AccountRecoveryPhase,
-  AccountRecoveryStatus,
-  AccountRecoverySSEEvent,
+  // Account Sync
+  SyncAccountPhase,
+  SyncAccountStatus,
+  SyncAccountSSEEvent,
   // Device Linking
   DeviceLinkingSSEEvent,
   // Hooks Options

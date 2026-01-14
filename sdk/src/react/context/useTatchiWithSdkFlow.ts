@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import type { TatchiPasskey } from '@/core/TatchiPasskey';
 import {
-  AccountRecoveryPhase,
-  AccountRecoveryStatus,
-  type AccountRecoveryHooksOptions,
-  type AccountRecoverySSEEvent,
+  SyncAccountPhase,
+  SyncAccountStatus,
+  type SyncAccountHooksOptions,
+  type SyncAccountSSEEvent,
   LoginPhase,
   LoginStatus,
   type LoginHooksOptions,
@@ -17,23 +17,23 @@ import {
 
 export function useTatchiWithSdkFlow(args: {
   tatchi: TatchiPasskey;
-  beginSdkFlow: (kind: 'login' | 'register' | 'recover', accountId?: string) => number;
+  beginSdkFlow: (kind: 'login' | 'register' | 'sync', accountId?: string) => number;
   appendSdkEventMessage: (seq: number, message: string) => void;
-  endSdkFlow: (kind: 'login' | 'register' | 'recover', seq: number, status: 'success' | 'error', error?: string) => void;
+  endSdkFlow: (kind: 'login' | 'register' | 'sync', seq: number, status: 'success' | 'error', error?: string) => void;
 }): TatchiPasskey {
   const { tatchi, beginSdkFlow, appendSdkEventMessage, endSdkFlow } = args;
 
   return useMemo(() => {
     /**
-     * We use a `Proxy` to instrument a few core flow entrypoints (login/register/recover)
+     * We use a `Proxy` to instrument a few core flow entrypoints (login/register/sync)
      * while preserving the full `TatchiPasskey` API surface.
      *
      * This lets *all* callers (not just PasskeyAuthMenu) use `ctx.tatchi.*` directly and
      * still have `sdkFlow` update as events stream in.
-     */
+    */
     type LoginAndCreateSessionFn = TatchiPasskey['loginAndCreateSession'];
     type RegisterPasskeyFn = TatchiPasskey['registerPasskey'];
-    type RecoverAccountFlowFn = TatchiPasskey['recoverAccountFlow'];
+    type SyncAccountFn = TatchiPasskey['syncAccount'];
 
     const loginAndCreateSessionWithSdkFlow: LoginAndCreateSessionFn = async (
       nearAccountId,
@@ -92,33 +92,33 @@ export function useTatchiWithSdkFlow(args: {
       return await tatchi.registerPasskey(nearAccountId, wrappedOptions);
     };
 
-    const recoverAccountFlowWithSdkFlow: RecoverAccountFlowFn = async (args) => {
-      const seq = beginSdkFlow('recover', args?.accountId);
-      const options: AccountRecoveryHooksOptions | undefined = args?.options;
+    const syncAccountWithSdkFlow: SyncAccountFn = async (args) => {
+      const seq = beginSdkFlow('sync', args?.accountId);
+      const options: SyncAccountHooksOptions | undefined = args?.options;
 
-      const wrappedOptions: AccountRecoveryHooksOptions = {
+      const wrappedOptions: SyncAccountHooksOptions = {
         ...options,
-        onEvent: (event: AccountRecoverySSEEvent) => {
+        onEvent: (event: SyncAccountSSEEvent) => {
           appendSdkEventMessage(seq, event.message);
           if (
-            event.phase === AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE &&
-            event.status === AccountRecoveryStatus.SUCCESS
+            event.phase === SyncAccountPhase.STEP_5_SYNC_ACCOUNT_COMPLETE &&
+            event.status === SyncAccountStatus.SUCCESS
           ) {
-            endSdkFlow('recover', seq, 'success');
-          } else if (event.phase === AccountRecoveryPhase.ERROR || event.status === AccountRecoveryStatus.ERROR) {
+            endSdkFlow('sync', seq, 'success');
+          } else if (event.phase === SyncAccountPhase.ERROR || event.status === SyncAccountStatus.ERROR) {
             const error = 'error' in event ? event.error : event.message;
-            endSdkFlow('recover', seq, 'error', error || event.message);
+            endSdkFlow('sync', seq, 'error', error || event.message);
           }
           options?.onEvent?.(event);
         },
         onError: (error: Error) => {
           appendSdkEventMessage(seq, error.message);
-          endSdkFlow('recover', seq, 'error', error.message);
+          endSdkFlow('sync', seq, 'error', error.message);
           options?.onError?.(error);
         },
       };
 
-      return await tatchi.recoverAccountFlow({
+      return await tatchi.syncAccount({
         ...args,
         options: wrappedOptions,
       });
@@ -134,8 +134,8 @@ export function useTatchiWithSdkFlow(args: {
           return registerPasskeyWithSdkFlow;
         }
 
-        if (prop === 'recoverAccountFlow') {
-          return recoverAccountFlowWithSdkFlow;
+        if (prop === 'syncAccount') {
+          return syncAccountWithSdkFlow;
         }
 
         const value: unknown = Reflect.get(target as object, prop, receiver);

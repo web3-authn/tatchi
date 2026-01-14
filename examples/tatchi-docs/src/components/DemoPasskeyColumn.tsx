@@ -12,12 +12,12 @@ import { CarouselPrevButton } from './Carousel2/CarouselPrevButton'
 // Lazily load the most common flows to shrink the initial bundle.
 const PasskeyLoginMenu = React.lazy(() => import('./PasskeyLoginMenu').then(m => ({ default: m.PasskeyLoginMenu })))
 const DemoPage = React.lazy(() => import('./DemoPage').then(m => ({ default: m.DemoPage })))
-const AccountRecovery = React.lazy(() => import('./AccountRecovery').then(m => ({ default: m.AccountRecovery })))
+const SyncAccount = React.lazy(() => import('./SyncAccount').then(m => ({ default: m.SyncAccount })))
 // DemoChainsigs is heavy (viem/chainsigs). Lazy-load so it doesn't affect first load.
 const DemoChainsigs = React.lazy(() => import('./DemoChainsigs').then(m => ({ default: m.DemoChainsigs })))
 const preloadDemoPage = () => import('./DemoPage').then(() => undefined)
 const preloadDemoChainsigs = () => import('./DemoChainsigs').then(() => undefined)
-const preloadAccountRecovery = () => import('./AccountRecovery').then(() => undefined)
+const preloadSyncAccount = () => import('./SyncAccount').then(() => undefined)
 import { AuthMenuControlProvider } from '../contexts/AuthMenuControl';
 import { ProfileMenuControlProvider } from '../contexts/ProfileMenuControl';
 
@@ -104,9 +104,9 @@ export function DemoPasskeyColumn() {
               <CarouselNextButton
                 onClick={nextSlide}
                 disabled={!canNext}
-                onPointerOver={() => void preloadAccountRecovery().catch(() => {})}
-                onFocus={() => void preloadAccountRecovery().catch(() => {})}
-                onTouchStart={() => void preloadAccountRecovery().catch(() => {})}
+                onPointerOver={() => void preloadSyncAccount().catch(() => {})}
+                onFocus={() => void preloadSyncAccount().catch(() => {})}
+                onTouchStart={() => void preloadSyncAccount().catch(() => {})}
               />
             </div>
           )}
@@ -114,13 +114,13 @@ export function DemoPasskeyColumn() {
       ),
     },
     {
-      key: 'recovery',
-      title: 'Account Recovery',
-      disabled: !loginState?.isLoggedIn,
+      key: 'sync-account',
+      title: 'Account Sync',
+      disabled: false,
       element: ({ prevSlide, canPrev, index }: { prevSlide: () => void; canPrev: boolean; index: number }) => (
         <>
           <React.Suspense fallback={<SuspenseFallback />}>
-            <AccountRecovery />
+            <SyncAccount />
           </React.Suspense>
           {index > 0 && canPrev && (
             <div className="carousel-cta carousel-cta--left">

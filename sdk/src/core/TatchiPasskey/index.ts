@@ -11,7 +11,7 @@ import {
   sendTransaction,
   signAndSendTransactions,
 } from './actions';
-import type { RecoveryResult } from './recoverAccount';
+import type { SyncAccountResult } from './syncAccount';
 import { registerPasskey } from './registration';
 import { registerPasskeyInternal } from './registration';
 import {
@@ -36,7 +36,7 @@ import type {
   TatchiConfigsInput,
 } from '../types/tatchi';
 import type {
-  AccountRecoveryHooksOptions,
+  SyncAccountHooksOptions,
   ActionHooksOptions,
   DelegateActionHooksOptions,
   DelegateRelayHooksOptions,
@@ -100,12 +100,11 @@ export class TatchiPasskey {
   private iframeRouter: WalletIframeRouter | null = null;
   // Deduplicate concurrent initWalletIframe() calls to avoid mounting multiple iframes.
   private walletIframeInitInFlight: Promise<void> | null = null;
-  // Wallet-iframe mode: mirror wallet-host preferences into app-origin in-memory cache.
-  private walletIframePrefsUnsubscribe: (() => void) | null = null;
-  // Internal active Device2 flow when running locally (not exposed)
-  private activeDeviceLinkFlow: import('./linkDevice').LinkDeviceFlow | null = null;
-  private activeAccountRecoveryFlow: import('./recoverAccount').AccountRecoveryFlow | null = null;
-  private activeEmailRecoveryFlow: import('./emailRecovery').EmailRecoveryFlow | null = null;
+	// Wallet-iframe mode: mirror wallet-host preferences into app-origin in-memory cache.
+	private walletIframePrefsUnsubscribe: (() => void) | null = null;
+	// Internal active Device2 flow when running locally (not exposed)
+	private activeDeviceLinkFlow: import('./linkDevice').LinkDeviceFlow | null = null;
+	private activeEmailRecoveryFlow: import('./emailRecovery').EmailRecoveryFlow | null = null;
 
   constructor(
     configs: TatchiConfigsInput,
@@ -1486,58 +1485,58 @@ export class TatchiPasskey {
     });
   }
 
-  ///////////////////////////////////////
-  // === Account Recovery Flow ===
-  ///////////////////////////////////////
+	  ///////////////////////////////////////
+	  // === Account Sync Flow ===
+	  ///////////////////////////////////////
 
-  /**
-   * Creates an AccountRecoveryFlow instance, for step-by-step account recovery UX
-   */
-  async recoverAccountFlow(args: {
-    accountId?: string;
-    options?: AccountRecoveryHooksOptions
-  }): Promise<RecoveryResult> {
+	  /**
+	   * Sync account state from on-chain data using an existing passkey.
+	   */
+	  async syncAccount(args: {
+	    accountId?: string;
+	    options?: SyncAccountHooksOptions
+	  }): Promise<SyncAccountResult> {
 
     const accountIdInput = args?.accountId || '';
-    const options = args?.options;
-    if (this.shouldUseWalletIframe()) {
-      try {
-        const router = await this.requireWalletIframeRouter();
-        const res = await router.recoverAccountFlow({
-          accountId: accountIdInput,
-          onEvent: options?.onEvent
-        });
-        await options?.afterCall?.(true, res);
-        return res;
+	    const options = args?.options;
+	    if (this.shouldUseWalletIframe()) {
+	      try {
+	        const router = await this.requireWalletIframeRouter();
+	        const res = await router.syncAccount({
+	          accountId: accountIdInput,
+	          onEvent: options?.onEvent
+	        });
+	        await options?.afterCall?.(true, res);
+	        return res;
       } catch (error: unknown) {
         const e = toError(error);
         await options?.onError?.(e);
         await options?.afterCall?.(false);
         throw e;
       }
-    }
+	    }
 
-    // Local orchestration using AccountRecoveryFlow for a single-call UX
-    try {
-      const { AccountRecoveryFlow } = await import('./recoverAccount');
-      const flow = new AccountRecoveryFlow(this.getContext(), options);
-      // Phase 1: Discover available accounts
-      const discovered = await flow.discover(accountIdInput || '');
-      if (!Array.isArray(discovered) || discovered.length === 0) {
-        const err = new Error('No recoverable accounts found');
-        await options?.onError?.(err);
-        await options?.afterCall?.(false);
-        return { success: false, accountId: accountIdInput || '', publicKey: '', message: err.message, error: err.message };
-      }
+	    // Local orchestration using SyncAccountFlow for a single-call UX
+	    try {
+	      const { SyncAccountFlow } = await import('./syncAccount');
+	      const flow = new SyncAccountFlow(this.getContext(), options);
+	      // Phase 1: Discover available accounts
+	      const discovered = await flow.discover(accountIdInput || '');
+	      if (!Array.isArray(discovered) || discovered.length === 0) {
+	        const err = new Error('No syncable accounts found');
+	        await options?.onError?.(err);
+	        await options?.afterCall?.(false);
+	        return { success: false, accountId: accountIdInput || '', publicKey: '', message: err.message, error: err.message };
+	      }
       // Phase 2: User selects account in UI
       // Select the first account-scope; OS chooser selects the actual credential
       const selected = discovered[0];
 
-      // Phase 3: Execute recovery with secure credential lookup
-      const result = await flow.recover({
-        credentialId: selected.credentialId,
-        accountId: selected.accountId
-      });
+	      // Phase 3: Execute sync with secure credential lookup
+	      const result = await flow.sync({
+	        credentialId: selected.credentialId,
+	        accountId: selected.accountId
+	      });
 
       await options?.afterCall?.(true, result);
       return result;
@@ -1800,18 +1799,18 @@ export {
   DeviceLinkingErrorCode
 } from '../types/linkDevice';
 
-// Re-export account recovery types and classes
+// Re-export account sync types and classes
 export type {
-  RecoveryResult,
-  AccountLookupResult,
+  SyncAccountResult,
+  SyncAccountLookupResult,
   PasskeyOption,
   PasskeyOptionWithoutCredential,
   PasskeySelection
-} from './recoverAccount';
+} from './syncAccount';
 
 export {
-  AccountRecoveryFlow
-} from './recoverAccount';
+  SyncAccountFlow
+} from './syncAccount';
 
 // Re-export NEP-413 types
 export type {

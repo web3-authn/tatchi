@@ -24,7 +24,7 @@ const preloadShowQRCode = () => import('../ShowQRCode').then(() => undefined);
 export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
   onLogin,
   onRegister,
-  onRecoverAccount,
+  onSyncAccount,
   linkDeviceOptions,
   emailRecoveryOptions,
   header,
@@ -47,16 +47,16 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
     () => withSdkEventsHandler('register', onRegister, 90_000),
     [onRegister, withSdkEventsHandler],
   );
-  const onRecoverWithSDKEvents = React.useMemo(
-    () => withSdkEventsHandler('recover', onRecoverAccount, 120_000),
-    [onRecoverAccount, withSdkEventsHandler],
+  const onSyncWithSDKEvents = React.useMemo(
+    () => withSdkEventsHandler('sync', onSyncAccount, 120_000),
+    [onSyncAccount, withSdkEventsHandler],
   );
 
   const controller = usePasskeyAuthMenuController(
     {
       onLogin: onLoginWithSDKEvents,
       onRegister: onRegisterWithSDKEvents,
-      onRecoverAccount: onRecoverWithSDKEvents,
+      onSyncAccount: onSyncWithSDKEvents,
       defaultMode,
       headings,
       linkDeviceOptions,
@@ -83,7 +83,7 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
     if (
       controller.mode !== AuthMenuMode.Register &&
       controller.mode !== AuthMenuMode.Login &&
-      controller.mode !== AuthMenuMode.Recover
+      controller.mode !== AuthMenuMode.Sync
     ) {
       return '';
     }
@@ -109,7 +109,9 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
         waitingText={
           controller.mode === AuthMenuMode.Register
             ? 'Registering passkey…'
-            : 'Waiting for Passkey…'
+            : controller.mode === AuthMenuMode.Sync
+              ? 'Syncing account…'
+              : 'Waiting for Passkey…'
         }
         waitingSDKEventsText={waitingSDKEventsText}
         backButton={
@@ -163,7 +165,7 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
           placeholder={
             controller.mode === AuthMenuMode.Register
               ? 'Pick a username'
-              : controller.mode === AuthMenuMode.Recover
+              : controller.mode === AuthMenuMode.Sync
                 ? 'Leave blank to discover accounts'
                 : 'Enter your username'
           }
@@ -180,7 +182,7 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
           items={[
             { value: AuthMenuMode.Register, label: 'Register', className: 'register' },
             { value: AuthMenuMode.Login, label: 'Login', className: 'login' },
-            { value: AuthMenuMode.Recover, label: 'Recover', className: 'recover' },
+            { value: AuthMenuMode.Sync, label: 'Sync', className: 'sync' },
           ]}
           value={controller.mode}
           onValueChange={(v) => controller.onSegmentChange(v as AuthMenuMode)}
@@ -191,7 +193,7 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
           <div className="w3a-seg-help" aria-live="polite">
             {controller.mode === AuthMenuMode.Login && 'Sign in with your passkey'}
             {controller.mode === AuthMenuMode.Register && 'Create a new account'}
-            {controller.mode === AuthMenuMode.Recover && 'Recover account (iCloud/Chrome sync)'}
+            {controller.mode === AuthMenuMode.Sync && 'Sync account (iCloud/Chrome sync)'}
           </div>
         </div>
 

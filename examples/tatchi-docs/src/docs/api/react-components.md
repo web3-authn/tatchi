@@ -16,7 +16,7 @@ import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 ## Common components
 
-- `PasskeyAuthMenu` (`@tatchi-xyz/sdk/react/passkey-auth-menu`) – register/login/recover UI (includes “Recover Account with Email” and “Scan and Link Device”)
+- `PasskeyAuthMenu` (`@tatchi-xyz/sdk/react/passkey-auth-menu`) – register/login/sync UI (includes “Recover Account with Email” and “Scan and Link Device”)
 - `AccountMenuButton` (`@tatchi-xyz/sdk/react/profile`) – account/profile + settings + device linking
 
 All React exports must be used under `TatchiPasskeyProvider`.

@@ -229,9 +229,9 @@ class OverlayController {
 - When the overlay shows/hides automatically (heuristics):
   - `passkey-sdk/src/core/WalletIframe/client/on-events-progress-bus.ts` implements `defaultPhaseHeuristics`, which inspects `payload.phase` values emitted by the host.
   - Behavior (tuned to minimize blocking time):
-    - Show for phases that require immediate user activation: `user-confirmation`, `webauthn-authentication`, registration `webauthn-verification`, device-linking `authorization`, device-linking `registration`, account-recovery `webauthn-authentication`, and login `webauthn-assertion`.
+    - Show for phases that require immediate user activation: `user-confirmation`, `webauthn-authentication`, registration `webauthn-verification`, device-linking `authorization`, device-linking `registration`, account sync `webauthn-authentication`, and login `webauthn-assertion`.
       - Important: `user-confirmation` must remain in the show list so the modal rendered inside the wallet iframe is visible and can capture a click when `behavior: 'requireClick'`.
-    - Hide for post-activation phases such as `authentication-complete`, `transaction-signing-progress`, `transaction-signing-complete`, `broadcasting`, `action-complete`, plus the completion/error phases for registration, login, device linking, and account recovery.
+    - Hide for post-activation phases such as `authentication-complete`, `transaction-signing-progress`, `transaction-signing-complete`, `broadcasting`, `action-complete`, plus the completion/error phases for registration, login, device linking, and account sync.
 
 ### Why the overlay may block clicks after sending
 

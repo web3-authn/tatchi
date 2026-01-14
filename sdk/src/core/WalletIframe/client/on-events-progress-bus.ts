@@ -21,7 +21,7 @@ import type { ProgressPayload as MessageProgressPayload } from '../shared/messag
 import {
   ActionPhase,
   DeviceLinkingPhase,
-  AccountRecoveryPhase,
+  SyncAccountPhase,
   RegistrationPhase,
   LoginPhase,
   EmailRecoveryPhase,
@@ -49,7 +49,7 @@ const SHOW_PHASES = new Set<string>([
   // Device2: Registration inside wallet host (collects passkey via ModalTxConfirmer)
   // Show overlay so the wallet iframe is visible and focused for WebAuthn
   DeviceLinkingPhase.STEP_6_REGISTRATION,
-  AccountRecoveryPhase.STEP_2_WEBAUTHN_AUTHENTICATION,
+  SyncAccountPhase.STEP_2_WEBAUTHN_AUTHENTICATION,
   LoginPhase.STEP_2_WEBAUTHN_ASSERTION,
 ]);
 
@@ -73,10 +73,10 @@ const HIDE_PHASES = new Set<string>([
   LoginPhase.STEP_3_VRF_UNLOCK,
   LoginPhase.STEP_4_LOGIN_COMPLETE,
   LoginPhase.LOGIN_ERROR,
-  // Account recovery: hide after authentication completes or on completion/errors
-  AccountRecoveryPhase.STEP_4_AUTHENTICATOR_SAVED,
-  AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE,
-  AccountRecoveryPhase.ERROR,
+  // Account sync: hide after authentication completes or on completion/errors
+  SyncAccountPhase.STEP_4_AUTHENTICATOR_SAVED,
+  SyncAccountPhase.STEP_5_SYNC_ACCOUNT_COMPLETE,
+  SyncAccountPhase.ERROR,
   // Email recovery: hide after finalization/complete or on error
   EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
   EmailRecoveryPhase.STEP_6_COMPLETE,

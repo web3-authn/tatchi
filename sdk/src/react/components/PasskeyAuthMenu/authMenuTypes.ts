@@ -1,13 +1,13 @@
 export enum AuthMenuMode {
   Register = 0,
   Login = 1,
-  Recover = 2,
+  Sync = 2,
 }
 
 export const AuthMenuModeMap = {
   [AuthMenuMode.Register]: 'register',
   [AuthMenuMode.Login]: 'login',
-  [AuthMenuMode.Recover]: 'recover',
+  [AuthMenuMode.Sync]: 'sync',
 } as const;
 
 export type AuthMenuModeLabel = typeof AuthMenuModeMap[keyof typeof AuthMenuModeMap];
@@ -23,7 +23,6 @@ export interface AuthMenuHeadings {
   registration?: AuthMenuTitle;
   /** Headings for the Login mode */
   login?: AuthMenuTitle;
-  /** Headings for the Recover Account mode */
-  recoverAccount?: AuthMenuTitle;
+  /** Headings for the Sync Account mode */
+  syncAccount?: AuthMenuTitle;
 }
-

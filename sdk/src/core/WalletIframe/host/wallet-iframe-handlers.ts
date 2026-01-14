@@ -13,7 +13,7 @@ import type { TatchiPasskey } from '../../TatchiPasskey';
 import { OFFLINE_EXPORT_FALLBACK, EXPORT_NEAR_KEYPAIR_CANCELLED, WALLET_UI_CLOSED } from '../../OfflineExport/messages';
 import { isTouchIdCancellationError } from '../../../utils/errors';
 import type {
-  AccountRecoveryHooksOptions,
+  SyncAccountHooksOptions,
   ActionHooksOptions,
   DelegateActionHooksOptions,
   LoginHooksOptions,
@@ -430,13 +430,13 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
-    PM_RECOVER_ACCOUNT_FLOW: async (req: Req<'PM_RECOVER_ACCOUNT_FLOW'>) => {
+    PM_SYNC_ACCOUNT_FLOW: async (req: Req<'PM_SYNC_ACCOUNT_FLOW'>) => {
       const pm = getTatchiPasskey();
       const { accountId } = (req.payload || {});
       if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.recoverAccountFlow({
+      const result = await pm.syncAccount({
         accountId,
-        options: { onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev) } as AccountRecoveryHooksOptions,
+        options: { onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev) } as SyncAccountHooksOptions,
       });
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });

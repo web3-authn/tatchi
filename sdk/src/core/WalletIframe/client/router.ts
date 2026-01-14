@@ -73,7 +73,7 @@ import type {
   ActionSSEEvent,
   ActionHooksOptions,
   AfterCall,
-  AccountRecoverySSEEvent,
+  SyncAccountSSEEvent,
   DelegateActionSSEEvent,
   DeviceLinkingSSEEvent,
   EmailRecoverySSEEvent,
@@ -87,7 +87,7 @@ import {
   LoginPhase,
   ActionPhase,
   DeviceLinkingPhase,
-  AccountRecoveryPhase,
+  SyncAccountPhase,
   EmailRecoveryPhase,
 } from '../../types/sdkSentEvents';
 import type {
@@ -119,7 +119,7 @@ import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { mergeSignerMode, type ConfirmationConfig, type SignerMode } from '../../types/signer-worker';
 import type { AccessKeyList } from '../../NearClient';
 import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
-import type { RecoveryResult } from '../../TatchiPasskey';
+import type { SyncAccountResult } from '../../TatchiPasskey';
 import { openOfflineExportWindow } from '../../OfflineExport/index.js';
 import type { DerivedAddressRecord } from '../../IndexedDBManager';
 import type { EmailRecoveryContracts } from '../../types/tatchi';
@@ -1128,16 +1128,16 @@ export class WalletIframeRouter {
     return Promise.resolve();
   }
 
-  // ===== Account Recovery (single-endpoint flow) =====
-  async recoverAccountFlow(payload: {
+  // ===== Account Sync (single-endpoint flow) =====
+  async syncAccount(payload: {
     accountId?: string;
-    onEvent?: (ev: AccountRecoverySSEEvent) => void
-  }): Promise<RecoveryResult> {
-    const res = await this.post<RecoveryResult>({
-      type: 'PM_RECOVER_ACCOUNT_FLOW',
+    onEvent?: (ev: SyncAccountSSEEvent) => void
+  }): Promise<SyncAccountResult> {
+    const res = await this.post<SyncAccountResult>({
+      type: 'PM_SYNC_ACCOUNT_FLOW',
       payload: { accountId: payload.accountId },
       options: {
-        onProgress: this.wrapOnEvent(payload.onEvent, isAccountRecoverySSEEvent)
+        onProgress: this.wrapOnEvent(payload.onEvent, isSyncAccountSSEEvent)
       }
     });
     return res.result
@@ -1476,6 +1476,7 @@ export class WalletIframeRouter {
       case 'PM_EXPORT_NEAR_KEYPAIR_UI':
       case 'PM_REGISTER':
       case 'PM_LOGIN':
+      case 'PM_SYNC_ACCOUNT_FLOW':
       case 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA':
       case 'PM_SIGN_AND_SEND_TXS':
       case 'PM_EXECUTE_ACTION':
@@ -1577,7 +1578,7 @@ const REGISTRATION_PHASES = new Set<string>(Object.values(RegistrationPhase) as 
 const LOGIN_PHASES = new Set<string>(Object.values(LoginPhase) as string[]);
 const ACTION_PHASES = new Set<string>(Object.values(ActionPhase) as string[]);
 const DEVICE_LINKING_PHASES = new Set<string>(Object.values(DeviceLinkingPhase) as string[]);
-const ACCOUNT_RECOVERY_PHASES = new Set<string>(Object.values(AccountRecoveryPhase) as string[]);
+const SYNC_ACCOUNT_PHASES = new Set<string>(Object.values(SyncAccountPhase) as string[]);
 const EMAIL_RECOVERY_PHASES = new Set<string>(Object.values(EmailRecoveryPhase) as string[]);
 
 function phaseOf(progress: ProgressPayload): string {
@@ -1606,8 +1607,8 @@ function isDeviceLinkingSSEEvent(p: ProgressPayload): p is DeviceLinkingSSEEvent
   return DEVICE_LINKING_PHASES.has(phaseOf(p));
 }
 
-function isAccountRecoverySSEEvent(p: ProgressPayload): p is AccountRecoverySSEEvent {
-  return ACCOUNT_RECOVERY_PHASES.has(phaseOf(p));
+function isSyncAccountSSEEvent(p: ProgressPayload): p is SyncAccountSSEEvent {
+  return SYNC_ACCOUNT_PHASES.has(phaseOf(p));
 }
 
 function isEmailRecoverySSEEvent(p: ProgressPayload): p is EmailRecoverySSEEvent {

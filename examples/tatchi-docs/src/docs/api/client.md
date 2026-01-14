@@ -31,7 +31,7 @@ From there you can use high-level flows like:
 - `registerPasskey(accountId, options?)`
 - `loginAndCreateSession(accountId, options?)`
 - `executeAction({ nearAccountId, receiverId, actionArgs, options? })`
-- `recoverAccountFlow({ accountId?, options? })`
+- `syncAccount({ accountId?, options? })`
 - Email recovery: `setRecoveryEmails`, `getRecoveryEmails`, `startEmailRecovery`, `finalizeEmailRecovery`
 
 For the full set of methods and common call patterns, see [Passkey Manager](./passkey-manager.md).

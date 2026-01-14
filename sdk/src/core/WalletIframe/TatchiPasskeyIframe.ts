@@ -37,7 +37,7 @@ import type {
   TatchiConfigsInput,
 } from '../types/tatchi';
 import type {
-  AccountRecoveryHooksOptions,
+  SyncAccountHooksOptions,
   ActionHooksOptions,
   DelegateActionHooksOptions,
   LoginHooksOptions,
@@ -54,7 +54,7 @@ import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types
 import type { EmailRecoveryFlowOptions } from '../types/emailRecovery';
 import { type ConfirmationConfig, type SignerMode, DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
-import type { RecoveryResult, PasskeyManagerContext } from '../TatchiPasskey';
+import type { SyncAccountResult, PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
 import type { WalletUIRegistry } from './host/iframe-lit-element-registry';
 import type { DelegateActionInput } from '../types/delegate';
@@ -451,13 +451,13 @@ export class TatchiPasskeyIframe {
     }
   }
 
-  async recoverAccountFlow(args: {
+  async syncAccount(args: {
     accountId?: string;
-    options?: AccountRecoveryHooksOptions
-  }): Promise<RecoveryResult> {
+    options?: SyncAccountHooksOptions
+  }): Promise<SyncAccountResult> {
     try {
       await this.requireRouterReady();
-      const res = await this.router.recoverAccountFlow({
+      const res = await this.router.syncAccount({
         accountId: args.accountId,
         onEvent: args.options?.onEvent
       });

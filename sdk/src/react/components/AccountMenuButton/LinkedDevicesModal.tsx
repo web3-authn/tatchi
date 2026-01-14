@@ -4,7 +4,7 @@ import './LinkedDevicesModal.css';
 import { useTheme, Theme } from '../theme';
 
 import { getAuthenticatorsByUser } from '@/core/rpcCalls';
-import type { ContractStoredAuthenticator } from '@/core/TatchiPasskey/recoverAccount';
+import type { ContractStoredAuthenticator } from '@/core/TatchiPasskey/syncAccount';
 import type { AccessKeyList } from '@/core/NearClient';
 import { toAccountId } from '@/core/types/accountIds';
 

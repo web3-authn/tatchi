@@ -63,7 +63,7 @@ export type {
   LoginSSEvent,
   ActionSSEEvent,
   DeviceLinkingSSEEvent,
-  AccountRecoverySSEEvent,
+  SyncAccountSSEEvent,
   EmailRecoverySSEEvent,
   // Re-exported from TatchiPasskey types
   RegistrationHooksOptions,
@@ -123,10 +123,10 @@ export { useTheme, Theme } from './components/theme';
 export type { UseThemeReturn, ThemeProps, ThemeMode } from './components/theme';
 export { LIGHT_TOKENS, DARK_TOKENS } from './components/theme';
 
-// === ACCOUNT RECOVERY ENUMS ===
+// === ACCOUNT SYNC ENUMS ===
 export {
-  AccountRecoveryPhase,
-  AccountRecoveryStatus,
+  SyncAccountPhase,
+  SyncAccountStatus,
 } from '../core/types/sdkSentEvents';
 export type { ActionResult } from '../core/types/tatchi';
 

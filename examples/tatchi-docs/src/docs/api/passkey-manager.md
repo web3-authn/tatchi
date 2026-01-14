@@ -13,7 +13,7 @@ The SDK’s high-level client surface is the `TatchiPasskey` class (exported fro
 - **Login**: `loginAndCreateSession(accountId, options?)`, `logoutAndClearSession()`
 - **Transactions**: `executeAction(...)`, `signAndSendTransactions(...)`, `signTransactionsWithActions(...)`
 - **Device linking**: `startDeviceLinkingSession(...)`, `linkDeviceWithScannedQRData(...)`
-- **Passkey recovery**: `recoverAccountFlow({ accountId?, options? })`
+- **Account sync**: `syncAccount({ accountId?, options? })`
 - **Email recovery**: `setRecoveryEmails(...)`, `getRecoveryEmails(...)`, `startEmailRecovery(...)`, `finalizeEmailRecovery(...)`, `cancelEmailRecovery(...)`
 
 Most flows accept `onEvent` progress events; see [Progress Events (onEvent)](/docs/guides/progress-events).

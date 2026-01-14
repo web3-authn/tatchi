@@ -297,40 +297,40 @@ export async function executeTransfer(
   return result;
 }
 
-export interface RecoveryFlowOptions {
+export interface SyncAccountFlowOptions {
   accountId: string;
 }
 
-export interface RecoveryFlowResult {
+export interface SyncAccountFlowResult {
   success: boolean;
   error?: string;
   events: any[];
   raw?: any;
 }
 
-export async function recoverAccount(
+export async function syncAccount(
   passkey: PasskeyFixture,
-  options: RecoveryFlowOptions
-): Promise<RecoveryFlowResult> {
+  options: SyncAccountFlowOptions
+): Promise<SyncAccountFlowResult> {
   await passkey.setup();
 
-  printLog('flow', `attempting recovery for ${options.accountId}`, {
-    step: 'recovery',
+  printLog('flow', `syncing account for ${options.accountId}`, {
+    step: 'sync-account',
   });
 
   const resultPromise = passkey.withTestUtils((args) => {
     const utils = (window as any).testUtils as TestUtils;
     const events: any[] = [];
 
-    return utils.tatchi.recoverAccountFlow({
+    return utils.tatchi.syncAccount({
       accountId: args.accountId,
       options: {
         onEvent: (event: any) => {
           events.push(event);
-          console.log(`[flow:recovery]   -> ${event.phase} | ${event.message}`);
+          console.log(`[flow:sync-account]   -> ${event.phase} | ${event.message}`);
         },
         onError: (error: any) => {
-          console.error(`[flow:recovery] ! ${error}`);
+          console.error(`[flow:sync-account] ! ${error}`);
         }
       }
     }).then((result: any) => ({
@@ -350,8 +350,8 @@ export async function recoverAccount(
 
   const result = await resultPromise;
 
-  printLog('flow', `recovery ${result.success ? 'succeeded' : 'failed'}`, {
-    step: 'recovery',
+  printLog('flow', `sync ${result.success ? 'succeeded' : 'failed'}`, {
+    step: 'sync-account',
     indent: 1,
   });
 

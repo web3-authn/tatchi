@@ -9,26 +9,25 @@ import { IPhoneQRScanner } from './icons/IPhoneQRScanner'
 import { useCarousel } from './Carousel2/CarouselProvider'
 import { useAuthMenuControl } from '../contexts/AuthMenuControl'
 import { useProfileMenuControl } from '../contexts/ProfileMenuControl'
-import './AccountRecovery.css'
+import './SyncAccount.css'
 import { SetupEmailRecovery } from './SetupEmailRecovery';
 
-export function AccountRecovery() {
-  const { accountInputState, tatchi, refreshLoginState, loginState, logout } = useTatchi()
+export function SyncAccount() {
+  const { loginState, logout } = useTatchi()
   const [busy, setBusy] = React.useState(false)
-  const target = accountInputState?.targetAccountId || ''
   const carousel = useCarousel()
   const authMenuControl = useAuthMenuControl()
   const { requestHighlight: requestProfileHighlight } = useProfileMenuControl()
 
-  const onRecover = async () => {
+  const onSync = async () => {
     setBusy(true)
     try {
       // Ensure we are logged out, then navigate to the Login slide
       try { await logout(); } catch {}
       carousel.goTo(0)
-      // Switch the PasskeyAuthMenu to the Recover segment on mount
-      authMenuControl.setAndRemount(AuthMenuMode.Recover)
-      toast.success('Switched to account recovery')
+      // Switch the PasskeyAuthMenu to the Sync segment on mount
+      authMenuControl.setAndRemount(AuthMenuMode.Sync)
+      toast.success('Switched to account sync')
     } catch (err) {
       // Best-effort UX; show friendly error if anything goes wrong
       toast.error(friendlyWebAuthnMessage(err))
@@ -52,7 +51,7 @@ export function AccountRecovery() {
     <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
       <div className="action-section">
         <div className="demo-page-header">
-          <h2 className="demo-title">Account Recovery</h2>
+          <h2 className="demo-title">Account Sync</h2>
         </div>
 
         <SetupEmailRecovery />
@@ -62,21 +61,21 @@ export function AccountRecovery() {
           paddingTop: '2rem',
           borderTop: '1px solid var(--fe-border)'
         }}>
-          <h2 className="demo-title">Account Syncing</h2>
+          <h2 className="demo-title">Sync With Passkey</h2>
           <div className="action-text">
-            Recover accounts on any device where your passkeys are synced,
+            Sync accounts on any device where your passkeys are synced,
             such as iCloud Keychain or Google Password Manager.
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
             <LoadingButton
-              onClick={onRecover}
+              onClick={onSync}
               loading={busy}
-              loadingText="Recovering..."
+              loadingText="Syncing..."
               variant="primary"
               size="medium"
               style={{ width: 200 }}
             >
-              Start Recovery
+              Start Sync
             </LoadingButton>
           </div>
         </div>
@@ -131,4 +130,4 @@ export function AccountRecovery() {
   )
 }
 
-export default AccountRecovery
+export default SyncAccount

@@ -18,7 +18,7 @@ Playwright tests for the Passkey SDK, covering WebAuthn + PRF flows, wallet ifra
 
 ## Suites & Scope
 
-- End‑to‑End: registration, login, actions, recovery, worker wiring
+- End‑to‑End: registration, login, actions, account sync, worker wiring
 - Unit: orchestrator helpers, progress heuristics, nonce, confirm handler
 - Wallet Iframe: handshake, overlay routing, sticky/anchored behavior
 - Lit Components: modal/drawer host + iframe confirm UI
@@ -79,7 +79,7 @@ The test bootstrap is a precise 5‑step sequence to avoid WebAuthn/import‑map
   - `registerPasskey(passkey, opts?)`
   - `loginAndCreateSession(passkey, { accountId })`
   - `executeTransfer(passkey, { accountId, receiverId, amountYocto })`
-  - `recoverAccount(passkey, { accountId })`
+  - `syncAccount(passkey, { accountId })`
 
 Example (see `e2e/complete_ux_flow.test.ts`):
 ```ts
@@ -126,7 +126,7 @@ pnpm -C passkey-sdk build
 ## Suite Quick Reference
 
 - E2E
-  - `e2e/complete_ux_flow.test.ts` lifecycle: register → login → action → recovery
+  - `e2e/complete_ux_flow.test.ts` lifecycle: register → login → action → sync
   - `e2e/worker_events.test.ts` signer/vrf worker wiring and events
   - `e2e/nonceManager.test.ts` reserved nonce lifecycle in real session
   - `e2e/cancel_overlay_contracts.test.ts` cancel + contract verification bypass

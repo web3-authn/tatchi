@@ -19,13 +19,13 @@ export function getModeTitle(mode: AuthMenuMode, headings?: AuthMenuHeadings | n
   const defaults: Record<AuthMenuMode, AuthMenuTitle> = {
     [AuthMenuMode.Login]: { title: 'Login', subtitle: 'Login with Passkey' },
     [AuthMenuMode.Register]: { title: 'Register Account', subtitle: 'Create a wallet with Passkey' },
-    [AuthMenuMode.Recover]: { title: 'Recover Account', subtitle: 'Restore a wallet with Passkey' },
+    [AuthMenuMode.Sync]: { title: 'Sync Account', subtitle: 'Sync a wallet to this device with Passkey' },
   } as const;
 
   if (headings) {
     if (mode === AuthMenuMode.Login && headings.login) return headings.login;
     if (mode === AuthMenuMode.Register && headings.registration) return headings.registration;
-    if (mode === AuthMenuMode.Recover && headings.recoverAccount) return headings.recoverAccount;
+    if (mode === AuthMenuMode.Sync && headings.syncAccount) return headings.syncAccount;
   }
 
   return defaults[mode] ?? defaults[AuthMenuMode.Login];

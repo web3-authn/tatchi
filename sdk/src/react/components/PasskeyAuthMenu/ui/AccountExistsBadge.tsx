@@ -35,7 +35,7 @@ export const AccountExistsBadge: React.FC<AccountExistsBadgeProps> = ({
       if (isUsingExistingAccount) return { message: '', tone: 'success' };
       return { message: 'Account not found', tone: 'error' };
     }
-    if (mode === AuthMenuMode.Recover) {
+    if (mode === AuthMenuMode.Sync) {
       if (isUsingExistingAccount) return { message: '', tone: 'success' };
       return { message: '', tone: 'neutral' };
     }
@@ -74,4 +74,3 @@ export const AccountExistsBadge: React.FC<AccountExistsBadgeProps> = ({
 };
 
 export default AccountExistsBadge;
-

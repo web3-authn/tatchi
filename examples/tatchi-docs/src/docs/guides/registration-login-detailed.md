@@ -161,7 +161,7 @@ For more details on the contract side, see:
 ## 6. Where to go next
 
 - For the full set of events across registration, login, transactions, and device linking, see [Progress Events](/docs/guides/progress-events).
-- To wire registration into a full UI menu alongside login and recovery, see [React Recipes](/docs/getting-started/react-recipes) and `PasskeyAuthMenu`.
+- To wire registration into a full UI menu alongside login and account sync, see [React Recipes](/docs/getting-started/react-recipes) and `PasskeyAuthMenu`.
 - For deployment and credential scope considerations, see:
   - [Passkey Scope](/docs/concepts/passkey-scope)
   - [Security Model](/docs/concepts/security-model)
