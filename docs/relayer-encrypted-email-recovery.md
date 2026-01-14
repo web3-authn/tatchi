@@ -88,3 +88,32 @@ const result = await authService.emailRecovery?.verifyEncryptedEmailAndRecover({
 For multi-mode setups (ZK / encrypted / on-chain), use
 `EmailRecoveryService.requestEmailRecovery` instead and let the body marker
 (`zk-email | tee-encrypted | onchain-public`, also accepting legacy `encrypted` / `tee` as aliases for `tee-encrypted`) select the path.
+
+## Troubleshooting
+
+### Outlayer `request_execution`: missing field `source`
+
+If you see an error like:
+
+`Failed to deserialize input from JSON. Error: missing field \`source\` ...`
+
+it usually means the caller is still sending the legacy Outlayer argument name `code_source`.
+
+Outlayer expects the first argument to be named `source` (an `ExecutionSource` like `{"WasmUrl": {...}}` or `{"GitHub": {...}}`).
+
+Minimal shape:
+
+```json
+{
+  "source": { "WasmUrl": { "url": "https://…/worker.wasm", "hash": "<sha256-hex>", "build_target": "wasm32-wasip2" } },
+  "resource_limits": { "max_instructions": 10000000000, "max_memory_mb": 256, "max_execution_seconds": 60 },
+  "input_data": "{\"method\":\"verify-encrypted-email\",\"args\":{...}}",
+  "response_format": "Json"
+}
+```
+
+Also note:
+
+- If you call Outlayer from a NEAR contract via `#[ext_contract]`, the *parameter names* become the serialized JSON field names. Renaming `code_source` → `source` requires a contract redeploy.
+- `resource_limits` values must be JSON numbers (not strings).
+- The email-dkim worker input payload uses `{ "method": "...", "args": { ... } }` (and responds as `{ "method": "...", "response": { ... } }`).

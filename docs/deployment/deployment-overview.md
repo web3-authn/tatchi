@@ -8,22 +8,23 @@ This document maps what gets deployed, to which GitHub Environments, with which 
   - Staging deployments from `dev` (Cloudflare resources use `*-staging` names)
   - Relay Worker + Email Routing (staging)
   - Docs Pages project (staging)
-  - Wallet iframe Pages project (staging.web3authn.org)
+  - Wallet iframe Pages project (wallet-staging.web3authn.org)
 - production
   - Production deployments from `main` (Cloudflare resources use `*-prod` names)
   - Relay Worker + Email Routing (prod)
   - Docs Pages project (prod)
-  - Wallet iframe Pages project (web3authn.org)
+  - Wallet iframe Pages project (wallet.web3authn.org)
 
 ## Workflows → Deployments
 
 - .github/workflows/publish-sdk-r2.yml
-  - Triggers: push to `main`/`dev`, tag pushes `v*`, manual dispatch
+  - Triggers: `workflow_run` on `ci` success (pushes to `main`/`dev` and tag pushes like `v*`), manual dispatch
+  - Environment: `staging` for `dev`, otherwise `production`
   - What: Publish `sdk/dist` artifacts to Cloudflare R2 (sha256 manifest + cosign signature)
   - Default prefixes:
     - `main`: `releases/<sha>`
     - `dev`: `releases-dev/<sha>`
-    - `v*` tags: also publish `releases/<tag>`
+    - `v*` tags: also publish `releases/<tag>` (alias)
   - Secrets: `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
 
 - .github/workflows/deploy-relay-staging.yml
@@ -53,21 +54,21 @@ This document maps what gets deployed, to which GitHub Environments, with which 
 - .github/workflows/deploy-wallet-iframe-staging.yml
   - Triggers: push to `dev`, manual dispatch
   - Environment: `staging`
-  - What: Build `examples/vite` wallet iframe and deploy to Cloudflare Pages project `w3a-wallet-iframe-staging` (staging.web3authn.org)
+  - What: Build `examples/vite` wallet iframe and deploy to Cloudflare Pages project `w3a-wallet-iframe-staging` (wallet-staging.web3authn.org)
 
 - .github/workflows/deploy-wallet-iframe-prod.yml
   - Triggers: push to `main`, manual dispatch
   - Environment: `production`
-  - What: Build `examples/vite` wallet iframe and deploy to Cloudflare Pages project `w3a-wallet-iframe-prod` (web3authn.org)
-
-- Legacy (to remove after cutover)
-  - `.github/workflows/deploy-cloudflare.yml`
-  - `.github/workflows/deploy-docs-dev.yml`
+  - What: Build `examples/vite` wallet iframe and deploy to Cloudflare Pages project `w3a-wallet-iframe-prod` (wallet.web3authn.org)
 
 ## Environment Vars (vars) by Environment
 
 - staging / production
-  - `VITE_WALLET_ORIGIN`, `VITE_WALLET_SERVICE_PATH`, `VITE_SDK_BASE_PATH`, `VITE_RP_ID_BASE`
+  - `VITE_WALLET_ORIGIN`
+    - staging: `https://wallet-staging.web3authn.org`
+    - production: `https://wallet.web3authn.org`
+  - `VITE_RP_ID_BASE` (typically `web3authn.org` for wallet-scoped credentials)
+  - Optional (SDK defaults): `VITE_WALLET_SERVICE_PATH` (defaults to `/wallet-service`), `VITE_SDK_BASE_PATH` (defaults to `/sdk`)
   - `VITE_RELAYER_URL`, `VITE_RELAYER_ACCOUNT_ID`
     - production: `https://relay.tatchi.xyz`
     - staging: `https://relay-staging.tatchi.xyz`
@@ -88,13 +89,13 @@ This document maps what gets deployed, to which GitHub Environments, with which 
 ## Tools/Actions Used
 
 - Wrangler CLI for Pages and Worker deploys (staging + production)
-- cloudflare/pages-action in legacy workflow `.github/workflows/deploy-docs-dev.yml` (to be removed)
 - SDK is built in each job before deployment; SDK runtime assets are copied into Pages output under `/sdk` and `/sdk/workers`
 
 ## Notes
 
-- Worker runtime configuration (RELAYER_*, NEAR_*, EXPECTED_ORIGIN, etc.) lives in Cloudflare and is not managed as GitHub secrets. See /docs/guides/cloudflare-github-actions-setup for the full list.
-- There is an optional npm publish job in deploy-cloudflare.yml (commented out). Enable and provide `NPM_TOKEN` if you want automatic publishes on tags.
+- Worker runtime configuration (RELAYER_*, NEAR_*, EXPECTED_ORIGIN, etc.) lives in Cloudflare and is not managed as GitHub secrets. See `examples/tatchi-docs/src/docs/guides/cloudflare-github-actions.md`.
+- Pages deploy workflows currently serve SDK runtime assets from Pages under `/sdk/*` (CDN-backed). R2 publishing is optional unless you explicitly serve/proxy SDK assets from R2.
+- There is no automated npm publish workflow currently; if you want it, add a dedicated workflow that runs on `v*` tags and publishes `@tatchi-xyz/sdk`.
 
 
 ## Cloudflare Pages Mappings

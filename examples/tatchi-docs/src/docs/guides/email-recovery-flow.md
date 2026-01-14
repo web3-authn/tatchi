@@ -75,6 +75,8 @@ Encrypted email recovery lets the relayer submit DKIM verification without putti
 
 The per-account `EmailRecoverer` contract stores a recovery attempt keyed by `request_id`, which the frontend polls via `get_recovery_attempt(request_id)`.
 
+Troubleshooting: if you see an Outlayer panic like `missing field \`source\``, the Outlayer `request_execution` API expects `source` (not legacy `code_source`) and `resource_limits` must use JSON numbers (not strings).
+
 Route usage:
 
 - `POST /recover-email`

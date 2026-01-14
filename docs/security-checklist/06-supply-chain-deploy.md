@@ -11,7 +11,7 @@ Findings snapshot (pass 1).
 
 - P2: Build outputs served from wallet origin (good)
   - Evidence: Vite plugin emits `_headers` and serves `/wallet-service` + `/sdk/*` in dev; CI copies SDK assets into example’s `dist/sdk` for Pages.
-  - Evidence: .github/workflows/deploy-cloudflare.yml:149–186
+  - Evidence: .github/workflows/deploy-wallet-iframe-prod.yml
   - Recommendation: Ensure production always resolves workers/WASM from wallet origin; never app origin.
 
 - P2: Headers and Permissions‑Policy (good)

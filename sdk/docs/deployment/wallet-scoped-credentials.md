@@ -4,12 +4,12 @@ This doc explains two deployment patterns for WebAuthn `rpId` and how to choose 
 
 Terms
 - `rpId`: Relying Party ID. A registrable domain (no scheme/port). Passkeys are bound to this value.
-- Wallet origin: The domain that hosts the wallet iframe/service, e.g. `wallet.example.com` or `web3authn.org`.
+- Wallet origin: The domain that hosts the wallet iframe/service, e.g. `wallet.example.com` or `wallet.web3authn.org`.
 - App origin: The domain of the embedding application, e.g. `app.example.com` or `example.com`.
 
 Embedded SDK base + workers
 - The wallet iframe host announces the absolute SDK base via a global and event:
-  - Global: `window.__W3A_WALLET_SDK_BASE__` → absolute `${walletOrigin}${sdkBasePath}/` (for example, `https://web3authn.org/sdk/`).
+  - Global: `window.__W3A_WALLET_SDK_BASE__` → absolute `${walletOrigin}${sdkBasePath}/` (for example, `https://wallet.web3authn.org/sdk/`).
   - Event: `W3A_WALLET_SDK_BASE_CHANGED` (CustomEvent with `detail` = absolute base URL).
 - The SDK resolves embedded assets (Lit bundles, host script) and module workers (signer/VRF) from this base. Workers always load from the wallet origin in production for a clear security boundary.
 - In development, the app provider sets this base when `iframeWallet.walletOrigin` is configured, so the app doesn’t need to host `/sdk/*`.
@@ -126,7 +126,7 @@ Testing Notes
 
 FAQ — When is ROR required?
 - ROR is only required when the top‑level origin’s registrable domain does not equal or include the `rpId`.
-  - Not required: top‑level `https://web3authn.org` with `rpId=web3authn.org`.
+  - Not required: top‑level `https://wallet.web3authn.org` with `rpId=web3authn.org`.
   - Not required: top‑level `https://app.example.com` with `rpId=example.com`.
   - Required: top‑level `https://tatchi.xyz` with `rpId=web3authn.org` (unrelated domains).
   - Required: top‑level `https://app.example.com` with `rpId=wallet.example.com` (sibling subdomains; `rpId` must be a registrable suffix of the top‑level, which it is not here).
@@ -161,7 +161,7 @@ The manifest endpoint is implemented on the relay server and should be exposed o
 - Dev convenience
   - For local development, the wallet dev server serves the manifest by querying the chain when `VITE_WEBAUTHN_CONTRACT_ID` is set (optionally `VITE_NEAR_RPC_URL`, `VITE_ROR_METHOD`).
 
-## Deployment Plan: Wallet Host on web3authn.org
+## Deployment Plan: Wallet Host on wallet.web3authn.org (rpId = web3authn.org)
 
 1) Example site
 - Use `examples/vite` (with Tatchi Vite plugins):
@@ -171,23 +171,23 @@ The manifest endpoint is implemented on the relay server and should be exposed o
   - The SDK Vite build plugin (`tatchiBuildHeaders`) emits `dist/wallet-service/index.html` automatically if your app does not provide one. It loads `${VITE_SDK_BASE_PATH||'/sdk'}/wallet-iframe-host.js`.
   - To customize, add `public/wallet-service/index.html`; the plugin will not overwrite existing files.
 - For dev/prod env:
-  - `VITE_WALLET_ORIGIN=https://web3authn.org`
+  - `VITE_WALLET_ORIGIN=https://wallet.web3authn.org`
   - `VITE_WALLET_SERVICE_PATH=/wallet-service`
   - `VITE_SDK_BASE_PATH=/sdk`
   - `VITE_RP_ID_BASE=web3authn.org`
 
 2) Cloudflare Pages
-- Map a Pages project to `web3authn.org` (or a wallet subdomain).
+- Map a Pages project to `wallet.web3authn.org` (or your wallet subdomain).
 - Configure the env vars above in Pages for consistent asset paths.
 
 3) CI workflows
-- `deploy-cloudflare.yml` and/or `deploy-separate-wallet-host.yml` publish the wallet host:
+- Use `deploy-wallet-iframe-staging.yml` (dev) and `deploy-wallet-iframe-prod.yml` (main) to publish the wallet host:
   - Build SDK, then build `examples/vite`.
   - Copy SDK bundles into `dist/sdk`.
   - Optionally emit a static ROR manifest from `ROR_ALLOWED_ORIGINS`, or serve dynamically from the relay.
   - Deploy `dist/` to the wallet Pages project.
 - Required secrets:
-  - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT_WALLET`.
+  - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
   - `VITE_RELAYER_URL`, `VITE_RELAYER_ACCOUNT_ID`, and NEAR network vars.
 
 
@@ -221,24 +221,24 @@ The canonical production endpoint lives on the relay server and is exposed on th
 - Dev convenience
 - In dev, the wallet dev server serves the manifest dynamically from chain when `VITE_WEBAUTHN_CONTRACT_ID` is provided.
 
-## Reference Deployment: web3authn.org + hosted.tatchi.xyz
+## Reference Deployment: wallet.web3authn.org + tatchi.xyz
 
 This topology demonstrates wallet‑scoped credentials across registrable domains without affecting existing `tatchi.xyz` properties.
 
 - Wallet host (iframe + SDK assets)
-  - Domain: `web3authn.org`
+  - Domain: `wallet.web3authn.org`
   - rpId: `web3authn.org` (wallet‑scoped)
   - Pages project serves `/wallet-service` and `/sdk` with strict `_headers` (COOP/COEP + WebAuthn `Permissions-Policy`).
   - Relay Worker bound on the same domain for `/.well-known/webauthn` (ROR manifest).
 
 - App (integrator/demo)
-  - Domain: `hosted.tatchi.xyz` (alternative names: `managed.tatchi.xyz`, `integrate.tatchi.xyz`).
-  - Embeds the wallet iframe from `https://web3authn.org` and calls WebAuthn using rpId `web3authn.org`.
+  - Domain: `tatchi.xyz` (staging: `staging.tatchi.xyz`).
+  - Embeds the wallet iframe from `https://wallet.web3authn.org` and calls WebAuthn using rpId `web3authn.org`.
   - Must send a `Permissions-Policy` header delegating WebAuthn to the wallet origin.
 
 Configuration
 - App environment
-  - `VITE_WALLET_ORIGIN=https://web3authn.org`
+  - `VITE_WALLET_ORIGIN=https://wallet.web3authn.org`
   - `VITE_WALLET_SERVICE_PATH=/wallet-service`
   - `VITE_SDK_BASE_PATH=/sdk`
   - `VITE_RP_ID_BASE=web3authn.org` (wallet‑scoped rpId)
@@ -255,7 +255,7 @@ Configuration
 
 - App response headers (Pages)
   - Delegate WebAuthn to the wallet origin:
-    `Permissions-Policy: publickey-credentials-get=(self "https://web3authn.org"), publickey-credentials-create=(self "https://web3authn.org")`
+    `Permissions-Policy: publickey-credentials-get=(self "https://wallet.web3authn.org"), publickey-credentials-create=(self "https://wallet.web3authn.org")`
   - You can generate a `_headers` at build time via the SDK’s `tatchiBuildHeaders({ walletOrigin })` helper or write one manually in the dist.
 
 Troubleshooting
@@ -264,7 +264,7 @@ Troubleshooting
   - Fix:
     - Ensure the wallet host deploys `/sdk/*` and `/sdk/workers/*` (copy SDK dist assets to the wallet site in CI).
     - Ensure wallet `_headers` allow CORS for `/sdk/*` and `/sdk/workers/*` and `.wasm` is served with `Content-Type: application/wasm`.
-    - Confirm `window.__W3A_WALLET_SDK_BASE__` points to the wallet origin (e.g., `https://web3authn.org/sdk/`).
+    - Confirm `window.__W3A_WALLET_SDK_BASE__` points to the wallet origin (e.g., `https://wallet.web3authn.org/sdk/`).
 - Cross‑origin dev SecurityError on Worker
   - Symptom: `Failed to construct 'Worker': … cannot be accessed from origin …` during prewarm or logout.
   - Explanation: Browsers restrict constructing cross‑origin workers in many dev setups even with CORS.
@@ -273,8 +273,8 @@ Troubleshooting
     - Logout asks the wallet iframe to clear the VRF session; the app skips local worker init.
 - Relay preflight CORS
   - Ensure Cloudflare Worker (relay) sets:
-    - `EXPECTED_ORIGIN = https://hosted.tatchi.xyz, https://tatchi.xyz`
-    - `EXPECTED_WALLET_ORIGIN = https://web3authn.org, https://wallet.web3authn.org`
+    - `EXPECTED_ORIGIN = https://tatchi.xyz, https://staging.tatchi.xyz`
+    - `EXPECTED_WALLET_ORIGIN = https://wallet.web3authn.org, https://wallet-staging.web3authn.org`
   - Preflight should include `Access-Control-Allow-Origin` matching the requesting Origin.
 
 Verification checklist
@@ -291,15 +291,15 @@ Verification checklist
 ROR manifest and NEAR allowlist
 - Bind your Cloudflare Worker (relay) to the wallet domain route: `web3authn.org/.well-known/webauthn*`.
 - Ensure the NEAR contract allowlist includes the app origin:
-  - Add `https://hosted.tatchi.xyz` to `get_allowed_origins` data.
+  - Add `https://tatchi.xyz` (and `https://staging.tatchi.xyz`) to `get_allowed_origins` data.
   - The Worker handler resolves and normalizes origins; ports and `localhost` rules apply as documented above.
-- With this in place, Chromium/WebKit allow the top‑level app to execute WebAuthn with `rp.id = 'web3authn.org'` while running on `hosted.tatchi.xyz`.
+- With this in place, Chromium/WebKit allow the top‑level app to execute WebAuthn with `rp.id = 'web3authn.org'` while running on `tatchi.xyz`.
 
 GitHub Actions and Cloudflare Pages
 - Wallet host (Pages):
   - Use `deploy-wallet-iframe-staging.yml` (dev) and `deploy-wallet-iframe-prod.yml` (main) to publish the wallet example `dist/` to the Pages projects:
-    - `w3a-wallet-iframe-staging` (staging.web3authn.org)
-    - `w3a-wallet-iframe-prod` (web3authn.org)
+    - `w3a-wallet-iframe-staging` (wallet-staging.web3authn.org)
+    - `w3a-wallet-iframe-prod` (wallet.web3authn.org)
   - Required secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
   - No CI heredocs are needed: the Vite plugin emits `wallet-service/index.html` and `_headers` on build if missing.
 

@@ -4,29 +4,44 @@ title: Cloudflare + GitHub Actions
 
 # Cloudflare & GitHub Actions Setup Guide
 
-This guide walks you through setting up Cloudflare and GitHub Actions for the Web3Authn Passkey SDK deployment pipeline.
+This guide walks you through setting up Cloudflare and GitHub Actions for the deployment pipeline (Cloudflare Pages + Workers), using split workflows and separate staging/production resources.
 
 ## Overview
 
-The `deploy-cloudflare` workflow:
-- Builds the SDK with deterministic bundles
-- Publishes bundles to Cloudflare R2 storage
-- Deploys the relay server as a Cloudflare Worker
-- Deploys the docs site (`examples/tatchi-docs`) to Cloudflare Pages
-- Deploys the wallet host example (`examples/vite`) to Cloudflare Pages (wallet origin). The SDK's Vite build plugin can emit `dist/wallet-service/index.html` and `_headers` automatically when missing.
+This repo uses separate workflows per deployable:
+
+- **Relay (Cloudflare Worker)**: `examples/relay-cloudflare-worker`
+- **Docs site (Cloudflare Pages)**: `examples/tatchi-docs`
+- **Wallet iframe (Cloudflare Pages)**: `examples/vite`
+- **Optional**: publish signed SDK runtime bundles to **Cloudflare R2** (artifact storage)
 
 ## What Gets Deployed
 
-### Cloudflare Worker
-- **Path**: `examples/relay-cloudflare-worker`
-- **Method**: `wrangler deploy`
-- **Purpose**: Relay server for Shamir secret sharing
+### Cloudflare Pages/Workers mappings
 
-### Cloudflare Pages
-- **examples/tatchi-docs** → CF Pages (primary site)
-- **wallet host example** (`examples/vite/dist`) → CF Pages (wallet origin)
+- `w3a-wallet-iframe-prod` → `wallet.web3authn.org`
+- `w3a-wallet-iframe-staging` → `wallet-staging.web3authn.org`
+- `w3a-tatchi-docs-prod` → `tatchi.xyz`
+- `w3a-tatchi-docs-staging` → `staging.tatchi.xyz`
+- `w3a-relay-prod` → `relay.tatchi.xyz`
+- `w3a-relay-staging` → `relay-staging.tatchi.xyz`
 
-Note: `examples/vite` is for local testing only and is not deployed.
+### GitHub Environments
+
+We use two GitHub Environments, each with its own secrets + vars:
+
+- `staging` (deploys from `dev`)
+- `production` (deploys from `main`)
+
+### GitHub Actions workflows
+
+- `.github/workflows/deploy-relay-staging.yml` (push `dev`) → deploy `w3a-relay-staging` + configure Email Routing
+- `.github/workflows/deploy-relay-prod.yml` (push `main`) → deploy `w3a-relay-prod` + configure Email Routing
+- `.github/workflows/deploy-docs-staging.yml` (push `dev`) → deploy Pages `w3a-tatchi-docs-staging`
+- `.github/workflows/deploy-docs-prod.yml` (push `main`) → deploy Pages `w3a-tatchi-docs-prod`
+- `.github/workflows/deploy-wallet-iframe-staging.yml` (push `dev`) → deploy Pages `w3a-wallet-iframe-staging`
+- `.github/workflows/deploy-wallet-iframe-prod.yml` (push `main`) → deploy Pages `w3a-wallet-iframe-prod`
+- `.github/workflows/publish-sdk-r2.yml` (optional) → publish `sdk/dist` to R2 after `ci` succeeds (or via manual dispatch)
 
 ### R2 Storage
 - **Path**: `sdk/dist/**` + `manifest.json` + `manifest.sig`
@@ -56,7 +71,8 @@ Create an API Token with the following permissions:
 3. **Permissions**:
    - **Workers Scripts**: Edit
    - **Pages**: Edit
-   - **R2**: Edit (for deterministic bundles)
+   - **R2**: Edit (only if you use `publish-sdk-r2.yml`)
+   - **Email Routing**: Edit (only if you want the relay deploy workflow to manage Email Routing rules)
 4. **Account Resources**: Include - All accounts
 5. **Zone Resources**: Include - All zones
 6. **Copy the token** (you'll need this for `CLOUDFLARE_API_TOKEN`)
@@ -88,16 +104,15 @@ Create an API Token with the following permissions:
 
 ## GitHub Secrets Configuration
 
-Add these secrets to your GitHub repository OR to a GitHub Environment used by this workflow (recommended for prod). If you use Environment secrets, ensure the jobs that need them specify that environment (see workflow `environment:` lines).
+Add these secrets to your GitHub Environments (`staging` and `production`). The workflows read secrets/vars from the environment they run in.
 
-### Go to: [Repository → Settings → Secrets and variables → Actions](https://docs.github.com/en/actions/security-guides/encrypted-secrets) or [Repository → Settings → Environments] and select your environment (e.g., `production`).
+Go to: Repository → Settings → Environments → pick `staging` / `production`.
 
 ### Worker/Pages Secrets
 ```
 CLOUDFLARE_API_TOKEN=<your_api_token>
 CLOUDFLARE_ACCOUNT_ID=<your_account_id>
-CF_PAGES_PROJECT_VITE=<pages_project_name_for_vite_secure>
-CF_PAGES_PROJECT_WALLET=<pages_project_name_for_wallet>
+CLOUDFLARE_ZONE_ID=<your_zone_id>   # required if using Email Routing automation in relay deploy workflows
 ```
 
 ### R2 Storage Secrets
@@ -108,16 +123,9 @@ R2_ACCESS_KEY_ID=<your_access_key_id>
 R2_SECRET_ACCESS_KEY=<your_secret_access_key>
 ```
 
-### npm Publish Secret (optional, for automated npm releases)
-If you want CI to publish Tatchi packages to npm after a successful Cloudflare production deploy, add this secret:
+### Optional GitHub Secrets
 
-```
-NPM_TOKEN=<an npm access token with "automation" (publish) scope>
-```
-
-- Create a token at: https://www.npmjs.com/settings/<your_user>/tokens
-- Use a Classic token with at least “Publish” permissions (or an Automation token for organizations).
-- Store it either as a repository secret or in the `production` Environment (recommended).
+- `THRESHOLD_ED25519_MASTER_SECRET_B64U` (only if using threshold signing; the relay deploy workflows can push it into the Worker as a Wrangler secret)
 
 ## Cloudflare Pages Project Setup
 
@@ -136,93 +144,82 @@ npm install -g wrangler
 wrangler login
 
 # Create Pages projects
-wrangler pages project create <CF_PAGES_PROJECT_VITE>
-wrangler pages project create <CF_PAGES_PROJECT_WALLET>
+wrangler pages project create w3a-tatchi-docs-staging
+wrangler pages project create w3a-tatchi-docs-prod
+wrangler pages project create w3a-wallet-iframe-staging
+wrangler pages project create w3a-wallet-iframe-prod
 ```
 
 **Reference**: [Wrangler CLI Documentation](https://developers.cloudflare.com/workers/wrangler/install-and-update/)
 
-### 2. Wallet service + headers: zero‑config via Vite plugin
+### 2. Set the Production branch (important)
 
-For Cloudflare Pages (and Netlify), the SDK’s build plugin handles both the wallet service page and headers at build time:
+Cloudflare Pages treats deployments on the “Production branch” as **Production** (custom domains attach here).
 
-- Add the build plugin in your Vite config:
-  - Import: `tatchiBuildHeaders` from `@tatchi-xyz/sdk/plugins/vite`
-  - In `plugins`, add: `tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN })`
-- Provide env vars (Pages project → Environment Variables):
-  - `VITE_WALLET_ORIGIN` (e.g., `https://wallet.web3authn.org`)
-  - Optional: `VITE_WALLET_SERVICE_PATH` (default `/wallet-service`)
-  - Optional: `VITE_SDK_BASE_PATH` (default `/sdk`)
+For this repo’s setup:
 
-Build outputs:
-- `dist/_headers` containing:
-  - `Cross-Origin-Opener-Policy: same-origin`
-  - `Cross-Origin-Embedder-Policy: require-corp`
-  - `Cross-Origin-Resource-Policy: cross-origin`
-  - `Permissions-Policy: publickey-credentials-get/create` delegating to your wallet origin
-  - By default, the plugin does NOT emit `Access-Control-Allow-Origin` to avoid duplication with platform headers.
-- If your platform does not add CORS for `/sdk/*`, you may opt in via Vite config:
-    - `tatchiBuildHeaders({ walletOrigin, cors: { accessControlAllowOrigin: '*' } })`
-- `dist${VITE_WALLET_SERVICE_PATH}/index.html` (minimal) if not already provided by your app under `public/`. The plugin never overwrites existing files.
+- For the `*-staging` Pages projects, set **Production branch** to `dev`.
+- For the `*-prod` Pages projects, set **Production branch** to `main`.
 
-With this, CI does not need to inject HTML or headers; it only needs to build the example and deploy the `dist` folder.
+This avoids “Preview” deployments for staging when you push to `dev`.
 
-### 2. Update GitHub Secrets
-Use the project names you created in the GitHub secrets:
-```
-CF_PAGES_PROJECT_VITE=tatchi-docs
-CF_PAGES_PROJECT_WALLET=tatchi-wallet-iframe
-```
+## GitHub Environment variables (build-time Vite vars)
 
-## Worker Environment Configuration
+Set these as **Environment variables** (not secrets) in `staging` / `production`:
 
-## Automated npm publish flow (optional)
+- `VITE_WALLET_ORIGIN`
+  - staging: `https://wallet-staging.web3authn.org`
+  - production: `https://wallet.web3authn.org`
+- `VITE_RELAYER_URL`
+  - staging: `https://relay-staging.tatchi.xyz`
+  - production: `https://relay.tatchi.xyz`
+- `VITE_RELAYER_ACCOUNT_ID`
+- `VITE_NEAR_NETWORK`, `VITE_NEAR_RPC_URL`, `VITE_NEAR_EXPLORER`
+- `VITE_WEBAUTHN_CONTRACT_ID`
+- `VITE_RP_ID_BASE`
+- Optional (SDK defaults): `VITE_WALLET_SERVICE_PATH` (defaults to `/wallet-service`), `VITE_SDK_BASE_PATH` (defaults to `/sdk`)
+- `RECOVER_EMAIL_RECIPIENT` (required by relay deploy workflows for Email Routing)
 
-The repo contains an optional (currently commented out) npm publish job. If you enable it and add `NPM_TOKEN`, the workflow can publish the SDK to npm after a successful production deploy.
+## Worker secrets and vars (Cloudflare-side)
 
-- Job name: `Publish SDK to npm`
-- Location: `.github/workflows/deploy-cloudflare.yml`
-- Gate: runs only on tag pushes (refs/tags/*) and only after `deploy-worker`, `deploy-pages`, and `deploy-wallet` all succeed
-- Package: `@tatchi-xyz/sdk` (subpaths `react`, `server`)
+The relay Worker requires runtime secrets that are stored in Cloudflare (not GitHub):
 
-How to cut a release:
-1) Bump the version in `sdk/package.json` (e.g., 0.22.1)
-2) Create and push a matching tag on the same commit:
+- Secrets (Wrangler): `RELAYER_PRIVATE_KEY`, `SHAMIR_P_B64U`, `SHAMIR_E_S_B64U`, `SHAMIR_D_S_B64U`
+- Optional secrets: `THRESHOLD_ED25519_MASTER_SECRET_B64U`
+- Vars (`wrangler.toml` or `wrangler deploy --var ...`): `EXPECTED_ORIGIN`, `EXPECTED_WALLET_ORIGIN`, `WEBAUTHN_CONTRACT_ID`, `NEAR_RPC_URL`, etc.
+
+Set secrets for each environment:
 
 ```bash
-git tag v0.1.1
-git push origin v0.1.1
+cd examples/relay-cloudflare-worker
+pnpm install
+
+wrangler login
+
+# Production
+wrangler secret put RELAYER_PRIVATE_KEY --env production
+wrangler secret put SHAMIR_P_B64U --env production
+wrangler secret put SHAMIR_E_S_B64U --env production
+wrangler secret put SHAMIR_D_S_B64U --env production
+
+# Staging
+wrangler secret put RELAYER_PRIVATE_KEY --env staging
+wrangler secret put SHAMIR_P_B64U --env staging
+wrangler secret put SHAMIR_E_S_B64U --env staging
+wrangler secret put SHAMIR_D_S_B64U --env staging
 ```
 
-3) The `deploy-cloudflare` workflow will run. After all Cloudflare deploy jobs succeed, it will build the SDK and run:
+## Deploying
 
-```bash
-npm publish --access public
-```
+Once Cloudflare + GitHub Environments are set up:
 
-Safety checks:
-- The job checks if the target package versions already exist on npm and skips publish if so (idempotent on re‑runs).
-- Requires secret `NPM_TOKEN` with publish permissions.
+- Push to `dev` to deploy **staging** (`w3a-*-staging`)
+- Push to `main` to deploy **production** (`w3a-*-prod`)
 
-### 1. Configure Worker Variables
+You can also run any workflow manually via `workflow_dispatch`.
 
-Set the following Worker environment variables before deploying `examples/relay-cloudflare-worker`:
+## Notes on R2
 
-**Required**
+Cloudflare Pages is already CDN-backed. The deploy workflows copy the SDK runtime assets into the Pages output under `/sdk/*`, so staging/prod sites work without R2.
 
-- `RELAYER_ACCOUNT_ID`: NEAR account name the relay uses to send transactions.
-- `RELAYER_PRIVATE_KEY`: Secret ed25519 key for the relayer account. Set via `wrangler secret put RELAYER_PRIVATE_KEY`.
-- `WEBAUTHN_CONTRACT_ID`: On-chain contract handling registration/auth flows.
-- `NEAR_RPC_URL`: RPC endpoint (e.g. `https://test.rpc.fastnear.com`).
-- `NETWORK_ID`: NEAR network id (`testnet` or `mainnet`). Defaults to `testnet` if omitted.
-- `SHAMIR_P_B64U`, `SHAMIR_E_S_B64U`, `SHAMIR_D_S_B64U`: Base64url Shamir parameters required for `/vrf/*` endpoints. Store via `wrangler secret put`.
-
-**Optional**
-
-- `ACCOUNT_INITIAL_BALANCE`: YoctoNEAR deposit for new accounts. Defaults to `30000000000000000000000` (0.03 NEAR).
-- `CREATE_ACCOUNT_AND_REGISTER_GAS`: Gas allocation for atomic create+register. Defaults to `85000000000000` (85 Tgas).
-- `EXPECTED_ORIGIN`: Wallet/host origin allowed for CORS (e.g. `https://tatchi.xyz`).
-- `EXPECTED_WALLET_ORIGIN`: Wallet iframe origin allowed for CORS (e.g. `https://tatchi.xyz`).
-- `ENABLE_ROTATION`: Set to `"1"` to enable the optional cron handler for Shamir rotation.
-
-Secrets (`RELAYER_PRIVATE_KEY`, `SHAMIR_*`) must be created with Wrangler before deploying:
+R2 publishing (`publish-sdk-r2.yml`) is still useful if you want a signed, immutable artifact store (for external distribution or future “load SDK assets from R2” setups).

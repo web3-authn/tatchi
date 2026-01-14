@@ -132,34 +132,34 @@ Cookie mode and CORS
    - Build the SDK (required for the Worker bundle): `pnpm build:sdk-prod`
 2. Authenticate: `npx wrangler login` or `npx wrangler config` with an API
    token.
-3. Provision required secrets (repeat for each Worker name you deploy):
+3. Provision required secrets (repeat for each environment you deploy):
    ```bash
-   # staging worker
-   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put RELAYER_PRIVATE_KEY --name w3a-relay-staging
-   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_P_B64U --name w3a-relay-staging
-   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_E_S_B64U --name w3a-relay-staging
-   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_D_S_B64U --name w3a-relay-staging
+   # staging env (w3a-relay-staging)
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put RELAYER_PRIVATE_KEY --env staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_P_B64U --env staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_E_S_B64U --env staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_D_S_B64U --env staging
 
-   # prod worker
-   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put RELAYER_PRIVATE_KEY --name w3a-relay-prod
-   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_P_B64U --name w3a-relay-prod
-   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_E_S_B64U --name w3a-relay-prod
-   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_D_S_B64U --name w3a-relay-prod
+   # production env (w3a-relay-prod)
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put RELAYER_PRIVATE_KEY --env production
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_P_B64U --env production
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_E_S_B64U --env production
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put SHAMIR_D_S_B64U --env production
    ```
-4. Optional: provision threshold signing secret (repeat per worker name):
+4. Optional: provision threshold signing secret (repeat per environment):
    ```bash
-   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --name w3a-relay-staging
-   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --name w3a-relay-prod
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --env staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --env production
    ```
 5. Deploy:
    ```bash
-   pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --name w3a-relay-staging
-   pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --name w3a-relay-prod
+   pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --env staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --env production
    ```
 6. Tail logs during testing:
    ```bash
-   pnpm -C examples/relay-cloudflare-worker exec wrangler tail --name w3a-relay-staging
-   pnpm -C examples/relay-cloudflare-worker exec wrangler tail --name w3a-relay-prod
+   pnpm -C examples/relay-cloudflare-worker exec wrangler tail --env staging
+   pnpm -C examples/relay-cloudflare-worker exec wrangler tail --env production
    ```
 
 ### CORS allowlist (recommended)
@@ -168,8 +168,8 @@ If you want cookie-based sessions (`credentials: 'include'`), you must use an
 explicit allowlist (not `Access-Control-Allow-Origin: *`).
 
 Example mapping:
-- staging: `EXPECTED_ORIGIN=https://staging.tatchi.xyz`, `EXPECTED_WALLET_ORIGIN=https://staging.web3authn.org`
-- prod: `EXPECTED_ORIGIN=https://tatchi.xyz`, `EXPECTED_WALLET_ORIGIN=https://web3authn.org`
+- staging: `EXPECTED_ORIGIN=https://staging.tatchi.xyz`, `EXPECTED_WALLET_ORIGIN=https://wallet-staging.web3authn.org`
+- prod: `EXPECTED_ORIGIN=https://tatchi.xyz`, `EXPECTED_WALLET_ORIGIN=https://wallet.web3authn.org`
 
 ## Local testing tips
 

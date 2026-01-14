@@ -41,11 +41,23 @@ import path from 'node:path'
 
 const app = express()
 
-// Serve SDK assets with correct MIME (especially .wasm)
-app.use('/sdk', (req, res, next) => {
+const sdkDist = path.join(process.cwd(), 'node_modules', '@tatchi-xyz', 'sdk', 'dist')
+
+// The wallet runtime assets live in two folders:
+// - dist/esm/sdk      → JS/CSS bundles loaded by wallet-iframe-host.js
+// - dist/workers      → module workers + WASM binaries (served under /sdk/workers)
+const sdkEsmAssets = path.join(sdkDist, 'esm', 'sdk')
+const sdkWorkerAssets = path.join(sdkDist, 'workers')
+
+// Serve Worker + WASM assets with correct MIME (especially .wasm).
+// Mount this first so /sdk/workers/* doesn't get handled by the /sdk static route.
+app.use('/sdk/workers', (req, res, next) => {
   if (req.url?.endsWith('.wasm')) res.setHeader('Content-Type', 'application/wasm')
   next()
-}, express.static(path.join(process.cwd(), 'node_modules', '@tatchi-xyz', 'sdk', 'dist', 'sdk')))
+}, express.static(sdkWorkerAssets))
+
+// Serve the rest of the wallet SDK runtime assets (JS/CSS).
+app.use('/sdk', express.static(sdkEsmAssets))
 ```
 
 **Important considerations**:
@@ -179,8 +191,12 @@ mkcert example.test wallet.example.test
 **Symptoms**: Network tab shows 404 errors for `/sdk/*.js` or `/sdk/*.wasm`.
 
 **Fix**:
-1. Verify SDK assets are at `node_modules/@tatchi-xyz/sdk/dist/sdk/`
-2. Check your static file middleware mounts this directory at `/sdk`
+1. Verify SDK assets are at:
+   - `node_modules/@tatchi-xyz/sdk/dist/esm/sdk/` (JS/CSS)
+   - `node_modules/@tatchi-xyz/sdk/dist/workers/` (workers + WASM)
+2. Ensure your static routes mount:
+   - `/sdk` → `dist/esm/sdk`
+   - `/sdk/workers` → `dist/workers`
 3. Test direct access: `curl https://wallet.example.com/sdk/wallet-iframe-host.js`
 
 ### WASM Module Failed to Instantiate
@@ -189,13 +205,14 @@ mkcert example.test wallet.example.test
 
 **Fix**:
 ```typescript
-// Ensure .wasm files have correct MIME type
-app.use('/sdk', (req, res, next) => {
+// Ensure .wasm files have correct MIME type.
+// WASM binaries ship under dist/workers and are served at /sdk/workers/*.wasm.
+app.use('/sdk/workers', (req, res, next) => {
   if (req.url?.endsWith('.wasm')) {
     res.setHeader('Content-Type', 'application/wasm')
   }
   next()
-}, express.static(sdkPath))
+}, express.static(sdkWorkerAssets))
 ```
 
 ## Additional Resources

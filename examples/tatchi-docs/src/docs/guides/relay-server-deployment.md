@@ -250,9 +250,10 @@ export default {
 Cloudflare Workers require explicit WASM bundling. Update `wrangler.toml`:
 
 ```toml
-name = "web3authn-relay"
+name = "w3a-relay-prod"
 main = "src/worker.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-09-24"
+compatibility_flags = ["nodejs_compat"]
 
 # Bundle WASM modules
 [[rules]]
@@ -260,25 +261,38 @@ type = "CompiledWasm"
 globs = ["**/*.wasm"]
 fallthrough = true
 
-# Non-secret configuration
-[vars]
-RELAYER_ACCOUNT_ID = "relayer.testnet"
+[triggers]
+crons = []
+
+# Production worker (separate Worker name + CORS allowlist)
+[env.production]
+name = "w3a-relay-prod"
+
+[env.production.vars]
+RELAYER_ACCOUNT_ID = "w3a-relayer.testnet"
 NEAR_RPC_URL = "https://test.rpc.fastnear.com"
 NETWORK_ID = "testnet"
 WEBAUTHN_CONTRACT_ID = "w3a-v1.testnet"
-ACCOUNT_INITIAL_BALANCE = "30000000000000000000000"
-CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"
-
-# Optional CORS
+ACCOUNT_INITIAL_BALANCE = "40000000000000000000000" # 0.04 NEAR
+CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
+RELAYER_URL = "https://relay.example.com"
 EXPECTED_ORIGIN = "https://app.example.com"
 EXPECTED_WALLET_ORIGIN = "https://wallet.example.com"
 
-# Optional: Enable rotation via cron
-ENABLE_ROTATION = "1"
+# Staging worker (separate Worker name + tighter CORS allowlist)
+[env.staging]
+name = "w3a-relay-staging"
 
-# Optional: Cron trigger (hourly rotation)
-[triggers]
-crons = ["0 * * * *"]
+[env.staging.vars]
+RELAYER_ACCOUNT_ID = "w3a-relayer.testnet"
+NEAR_RPC_URL = "https://test.rpc.fastnear.com"
+NETWORK_ID = "testnet"
+WEBAUTHN_CONTRACT_ID = "w3a-v1.testnet"
+ACCOUNT_INITIAL_BALANCE = "40000000000000000000000" # 0.04 NEAR
+CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
+RELAYER_URL = "https://relay-staging.example.com"
+EXPECTED_ORIGIN = "https://staging.app.example.com"
+EXPECTED_WALLET_ORIGIN = "https://wallet-staging.example.com"
 ```
 
 ### Managing Secrets
@@ -289,11 +303,21 @@ Secrets are never committed to `wrangler.toml`. Use the CLI:
 # Authenticate once
 wrangler login
 
-# Set secrets
-wrangler secret put RELAYER_PRIVATE_KEY
-wrangler secret put SHAMIR_P_B64U
-wrangler secret put SHAMIR_E_S_B64U
-wrangler secret put SHAMIR_D_S_B64U
+# Set secrets for production
+wrangler secret put RELAYER_PRIVATE_KEY --env production
+wrangler secret put SHAMIR_P_B64U --env production
+wrangler secret put SHAMIR_E_S_B64U --env production
+wrangler secret put SHAMIR_D_S_B64U --env production
+# Optional (threshold signing)
+wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --env production
+
+# Set secrets for staging
+wrangler secret put RELAYER_PRIVATE_KEY --env staging
+wrangler secret put SHAMIR_P_B64U --env staging
+wrangler secret put SHAMIR_E_S_B64U --env staging
+wrangler secret put SHAMIR_D_S_B64U --env staging
+# Optional (threshold signing)
+wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --env staging
 ```
 
 ### Deployment
@@ -301,7 +325,8 @@ wrangler secret put SHAMIR_D_S_B64U
 ```bash
 cd examples/relay-cloudflare-worker
 pnpm install
-wrangler deploy
+wrangler deploy --env staging
+wrangler deploy --env production
 ```
 
 Your relay is now live at `https://your-worker.your-subdomain.workers.dev`.
