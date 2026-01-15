@@ -9,7 +9,7 @@ title: Architecture
   - [Registration Flow](#registration-flow)
   - [Login Flow](#login-flow)
   - [Transaction Flow](#transaction-flow)
-- [VRF Webauthn](./vrf-webauthn)
+- [VRF WebAuthn](./vrf-webauthn)
 - [Passkey Scope](./passkey-scope)
 
 ## Overview
@@ -36,10 +36,10 @@ The transaction signing flow follows this lifecycle:
 
 # Transaction Lifecycle
 
-This sections outlines the core stages of the transaction lifecycle for:
+This section outlines the core stages of the transaction lifecycle for:
 1. registration flows,
 2. login flows, and
-3. transaction signing flows (webauthn authentication).
+3. transaction signing flows (WebAuthn authentication).
 
 Each section illustrates how the wallet handles VRF operations, onchain verification, transaction signing, and dispatch.
 
@@ -219,7 +219,7 @@ sequenceDiagram
 
 ## Next Steps
 
-- [VRF WebAuthn](vrf-webauthn) discusses how the VRF webauthn system works
+- [VRF WebAuthn](vrf-webauthn) discusses how the VRF-WebAuthn system works
 - Read about the [Security Model](security-model)
 - Explore [Passkey Scope Strategy](passkey-scope) for deployment options
 - Review [Shamir 3-Pass Protocol](../guides/shamir-3-pass-protocol) for the primary 2-of-2 unlock path

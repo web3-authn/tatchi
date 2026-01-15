@@ -12,7 +12,7 @@ The wallet's security model rests on the following:
 2. **Workers for secrets** - Never expose keys to the main thread
 3. **Security headers** - CSP blocks injection attacks, Permissions Policy controls WebAuthn access
 4. **User presence guarantees** - Ensure TouchID approvals have user presence
-5. **VRF binding in Webauthn** - Ensures against replay attacks, and ensures each transaction signing attempt is fresh with user presence.
+5. **VRF binding in WebAuthn** - Ensures against replay attacks, and ensures each transaction signing attempt is fresh with user presence.
 
 This design makes an explicit tradeoff:
 
