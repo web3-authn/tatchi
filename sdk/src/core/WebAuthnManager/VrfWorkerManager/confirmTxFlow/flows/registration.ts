@@ -37,96 +37,89 @@ export async function handleRegistrationFlow(
   });
   const nearAccountId = getNearAccountId(request);
 
-  console.debug('[RegistrationFlow] start', {
-    nearAccountId,
-    uiMode: confirmationConfig?.uiMode,
-    behavior: confirmationConfig?.behavior,
-    theme: confirmationConfig?.theme,
-    intentDigest: transactionSummary?.intentDigest,
-  });
-
-  // 1) NEAR context
-  const nearRpc = await adapters.near.fetchNearContext({ nearAccountId, txCount: 1, reserveNonces: true });
-  if (nearRpc.error && !nearRpc.transactionContext) {
-    return session.confirmAndCloseModal({
-      requestId: request.requestId,
-      intentDigest: getIntentDigest(request),
-      confirmed: false,
-      error: `${ERROR_MESSAGES.nearRpcFailed}: ${nearRpc.details}`,
-    });
-  }
-  const transactionContext = nearRpc.transactionContext as TransactionContext;
-  session.setReservedNonces(nearRpc.reservedNonces);
-
-  const computeBoundIntentDigestB64u = async (): Promise<string> => {
-    const uiIntentDigest = getIntentDigest(request);
-    if (!uiIntentDigest) {
-      throw new Error('Missing intentDigest for registration flow');
+  try {
+    // 1) NEAR context
+    const nearRpc = await adapters.near.fetchNearContext({ nearAccountId, txCount: 1, reserveNonces: true });
+    if (nearRpc.error && !nearRpc.transactionContext) {
+      return session.confirmAndCloseModal({
+        requestId: request.requestId,
+        intentDigest: getIntentDigest(request),
+        confirmed: false,
+        error: `${ERROR_MESSAGES.nearRpcFailed}: ${nearRpc.details}`,
+      });
     }
-    return sha256Base64UrlUtf8(uiIntentDigest);
-  };
+    const transactionContext = nearRpc.transactionContext as TransactionContext;
+    session.setReservedNonces(nearRpc.reservedNonces);
 
-  // 2) Initial VRF challenge via bootstrap
-  const rpId = adapters.vrf.getRpId();
-  const boundIntentDigestB64u = await computeBoundIntentDigestB64u();
-  const bootstrap = await adapters.vrf.generateVrfKeypairBootstrap({
-    vrfInputData: {
-      userId: nearAccountId,
-      rpId,
-      blockHeight: transactionContext.txBlockHeight,
-      blockHash: transactionContext.txBlockHash,
-      intentDigest: boundIntentDigestB64u,
-    },
-    saveInMemory: true,
-    sessionId: request.requestId,
-  });
-  let uiVrfChallenge: VRFChallenge = bootstrap.vrfChallenge;
-  console.debug('[RegistrationFlow] VRF bootstrap ok', { blockHeight: uiVrfChallenge.blockHeight });
+    const computeBoundIntentDigestB64u = async (): Promise<string> => {
+      const uiIntentDigest = getIntentDigest(request);
+      if (!uiIntentDigest) {
+        throw new Error('Missing intentDigest for registration flow');
+      }
+      return sha256Base64UrlUtf8(uiIntentDigest);
+    };
 
-  // 3) UI confirm
-  const { confirmed, error: uiError } = await session.promptUser({ vrfChallenge: uiVrfChallenge });
-  if (!confirmed) {
-    console.debug('[RegistrationFlow] user cancelled');
-    return session.confirmAndCloseModal({
-      requestId: request.requestId,
-      intentDigest: getIntentDigest(request),
-      confirmed: false,
-      error: uiError,
+    // 2) Initial VRF challenge via bootstrap
+    const rpId = adapters.vrf.getRpId();
+    const boundIntentDigestB64u = await computeBoundIntentDigestB64u();
+    const bootstrap = await adapters.vrf.generateVrfKeypairBootstrap({
+      vrfInputData: {
+        userId: nearAccountId,
+        rpId,
+        blockHeight: transactionContext.txBlockHeight,
+        blockHash: transactionContext.txBlockHash,
+        intentDigest: boundIntentDigestB64u,
+      },
+      saveInMemory: true,
+      sessionId: request.requestId,
     });
-  }
+    let uiVrfChallenge: VRFChallenge = bootstrap.vrfChallenge;
+    console.debug('[RegistrationFlow] VRF bootstrap ok', { blockHeight: uiVrfChallenge.blockHeight });
 
-  // 4) JIT refresh VRF (best-effort)
-  try {
-    const refreshed = await adapters.vrf.maybeRefreshVrfChallenge(request, nearAccountId);
-    uiVrfChallenge = refreshed.vrfChallenge;
-    session.updateUI({ vrfChallenge: uiVrfChallenge });
-    console.debug('[RegistrationFlow] VRF JIT refresh ok', { blockHeight: uiVrfChallenge.blockHeight });
-  } catch (e) {
-    console.debug('[RegistrationFlow] VRF JIT refresh skipped', e);
-  }
+    // 3) UI confirm
+    const { confirmed, error: uiError } = await session.promptUser({ vrfChallenge: uiVrfChallenge });
+    if (!confirmed) {
+      console.debug('[RegistrationFlow] user cancelled');
+      return session.confirmAndCloseModal({
+        requestId: request.requestId,
+        intentDigest: getIntentDigest(request),
+        confirmed: false,
+        error: uiError,
+      });
+    }
 
-  // 5) Collect registration credentials (with duplicate retry)
-  let credential: PublicKeyCredential | undefined;
-  let deviceNumber = request.payload?.deviceNumber ?? 1;
+    // 4) JIT refresh VRF (best-effort)
+    try {
+      const refreshed = await adapters.vrf.maybeRefreshVrfChallenge(request, nearAccountId);
+      uiVrfChallenge = refreshed.vrfChallenge;
+      session.updateUI({ vrfChallenge: uiVrfChallenge });
+      console.debug('[RegistrationFlow] VRF JIT refresh ok', { blockHeight: uiVrfChallenge.blockHeight });
+    } catch (e) {
+      console.debug('[RegistrationFlow] VRF JIT refresh skipped', e);
+    }
 
-  const tryCreate = async (dn?: number): Promise<PublicKeyCredential> => {
-    console.debug('[RegistrationFlow] navigator.credentials.create start', { deviceNumber: dn });
-    return await adapters.webauthn.createRegistrationCredential({
-      nearAccountId,
-      challenge: uiVrfChallenge,
-      deviceNumber: dn,
-    });
-  };
+    // 5) Collect registration credentials (with duplicate retry)
+    let credential: PublicKeyCredential | undefined;
+    let deviceNumber = request.payload?.deviceNumber ?? 1;
 
-  try {
+    const tryCreate = async (dn?: number): Promise<PublicKeyCredential> => {
+      console.debug('[RegistrationFlow] navigator.credentials.create start', { deviceNumber: dn });
+      return await adapters.webauthn.createRegistrationCredential({
+        nearAccountId,
+        challenge: uiVrfChallenge,
+        deviceNumber: dn,
+      });
+    };
+
     try {
       credential = await tryCreate(deviceNumber);
-      console.debug('[RegistrationFlow] credentials.create ok');
     } catch (e: unknown) {
+
       const err = toError(e);
       const name = String(err?.name || '');
       const msg = String(err?.message || '');
       const isDuplicate = name === 'InvalidStateError' || /excluded|already\s*registered/i.test(msg);
+
       if (isDuplicate) {
         const nextDeviceNumber = (deviceNumber !== undefined && Number.isFinite(deviceNumber)) ? (deviceNumber + 1) : 2;
         console.debug('[RegistrationFlow] duplicate credential, retry with next deviceNumber', { nextDeviceNumber });
@@ -164,13 +157,13 @@ export async function handleRegistrationFlow(
     // We require registration credentials to include dual PRF outputs (first + second)
     // so VRF/NEAR key derivation can happen inside the workers without passing PRF outputs
     // as separate main-thread values.
-    const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential as unknown)
+    const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential)
       ? (credential as unknown as WebAuthnRegistrationCredential)
       : serializeRegistrationCredentialWithPRF({
           credential: credential! as PublicKeyCredential,
           firstPrfOutput: true,
           secondPrfOutput: true,
-    });
+      });
 
     // 6) Respond + close
     session.confirmAndCloseModal({
@@ -182,14 +175,10 @@ export async function handleRegistrationFlow(
       vrfChallenge: uiVrfChallenge,
       transactionContext,
     });
-
   } catch (err: unknown) {
+
     const cancelled = isUserCancelledSecureConfirm(err);
     const msg = String((toError(err))?.message || err || '');
-    // For missing PRF outputs, surface the error to caller (defensive path tests expect a throw)
-    if (/Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg)) {
-      return session.cleanupAndRethrow(err);
-    }
     if (cancelled) {
       window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
     }
@@ -205,7 +194,7 @@ export async function handleRegistrationFlow(
       confirmed: false,
       error: cancelled
         ? ERROR_MESSAGES.cancelled
-        : (isPrfBrowserUnsupported ? msg : ERROR_MESSAGES.collectCredentialsFailed),
+        : (isPrfBrowserUnsupported ? msg : (msg || ERROR_MESSAGES.collectCredentialsFailed)),
     });
   }
 }

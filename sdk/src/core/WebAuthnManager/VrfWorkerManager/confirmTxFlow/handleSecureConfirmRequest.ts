@@ -88,7 +88,18 @@ export async function handlePromptUserConfirmInJsMainThread(
     return;
   }
 
-  await handler({ ctx, request, worker, confirmationConfig, transactionSummary });
+  try {
+    await handler({ ctx, request, worker, confirmationConfig, transactionSummary });
+  } catch (e: unknown) {
+    console.error('[SecureConfirm][Host] handler failed', e);
+    // Best-effort: always respond to the worker so VRF-side requests don't hang indefinitely.
+    sendConfirmResponse(worker, {
+      requestId: request.requestId,
+      intentDigest: getIntentDigest(request),
+      confirmed: false,
+      error: errorMessage(e) || 'Secure confirmation failed',
+    });
+  }
 }
 
 type HandlerArgs = {

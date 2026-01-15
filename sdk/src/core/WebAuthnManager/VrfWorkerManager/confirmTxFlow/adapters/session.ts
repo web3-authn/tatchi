@@ -27,11 +27,6 @@ export function createConfirmSession({
    * - Always closes the confirm UI handle when present.
    */
   confirmAndCloseModal: (decision: SecureConfirmDecision) => void;
-  /**
-   * Cleanup + rethrow helper for invariant failures (e.g. missing PRF outputs),
-   * where tests/logic expect no worker response envelope.
-   */
-  cleanupAndRethrow: (err: unknown) => never;
 } {
   let reservedNonces: string[] | undefined;
   let confirmHandle: ConfirmUIHandle | undefined;
@@ -66,20 +61,10 @@ export function createConfirmSession({
     }
   };
 
-  const cleanupAndRethrow = (err: unknown): never => {
-    try {
-      adapters.near.releaseReservedNonces(reservedNonces);
-      adapters.ui.closeModalSafely(false, confirmHandle);
-    } finally {
-      throw err;
-    }
-  };
-
   return {
     setReservedNonces,
     updateUI,
     promptUser,
     confirmAndCloseModal,
-    cleanupAndRethrow,
   };
 }

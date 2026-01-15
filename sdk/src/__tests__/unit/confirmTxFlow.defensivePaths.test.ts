@@ -545,20 +545,17 @@ test.describe('confirmTxFlow – defensive paths', () => {
 
       const workerMessages: any[] = [];
       const worker = { postMessage: (msg: any) => workerMessages.push(msg) } as unknown as Worker;
-      let error: string | null = null;
-      try {
-        await handle(ctx, {
+      await handle(ctx, {
         type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
         data: request
       }, worker);
-      } catch (err: any) {
-        error = err?.message || String(err);
-      }
-      return { error, messageCount: workerMessages.length };
+      const response = workerMessages[0]?.data;
+      return { response, messageCount: workerMessages.length };
     }, { paths: IMPORT_PATHS });
 
-    expect(result.error).toContain('Missing PRF result');
-    expect(result.messageCount).toBe(0);
+    expect(result.messageCount).toBe(1);
+    expect(result.response.confirmed).toBe(false);
+    expect(result.response.error).toContain('Missing PRF result');
   });
 
   test('Registration flow: missing PRF output surfaces error', async ({ page }) => {
@@ -634,19 +631,100 @@ test.describe('confirmTxFlow – defensive paths', () => {
 
       const workerMessages: any[] = [];
       const worker = { postMessage: (msg: any) => workerMessages.push(msg) } as unknown as Worker;
-      let error: string | null = null;
-      try {
-        await handle(ctx, {
+      await handle(ctx, {
         type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
         data: request
       }, worker);
-      } catch (err: any) {
-        error = err?.message || String(err);
-      }
-      return { error, messageCount: workerMessages.length };
+      const response = workerMessages[0]?.data;
+      return { response, messageCount: workerMessages.length };
     }, { paths: IMPORT_PATHS });
 
-    expect(result.error).toContain('Missing PRF result');
-    expect(result.messageCount).toBe(0);
+    expect(result.messageCount).toBe(1);
+    expect(result.response.confirmed).toBe(false);
+    expect(result.response.error).toContain('Missing PRF result');
+  });
+
+  test('Signing flow: VRF challenge generation error returns response and releases nonces', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const mod = await import(paths.handle);
+      const types = await import(paths.types);
+      const handle = mod.handlePromptUserConfirmInJsMainThread as Function;
+
+      const reserved: string[] = [];
+      const released: string[] = [];
+      const ctx: any = {
+        userPreferencesManager: {
+          getConfirmationConfig: () => ({
+            uiMode: 'modal',
+            behavior: 'requireClick',
+            autoProceedDelay: 0,
+            theme: 'dark'
+          }),
+        },
+        nonceManager: {
+          async getNonceBlockHashAndHeight() {
+            return {
+              nearPublicKeyStr: 'pk',
+              accessKeyInfo: { nonce: 500 },
+              nextNonce: '501',
+              txBlockHeight: '5000',
+              txBlockHash: 'h5000',
+            };
+          },
+          reserveNonces(count: number) {
+            const values = Array.from({ length: count }, (_, i) => String(501 + i));
+            reserved.push(...values);
+            return values;
+          },
+          releaseNonce(nonce: string) {
+            released.push(nonce);
+          },
+        },
+        nearClient: {},
+        vrfWorkerManager: {
+          async generateVrfChallengeForSession() {
+            throw new Error('VRF session mismatch: VRF keypair did not match the last logged-in device after rebind. Please log in again.');
+          },
+        },
+        touchIdPrompt: {
+          getRpId: () => 'example.localhost',
+        },
+        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+      };
+
+      const request = {
+        requestId: 'vrf-challenge-error',
+        type: types.SecureConfirmationType.SIGN_TRANSACTION,
+        summary: {},
+        payload: {
+          intentDigest: 'intent-vrf-error',
+          nearAccountId: 'error.testnet',
+          txSigningRequests: [{ receiverId: 'x', actions: [] }],
+          rpcCall: {
+            method: 'sign',
+            argsJson: {},
+            nearAccountId: 'error.testnet',
+            contractId: 'web3-authn.testnet',
+            nearRpcUrl: 'https://rpc.testnet.near.org',
+          },
+        },
+      } as any;
+
+      const workerMessages: any[] = [];
+      const worker = { postMessage: (msg: any) => workerMessages.push(msg) } as unknown as Worker;
+
+      await handle(ctx, {
+        type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
+        data: request
+      }, worker);
+
+      const response = workerMessages[0]?.data;
+      return { reserved, released, response };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.reserved.length).toBeGreaterThan(0);
+    expect(result.released).toEqual(result.reserved);
+    expect(result.response.confirmed).toBe(false);
+    expect(result.response.error).toContain('VRF session mismatch');
   });
 });
