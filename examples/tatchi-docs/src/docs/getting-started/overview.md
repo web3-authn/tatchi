@@ -6,10 +6,10 @@ title: Overview
 
 Tatchi is an embedded, serverless wallet SDK built on top of Passkeys and the [NEAR blockchain](https://github.com/near).
 
-- Wallet keys are deterministically derived from passkeys, and users use biometrics to sign transaction in an isolated, cross‑origin wallet iframe.
-- Passkey (webauthn) authentications are performed directly with an onchain smart contract without backend servers.
+- Wallet keys are deterministically derived from passkeys, and users use biometrics to sign transactions in an isolated, cross‑origin wallet iframe.
+- Passkey (WebAuthn) authentications are performed directly with an onchain smart contract without backend servers.
 
-You can get started here with the [installation instructions](./installation)
+You can get started here with the [installation instructions](./installation).
 
 ::: code-group
 ```bash [pnpm]
@@ -29,17 +29,17 @@ yarn add @tatchi-xyz/sdk
 ## Why Tatchi?
 
 ### Serverless and Trustless by Design
-  - No auth/wallet backend to maintain for developers. WebAuthn and signing run in a hardened cross‑origin iframe which directly to the Webauthn contract on the NEAR blockchain. Neutral and 100% uptime.  No centralized wallet-as-service intermediaries or custodians like Coinbase, or Privy.
+  - No auth/wallet backend to maintain for developers. WebAuthn and signing run in a hardened cross‑origin iframe that connects directly to the WebAuthn contract on the NEAR blockchain. Neutral and designed for high availability. No centralized wallet-as-service intermediaries or custodians like Coinbase or Privy.
 
 
 ### Self‑custody via Passkeys
-  - Keys are derived from WebAuthn registrations. Users never need to handle private keys or mnemonics. Holder of the passkey, is the custodian of the wallet.
+  - Keys are derived from WebAuthn registrations. Users never need to handle private keys or mnemonics. The holder of the passkey is the custodian of the wallet.
   - Keys never leave the device; auth derives signing keys client‑side via PRF. No custodial servers required.
 
 
 ### Permissionless Recovery and Portability
   - Passkey authenticators are stored on‑chain. Users can re‑derive keys from on‑chain authenticators, enabling permissionless recovery with high availability.
-  - Multi‑device sync: passkeys wallets can be synced across devices via iCloud, Google Password Manager, or password managers like Bitwarden.
+  - Multi‑device sync: passkey wallets can be synced across devices via iCloud, Google Password Manager, or password managers like Bitwarden.
   - Prefer no cloud? Paranoid about Passkey lock-in? Link devices with different passkeys to the same wallet account via QR codes (NEAR accounts can add or revoke multiple keys). Multi-device backups help address current [issues with Passkey portability](https://fidoalliance.org/specifications-credential-exchange-specifications/).
 
 
@@ -53,7 +53,7 @@ yarn add @tatchi-xyz/sdk
 
 
 ### Minimal Centralization:
-  - Wallet origin is swappable, and ROR allowlists are on‑chain and DAO‑governable for fast failover without app redeploys.
+  - Wallet origin is swappable, and Related Origin Requests (ROR) allowlists are on‑chain and DAO‑governable for fast failover without app redeploys.
   - One passkey can work across many apps without an identity silo per app.
 
 

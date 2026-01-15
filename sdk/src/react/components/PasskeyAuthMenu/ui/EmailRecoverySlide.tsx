@@ -624,10 +624,15 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
         loginOk = true;
       } else {
         safeSet(setStatusText, 'Email recovery completed. Logging you in…');
-        loginOk = await tatchiPasskey
+        const loginResult = await tatchiPasskey
           .loginAndCreateSession(normalizedAccountId)
-          .then(() => true)
-          .catch(() => false);
+          .catch(() => null);
+        if (loginResult?.success) {
+          const updatedSession = await tatchiPasskey.getLoginSession(normalizedAccountId).catch(() => null);
+          loginOk = !!updatedSession?.login?.isLoggedIn;
+        } else {
+          loginOk = false;
+        }
       }
 
       if (refreshLoginState) {

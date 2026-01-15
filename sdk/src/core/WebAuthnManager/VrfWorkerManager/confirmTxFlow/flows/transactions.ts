@@ -49,110 +49,110 @@ export async function handleTransactionSigningFlow(
     transactionSummary,
   });
   const nearAccountId = getNearAccountId(request);
-  const signingAuthMode = getSigningAuthMode(request);
-  const usesNeeded = getTxCount(request);
-  const vrfIntentDigestB64u = request.type === SecureConfirmationType.SIGN_TRANSACTION
-    ? getIntentDigest(request)
-    : request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE
-      ? await computeUiIntentDigestFromNep413({
-        nearAccountId,
-        recipient: request.payload.recipient,
-        message: request.payload.message,
-      })
-      : undefined;
-  const sessionPolicyDigest32 = request.payload.sessionPolicyDigest32;
+  try {
+    const signingAuthMode = getSigningAuthMode(request);
+    const usesNeeded = getTxCount(request);
+    const vrfIntentDigestB64u = request.type === SecureConfirmationType.SIGN_TRANSACTION
+      ? getIntentDigest(request)
+      : request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE
+        ? await computeUiIntentDigestFromNep413({
+          nearAccountId,
+          recipient: request.payload.recipient,
+          message: request.payload.message,
+        })
+        : undefined;
+    const sessionPolicyDigest32 = request.payload.sessionPolicyDigest32;
 
-  // 1) NEAR context + nonce reservation
-  const nearRpc = await adapters.near.fetchNearContext({ nearAccountId, txCount: usesNeeded, reserveNonces: true });
-  if (!nearRpc.transactionContext) {
-    // eslint-disable-next-line no-console
-    console.error('[SigningFlow] fetchNearContext failed', { error: nearRpc.error, details: nearRpc.details });
-    return session.confirmAndCloseModal({
-      requestId: request.requestId,
-      intentDigest: getIntentDigest(request),
-      confirmed: false,
-      error: nearRpc.details ? `${ERROR_MESSAGES.nearRpcFailed}: ${nearRpc.details}` : ERROR_MESSAGES.nearRpcFailed,
-    });
-  }
-  session.setReservedNonces(nearRpc.reservedNonces);
-  let transactionContext: TransactionContext = nearRpc.transactionContext;
-
-  // 2) Security context shown in the confirmer (rpId + block height).
-  // For warmSession signing we still want to show this context even though
-  // we won't collect a WebAuthn credential.
-  const rpId = adapters.vrf.getRpId();
-  let uiVrfChallenge: VRFChallenge | undefined;
-  let uiVrfChallengeForUi: Partial<VRFChallenge> | undefined = rpId
-    ? {
-        userId: nearAccountId,
-        rpId,
-        blockHeight: transactionContext.txBlockHeight,
-        blockHash: transactionContext.txBlockHash,
-      }
-    : undefined;
-
-  // Initial VRF challenge (only needed for WebAuthn credential collection)
-  if (signingAuthMode === 'webauthn') {
-    uiVrfChallenge = await adapters.vrf.generateVrfChallengeForSession(
-      {
-        userId: nearAccountId,
-        rpId,
-        blockHeight: transactionContext.txBlockHeight,
-        blockHash: transactionContext.txBlockHash,
-        ...(vrfIntentDigestB64u ? { intentDigest: vrfIntentDigestB64u } : {}),
-        ...(sessionPolicyDigest32 ? { sessionPolicyDigest32 } : {}),
-      },
-      request.requestId,
-    );
-    uiVrfChallengeForUi = uiVrfChallenge;
-  }
-
-  // 3) UI confirm
-  const { confirmed, error: uiError } = await session.promptUser({ vrfChallenge: uiVrfChallengeForUi });
-  if (!confirmed) {
-    return session.confirmAndCloseModal({
-      requestId: request.requestId,
-      intentDigest: getIntentDigest(request),
-      confirmed: false,
-      error: uiError,
-    });
-  }
-
-  // 4) Warm session: dispense WrapKeySeed and skip WebAuthn
-  if (signingAuthMode === 'warmSession') {
-    try {
-      await adapters.vrf.dispenseSessionKey({ sessionId: request.requestId, uses: usesNeeded });
-    } catch (err: unknown) {
-      const msg = String((toError(err))?.message || err || '');
+    // 1) NEAR context + nonce reservation
+    const nearRpc = await adapters.near.fetchNearContext({ nearAccountId, txCount: usesNeeded, reserveNonces: true });
+    if (!nearRpc.transactionContext) {
+      // eslint-disable-next-line no-console
+      console.error('[SigningFlow] fetchNearContext failed', { error: nearRpc.error, details: nearRpc.details });
       return session.confirmAndCloseModal({
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: false,
-        error: msg || 'Failed to dispense warm session key',
+        error: nearRpc.details ? `${ERROR_MESSAGES.nearRpcFailed}: ${nearRpc.details}` : ERROR_MESSAGES.nearRpcFailed,
+      });
+    }
+    session.setReservedNonces(nearRpc.reservedNonces);
+    let transactionContext: TransactionContext = nearRpc.transactionContext;
+
+    // 2) Security context shown in the confirmer (rpId + block height).
+    // For warmSession signing we still want to show this context even though
+    // we won't collect a WebAuthn credential.
+    const rpId = adapters.vrf.getRpId();
+    let uiVrfChallenge: VRFChallenge | undefined;
+    let uiVrfChallengeForUi: Partial<VRFChallenge> | undefined = rpId
+      ? {
+          userId: nearAccountId,
+          rpId,
+          blockHeight: transactionContext.txBlockHeight,
+          blockHash: transactionContext.txBlockHash,
+        }
+      : undefined;
+
+    // Initial VRF challenge (only needed for WebAuthn credential collection)
+    if (signingAuthMode === 'webauthn') {
+      uiVrfChallenge = await adapters.vrf.generateVrfChallengeForSession(
+        {
+          userId: nearAccountId,
+          rpId,
+          blockHeight: transactionContext.txBlockHeight,
+          blockHash: transactionContext.txBlockHash,
+          ...(vrfIntentDigestB64u ? { intentDigest: vrfIntentDigestB64u } : {}),
+          ...(sessionPolicyDigest32 ? { sessionPolicyDigest32 } : {}),
+        },
+        request.requestId,
+      );
+      uiVrfChallengeForUi = uiVrfChallenge;
+    }
+
+    // 3) UI confirm
+    const { confirmed, error: uiError } = await session.promptUser({ vrfChallenge: uiVrfChallengeForUi });
+    if (!confirmed) {
+      return session.confirmAndCloseModal({
+        requestId: request.requestId,
+        intentDigest: getIntentDigest(request),
+        confirmed: false,
+        error: uiError,
       });
     }
 
-    session.confirmAndCloseModal({
-      requestId: request.requestId,
-      intentDigest: getIntentDigest(request),
-      confirmed: true,
-      transactionContext,
-    });
-    return;
-  }
+    // 4) Warm session: dispense WrapKeySeed and skip WebAuthn
+    if (signingAuthMode === 'warmSession') {
+      try {
+        await adapters.vrf.dispenseSessionKey({ sessionId: request.requestId, uses: usesNeeded });
+      } catch (err: unknown) {
+        const msg = String((toError(err))?.message || err || '');
+        return session.confirmAndCloseModal({
+          requestId: request.requestId,
+          intentDigest: getIntentDigest(request),
+          confirmed: false,
+          error: msg || 'Failed to dispense warm session key',
+        });
+      }
 
-  // 5) JIT refresh VRF + ctx (best-effort)
-  try {
-    const refreshed = await adapters.vrf.maybeRefreshVrfChallenge(request, nearAccountId);
-    uiVrfChallenge = refreshed.vrfChallenge;
-    transactionContext = refreshed.transactionContext;
-    session.updateUI({ vrfChallenge: uiVrfChallenge });
-  } catch (e) {
-    console.debug('[SigningFlow] VRF JIT refresh skipped', e);
-  }
+      session.confirmAndCloseModal({
+        requestId: request.requestId,
+        intentDigest: getIntentDigest(request),
+        confirmed: true,
+        transactionContext,
+      });
+      return;
+    }
 
-  // 6) Collect authentication credential
-  try {
+    // 5) JIT refresh VRF + ctx (best-effort)
+    try {
+      const refreshed = await adapters.vrf.maybeRefreshVrfChallenge(request, nearAccountId);
+      uiVrfChallenge = refreshed.vrfChallenge;
+      transactionContext = refreshed.transactionContext;
+      session.updateUI({ vrfChallenge: uiVrfChallenge });
+    } catch (e) {
+      console.debug('[SigningFlow] VRF JIT refresh skipped', e);
+    }
+
+    // 6) Collect authentication credential
     if (!uiVrfChallenge) {
       throw new Error('Missing vrfChallenge for WebAuthn signing flow');
     }
@@ -224,12 +224,7 @@ export async function handleTransactionSigningFlow(
   } catch (err: unknown) {
     // Treat TouchID/FaceID cancellation and related errors as a negative decision
     const cancelled = isUserCancelledSecureConfirm(err);
-    // For missing PRF outputs, surface the error to caller (defensive path tests expect a throw)
     const msg = String((toError(err))?.message || err || '');
-    if (/Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg)) {
-      // Ensure UI is closed and nonces released, then rethrow
-      return session.cleanupAndRethrow(err);
-    }
     if (cancelled) {
       window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
     }

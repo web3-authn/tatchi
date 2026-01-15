@@ -883,7 +883,7 @@ async function handleLoginUnlockVRF(
       const relayerUrl = context.configs.relayer?.url;
       if (usedFallbackTouchId && relayerUrl) {
         const refreshed = await webAuthnManager.shamir3PassEncryptCurrentVrfKeypair();
-        await webAuthnManager.updateServerEncryptedVrfKeypair(nearAccountId, refreshed);
+        await webAuthnManager.updateServerEncryptedVrfKeypair(nearAccountId, refreshed, activeDeviceNumber);
       }
     } catch (refreshErr: any) {
       console.warn('Non-fatal: Failed to refresh serverEncryptedVrfKeypair:', refreshErr?.message || refreshErr);

@@ -546,8 +546,8 @@ export class PasskeyClientDBManager {
     return userData;
   }
 
-  async updateUser(nearAccountId: AccountId, updates: Partial<ClientUserData>): Promise<void> {
-    const user = await this.getUser(nearAccountId);
+  async updateUser(nearAccountId: AccountId, updates: Partial<ClientUserData>, deviceNumber?: number): Promise<void> {
+    const user = await this.getUser(nearAccountId, deviceNumber);
     if (user) {
       const updatedUser = {
         ...user,

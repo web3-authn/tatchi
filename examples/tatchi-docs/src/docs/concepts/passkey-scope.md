@@ -4,7 +4,7 @@ title: Passkey Scope and Composability
 
 # Passkey Scope and Composability
 
-Every Paskey WebAuthn credential is bound to a **relying party ID (rpId)**, a domain that determines which sites can access the passkey and whether it works across subdomains.
+Every Passkey WebAuthn credential is bound to a **relying party ID (rpId)**, a domain that determines which sites can access the passkey and whether it works across subdomains.
 
 Tatchi wallets use the WebAuthn **PRF extension** on every flow: `PRF.first` gates sessions (with Shamir 3-pass as primary) and `PRF.second` is reserved for registration, device linking, or explicit recovery. Whichever rpId strategy you choose must remain stable so these PRF outputs stay discoverable.
 

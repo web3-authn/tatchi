@@ -743,7 +743,8 @@ export class WebAuthnManager {
    */
   async updateServerEncryptedVrfKeypair(
     nearAccountId: AccountId,
-    serverEncrypted: ServerEncryptedVrfKeypair
+    serverEncrypted: ServerEncryptedVrfKeypair,
+    deviceNumber?: number
   ): Promise<void> {
     await IndexedDBManager.clientDB.updateUser(nearAccountId, {
       serverEncryptedVrfKeypair: {
@@ -752,7 +753,7 @@ export class WebAuthnManager {
         serverKeyId: serverEncrypted.serverKeyId,
         updatedAt: Date.now(),
       }
-    });
+    }, deviceNumber);
   }
 
   async clearVrfSession(): Promise<void> {
@@ -937,7 +938,7 @@ export class WebAuthnManager {
       if (!active) return false;
 
       const refreshed = await this.shamir3PassEncryptCurrentVrfKeypair();
-      await this.updateServerEncryptedVrfKeypair(nearAccountId, refreshed);
+      await this.updateServerEncryptedVrfKeypair(nearAccountId, refreshed, userData?.deviceNumber);
       return true;
     } catch {
       return false;
