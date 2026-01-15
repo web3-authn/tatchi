@@ -93,6 +93,10 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
   // Prefer explicit override for relayer URL; fall back to default preset.
   // Used below to default VRF relayServerUrl when it is undefined.
   const relayServerUrlDefault = relayerUrl;
+  const overrideShamirRelayServerUrl = overrides.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
+  const resolvedShamirRelayServerUrl = overrideShamirRelayServerUrl !== undefined
+    ? toTrimmedString(overrideShamirRelayServerUrl) ?? ''
+    : toTrimmedString(defaults.vrfWorkerConfigs?.shamir3pass?.relayServerUrl) || relayServerUrlDefault;
   const signerMode = coerceSignerMode(overrides.signerMode, defaults.signerMode);
 
   const merged: TatchiConfigs = {
@@ -130,9 +134,7 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
       shamir3pass: {
         p: overrides.vrfWorkerConfigs?.shamir3pass?.p
           ?? defaults.vrfWorkerConfigs?.shamir3pass?.p,
-        relayServerUrl: overrides.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
-          ?? defaults.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
-          ?? relayServerUrlDefault,
+        relayServerUrl: resolvedShamirRelayServerUrl,
         applyServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute
           ?? defaults.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
         removeServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute
