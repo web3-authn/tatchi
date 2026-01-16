@@ -133,8 +133,8 @@ If the main motivation is E2E testing, Option A typically achieves the same goal
 
 We already have a server-facing import surface in `sdk/src/server/wasm/`:
 
-- `sdk/src/server/wasm/signer.ts` re-exports `wasm_signer_worker_bg.wasm`
-- `sdk/src/server/wasm/vrf.ts` re-exports `wasm_vrf_worker_bg.wasm`
+- `sdk/src/server/wasm/signer.ts` re-exports the **server** signer WASM binary (proposed: `wasm_server_signer_worker_bg.wasm`)
+- `sdk/src/server/wasm/vrf.ts` re-exports the **server** VRF WASM binary (proposed: `wasm_server_vrf_worker_bg.wasm`)
 
 The “server-wasm-worker” bundle can extend this pattern by pointing these re-exports at the **server build** of each WASM module (the superset build), while the browser worker loaders point at the **client build**.
 
@@ -146,11 +146,120 @@ Splitting exports only reduces size if it allows the compiler/wasm-opt to drop c
 - Removing server-only threshold helper exports may have limited impact if the browser still needs FROST for threshold client signing.
 - The biggest client-size wins usually come from feature-gating entire subsystems (e.g. compile out threshold signing entirely for apps that only use the local signer).
 
-## Suggested next steps
+### Verified size deltas (client vs server variants)
 
-- Add feature flags and produce distinct “client” vs “server” WASM builds.
-- Measure `.wasm` size deltas per build and verify the browser still functions for:
-  - local signer flows
-  - threshold registration and signing flows (if enabled)
-- Update server imports (`sdk/src/server/core/*`) to use the server build paths and keep `sdk/src/server/wasm/*` as the stable server import surface.
+Measurements from the current dual-build setup (`pkg/` = client, `pkg-server/` = server superset):
 
+- **Signer `.wasm`**: `714,776` → `661,851` bytes raw (`-52,925`, ~51.7 KiB, ~7.4%), `282,993` → `263,328` bytes gzip (`-19,665`, ~19.2 KiB, ~6.9%)
+- **VRF `.wasm`**: `351,423` → `345,140` bytes raw (`-6,283`, ~6.1 KiB, ~1.8%), `138,387` → `137,228` bytes gzip (`-1,159`, ~1.1 KiB, ~0.8%)
+
+Takeaway: size win is **modest**; the refactor is mainly justified by **auditable boundary correctness**.
+
+### Verified build-time delta (`pnpm build:sdk`)
+
+Warm-cache timing on this machine:
+
+- **Baseline (single WASM build per worker)**: `real 28.04s`
+- **After split (client + server variants)**: `real 65.76s` (~2.35× slower)
+
+Root cause: `build:sdk` now runs `wasm-pack` for both `pkg/` and `pkg-server/` in `generate-types.sh`, and again for both in `build-dev.sh`.
+
+## Phased TODO list (strict client/server WASM separation)
+
+This checklist assumes **Option A** (two builds per worker): `pkg/` is **client**, `pkg-server/` is **server superset**.
+
+### Phase 0 — Invariants + acceptance criteria
+
+- [ ] Freeze browser asset names: keep `wasm_signer_worker_bg.wasm` + `wasm_vrf_worker_bg.wasm` stable in `sdk/dist/workers/` (preconnect/offline paths rely on them).
+- [ ] Confirm “no server-only logic in client” policy:
+  - client build must not export threshold relayer helpers or Shamir server helpers
+  - server build may export both client + server helpers (superset) for relayer + E2E
+- [ ] Add a simple “export set” check (script/CI) that fails if client builds contain server-only exports.
+- [ ] Measure current **VRF** worker delta after gating (expected smaller; verify).
+
+### Phase 1 — Rust feature gates (WASM signer worker)
+
+- [ ] Flip feature defaults so **client build is default**:
+  - `sdk/src/wasm_signer_worker/Cargo.toml`: make server features **opt-in** (current gating was added for measurement but defaults may need to flip).
+- [ ] Gate server-only wasm-bindgen exports behind a feature (name example: `server_threshold_exports`):
+  - `sdk/src/wasm_signer_worker/src/threshold/threshold_frost.rs` relayer helpers:
+    - `threshold_ed25519_keygen_from_client_verifying_share`
+    - `threshold_ed25519_keygen_from_master_secret_and_client_verifying_share`
+    - `threshold_ed25519_round1_commit`
+    - `threshold_ed25519_round2_sign`
+    - `threshold_ed25519_round2_sign_cosigner`
+  - `sdk/src/wasm_signer_worker/src/threshold/threshold_digests.rs` digest helpers:
+    - `threshold_ed25519_compute_near_tx_signing_digests`
+    - `threshold_ed25519_compute_delegate_signing_digest`
+    - `threshold_ed25519_compute_nep413_signing_digest`
+- [ ] Ensure shared/client-needed helpers stay in the client build (extract if needed):
+  - `compute_threshold_ed25519_group_public_key_2p_from_verifying_shares`
+
+### Phase 2 — Rust feature gates (WASM VRF worker)
+
+- [ ] Add a server-only feature in `sdk/src/wasm_vrf_worker/Cargo.toml` (name example: `server_shamir_exports`).
+- [ ] Gate server-only Shamir handler implementations:
+  - `sdk/src/wasm_vrf_worker/src/handlers/handle_shamir3pass_server.rs`
+- [ ] Gate server-only HTTP shapes (and anything only reachable from them):
+  - `sdk/src/wasm_vrf_worker/src/types/http.rs`
+- [ ] Keep `WorkerRequestType` numeric IDs stable:
+  - do **not** `cfg` out enum variants; instead return a clear “unsupported in client build” error in `handle_message(...)` when server-only request types are received.
+
+### Phase 3 — Dual wasm-pack outputs (`pkg/` + `pkg-server/`)
+
+- [ ] Standardize output directories for both crates:
+  - client build: `sdk/src/wasm_{signer,vrf}_worker/pkg/`
+  - server build: `sdk/src/wasm_{signer,vrf}_worker/pkg-server/`
+- [ ] Name the **server signer** wasm-pack output `wasm_server_signer_worker`:
+  - outputs: `pkg-server/wasm_server_signer_worker.js`, `pkg-server/wasm_server_signer_worker_bg.wasm`, `pkg-server/wasm_server_signer_worker.d.ts`
+- [ ] Name the **server VRF** wasm-pack output `wasm_server_vrf_worker`:
+  - outputs: `pkg-server/wasm_server_vrf_worker.js`, `pkg-server/wasm_server_vrf_worker_bg.wasm`, `pkg-server/wasm_server_vrf_worker.d.ts`
+- [ ] Update `sdk/scripts/generate-types.sh` to build **both** outputs:
+  - build client `pkg/` (no server features)
+  - build server `pkg-server/` (server features on)
+  - keep `npx tsc --noEmit -p tsconfig.build.json` validation
+- [ ] Update `sdk/scripts/build-dev.sh` + `sdk/scripts/build-prod.sh`:
+  - build both `pkg/` and `pkg-server/` for signer + vrf
+  - run `node ./scripts/fix-wasm-pack-sideeffects.mjs` for **all** generated `pkg*` dirs
+  - copy only **client** `.wasm` from `pkg/` into `sdk/dist/workers/`
+
+### Phase 4 — Update SDK imports (server uses `pkg-server/`)
+
+- [ ] Switch server code imports to the server build:
+  - `sdk/src/server/core/AuthService.ts` → `../../wasm_signer_worker/pkg-server/wasm_server_signer_worker.js`
+  - `sdk/src/server/core/ThresholdService/keygenStrategy.ts` → `../../../wasm_signer_worker/pkg-server/wasm_server_signer_worker.js`
+  - `sdk/src/server/core/ThresholdService/signingHandlers.ts` → `../../../wasm_signer_worker/pkg-server/wasm_server_signer_worker.js`
+  - `sdk/src/server/core/ThresholdService/ThresholdSigningService.ts` → `../../../wasm_signer_worker/pkg-server/wasm_server_signer_worker.js`
+  - `sdk/src/server/core/shamirWorker.ts` → `../../wasm_vrf_worker/pkg-server/wasm_server_vrf_worker.js`
+  - `sdk/src/server/core/types.ts` → import Shamir HTTP/request types from `../../wasm_vrf_worker/pkg-server/wasm_server_vrf_worker.js`
+- [ ] Update server-side wasm URL resolution to prefer `pkg-server/` wasm binaries:
+  - `sdk/src/server/core/AuthService.ts`: update `SIGNER_WASM_MAIN_PATH` (and consider whether a fallback to client `dist/workers/` is desirable when server-only features are enabled)
+  - `sdk/src/server/core/shamirWorker.ts`: update `VRF_WASM_MAIN_PATH`
+- [ ] Keep all client/browser imports pointing to `pkg/` (no changes expected in `sdk/src/core/*`).
+
+### Phase 5 — Update build outputs (rolldown emits both pkgs)
+
+- [ ] Update `sdk/rolldown.config.ts`:
+  - keep existing `src/wasm_{signer,vrf}_worker/pkg/*` build entries → `sdk/dist/esm/wasm_{signer,vrf}_worker/pkg/*`
+  - add new build entries for `src/wasm_{signer,vrf}_worker/pkg-server/*` → `sdk/dist/esm/wasm_{signer,vrf}_worker/pkg-server/*`
+  - copy `*_bg.wasm` for both outputs (similar to existing `copyWasmAsset(...)` plugin)
+- [ ] Decide what to do for CJS:
+  - either add analogous `dist/cjs/wasm_{signer,vrf}_worker/pkg*` wasm copies (current CJS `server/wasm/*.js` requires a wasm path that may not exist)
+  - or explicitly document/limit wasm support to ESM-only server entrypoints
+
+### Phase 6 — Wire server wasm import surface + deployments
+
+- [ ] Update `sdk/src/server/wasm/signer.ts` + `sdk/src/server/wasm/vrf.ts` to re-export **server** wasm binaries from `pkg-server/`.
+- [ ] Verify Cloudflare Worker builds still bundle the referenced server wasm assets.
+- [ ] Verify wallet iframe deploy remains client-only:
+  - `.github/workflows/deploy-wallet-iframe-prod.yml` should continue to ship `sdk/dist/workers/*` + `sdk/dist/esm/sdk/*` only (and not `sdk/dist/esm/wasm_*_worker/*`).
+
+### Phase 7 — Guardrails + verification
+
+- [ ] Add a small verification script (Node) that checks for presence/absence of server-only JS exports in the generated glue:
+  - client `pkg/wasm_signer_worker.js` must NOT export `threshold_ed25519_round1_commit`, etc.
+  - server `pkg-server/wasm_server_signer_worker.js` MUST export them.
+  - same pattern for VRF Shamir server exports/types via `pkg-server/wasm_server_vrf_worker.js`.
+- [ ] Run existing SDK tests with both “local signer” and “threshold enabled” configurations:
+  - ensure relayer builds use server wasm and browser builds use client wasm
+- [ ] Re-measure `.wasm` sizes after fully gating VRF + any remaining server-only signer bits; update this doc with final numbers.
