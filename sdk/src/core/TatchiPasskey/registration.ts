@@ -73,7 +73,7 @@ export async function registerPasskeyInternal(
       step: 1,
       phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
       status: RegistrationStatus.PROGRESS,
-      message: 'Account available, generating credentials...'
+      message: 'Generating passkey credential...'
     });
 
     const confirmationConfig: Partial<ConfirmationConfig> = {
@@ -92,28 +92,13 @@ export async function registerPasskeyInternal(
 
     const credential = registrationSession.credential;
     const vrfChallenge = registrationSession.vrfChallenge;
+    const transactionContext = registrationSession.transactionContext;
 
     onEvent?.({
       step: 1,
       phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
       status: RegistrationStatus.SUCCESS,
       message: 'WebAuthn ceremony successful'
-    });
-
-    // Start the contract pre-check, run it in parallel to key derivation (await later)
-    const canRegisterUserPromise = webAuthnManager.checkCanRegisterUser({
-      contractId: context.configs.contractId,
-      credential,
-      vrfChallenge,
-      onEvent: (progress) => {
-        console.debug(`Registration progress: ${progress.step} - ${progress.message}`);
-        onEvent?.({
-          step: 3,
-          phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK,
-          status: RegistrationStatus.PROGRESS,
-          message: `${progress.message}`
-        });
-      },
     });
 
     // 1) Ensure VRF keypair is derived and loaded in-memory
@@ -161,14 +146,6 @@ export async function registerPasskeyInternal(
         throw new Error(derived.error || 'Failed to derive threshold client verifying share');
       }
       thresholdClientVerifyingShareB64u = derived.clientVerifyingShareB64u;
-    }
-
-    // 3) Await contract registration check (main blocker)
-    const canRegisterUserResult = await canRegisterUserPromise;
-    if (!canRegisterUserResult.verified) {
-      console.error(canRegisterUserResult);
-      const errorMessage = canRegisterUserResult.error || 'User verification failed - account may already exist or contract is unreachable';
-      throw new Error(`Web3Authn contract registration check failed: ${errorMessage}`);
     }
 
     // Step 4-5: Create account and register with contract using the relay (atomic)
@@ -225,20 +202,28 @@ export async function registerPasskeyInternal(
       context.nearClient,
       nearAccountId,
       expectedAccessKeys,
+      { attempts: 3, delayMs: 200, finality: 'optimistic' },
     );
 
     if (!accessKeyVerified) {
-      throw new Error('On-chain access key mismatch or not found after registration');
+      console.warn('[Registration] Access key not yet visible after atomic registration; continuing optimistically');
+      onEvent?.({
+        step: 6,
+        phase: RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION,
+        status: RegistrationStatus.SUCCESS,
+        message: 'Access key verification pending (optimistic); continuing...'
+      });
+    } else {
+      onEvent?.({
+        step: 6,
+        phase: RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION,
+        status: RegistrationStatus.SUCCESS,
+        message: 'Access key verified on-chain'
+      });
     }
 
-    onEvent?.({
-      step: 6,
-      phase: RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION,
-      status: RegistrationStatus.SUCCESS,
-      message: 'Access key verified on-chain'
-    });
-
-    await activateThresholdEnrollmentPostRegistration({
+    // Threshold enrollment can take an extra on-chain tx + key propagation; don't block registration on it.
+    activateThresholdEnrollmentPostRegistration({
       requestedSignerMode: requestedSignerModeStr,
       nearAccountId,
       nearPublicKey,
@@ -255,7 +240,7 @@ export async function registerPasskeyInternal(
       webAuthnManager: context.webAuthnManager,
       nearClient: context.nearClient,
       onEvent,
-    });
+    }).catch(() => {});
 
     // Step 7: Store user data with VRF credentials atomically
     onEvent?.({
@@ -284,38 +269,16 @@ export async function registerPasskeyInternal(
       message: 'Registration metadata stored successfully'
     });
 
-    // Initialize NonceManager with newly stored user before fetching block/nonce
-    try {
-      context.webAuthnManager.getNonceManager().initializeUser(nearAccountId, nearPublicKey);
-      await context.webAuthnManager.getNonceManager().prefetchBlockheight(context.nearClient);
-    } catch {}
-
     // Step 7: Ensure VRF session is active for auto-login
     // If VRF keypair is already in-memory (saved earlier), skip an extra Touch ID prompt.
     let vrfStatus = await webAuthnManager.checkVrfStatus().catch(() => ({ active: false }));
     if (!vrfStatus?.active) {
-      // Obtain an authentication credential for VRF unlock (separate from registration credential)
-      // IMPORTANT: Immediately after account creation, the new access key may not be queryable yet on some RPC nodes.
-      // We only need fresh block info for the VRF challenge here, so fetch the block directly to avoid AK lookup failures.
-      const blockInfo = await context.nearClient.viewBlock({ finality: 'final' });
-      const txBlockHash = blockInfo?.header?.hash;
-      const txBlockHeight = String(blockInfo.header?.height ?? '');
-      const vrfChallenge2 = await webAuthnManager.generateVrfChallengeOnce({
-        userId: nearAccountId,
-        rpId: webAuthnManager.getRpId(),
-        blockHash: txBlockHash,
-        blockHeight: txBlockHeight,
-      });
-      const authenticators = await webAuthnManager.getAuthenticatorsByUser(nearAccountId);
-      const authCredential = await webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
-        nearAccountId,
-        challenge: vrfChallenge2,
-        credentialIds: authenticators.map((a) => a.credentialId),
-      });
-      const unlockResult = await webAuthnManager.unlockVRFKeypair({
+      // Prefer a no-prompt unlock using the existing registration credential (PRF already available).
+      // Fallback to an explicit authentication ceremony only if needed.
+      const unlockNoPrompt = await webAuthnManager.unlockVRFKeypair({
         nearAccountId: nearAccountId,
         encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
-        credential: authCredential,
+        credential,
       }).catch((unlockError: unknown) => {
         const message = (unlockError && typeof unlockError === 'object' && 'message' in unlockError)
           ? String((unlockError as { message?: unknown }).message || '')
@@ -323,9 +286,48 @@ export async function registerPasskeyInternal(
         return { success: false, error: message };
       });
 
-      if (!unlockResult.success) {
-        console.warn('VRF keypair unlock failed:', unlockResult.error);
-        throw new Error(unlockResult.error);
+      if (!unlockNoPrompt.success) {
+        // Obtain an authentication credential for VRF unlock (separate from registration credential)
+        // IMPORTANT: Immediately after account creation, the new access key may not be queryable yet on some RPC nodes.
+        // We only need fresh block info for the VRF challenge here, so fetch the block directly to avoid AK lookup failures.
+        let txBlockHash = String(transactionContext?.txBlockHash || '').trim();
+        let txBlockHeight = String(transactionContext?.txBlockHeight || '').trim();
+        if (!txBlockHash || !txBlockHeight) {
+          const blockInfo = await context.nearClient.viewBlock({ finality: 'final' });
+          txBlockHash = String(blockInfo?.header?.hash || '').trim();
+          txBlockHeight = String(blockInfo?.header?.height ?? '').trim();
+        }
+        const vrfChallenge2 = await webAuthnManager.generateVrfChallengeOnce({
+          userId: nearAccountId,
+          rpId: webAuthnManager.getRpId(),
+          blockHash: txBlockHash,
+          blockHeight: txBlockHeight,
+        });
+        const allowCredentialIds = String(credential?.rawId || '').trim()
+          ? [String(credential.rawId)]
+          : (await webAuthnManager.getAuthenticatorsByUser(nearAccountId)).map((a) => a.credentialId);
+        const authCredential = await webAuthnManager.getAuthenticationCredentialsSerializedDualPrf({
+          nearAccountId,
+          challenge: vrfChallenge2,
+          credentialIds: allowCredentialIds,
+        });
+        const unlockResult = await webAuthnManager.unlockVRFKeypair({
+          nearAccountId: nearAccountId,
+          encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
+          credential: authCredential,
+        }).catch((unlockError: unknown) => {
+          const message = (unlockError && typeof unlockError === 'object' && 'message' in unlockError)
+            ? String((unlockError as { message?: unknown }).message || '')
+            : String(unlockError || '');
+          return { success: false, error: message };
+        });
+
+        if (!unlockResult.success) {
+          console.warn('VRF keypair unlock failed:', unlockResult.error);
+          throw new Error(unlockResult.error);
+        }
+      } else {
+        console.debug('Registration: VRF unlocked using registration credential; skipping extra Touch ID unlock');
       }
     } else {
       console.debug('Registration: VRF session already active; skipping extra Touch ID unlock');
@@ -333,7 +335,8 @@ export async function registerPasskeyInternal(
 
     // Initialize current user only after a successful unlock
     try {
-      await webAuthnManager.initializeCurrentUser(nearAccountId, context.nearClient);
+      await webAuthnManager.initializeCurrentUser(nearAccountId);
+      webAuthnManager.getNonceManager().prefetchBlockheight(context.nearClient).catch(() => {});
     } catch (initErr) {
       console.warn('Failed to initialize current user after registration:', initErr);
     }
@@ -498,7 +501,8 @@ const validateRegistrationInputs = async (
     throw error;
   }
 
-  // on-chain account existence check is performed later via signer worker (checkCanRegisterUser),
+  // On-chain account existence / contract validation is performed by the relay + contract
+  // during the atomic create_account_and_register_user call.
   onEvent?.({
     step: 1,
     phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
@@ -641,6 +645,7 @@ async function activateThresholdEnrollmentPostRegistration(opts: {
       opts.nearClient,
       opts.nearAccountId,
       [opts.nearPublicKey, thresholdPublicKey],
+      { attempts: 6, delayMs: 250, finality: 'optimistic' },
     );
     if (!thresholdKeyVerified) {
       throw new Error('Threshold access key not found on-chain after AddKey');
@@ -681,7 +686,7 @@ async function verifyAccountAccessKeysPresent(
   nearClient: NearClient,
   nearAccountId: string,
   expectedPublicKeys: string[],
-  opts?: { attempts?: number; delayMs?: number },
+  opts?: { attempts?: number; delayMs?: number; finality?: 'optimistic' | 'final' },
 ): Promise<boolean> {
   const unique = Array.from(
     new Set(expectedPublicKeys.map((k) => ensureEd25519Prefix(k)).filter(Boolean)),
@@ -690,17 +695,23 @@ async function verifyAccountAccessKeysPresent(
 
   const attempts = Math.max(1, Math.floor(opts?.attempts ?? 6));
   const delayMs = Math.max(50, Math.floor(opts?.delayMs ?? 750));
+  const finality = opts?.finality ?? 'optimistic';
 
   for (let i = 0; i < attempts; i++) {
     try {
-      const { fullAccessKeys, functionCallAccessKeys } = await nearClient.getAccessKeys({ account: nearAccountId });
-      const keys = [...fullAccessKeys, ...functionCallAccessKeys].map((k) => ensureEd25519Prefix(k.public_key));
+      const accessKeyList = await nearClient.viewAccessKeyList(
+        nearAccountId,
+        { finality } as any,
+      );
+      const keys = accessKeyList.keys.map((k) => ensureEd25519Prefix(k.public_key)).filter(Boolean);
       const allPresent = unique.every((expected) => keys.includes(expected));
       if (allPresent) return true;
     } catch {
       // tolerate transient view errors during propagation; retry
     }
-    await new Promise((res) => setTimeout(res, delayMs));
+    if (i < attempts - 1) {
+      await new Promise((res) => setTimeout(res, delayMs));
+    }
   }
   return false;
 }
