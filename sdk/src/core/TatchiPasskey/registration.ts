@@ -603,8 +603,37 @@ async function activateThresholdEnrollmentPostRegistration(opts: {
   const clientVerifyingShareB64u = String(opts.thresholdClientVerifyingShareB64u || '').trim();
   const relayerVerifyingShareB64u = String(opts.relayerVerifyingShareB64u || '').trim();
 
-  if (!thresholdPublicKey || !relayerKeyId || !clientVerifyingShareB64u || !relayerVerifyingShareB64u) {
+  const emitThresholdKeyEnrollmentResult = (input: {
+    thresholdKeyReady: boolean;
+    message: string;
+    warning?: string;
+  }) => {
+    opts.onEvent?.({
+      step: 6,
+      phase: RegistrationPhase.STEP_6_THRESHOLD_KEY_ENROLLMENT,
+      status: RegistrationStatus.SUCCESS,
+      message: input.message,
+      thresholdKeyReady: input.thresholdKeyReady,
+      thresholdPublicKey: thresholdPublicKey || undefined,
+      relayerKeyId: relayerKeyId || undefined,
+      deviceNumber: 1,
+      warning: input.warning,
+    });
+  };
+
+  const missingEnrollmentDetails: string[] = [];
+  if (!thresholdPublicKey) missingEnrollmentDetails.push('thresholdPublicKey');
+  if (!relayerKeyId) missingEnrollmentDetails.push('relayerKeyId');
+  if (!clientVerifyingShareB64u) missingEnrollmentDetails.push('clientVerifyingShareB64u');
+  if (!relayerVerifyingShareB64u) missingEnrollmentDetails.push('relayerVerifyingShareB64u');
+
+  if (missingEnrollmentDetails.length) {
     console.warn('[Registration] threshold-signer requested but threshold enrollment details are missing; continuing with local-signer only');
+    emitThresholdKeyEnrollmentResult({
+      thresholdKeyReady: false,
+      message: 'Threshold key not ready; continuing with local-signer only',
+      warning: `Missing threshold enrollment details: ${missingEnrollmentDetails.join(', ')}`,
+    });
     return;
   }
 
@@ -677,8 +706,21 @@ async function activateThresholdEnrollmentPostRegistration(opts: {
       status: RegistrationStatus.SUCCESS,
       message: 'Threshold access key activated on-chain'
     });
+
+    emitThresholdKeyEnrollmentResult({
+      thresholdKeyReady: true,
+      message: 'Threshold key ready',
+    });
   } catch (e) {
+    const warning = (e && typeof e === 'object' && 'message' in e)
+      ? String((e as { message?: unknown }).message || '')
+      : String(e || '');
     console.warn('[Registration] threshold enrollment activation failed; continuing with local-signer only:', e);
+    emitThresholdKeyEnrollmentResult({
+      thresholdKeyReady: false,
+      message: 'Threshold key not ready; continuing with local-signer only',
+      warning,
+    });
   }
 }
 

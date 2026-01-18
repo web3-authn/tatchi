@@ -3,6 +3,7 @@ import { setupBasicPasskeyTest } from '../setup';
 import { DEFAULT_TEST_CONFIG } from '../setup/config';
 import bs58 from 'bs58';
 import { ed25519 } from '@noble/curves/ed25519.js';
+import { createHash } from 'node:crypto';
 
 const IMPORT_PATHS = {
   nearKeysDb: '/sdk/esm/core/IndexedDBManager/passkeyNearKeysDB.js',
@@ -60,7 +61,6 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
     let sendTxCount = 0;
     let localNearPublicKey = '';
     let thresholdPublicKey = '';
-    let precheckIntentDigest32: number[] | null = null;
     let relayIntentDigest32: number[] | null = null;
     const relayerKeyId = 'relayer-keyid-mock-1';
     const relayerVerifyingShareB64u = toB64u(ed25519.Point.BASE.toBytes());
@@ -114,28 +114,6 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
 
       if (rpcMethod === 'query' && params?.request_type === 'call_function') {
         const methodName = params?.method_name;
-        if (methodName === 'check_can_register_user') {
-          try {
-            const argsB64 = String(params?.args_base64 || '');
-            const decoded = Buffer.from(argsB64, 'base64').toString('utf8');
-            const args = JSON.parse(decoded);
-            const digest = args?.vrf_data?.intent_digest_32;
-            if (Array.isArray(digest)) {
-              precheckIntentDigest32 = digest as number[];
-            }
-          } catch {}
-          const resultBytes = Array.from(Buffer.from(JSON.stringify({ verified: true }), 'utf8'));
-          await route.fulfill({
-            status: 200,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              id,
-              result: { result: resultBytes, logs: ['mock check_can_register_user verified=true'] },
-            }),
-          });
-          return;
-        }
         const resultBytes = Array.from(Buffer.from(JSON.stringify({ verified: true }), 'utf8'));
         await route.fulfill({
           status: 200,
@@ -232,8 +210,11 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
       const post = req.postData() || '{}';
       const payload = JSON.parse(post);
       localNearPublicKey = payload?.new_public_key || '';
-      if (Array.isArray(payload?.vrf_data?.intent_digest_32)) {
-        relayIntentDigest32 = payload.vrf_data.intent_digest_32 as number[];
+      const relayDigest = payload?.vrf_data?.intent_digest_32;
+      if (Array.isArray(relayDigest)) {
+        relayIntentDigest32 = relayDigest as number[];
+      } else if (typeof relayDigest === 'string' && relayDigest) {
+        relayIntentDigest32 = Array.from(Buffer.from(relayDigest, 'base64url'));
       }
       const clientVerifyingShareB64u = payload?.threshold_ed25519?.client_verifying_share_b64u || '';
 
@@ -281,9 +262,17 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
           theme: 'dark',
         };
 
+        (window as any).__registrationEvents = [];
         const res = await pm.registerPasskeyInternal(
           accountId,
-          { signerMode: { mode: 'threshold-signer' } },
+          {
+            signerMode: { mode: 'threshold-signer' },
+            onEvent: (event: any) => {
+              try {
+                (window as any).__registrationEvents.push(event);
+              } catch {}
+            },
+          },
           confirmConfig as any,
         );
 
@@ -301,14 +290,57 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
         ...consoleMessages.slice(-80),
       ].join('\n'));
     }
-    expect(sendTxCount).toBe(1);
+
+    // Threshold enrollment activation is fire-and-forget (post-registration); wait for it.
+    await expect.poll(() => sendTxCount, { timeout: 10_000 }).toBe(1);
+
     expect(localNearPublicKey).toMatch(/^ed25519:/);
     expect(thresholdPublicKey).toMatch(/^ed25519:/);
-    expect(precheckIntentDigest32).toBeTruthy();
-    expect(precheckIntentDigest32).toHaveLength(32);
     expect(relayIntentDigest32).toBeTruthy();
     expect(relayIntentDigest32).toHaveLength(32);
-    expect(relayIntentDigest32).toEqual(precheckIntentDigest32);
+    // ConfirmTxFlow binds `sha256("register:<accountId>:<deviceNumber>")` into the VRF input.
+    const expectedIntentDigest32 = Array.from(
+      createHash('sha256')
+        .update(`register:${registration.accountId}:1`, 'utf8')
+        .digest(),
+    );
+    expect(relayIntentDigest32).toEqual(expectedIntentDigest32);
+
+    // Wait for local vault to be updated with threshold material.
+    await expect
+      .poll(async () => {
+        return await page.evaluate(async ({ paths, accountId }) => {
+          const { PasskeyNearKeysDBManager } = await import(paths.nearKeysDb);
+          const db = new PasskeyNearKeysDBManager();
+          const rec = await db.getThresholdKeyMaterial(accountId, 1);
+          return !!rec;
+        }, { paths: IMPORT_PATHS, accountId: registration.accountId });
+      }, { timeout: 10_000 })
+      .toBe(true);
+
+    await expect
+      .poll(async () => {
+        return await page.evaluate(() => {
+          const events = (window as any).__registrationEvents;
+          if (!Array.isArray(events)) return null;
+          return (
+            events.find((e: any) => e?.phase === 'threshold-key-enrollment' && e?.thresholdKeyReady === true) ??
+            null
+          );
+        });
+      }, { timeout: 10_000 })
+      .not.toBeNull();
+
+    const thresholdReadyEvent = await page.evaluate(() => {
+      const events = (window as any).__registrationEvents;
+      if (!Array.isArray(events)) return null;
+      return (
+        events.find((e: any) => e?.phase === 'threshold-key-enrollment' && e?.thresholdKeyReady === true) ?? null
+      );
+    });
+
+    expect(thresholdReadyEvent?.thresholdPublicKey).toBe(thresholdPublicKey);
+    expect(thresholdReadyEvent?.relayerKeyId).toBe(relayerKeyId);
 
     const stored = await page.evaluate(async ({ paths, accountId }) => {
       const { PasskeyNearKeysDBManager } = await import(paths.nearKeysDb);
@@ -485,9 +517,17 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
           theme: 'dark',
         };
 
+        (window as any).__registrationEvents = [];
         const res = await pm.registerPasskeyInternal(
           accountId,
-          { signerMode: { mode: 'threshold-signer' } },
+          {
+            signerMode: { mode: 'threshold-signer' },
+            onEvent: (event: any) => {
+              try {
+                (window as any).__registrationEvents.push(event);
+              } catch {}
+            },
+          },
           confirmConfig as any,
         );
         return { accountId, success: !!res?.success, error: res?.error };
@@ -497,6 +537,30 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
     });
 
     expect(registration.success, registration.error || 'registration failed').toBe(true);
+
+    await expect
+      .poll(async () => {
+        return await page.evaluate(() => {
+          const events = (window as any).__registrationEvents;
+          if (!Array.isArray(events)) return null;
+          return (
+            events.find((e: any) => e?.phase === 'threshold-key-enrollment' && e?.thresholdKeyReady === false) ??
+            null
+          );
+        });
+      }, { timeout: 10_000 })
+      .not.toBeNull();
+
+    const thresholdNotReadyEvent = await page.evaluate(() => {
+      const events = (window as any).__registrationEvents;
+      if (!Array.isArray(events)) return null;
+      return (
+        events.find((e: any) => e?.phase === 'threshold-key-enrollment' && e?.thresholdKeyReady === false) ?? null
+      );
+    });
+
+    expect(thresholdNotReadyEvent?.thresholdKeyReady).toBe(false);
+
     expect(sendTxCount).toBe(0);
     expect(thresholdActivatedOnChain).toBe(false);
 

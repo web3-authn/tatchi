@@ -24,6 +24,7 @@ export enum RegistrationPhase {
   STEP_4_ACCESS_KEY_ADDITION = 'access-key-addition',
   STEP_5_CONTRACT_REGISTRATION = 'contract-registration',
   STEP_6_ACCOUNT_VERIFICATION = 'account-verification',
+  STEP_6_THRESHOLD_KEY_ENROLLMENT = 'threshold-key-enrollment',
   STEP_7_DATABASE_STORAGE = 'database-storage',
   STEP_8_REGISTRATION_COMPLETE = 'registration-complete',
   REGISTRATION_ERROR = 'error',
@@ -240,6 +241,17 @@ export interface RegistrationEventStep6 extends BaseRegistrationSSEEvent {
   error?: string;
 }
 
+export interface RegistrationEventStep6ThresholdKeyEnrollment extends BaseRegistrationSSEEvent {
+  step: 6;
+  phase: RegistrationPhase.STEP_6_THRESHOLD_KEY_ENROLLMENT;
+  status: RegistrationStatus.SUCCESS;
+  thresholdKeyReady: boolean;
+  thresholdPublicKey?: string;
+  relayerKeyId?: string;
+  deviceNumber?: number;
+  warning?: string;
+}
+
 export interface RegistrationEventStep7 extends BaseRegistrationSSEEvent {
   step: 7;
   phase: RegistrationPhase.STEP_7_DATABASE_STORAGE;
@@ -267,6 +279,7 @@ export type RegistrationSSEEvent =
   | RegistrationEventStep4
   | RegistrationEventStep5
   | RegistrationEventStep6
+  | RegistrationEventStep6ThresholdKeyEnrollment
   | RegistrationEventStep7
   | RegistrationEventStep8
   | RegistrationEventStep0;
