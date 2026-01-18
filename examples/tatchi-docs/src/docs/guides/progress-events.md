@@ -129,8 +129,9 @@ registerPasskey(accountId, {
 - `STEP_4_ACCESS_KEY_ADDITION` -> account creation / access key add (via relay).
 - `STEP_5_CONTRACT_REGISTRATION` -> VRF + WebAuthn registration on the contract.
 - `STEP_6_ACCOUNT_VERIFICATION` -> post‑commit on‑chain access key verification.
-- `STEP_7_DATABASE_STORAGE` -> encrypted key + metadata persisted locally.
-- `STEP_8_REGISTRATION_COMPLETE` -> registration + VRF session ready.
+- `STEP_7_THRESHOLD_KEY_ENROLLMENT` -> best‑effort threshold key activation result (if `threshold-signer`).
+- `STEP_8_DATABASE_STORAGE` -> encrypted key + metadata persisted locally.
+- `STEP_9_REGISTRATION_COMPLETE` -> registration + VRF session ready.
 - `REGISTRATION_ERROR` -> terminal failure requiring user action.
 
 **Practical usage:**

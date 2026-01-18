@@ -50,7 +50,7 @@ export function PasskeyLoginMenu() {
           case RegistrationPhase.STEP_5_CONTRACT_REGISTRATION:
             toast.loading(`Registering with Web3Authn contract...`, { id: 'registration' });
             break;
-          case RegistrationPhase.STEP_8_REGISTRATION_COMPLETE:
+          case RegistrationPhase.STEP_9_REGISTRATION_COMPLETE:
             if (event.status === RegistrationStatus.SUCCESS) {
               // Final toast with tx hash will be shown after the promise resolves
               toast.success('Registration completed successfully!', { id: 'registration' });

@@ -242,10 +242,10 @@ export async function registerPasskeyInternal(
       onEvent,
     }).catch(() => {});
 
-    // Step 7: Store user data with VRF credentials atomically
+    // Step 8: Store user data with VRF credentials atomically
     onEvent?.({
-      step: 7,
-      phase: RegistrationPhase.STEP_7_DATABASE_STORAGE,
+      step: 8,
+      phase: RegistrationPhase.STEP_8_DATABASE_STORAGE,
       status: RegistrationStatus.PROGRESS,
       message: 'Storing passkey wallet metadata...'
     });
@@ -263,13 +263,13 @@ export async function registerPasskeyInternal(
     registrationState.databaseStored = true;
 
     onEvent?.({
-      step: 7,
-      phase: RegistrationPhase.STEP_7_DATABASE_STORAGE,
+      step: 8,
+      phase: RegistrationPhase.STEP_8_DATABASE_STORAGE,
       status: RegistrationStatus.SUCCESS,
       message: 'Registration metadata stored successfully'
     });
 
-    // Step 7: Ensure VRF session is active for auto-login
+    // Step 8: Ensure VRF session is active for auto-login
     // If VRF keypair is already in-memory (saved earlier), skip an extra Touch ID prompt.
     let vrfStatus = await webAuthnManager.checkVrfStatus().catch(() => ({ active: false }));
     if (!vrfStatus?.active) {
@@ -342,8 +342,8 @@ export async function registerPasskeyInternal(
     }
 
     onEvent?.({
-      step: 8,
-      phase: RegistrationPhase.STEP_8_REGISTRATION_COMPLETE,
+      step: 9,
+      phase: RegistrationPhase.STEP_9_REGISTRATION_COMPLETE,
       status: RegistrationStatus.SUCCESS,
       message: 'Registration completed!'
     });
@@ -609,8 +609,8 @@ async function activateThresholdEnrollmentPostRegistration(opts: {
     warning?: string;
   }) => {
     opts.onEvent?.({
-      step: 6,
-      phase: RegistrationPhase.STEP_6_THRESHOLD_KEY_ENROLLMENT,
+      step: 7,
+      phase: RegistrationPhase.STEP_7_THRESHOLD_KEY_ENROLLMENT,
       status: RegistrationStatus.SUCCESS,
       message: input.message,
       thresholdKeyReady: input.thresholdKeyReady,

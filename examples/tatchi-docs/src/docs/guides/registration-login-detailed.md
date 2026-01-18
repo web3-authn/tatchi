@@ -86,8 +86,9 @@ Registration progress events use `RegistrationPhase` and `RegistrationStatus` en
 - `STEP_4_ACCESS_KEY_ADDITION` -> NEAR account creation / access key add (via relay server if configured).
 - `STEP_5_CONTRACT_REGISTRATION` -> passkey + VRF registration on the contract.
 - `STEP_6_ACCOUNT_VERIFICATION` -> post‑commit on‑chain access key verification.
-- `STEP_7_DATABASE_STORAGE` -> encrypted key + metadata persisted locally in wallet IndexedDB.
-- `STEP_8_REGISTRATION_COMPLETE` -> registration + VRF session ready.
+- `STEP_7_THRESHOLD_KEY_ENROLLMENT` -> best‑effort threshold key activation result (if `threshold-signer`).
+- `STEP_8_DATABASE_STORAGE` -> encrypted key + metadata persisted locally in wallet IndexedDB.
+- `STEP_9_REGISTRATION_COMPLETE` -> registration + VRF session ready.
 - `REGISTRATION_ERROR` -> terminal failure requiring user action.
 
 `status` is one of:
@@ -111,8 +112,8 @@ Typical UI wiring:
   - `STEP_1_WEBAUTHN_VERIFICATION` -> “Creating passkey with TouchID…”
   - `STEP_4_ACCESS_KEY_ADDITION` -> “Creating NEAR account / access key…”
   - `STEP_5_CONTRACT_REGISTRATION` / `STEP_6_ACCOUNT_VERIFICATION` -> “Verifying registration on‑chain…”
-  - `STEP_7_DATABASE_STORAGE` -> “Saving keys locally…”
-  - `STEP_8_REGISTRATION_COMPLETE` -> “Registration complete!”
+  - `STEP_8_DATABASE_STORAGE` -> “Saving keys locally…”
+  - `STEP_9_REGISTRATION_COMPLETE` -> “Registration complete!”
 - **Show toast notifications** using a shared handler (see [Progress Events](/docs/guides/progress-events#end-to-end-example)).
 
 Example shared handler:

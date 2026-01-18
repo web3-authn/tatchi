@@ -72,7 +72,7 @@ export function useTatchiWithSdkFlow(args: {
         onEvent: (event: RegistrationSSEEvent) => {
           appendSdkEventMessage(seq, event.message);
           if (
-            event.phase === RegistrationPhase.STEP_8_REGISTRATION_COMPLETE &&
+            event.phase === RegistrationPhase.STEP_9_REGISTRATION_COMPLETE &&
             event.status === RegistrationStatus.SUCCESS
           ) {
             endSdkFlow('register', seq, 'success');
