@@ -68,6 +68,8 @@ pnpm -C sdk run type-check # TypeScript validation
 
 The easiest way to get started with React:
 
+Requires React 18+ (React 18 or 19). The core SDK works without React.
+
 ```tsx
 import { PasskeyProvider, usePasskeyManager, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk/react'
 

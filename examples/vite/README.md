@@ -6,6 +6,7 @@ This app runs a dedicated wallet/service origin for local development. It serves
 - Wallet origin (via Caddy): `https://wallet.example.localhost`
 - Service path: `/wallet-service`
 - SDK assets base: `/sdk/*` (served from `passkey-sdk/dist` in the workspace)
+- React: this example currently runs on React 18 (the SDK supports React 18 + 19).
 
 ## Usage
 
