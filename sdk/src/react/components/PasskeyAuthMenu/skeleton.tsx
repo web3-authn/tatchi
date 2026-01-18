@@ -8,12 +8,13 @@ export interface PasskeyAuthMenuSkeletonProps {
   style?: React.CSSProperties;
 }
 
-export const PasskeyAuthMenuSkeletonInner: React.FC<PasskeyAuthMenuSkeletonProps> = ({
-  className,
-  style,
-}) => {
+export const PasskeyAuthMenuSkeletonInner = React.forwardRef<
+  HTMLDivElement,
+  PasskeyAuthMenuSkeletonProps
+>(({ className, style }, ref) => {
   return (
     <div
+      ref={ref}
       className={`w3a-signup-menu-root w3a-skeleton${className ? ` ${className}` : ''}`}
       style={style}
     >
@@ -85,7 +86,8 @@ export const PasskeyAuthMenuSkeletonInner: React.FC<PasskeyAuthMenuSkeletonProps
       </div>
     </div>
   );
-};
+});
+PasskeyAuthMenuSkeletonInner.displayName = 'PasskeyAuthMenuSkeletonInner';
 
 export const PasskeyAuthMenuSkeleton: React.FC<PasskeyAuthMenuSkeletonProps> = (props) => {
   const { theme } = useTheme();
