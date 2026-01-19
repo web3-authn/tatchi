@@ -1,6 +1,7 @@
 /* MenuItem Component Styles */
 
 .w3a-dropdown-menu-item {
+  --w3a-dropdown-menu-item-opacity: 1;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -13,19 +14,36 @@
   text-align: left;
   font-size: 14px;
   font-family: inherit;
-  opacity: 0;
+  opacity: var(--w3a-dropdown-menu-item-opacity, 1);
   background-color: transparent;
-  transition: background-color 0.15s ease-in-out;
-  transform: translateX(-1rem);
+  transition: transform 120ms ease, background-color 160ms ease, box-shadow 160ms ease;
+  box-shadow: none;
+  border-radius: 0;
 }
 
 .w3a-dropdown-menu-item:hover {
   background-color: var(--w3a-colors-hover);
+  background: var(--w3a-colors-hover);
+}
+.w3a-dropdown-menu-item:hover:not(:disabled) {
+  background-color: var(--w3a-colors-hover);
+  background: var(--w3a-colors-hover);
+}
+
+.w3a-dropdown-menu-item:active {
+  transform: scale(0.98);
+  background: var(--w3a-colors-surface2);
+}
+
+.w3a-dropdown-menu-item:focus { outline: none; }
+
+.w3a-dropdown-menu-item:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--w3a-colors-focus), transparent 60%);
 }
 
 .w3a-dropdown-menu-item:disabled {
+  --w3a-dropdown-menu-item-opacity: 0.5;
   cursor: not-allowed;
-  opacity: 0.5;
 }
 
 .w3a-dropdown-menu-item:disabled:hover {
@@ -86,4 +104,42 @@
 
 .w3a-dropdown-menu-item.highlighted:hover {
   background: color-mix(in srgb, var(--w3a-colors-focus), transparent 65%);
+}
+
+/* Menu item animation states (within ProfileDropdown) */
+
+.w3a-profile-dropdown-morphed[data-state="closed"] .w3a-dropdown-menu-item {
+  opacity: 0;
+  transform: translateX(-1rem);
+  animation: none;
+}
+
+.w3a-profile-dropdown-morphed[data-state="open"] .w3a-dropdown-menu-item {
+  opacity: 0;
+  transform: translateX(-1rem);
+  animation: w3a-profile-menu-item-enter 240ms linear forwards;
+  animation-delay: calc(var(--stagger-base, 0ms) + var(--stagger-item-n, 0) * 20ms);
+}
+
+/* Menu Item Animation Keyframes */
+@keyframes w3a-profile-menu-item-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-1rem);
+  }
+  to {
+    opacity: var(--w3a-dropdown-menu-item-opacity, 1);
+    transform: translateX(0);
+  }
+}
+
+@keyframes w3a-profile-menu-item-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-1rem);
+  }
 }
