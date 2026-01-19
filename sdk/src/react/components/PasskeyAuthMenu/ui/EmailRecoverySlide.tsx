@@ -721,7 +721,9 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
       </>
     )
     : accountInfo && !accountInfoError
-      ? `Recovery emails configured: ${accountInfo.emailsCount}`
+      ? (accountInfo.emailsCount === 0
+        ? 'No recovery emails configured'
+        : `Recovery emails configured: ${accountInfo.emailsCount}`)
       : '\u00A0';
 
   const noRecoveryEmailsConfigured =

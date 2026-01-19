@@ -49,7 +49,6 @@ import { ensureEd25519Prefix } from '../nearCrypto';
 import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
 import { persistInitialThemePreferenceFromWalletTheme } from './themePreference';
 
-
 export class EmailRecoveryFlow {
   private context: PasskeyManagerContext;
   private options?: EmailRecoveryFlowOptions;
@@ -359,6 +358,16 @@ export class EmailRecoveryFlow {
         success: false,
       };
     } catch (err) {
+      if (isCodeDoesNotExistError(err)) {
+        return {
+          completed: true,
+          success: false,
+          errorMessage:
+            `Email recovery is not set up for ${rec.accountId} yet (Email Recoverer contract is not deployed). ` +
+            'Please configure email recovery for this account before attempting recovery.',
+        };
+      }
+
       // Treat view errors as retryable; keep polling the view method.
       // eslint-disable-next-line no-console
       console.warn('[EmailRecoveryFlow] get_recovery_attempt view failed; will retry', err);
@@ -1349,5 +1358,17 @@ export class EmailRecoveryFlow {
     } catch (err: unknown) {
       return this.handleAutoLoginFailure(errorMessage(err) || String(err), err);
     }
+  }
+}
+
+function isCodeDoesNotExistError(err: unknown): boolean {
+  const msg = errorMessage(err);
+  if (/CodeDoesNotExist/i.test(msg)) return true;
+  try {
+    const details = (err as { details?: unknown } | null | undefined)?.details;
+    if (!details) return false;
+    return /CodeDoesNotExist/i.test(JSON.stringify(details));
+  } catch {
+    return false;
   }
 }
