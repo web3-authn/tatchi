@@ -113,5 +113,4 @@ body[data-w3a-theme-pulse="1"] .w3a-profile-dropdown-menu {
 .w3a-logout-menu-item {
   border-top: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: 0px 0px 2rem 2rem;
-  margin-top: 0.5rem;
 }
