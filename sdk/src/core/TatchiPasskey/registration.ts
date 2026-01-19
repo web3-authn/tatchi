@@ -259,6 +259,17 @@ export async function registerPasskeyInternal(
       serverEncryptedVrfKeypair: deterministicVrfKeyResult.serverEncryptedVrfKeypair,
     });
 
+    // Persist initial per-user theme preference to match the configured walletTheme.
+    // This prevents a post-registration "flip" when preferences load from IndexedDB.
+    const walletTheme = context.configs?.walletTheme;
+    if (walletTheme === 'dark' || walletTheme === 'light') {
+      try {
+        await IndexedDBManager.clientDB.setTheme(nearAccountId, walletTheme);
+      } catch (err) {
+        console.warn('[Registration] Failed to persist initial theme preference:', err);
+      }
+    }
+
     // Mark database as stored for rollback tracking
     registrationState.databaseStored = true;
 
