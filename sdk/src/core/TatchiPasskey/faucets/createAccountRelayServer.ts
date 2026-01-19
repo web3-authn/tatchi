@@ -29,15 +29,16 @@ export interface CreateAccountAndRegisterUserRequest {
     client_verifying_share_b64u: string;
   };
   vrf_data: {
-    vrf_input_data: number[];
-    vrf_output: number[];
-    vrf_proof: number[];
-    public_key: number[];
+    // Send compact base64url strings; the relay normalizes to byte arrays for contract calls.
+    vrf_input_data: string;
+    vrf_output: string;
+    vrf_proof: string;
+    public_key: string;
     user_id: string;
     rp_id: string;
     block_height: number;
-    block_hash: number[];
-    intent_digest_32: number[];
+    block_hash: string;
+    intent_digest_32: string;
   };
   webauthn_registration: WebAuthnRegistrationCredential;
   deterministic_vrf_public_key: number[];
@@ -107,8 +108,9 @@ export async function createAccountAndRegisterWithRelayServer(
     }
 
     // Prepare data for atomic endpoint
-    const intent_digest_32 = Array.from(base64UrlDecode(vrfChallenge.intentDigest || ''));
-    if (intent_digest_32.length !== 32) {
+    const intentDigestB64u = String(vrfChallenge.intentDigest || '').trim();
+    const intentDigestBytes = base64UrlDecode(intentDigestB64u);
+    if (intentDigestBytes.length !== 32) {
       throw new Error('Missing or invalid vrfChallenge.intentDigest (expected base64url-encoded 32 bytes)');
     }
     const requestData: CreateAccountAndRegisterUserRequest = {
@@ -123,15 +125,15 @@ export async function createAccountAndRegisterWithRelayServer(
         }
         : {}),
       vrf_data: {
-        vrf_input_data: Array.from(base64UrlDecode(vrfChallenge.vrfInput)),
-        vrf_output: Array.from(base64UrlDecode(vrfChallenge.vrfOutput)),
-        vrf_proof: Array.from(base64UrlDecode(vrfChallenge.vrfProof)),
-        public_key: Array.from(base64UrlDecode(vrfChallenge.vrfPublicKey)),
+        vrf_input_data: vrfChallenge.vrfInput,
+        vrf_output: vrfChallenge.vrfOutput,
+        vrf_proof: vrfChallenge.vrfProof,
+        public_key: vrfChallenge.vrfPublicKey,
         user_id: vrfChallenge.userId,
         rp_id: vrfChallenge.rpId,
         block_height: Number(vrfChallenge.blockHeight),
-        block_hash: Array.from(base64UrlDecode(vrfChallenge.blockHash)),
-        intent_digest_32,
+        block_hash: vrfChallenge.blockHash,
+        intent_digest_32: intentDigestB64u,
       },
       webauthn_registration: serializedCredential,
       deterministic_vrf_public_key: Array.from(base64UrlDecode(deterministicVrfPublicKey)),

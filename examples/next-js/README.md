@@ -2,6 +2,7 @@ Next.js cross‑origin example
 
 - Wallet origin (dev): https://wallet.example.localhost (local wallet server)
 - Purpose: minimal host app that delegates to wallet iframe; served via TLS proxy with proper headers
+- React: this example uses React 19 (the SDK supports React 18 + 19).
 
 Quick start
 

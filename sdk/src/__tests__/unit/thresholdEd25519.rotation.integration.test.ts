@@ -323,6 +323,7 @@ test.describe('Threshold Ed25519 rotation helper', () => {
       // - rotate the threshold key and return the helper output for assertions
       try {
         const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
+        const { PasskeyNearKeysDBManager } = await import('/sdk/esm/core/IndexedDBManager/passkeyNearKeysDB.js');
         const suffix =
           (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
             ? crypto.randomUUID()
@@ -351,6 +352,21 @@ test.describe('Threshold Ed25519 rotation helper', () => {
         );
         if (!reg?.success) {
           return { ok: false, accountId, error: reg?.error || 'registration failed' };
+        }
+
+        // Registration triggers threshold enrollment activation in the background (Option B AddKey).
+        // Rotation requires the old threshold key material to already be stored.
+        const db = new PasskeyNearKeysDBManager();
+        const start = Date.now();
+        const maxWaitMs = 10_000;
+        while (Date.now() - start < maxWaitMs) {
+          const existing = await db.getThresholdKeyMaterial(accountId, 1).catch(() => null);
+          if (existing) break;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        const existing = await db.getThresholdKeyMaterial(accountId, 1).catch(() => null);
+        if (!existing) {
+          return { ok: false, accountId, error: 'threshold enrollment did not complete in time' };
         }
 
         const rotated = await pm.rotateThresholdEd25519Key(accountId, { deviceNumber: 1 });

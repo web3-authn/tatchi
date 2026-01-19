@@ -35,6 +35,12 @@ export async function injectImportMap(page: Page): Promise<void>;
 export async function injectImportMap(page: Page, options: { frontendUrl: string }): Promise<void>;
 export async function injectImportMap(page: Page, options?: { frontendUrl: string }): Promise<void> {
   const imports = {
+    // React: required to import SDK React components from /sdk/esm/*
+    react: 'https://esm.sh/react@19.1.1',
+    'react/jsx-runtime': 'https://esm.sh/react@19.1.1/jsx-runtime',
+    'react/jsx-dev-runtime': 'https://esm.sh/react@19.1.1/jsx-dev-runtime',
+    'react-dom': 'https://esm.sh/react-dom@19.1.1',
+    'react-dom/client': 'https://esm.sh/react-dom@19.1.1/client',
     bs58: 'https://esm.sh/bs58@6.0.0',
     idb: 'https://esm.sh/idb@8.0.0',
     'js-sha256': 'https://esm.sh/js-sha256@0.11.1',

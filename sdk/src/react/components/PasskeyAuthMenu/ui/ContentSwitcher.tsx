@@ -29,6 +29,11 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
   const switcherRef = React.useRef<HTMLDivElement | null>(null);
   const contentAreaRef = React.useRef<HTMLDivElement | null>(null);
   const sizerRef = React.useRef<HTMLDivElement | null>(null);
+  const isInitialMount = React.useRef(true);
+
+  React.useEffect(() => {
+    isInitialMount.current = false;
+  }, []);
 
   // Track whether user prefers reduced motion
   const prefersReducedMotion = React.useMemo(() => {
@@ -76,7 +81,7 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
     // Re-sync after fonts load (text metrics can change)
     const fonts = document?.fonts;
     if (fonts?.ready) {
-      fonts.ready.then(() => syncHeight()).catch(() => {});
+      fonts.ready.then(() => syncHeight()).catch(() => { });
     }
 
     // Also re-sync on window resize
@@ -117,7 +122,9 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
           {showEmailRecovery && <div className="w3a-email-recovery-content">{emailRecoveryElement}</div>}
 
           {!waiting && !showScanDevice && !showEmailRecovery && (
-            <div className="w3a-signin-menu">{children}</div>
+            <div className={`w3a-signin-menu${isInitialMount.current ? ' w3a-no-animation' : ''}`}>
+              {children}
+            </div>
           )}
         </div>
       </div>

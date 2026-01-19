@@ -41,9 +41,68 @@ import {
 } from '../delegateAction';
 import { coerceLogger, type NormalizedLogger } from './logger';
 import { errorMessage, toError } from '../../utils/errors';
+import { base64UrlDecode } from '../../utils/encoders';
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+function normalizeU8ArrayLike(input: unknown, fieldName: string): number[] {
+  if (input instanceof Uint8Array) return Array.from(input);
+  if (typeof input === 'string') {
+    try {
+      return Array.from(base64UrlDecode(input));
+    } catch (err) {
+      throw new Error(`Invalid ${fieldName}: expected base64url string (${errorMessage(err) || 'decode failed'})`);
+    }
+  }
+  if (Array.isArray(input)) {
+    const out: number[] = [];
+    for (const v of input) {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0 || n > 255) {
+        throw new Error(`Invalid ${fieldName}: expected byte array (0..255)`);
+      }
+      out.push(Math.floor(n));
+    }
+    return out;
+  }
+  throw new Error(`Invalid ${fieldName}: expected number[] or base64url string`);
+}
+
+function normalizeContractVrfDataForContract(input: unknown): Record<string, unknown> {
+  if (!isObject(input)) throw new Error('Missing or invalid vrf_data');
+  const user_id = toOptionalTrimmedString(input.user_id);
+  const rp_id = toOptionalTrimmedString(input.rp_id);
+  const block_height_raw = input.block_height;
+  const block_height = typeof block_height_raw === 'number'
+    ? block_height_raw
+    : Number(block_height_raw);
+
+  if (!user_id) throw new Error('Missing vrf_data.user_id');
+  if (!rp_id) throw new Error('Missing vrf_data.rp_id');
+  if (!Number.isFinite(block_height) || block_height <= 0) throw new Error('Invalid vrf_data.block_height');
+
+  const base: Record<string, unknown> = {
+    vrf_input_data: normalizeU8ArrayLike(input.vrf_input_data, 'vrf_data.vrf_input_data'),
+    vrf_output: normalizeU8ArrayLike(input.vrf_output, 'vrf_data.vrf_output'),
+    vrf_proof: normalizeU8ArrayLike(input.vrf_proof, 'vrf_data.vrf_proof'),
+    public_key: normalizeU8ArrayLike(input.public_key, 'vrf_data.public_key'),
+    user_id,
+    rp_id,
+    block_height,
+    block_hash: normalizeU8ArrayLike(input.block_hash, 'vrf_data.block_hash'),
+    intent_digest_32: normalizeU8ArrayLike(input.intent_digest_32, 'vrf_data.intent_digest_32'),
+  };
+
+  if (Object.prototype.hasOwnProperty.call(input, 'session_policy_digest_32')) {
+    const v = input.session_policy_digest_32;
+    if (v != null) {
+      base.session_policy_digest_32 = normalizeU8ArrayLike(v, 'vrf_data.session_policy_digest_32');
+    }
+  }
+
+  return base;
 }
 
 // =============================
@@ -455,23 +514,22 @@ export class AuthService {
           throw new Error(`Invalid account ID format: ${request.new_account_id}`);
         }
 
-        // Check if account already exists
-        this.logger.info(`Checking if account ${request.new_account_id} already exists...`);
-        const accountExists = await this.checkAccountExists(request.new_account_id);
-        if (accountExists) {
-          throw new Error(`Account ${request.new_account_id} already exists. Cannot create duplicate account.`);
-        }
-        this.logger.info(`Account ${request.new_account_id} is available for atomic creation and registration`);
         this.logger.info(`Registering account: ${request.new_account_id}`);
         this.logger.info(`Contract: ${this.config.webAuthnContractId}`);
+
+        const vrf_data = normalizeContractVrfDataForContract((request as unknown as { vrf_data?: unknown }).vrf_data);
+        const deterministic_vrf_public_key = normalizeU8ArrayLike(
+          (request as unknown as { deterministic_vrf_public_key?: unknown }).deterministic_vrf_public_key,
+          'deterministic_vrf_public_key',
+        );
 
         // Prepare contract arguments
         const contractArgs = {
           new_account_id: request.new_account_id,
           new_public_key: request.new_public_key,
-          vrf_data: request.vrf_data,
+          vrf_data,
           webauthn_registration: request.webauthn_registration,
-          deterministic_vrf_public_key: request.deterministic_vrf_public_key,
+          deterministic_vrf_public_key,
           authenticator_options: request.authenticator_options,
         };
 

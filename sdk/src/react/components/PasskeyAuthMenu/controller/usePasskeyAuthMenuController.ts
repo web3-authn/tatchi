@@ -2,6 +2,7 @@ import React from 'react';
 import type { DeviceLinkingSSEEvent } from '@/core/types/sdkSentEvents';
 import type { PasskeyAuthMenuRuntime } from '../adapters/tatchi';
 import { AuthMenuMode, type PasskeyAuthMenuProps } from '../types';
+import { usePasskeyAuthMenuForceInitialRegister } from '../hydrationContext';
 import { useAuthMenuMode } from './mode';
 import { getProceedEligibility } from './proceedEligibility';
 
@@ -45,6 +46,7 @@ export function usePasskeyAuthMenuController(
   const secure = typeof window !== 'undefined' ? window.isSecureContext : true;
   const currentValue = runtime.inputUsername;
   const setCurrentValue = runtime.setInputUsername;
+  const forceInitialRegister = usePasskeyAuthMenuForceInitialRegister();
 
   const { mode, setMode, title, onSegmentChange: onSegmentChangeBase, onInputChange: onInputChangeBase, resetToDefault } = useAuthMenuMode({
     defaultMode: props.defaultMode,
@@ -52,6 +54,7 @@ export function usePasskeyAuthMenuController(
     currentValue,
     setCurrentValue,
     headings: props.headings,
+    forceInitialRegister,
   });
 
   const latestValueRef = React.useRef<string>(currentValue);
