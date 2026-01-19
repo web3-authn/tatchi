@@ -21,6 +21,7 @@ import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
+import { persistInitialThemePreferenceFromWalletTheme } from './themePreference';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
@@ -250,6 +251,11 @@ export async function registerPasskeyInternal(
       message: 'Storing passkey wallet metadata...'
     });
 
+    const walletTheme = context.configs?.walletTheme;
+    const hadUserRecordBefore = (walletTheme === 'dark' || walletTheme === 'light')
+      ? !!(await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, 1).catch(() => null))
+      : false;
+
     await webAuthnManager.atomicStoreRegistrationData({
       nearAccountId,
       credential,
@@ -259,16 +265,13 @@ export async function registerPasskeyInternal(
       serverEncryptedVrfKeypair: deterministicVrfKeyResult.serverEncryptedVrfKeypair,
     });
 
-    // Persist initial per-user theme preference to match the configured walletTheme.
-    // This prevents a post-registration "flip" when preferences load from IndexedDB.
-    const walletTheme = context.configs?.walletTheme;
-    if (walletTheme === 'dark' || walletTheme === 'light') {
-      try {
-        await IndexedDBManager.clientDB.setTheme(nearAccountId, walletTheme);
-      } catch (err) {
-        console.warn('[Registration] Failed to persist initial theme preference:', err);
-      }
-    }
+    await persistInitialThemePreferenceFromWalletTheme({
+      nearAccountId,
+      deviceNumber: 1,
+      walletTheme: walletTheme === 'dark' || walletTheme === 'light' ? walletTheme : undefined,
+      hadUserRecordBefore,
+      logTag: 'Registration',
+    });
 
     // Mark database as stored for rollback tracking
     registrationState.databaseStored = true;

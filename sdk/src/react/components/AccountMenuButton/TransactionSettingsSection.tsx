@@ -1,5 +1,4 @@
 import React from 'react';
-import { Slider } from './Slider';
 import type { TransactionSettingsSectionProps } from './types';
 import { SegmentedControl } from '../PasskeyAuthMenu/ui/SegmentedControl';
 
@@ -17,12 +16,19 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
   theme = 'dark'
 }) => {
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+    if (currentConfirmConfig?.behavior !== 'autoProceed') return;
+    const delay = currentConfirmConfig?.autoProceedDelay ?? 0;
+    if (delay === 0) return;
+    onSetDelay(0);
+  }, [currentConfirmConfig?.autoProceedDelay, currentConfirmConfig?.behavior, isOpen, onSetDelay]);
+
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
 
   const disableRequireClick = currentConfirmConfig?.uiMode === 'skip';
-  const disableDelaySlider = disableRequireClick || currentConfirmConfig?.behavior !== 'autoProceed';
   const disableAll = !isOpen;
   const selectedSignerMode = signerMode?.mode ?? 'local-signer';
 
@@ -105,6 +111,9 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                   onValueChange={(v) => {
                     const wantsAuto = v === 'auto';
                     const isAuto = currentConfirmConfig?.behavior === 'autoProceed';
+                    if (wantsAuto && (currentConfirmConfig?.autoProceedDelay ?? 0) !== 0) {
+                      onSetDelay(0);
+                    }
                     if (wantsAuto !== isAuto) onToggleSkipClick?.();
                   }}
                   activeBg={'var(--w3a-colors-primary)'}
@@ -116,15 +125,6 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                 />
               </div>
             </div>
-            <Slider
-              disabled={disableAll || disableDelaySlider}
-              min={0}
-              max={6}
-              step={1}
-              value={Math.round((currentConfirmConfig?.autoProceedDelay ?? 0) / 500)}
-              onChange={(v) => onSetDelay(v * 500)}
-              theme={theme}
-            />
           </div>
         </div>
       </div>
