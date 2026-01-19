@@ -476,7 +476,7 @@
   flex: 1 1 0;
   min-width: 0;
   min-height: 44px;
-  border-radius: 12px;
+  border-radius: 1rem;
   background: transparent;
   /* Make inactive tabs more legible and clearly tappable */
   color: color-mix(in srgb, var(--w3a-colors-textSecondary), var(--w3a-colors-textPrimary) 45%);
