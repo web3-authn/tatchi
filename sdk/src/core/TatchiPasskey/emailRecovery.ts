@@ -375,6 +375,28 @@ export class EmailRecoveryFlow {
     }
   }
 
+  private async preflightEmailRecovererContractOrFail(step: number, accountId: AccountId): Promise<void> {
+    try {
+      await this.context.nearClient.view<Record<string, never>, unknown>({
+        account: accountId,
+        method: 'get_recovery_emails',
+        args: {} as Record<string, never>,
+      });
+    } catch (err: unknown) {
+      if (isCodeDoesNotExistError(err)) {
+        await this.fail(
+          step,
+          `Email recovery is not set up for ${accountId} yet (Email Recoverer contract is not deployed). ` +
+            'Please configure email recovery for this account before attempting recovery.'
+        );
+      }
+
+      // Any other view errors are treated as transient; allow the flow to proceed.
+      // eslint-disable-next-line no-console
+      console.warn('[EmailRecoveryFlow] get_recovery_emails preflight failed; proceeding anyway', err);
+    }
+  }
+
   private async isRecoveryAccessKeyPresent(rec: PendingEmailRecovery): Promise<boolean | null> {
     try {
       await this.context.nearClient.viewAccessKey(rec.accountId, rec.nearPublicKey);
@@ -511,6 +533,8 @@ export class EmailRecoveryFlow {
       await this.fail(3, 'Recovery email has already been processed on-chain for this request');
     }
 
+    await this.preflightEmailRecovererContractOrFail(3, rec.accountId);
+
     const mailtoUrl =
       rec.status === 'awaiting-email'
         ? await this.buildMailtoUrlAndUpdateStatus(rec)
@@ -565,6 +589,8 @@ export class EmailRecoveryFlow {
         status: 'awaiting-email',
       };
 
+      await this.preflightEmailRecovererContractOrFail(3, rec.accountId);
+
       const mailtoUrl = await this.buildMailtoUrlAndUpdateStatus(rec);
 
       this.emitAwaitEmail(rec, mailtoUrl);
@@ -573,6 +599,10 @@ export class EmailRecoveryFlow {
 
       return { mailtoUrl, nearPublicKey: rec.nearPublicKey };
     } catch (e: unknown) {
+      // Preserve errors already emitted by `fail()`/`emitError()`.
+      if (e instanceof Error && this.error === e) {
+        throw e;
+      }
       const err = this.emitError(2, errorMessage(e) || 'Email recovery TouchID/derivation failed');
       await this.options?.afterCall?.(false);
       throw err;
