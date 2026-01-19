@@ -1140,7 +1140,7 @@ export class EmailRecoveryFlow {
     console.warn('[EmailRecoveryFlow] Auto-login failed after recovery', err ?? reason);
     try {
       await this.context.webAuthnManager.clearVrfSession();
-    } catch { }
+    } catch {}
     return { success: false, reason };
   }
 
@@ -1289,7 +1289,7 @@ export class EmailRecoveryFlow {
     // Activate threshold enrollment on-chain by submitting AddKey(thresholdPublicKey) signed with the local key.
     try {
       this.context.webAuthnManager.getNonceManager().initializeUser(accountId, localKeyMaterial.publicKey);
-    } catch {}
+    } catch { }
     const txContext = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(
       this.context.nearClient,
       { force: true },
@@ -1362,10 +1362,15 @@ export class EmailRecoveryFlow {
 }
 
 function isCodeDoesNotExistError(err: unknown): boolean {
-  const msg = errorMessage(err);
+  const msg = [errorMessage(err), (() => {
+    try { return String(err); } catch { return ''; }
+  })()].filter(Boolean).join(' ');
   if (/CodeDoesNotExist/i.test(msg)) return true;
+  if (/CompilationError\s*\(\s*CodeDoesNotExist/i.test(msg)) return true;
+  if (/CodeDoesNotExist\s*\{/i.test(msg)) return true;
   try {
-    const details = (err as { details?: unknown } | null | undefined)?.details;
+    const anyErr = err as { details?: unknown; data?: unknown; cause?: unknown } | null | undefined;
+    const details = anyErr?.details ?? anyErr?.data ?? anyErr?.cause;
     if (!details) return false;
     return /CodeDoesNotExist/i.test(JSON.stringify(details));
   } catch {
