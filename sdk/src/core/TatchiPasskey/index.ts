@@ -194,7 +194,7 @@ export class TatchiPasskey {
             servicePath: walletIframeConfig?.walletServicePath || '/wallet-service',
             connectTimeoutMs: 20_000, // 20s
             requestTimeoutMs: 60_000, // 60s
-            theme: this.configs.walletTheme,
+            theme: this.configs.initialTheme,
             signerMode: this.configs.signerMode,
             nearRpcUrl: this.configs.nearRpcUrl,
             nearNetwork: this.configs.nearNetwork,

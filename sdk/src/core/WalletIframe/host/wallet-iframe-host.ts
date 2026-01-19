@@ -247,7 +247,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       authenticatorOptions: payload?.authenticatorOptions || walletConfigs?.authenticatorOptions,
       vrfWorkerConfigs: payload?.vrfWorkerConfigs || walletConfigs?.vrfWorkerConfigs,
       emailRecoveryContracts: payload?.emailRecoveryContracts || walletConfigs?.emailRecoveryContracts,
-      walletTheme: payload?.theme || walletConfigs?.walletTheme,
+      initialTheme: payload?.theme || walletConfigs?.initialTheme || walletConfigs?.walletTheme,
       iframeWallet: sanitizeWalletHostConfigs({
         ...(walletConfigs || ({} as TatchiConfigsInput)),
         iframeWallet: {

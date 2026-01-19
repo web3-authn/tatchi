@@ -98,13 +98,16 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
     ? toTrimmedString(overrideShamirRelayServerUrl) ?? ''
     : toTrimmedString(defaults.vrfWorkerConfigs?.shamir3pass?.relayServerUrl) || relayServerUrlDefault;
   const signerMode = coerceSignerMode(overrides.signerMode, defaults.signerMode);
+  const initialTheme = overrides.initialTheme ?? overrides.walletTheme ?? defaults.initialTheme;
 
   const merged: TatchiConfigs = {
     nearRpcUrl: overrides.nearRpcUrl ?? defaults.nearRpcUrl,
     nearNetwork: overrides.nearNetwork ?? defaults.nearNetwork,
     contractId: overrides.contractId ?? defaults.contractId,
     nearExplorerUrl: overrides.nearExplorerUrl ?? defaults.nearExplorerUrl,
-    walletTheme: overrides.walletTheme ?? defaults.walletTheme,
+    initialTheme,
+    // Backward-compatible alias (deprecated).
+    walletTheme: initialTheme,
     signerMode,
     signingSessionDefaults: {
       ttlMs: overrides.signingSessionDefaults?.ttlMs

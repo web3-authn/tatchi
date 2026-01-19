@@ -123,7 +123,7 @@ export class TatchiPasskeyIframe {
       // With 3_000ms, boot wait caps at ~750ms; improves sub‑second readiness in dev.
       connectTimeoutMs: 3_000,
       requestTimeoutMs: 60_000,
-      theme: this.configs.walletTheme,
+      theme: this.configs.initialTheme,
       signerMode: this.configs.signerMode,
       nearRpcUrl: this.configs.nearRpcUrl,
       nearNetwork: this.configs.nearNetwork,

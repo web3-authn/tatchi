@@ -6,7 +6,8 @@ import type { UserPreferences } from '../IndexedDBManager/passkeyClientDB';
 type WalletTheme = 'dark' | 'light' | undefined;
 
 /**
- * Initialize the persisted per-user theme preference from `configs.walletTheme` when a new
+ * Initialize the persisted per-user theme preference from `configs.initialTheme` (or other
+ * non-persisted theme override) when a new
  * user record is created locally (e.g., registration, email recovery, device linking).
  *
  * This prevents a post-flow "theme flip" when the SDK later hydrates preferences from IndexedDB.
@@ -54,4 +55,3 @@ export async function persistInitialThemePreferenceFromWalletTheme(args: {
     console.warn(`[${logTag}] Failed to persist initial theme preference:`, err);
   }
 }
-

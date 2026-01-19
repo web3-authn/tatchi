@@ -1005,10 +1005,8 @@ export class EmailRecoveryFlow {
 
   private async persistRecoveredUserData(rec: PendingEmailRecovery, accountId: AccountId): Promise<void> {
     const { webAuthnManager } = this.context;
-    const walletTheme = this.context.configs.walletTheme;
-    const hadUserRecordBefore = (walletTheme === 'dark' || walletTheme === 'light')
-      ? !!(await IndexedDBManager.clientDB.getUserByDevice(accountId, rec.deviceNumber).catch(() => null))
-      : false;
+    const walletTheme = webAuthnManager.getUserPreferences().getUserTheme();
+    const hadUserRecordBefore = !!(await IndexedDBManager.clientDB.getUserByDevice(accountId, rec.deviceNumber).catch(() => null));
 
     const payload: StoreUserDataPayload = {
       nearAccountId: accountId,
@@ -1030,7 +1028,7 @@ export class EmailRecoveryFlow {
     await persistInitialThemePreferenceFromWalletTheme({
       nearAccountId: accountId,
       deviceNumber: rec.deviceNumber,
-      walletTheme: walletTheme === 'dark' || walletTheme === 'light' ? walletTheme : undefined,
+      walletTheme,
       hadUserRecordBefore,
       logTag: 'EmailRecoveryFlow',
     });

@@ -79,7 +79,7 @@ function stableStringify(value: unknown): string {
 function computeConfigKey(config: TatchiConfigs): string {
   // Theme is dynamic and synced via `tatchi.setUserTheme()`; do not treat it as a new instance.
   // This prevents accidental duplicate instances/iframes when apps toggle UI theme.
-  const forKey: TatchiConfigs = { ...config, walletTheme: undefined };
+  const forKey: TatchiConfigs = { ...config, initialTheme: undefined, walletTheme: undefined };
   return stableStringify(forKey);
 }
 
@@ -108,4 +108,3 @@ export function getOrCreateTatchiManager(config: TatchiConfigsInput, nearClient:
 
   return state.manager;
 }
-

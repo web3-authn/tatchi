@@ -20,7 +20,7 @@ export class UserPreferencesManager {
   private confirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
   private signerMode: SignerMode = DEFAULT_SIGNING_MODE;
 
-  // Optional app-provided default theme (e.g., configs.walletTheme). This is NOT a per-user preference.
+  // Optional app-provided default theme (e.g., configs.initialTheme). This is NOT a per-user preference.
   private walletThemeOverride: 'dark' | 'light' | null = null;
   // Optional app-provided default signer mode (e.g., configs.signerMode). This is NOT a per-user preference.
   private signerModeOverride: SignerMode | null = null;
@@ -35,7 +35,7 @@ export class UserPreferencesManager {
   }
 
   /**
-   * Apply an app-provided default theme (e.g., `configs.walletTheme`) without
+   * Apply an app-provided default theme (e.g., `configs.initialTheme`) without
    * persisting it as a per-user preference in IndexedDB.
    *
    * This also disables the one-time environment theme sync so host appearance

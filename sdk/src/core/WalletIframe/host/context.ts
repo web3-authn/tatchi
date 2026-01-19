@@ -84,7 +84,7 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
     authenticatorOptions: payload?.authenticatorOptions || prev.authenticatorOptions,
     vrfWorkerConfigs: payload?.vrfWorkerConfigs || prev.vrfWorkerConfigs,
     emailRecoveryContracts: payload?.emailRecoveryContracts || prev.emailRecoveryContracts,
-    walletTheme: payload?.theme || prev.walletTheme,
+    initialTheme: payload?.theme || prev.initialTheme || prev.walletTheme,
     iframeWallet: {
       ...(prev.iframeWallet || {}),
       rpIdOverride: payload?.rpIdOverride || prev.iframeWallet?.rpIdOverride,

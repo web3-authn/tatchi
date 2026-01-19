@@ -22,6 +22,7 @@ import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdProm
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
 import { persistInitialThemePreferenceFromWalletTheme } from './themePreference';
+import { checkNearAccountExistsBestEffort } from '../rpcCalls';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
@@ -77,10 +78,11 @@ export async function registerPasskeyInternal(
       message: 'Generating passkey credential...'
     });
 
+    const themeForFlow = webAuthnManager.getUserPreferences().getUserTheme();
     const confirmationConfig: Partial<ConfirmationConfig> = {
       uiMode: 'modal',
       behavior: 'requireClick', // cross‑origin safari requirement: must requireClick
-      theme: (context.configs?.walletTheme === 'light') ? 'light' : 'dark',
+      theme: themeForFlow,
       ...(confirmationConfigOverride ?? options?.confirmationConfig ?? {}),
     };
 
@@ -251,10 +253,7 @@ export async function registerPasskeyInternal(
       message: 'Storing passkey wallet metadata...'
     });
 
-    const walletTheme = context.configs?.walletTheme;
-    const hadUserRecordBefore = (walletTheme === 'dark' || walletTheme === 'light')
-      ? !!(await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, 1).catch(() => null))
-      : false;
+    const hadUserRecordBefore = !!(await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, 1).catch(() => null));
 
     await webAuthnManager.atomicStoreRegistrationData({
       nearAccountId,
@@ -268,7 +267,7 @@ export async function registerPasskeyInternal(
     await persistInitialThemePreferenceFromWalletTheme({
       nearAccountId,
       deviceNumber: 1,
-      walletTheme: walletTheme === 'dark' || walletTheme === 'light' ? walletTheme : undefined,
+      walletTheme: themeForFlow,
       hadUserRecordBefore,
       logTag: 'Registration',
     });
@@ -515,8 +514,22 @@ const validateRegistrationInputs = async (
     throw error;
   }
 
-  // On-chain account existence / contract validation is performed by the relay + contract
-  // during the atomic create_account_and_register_user call.
+  // Best-effort pre-check: avoid prompting for passkey creation if the account name
+  // is already taken on-chain. Final enforcement still happens in the relay + contract.
+  onEvent?.({
+    step: 1,
+    phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
+    status: RegistrationStatus.PROGRESS,
+    message: `Checking if ${nearAccountId} already exists...`
+  } as RegistrationSSEEvent);
+
+  const accountExists = await checkNearAccountExistsBestEffort(context.nearClient, String(nearAccountId));
+  if (accountExists) {
+    const error = new Error(`Account ${nearAccountId} already exists. Please log in instead.`);
+    onError?.(error);
+    throw error;
+  }
+
   onEvent?.({
     step: 1,
     phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,

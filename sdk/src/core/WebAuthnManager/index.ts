@@ -91,7 +91,7 @@ export class WebAuthnManager {
     );
     this.userPreferencesManager = UserPreferencesInstance;
     // Apply integrator-provided default UI theme (in-memory only; user preferences may override later).
-    this.userPreferencesManager.configureWalletTheme?.(tatchiPasskeyConfigs.walletTheme);
+    this.userPreferencesManager.configureWalletTheme?.(tatchiPasskeyConfigs.initialTheme);
     // Apply integrator-provided default signer mode (in-memory only; user preferences may override later).
     this.userPreferencesManager.configureDefaultSignerMode?.(tatchiPasskeyConfigs.signerMode);
     this.nonceManager = NonceManagerInstance;

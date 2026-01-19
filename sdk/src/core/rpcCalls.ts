@@ -818,6 +818,61 @@ export async function waitForAccessKeyAbsent(
 }
 
 // ===========================
+// ACCOUNT HELPERS
+// ===========================
+
+/**
+ * Best-effort on-chain account existence check.
+ *
+ * Used to short-circuit UX flows (e.g. registration) before prompting the user.
+ * Returns `false` on unknown/non-deterministic failures so that downstream flows
+ * can rely on the relay/contract for final enforcement.
+ */
+export async function checkNearAccountExistsBestEffort(
+  nearClient: NearClient,
+  nearAccountId: string,
+  opts?: { attempts?: number; delayMs?: number },
+): Promise<boolean> {
+  const isNotFound = (m: string) => /does not exist|UNKNOWN_ACCOUNT|unknown\s+account/i.test(m);
+  const isRetryable = (m: string) =>
+    /server error|internal|temporar|timeout|too many requests|429|empty response|rpc request failed|failed to fetch/i.test(m);
+
+  const attempts = Math.max(1, Math.floor(opts?.attempts ?? 2));
+  const baseDelayMs = Math.max(50, Math.floor(opts?.delayMs ?? 150));
+
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      await nearClient.viewAccount(nearAccountId);
+      return true;
+    } catch (err: unknown) {
+      const msg = errorMessage(err);
+      const details = (err && typeof err === 'object' && 'details' in err)
+        ? (err as { details?: unknown }).details
+        : undefined;
+      let detailsBlob = '';
+      if (details) {
+        try {
+          detailsBlob = typeof details === 'string' ? details : JSON.stringify(details);
+        } catch {
+          detailsBlob = '';
+        }
+      }
+      const combined = `${msg}\n${detailsBlob}`.trim();
+      if (isNotFound(combined)) return false;
+      if (isRetryable(combined) && i < attempts) {
+        const backoffMs = baseDelayMs * Math.pow(2, i - 1);
+        await sleep(backoffMs);
+        continue;
+      }
+      console.warn(`[rpcCalls] Account existence check failed for '${nearAccountId}'; continuing:`, err);
+      return false;
+    }
+  }
+
+  return false;
+}
+
+// ===========================
 // REGISTRATION PRE-CHECK CALL
 // ===========================
 

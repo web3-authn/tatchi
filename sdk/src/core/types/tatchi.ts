@@ -119,6 +119,14 @@ export interface TatchiConfigsInput {
   nearNetwork?: 'testnet' | 'mainnet';
   contractId?: 'w3a-v1.testnet' | string;
   nearExplorerUrl?: string; // NEAR Explorer URL for transaction links
+  /**
+   * Initial theme used to seed the SDK + wallet UI before any user preference exists.
+   * This is intended to prevent a flash-of-unstyled-theme (FOUC) at startup.
+   */
+  initialTheme?: 'dark' | 'light';
+  /**
+   * @deprecated Use `initialTheme` instead. This is kept for backward compatibility.
+   */
   walletTheme?: 'dark' | 'light';
   /**
    * Default signing mode used by higher-level convenience helpers and UI wrappers when a per-call
@@ -189,6 +197,14 @@ export interface TatchiConfigs {
   nearNetwork: 'testnet' | 'mainnet';
   contractId: 'w3a-v1.testnet' | string;
   nearExplorerUrl?: string;
+  /**
+   * Initial theme used to seed the SDK + wallet UI before any user preference exists.
+   * This is intended to prevent a flash-of-unstyled-theme (FOUC) at startup.
+   */
+  initialTheme?: 'dark' | 'light';
+  /**
+   * @deprecated Use `initialTheme` instead. This is kept for backward compatibility.
+   */
   walletTheme?: 'dark' | 'light';
   signerMode: SignerMode;
   signingSessionDefaults: {

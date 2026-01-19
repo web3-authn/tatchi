@@ -394,7 +394,19 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     PM_SET_THEME: async (req: Req<'PM_SET_THEME'>) => {
       const pm = getTatchiPasskey();
       const { theme } = req.payload!;
-      pm.setUserTheme(theme);
+      // When logged out, treat this as an app-provided theme override (no persistence).
+      // When logged in, persist it as the user's preference.
+      try {
+        const session = await pm.getLoginSession().catch(() => null as any);
+        const isLoggedIn = !!session?.login?.isLoggedIn && !!session?.login?.nearAccountId;
+        if (isLoggedIn) {
+          pm.setUserTheme(theme);
+        } else {
+          pm.userPreferences.configureWalletTheme(theme);
+        }
+      } catch {
+        try { pm.userPreferences.configureWalletTheme(theme); } catch { }
+      }
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 

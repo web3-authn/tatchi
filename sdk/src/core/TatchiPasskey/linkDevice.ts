@@ -827,10 +827,8 @@ export class LinkDeviceFlow {
       this.session.deviceNumber = deviceNumber;
 
       console.debug("Storing device authenticator data with device number: ", deviceNumber);
-      const walletTheme = this.context.configs.walletTheme;
-      const hadUserRecordBefore = (walletTheme === 'dark' || walletTheme === 'light')
-        ? !!(await IndexedDBManager.clientDB.getUserByDevice(accountId, deviceNumber).catch(() => null))
-        : false;
+      const walletTheme = webAuthnManager.getUserPreferences().getUserTheme();
+      const hadUserRecordBefore = !!(await IndexedDBManager.clientDB.getUserByDevice(accountId, deviceNumber).catch(() => null));
       // Generate device-specific account ID for storage with deviceNumber
       await webAuthnManager.storeUserData({
         nearAccountId: accountId,
@@ -851,7 +849,7 @@ export class LinkDeviceFlow {
       await persistInitialThemePreferenceFromWalletTheme({
         nearAccountId: accountId,
         deviceNumber,
-        walletTheme: walletTheme === 'dark' || walletTheme === 'light' ? walletTheme : undefined,
+        walletTheme,
         hadUserRecordBefore,
         logTag: 'LinkDeviceFlow',
       });
