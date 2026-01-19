@@ -51,7 +51,7 @@ export function SyncAccount() {
     <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
       <div className="action-section">
         <div className="demo-page-header">
-          <h2 className="demo-title">Account Sync</h2>
+          <h2 className="demo-title">Account Recovery</h2>
         </div>
 
         <SetupEmailRecovery />
@@ -61,7 +61,7 @@ export function SyncAccount() {
           paddingTop: '2rem',
           borderTop: '1px solid var(--fe-border)'
         }}>
-          <h2 className="demo-title">Sync With Passkey</h2>
+          <h2 className="demo-title">Recover Passkey Account</h2>
           <div className="action-text">
             Sync accounts on any device where your passkeys are synced,
             such as iCloud Keychain or Google Password Manager.

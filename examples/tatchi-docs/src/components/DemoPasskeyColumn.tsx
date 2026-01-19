@@ -57,11 +57,11 @@ export function DemoPasskeyColumn() {
       key: 'transactions',
       title: 'Transactions',
       disabled: !loginState?.isLoggedIn,
-      element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
-        <>
-          <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }} >
-            <React.Suspense fallback={<SuspenseFallback />}>
-              <DemoPage />
+	      element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
+	        <>
+	          <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }} >
+	            <React.Suspense fallback={<SuspenseFallback />}>
+	              <DemoPage />
             </React.Suspense>
           </GlassBorder>
           {index > 0 && (
@@ -69,68 +69,73 @@ export function DemoPasskeyColumn() {
               style={{ paddingBottom: '2rem' }} // prevent clipping of ButtonWithTooltip
             >
               <CarouselPrevButton onClick={prevSlide} disabled={!canPrev} />
-              <CarouselNextButton
-                onClick={nextSlide}
-                disabled={!canNext}
-                onPointerOver={() => void preloadDemoChainsigs().catch(() => {})}
-                onFocus={() => void preloadDemoChainsigs().catch(() => {})}
-                onTouchStart={() => void preloadDemoChainsigs().catch(() => {})}
-              />
-            </div>
-          )}
-        </>
-      ),
-    },
-    {
-      key: 'intents',
-      title: 'NEAR Intents',
-      disabled: !loginState?.isLoggedIn,
-      element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
-        <>
-          <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
-            <React.Suspense fallback={<SuspenseFallback />}>
-              <DemoChainsigs />
-            </React.Suspense>
-          </GlassBorder>
-          {index > 0 && (
-            <div className="carousel-cta">
-              <CarouselPrevButton
-                onClick={prevSlide}
-                disabled={!canPrev}
-                onPointerOver={() => void preloadDemoPage().catch(() => {})}
-                onFocus={() => void preloadDemoPage().catch(() => {})}
-                onTouchStart={() => void preloadDemoPage().catch(() => {})}
-              />
-              <CarouselNextButton
-                onClick={nextSlide}
-                disabled={!canNext}
-                onPointerOver={() => void preloadSyncAccount().catch(() => {})}
-                onFocus={() => void preloadSyncAccount().catch(() => {})}
-                onTouchStart={() => void preloadSyncAccount().catch(() => {})}
-              />
-            </div>
-          )}
-        </>
-      ),
-    },
-    {
-      key: 'sync-account',
-      title: 'Account Sync',
-      disabled: false,
-      element: ({ prevSlide, canPrev, index }: { prevSlide: () => void; canPrev: boolean; index: number }) => (
-        <>
-          <React.Suspense fallback={<SuspenseFallback />}>
-            <SyncAccount />
-          </React.Suspense>
-          {index > 0 && canPrev && (
-            <div className="carousel-cta carousel-cta--left">
-              <CarouselPrevButton onClick={prevSlide} />
-            </div>
-          )}
-        </>
-      ),
-    },
-  ]), [loginState?.isLoggedIn])
+	              <CarouselNextButton
+	                onClick={nextSlide}
+	                disabled={!canNext}
+	                onPointerOver={() => void preloadSyncAccount().catch(() => {})}
+	                onFocus={() => void preloadSyncAccount().catch(() => {})}
+	                onTouchStart={() => void preloadSyncAccount().catch(() => {})}
+	              />
+	            </div>
+	          )}
+	        </>
+	      ),
+	    },
+	    {
+	      key: 'sync-account',
+	      title: 'Account Recovery',
+	      disabled: false,
+	      element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
+	        <>
+	          <React.Suspense fallback={<SuspenseFallback />}>
+	            <SyncAccount />
+	          </React.Suspense>
+	          {index > 0 && (
+	            <div className="carousel-cta">
+	              <CarouselPrevButton
+	                onClick={prevSlide}
+	                disabled={!canPrev}
+	                onPointerOver={() => void preloadDemoPage().catch(() => {})}
+	                onFocus={() => void preloadDemoPage().catch(() => {})}
+	                onTouchStart={() => void preloadDemoPage().catch(() => {})}
+	              />
+	              <CarouselNextButton
+	                onClick={nextSlide}
+	                disabled={!canNext}
+	                onPointerOver={() => void preloadDemoChainsigs().catch(() => {})}
+	                onFocus={() => void preloadDemoChainsigs().catch(() => {})}
+	                onTouchStart={() => void preloadDemoChainsigs().catch(() => {})}
+	              />
+	            </div>
+	          )}
+	        </>
+	      ),
+	    },
+	    {
+	      key: 'intents',
+	      title: 'NEAR Intents',
+	      disabled: !loginState?.isLoggedIn,
+	      element: ({ prevSlide, canPrev, index }: { prevSlide: () => void; canPrev: boolean; index: number }) => (
+	        <>
+	          <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
+	            <React.Suspense fallback={<SuspenseFallback />}>
+	              <DemoChainsigs />
+	            </React.Suspense>
+	          </GlassBorder>
+	          {index > 0 && canPrev && (
+	            <div className="carousel-cta carousel-cta--left">
+	              <CarouselPrevButton
+	                onClick={prevSlide}
+	                onPointerOver={() => void preloadSyncAccount().catch(() => {})}
+	                onFocus={() => void preloadSyncAccount().catch(() => {})}
+	                onTouchStart={() => void preloadSyncAccount().catch(() => {})}
+	              />
+	            </div>
+	          )}
+	        </>
+	      ),
+	    },
+	  ]), [loginState?.isLoggedIn])
 
   return (
     <ProfileMenuControlProvider>

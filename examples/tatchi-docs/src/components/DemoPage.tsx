@@ -9,7 +9,6 @@ import {
   useTatchi,
 } from '@tatchi-xyz/sdk/react';
 import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
-import type { ConfirmationUIMode, ConfirmationBehavior } from '@tatchi-xyz/sdk/core';
 
 import { LoadingButton } from './LoadingButton';
 import Refresh from './icons/Refresh';
@@ -42,7 +41,6 @@ export const DemoPage: React.FC = () => {
   const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
   const [txLoading, setTxLoading] = useState(false);
   const [delegateLoading, setDelegateLoading] = useState(false);
-  const [loadingUi, setLoadingUi] = useState<ConfirmationUIMode|null>(null);
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [sessionStatusLoading, setSessionStatusLoading] = useState(false);
   const [sessionRemainingUsesInput, setSessionRemainingUsesInput] = useState(3);
@@ -292,105 +290,6 @@ export const DemoPage: React.FC = () => {
     }
   }, [greetingInput, isLoggedIn, nearAccountId, tatchi, createGreetingAction, fetchGreeting]);
 
-  const nearToYocto = (nearAmount: string): string => {
-    const amount = parseFloat(nearAmount);
-    if (isNaN(amount) || amount <= 0) return '0';
-    const nearStr = amount.toString();
-    const parts = nearStr.split('.');
-    const wholePart = parts[0] || '0';
-    const fracPart = (parts[1] || '').padEnd(24, '0').slice(0, 24);
-    return wholePart + fracPart;
-  };
-
-  const handleExecuteMultiActions = useCallback(async (
-    uiMode: ConfirmationUIMode,
-    behavior?: ConfirmationBehavior
-  ) => {
-    if (!isLoggedIn || !nearAccountId) return;
-    setLoadingUi(uiMode);
-
-    const DEMO_GREETING = 'Demo sign multiple actions';
-    const DEMO_TRANSFER_AMOUNT = '0.001';
-    const DEMO_STAKE_AMOUNT = '0.1';
-    const DEMO_PUBLIC_KEY = 'ed25519:7PFkxo1jSCrxqN2jKVt5vXmQ9K1rs7JukqV4hdRzVPbd';
-    const DEMO_BENEFICIARY = 'w3a-v1.testnet';
-
-    await tatchi.executeAction({
-      nearAccountId,
-      receiverId: WEBAUTHN_CONTRACT_ID,
-      actionArgs: [
-        {
-          type: ActionType.FunctionCall,
-          methodName: 'set_greeting',
-          args: { greeting: DEMO_GREETING },
-          gas: '30000000000000',
-          deposit: '0',
-        },
-        {
-          type: ActionType.Transfer,
-          amount: nearToYocto(DEMO_TRANSFER_AMOUNT),
-        },
-        {
-          type: ActionType.CreateAccount
-        },
-        {
-          type: ActionType.DeployContract,
-          code: new Uint8Array([0x00, 0x61, 0x73, 0x6d]),
-        },
-        {
-          type: ActionType.Stake,
-          stake: nearToYocto(DEMO_STAKE_AMOUNT),
-          publicKey: DEMO_PUBLIC_KEY.trim()
-        },
-        {
-          type: ActionType.AddKey,
-          publicKey: DEMO_PUBLIC_KEY.trim(),
-          accessKey: { permission: 'FullAccess' }
-        },
-        {
-          type: ActionType.DeleteKey,
-          publicKey: DEMO_PUBLIC_KEY.trim()
-        },
-        {
-          type: ActionType.DeleteAccount,
-          beneficiaryId: DEMO_BENEFICIARY.trim()
-        },
-      ],
-      options: {
-        confirmationConfig: { uiMode, behavior },
-        onEvent: (event) => {
-          switch (event.phase) {
-            case ActionPhase.STEP_1_PREPARATION:
-              toast.loading('Processing transaction...', { id: 'combinedTx' });
-              break;
-            case ActionPhase.ACTION_ERROR:
-              toast.error(`Transaction failed: ${event.error}`, { id: 'combinedTx' });
-              break;
-          }
-        },
-        waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
-        afterCall: (success: boolean, result?: any) => {
-          try { toast.dismiss('combinedTx'); } catch {}
-          if (success && result?.transactionId) {
-            const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${result.transactionId}`;
-            toast.success('Transaction completed successfully!', {
-              description: (
-                <a href={txLink} target="_blank" rel="noopener noreferrer">
-                  View transaction on NearBlocks
-                </a>
-              ),
-            });
-          } else if (success) {
-            toast.success('Transaction completed successfully!');
-          } else {
-            toast.error('Failed to execute transaction');
-          }
-          setLoadingUi(null);
-        },
-      },
-    });
-  }, [isLoggedIn, nearAccountId, tatchi]);
-
   if (!isLoggedIn || !nearAccountId) {
     return null;
   }
@@ -468,42 +367,13 @@ export const DemoPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="action-section" style={{ marginTop: '1rem' }}>
-        <h2 className="demo-subtitle">Configure Transaction UX Options</h2>
-        <div className="action-text">
-          Choose between Modal or Drawer for the tx confirmer menus.
-          You can also skip the confirmation menu.
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <LoadingButton
-            onClick={() => handleExecuteMultiActions('modal', 'requireClick')}
-            loading={loadingUi === 'modal'}
-            loadingText="Signing..."
-            variant="primary"
-            size="medium"
-            style={{ flex: 1 }}
-          >
-            Show Modal
-          </LoadingButton>
-          <LoadingButton
-            onClick={() => handleExecuteMultiActions('drawer', 'autoProceed')}
-            loading={loadingUi === 'drawer'}
-            loadingText="Signing..."
-            variant="secondary"
-            size="medium"
-            style={{ flex: 1, minWidth: 200 }}
-          >
-            Drawer + Skip Confirm
-          </LoadingButton>
-        </div>
-      </div>
-
-      <div className="action-section">
-        <div className="demo-divider" aria-hidden="true" />
-        <h2 className="demo-subtitle">VRF Signing Session</h2>
-        <div className="action-text">
-          Create a warm signing session with configurable <code>remaining_uses</code> and TTL.
-        </div>
+	      <div className="action-section">
+	        <div className="demo-divider" aria-hidden="true" />
+	        <h2 className="demo-subtitle">VRF Signing Session</h2>
+	        <div className="action-text">
+	          Create a warm signing session with configurable <code>remaining_uses</code> and TTL.
+	          Touch once, then sign multiple times while the session is active.
+	        </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 180, flex: 1 }}>
