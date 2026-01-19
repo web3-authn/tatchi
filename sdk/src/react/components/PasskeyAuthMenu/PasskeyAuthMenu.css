@@ -1,6 +1,6 @@
 /* Root container */
 .w3a-signup-menu-root {
-  /* JS sentinel used to avoid FOUC when CSS is still loading */
+  /* CSS sentinel (used by tests/diagnostics to confirm stylesheet is applied) */
   --w3a-pam2-css-ready: 1;
   position: relative; /* relative position to anchor back button */
   width: min(100dvw, 420px);

@@ -5,14 +5,33 @@ import type { PasskeyAuthMenuProps } from './types';
 import { useTheme } from '../theme';
 import { preloadPasskeyAuthMenu } from './preload';
 
-function createClientLazy() {
-  return React.lazy(() => import('./client').then((m) => ({ default: m.PasskeyAuthMenuClient })));
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
+
+type PasskeyAuthMenuClientComponent = React.ComponentType<PasskeyAuthMenuProps>;
+
+const clientLazyCache = new Map<number, React.LazyExoticComponent<PasskeyAuthMenuClientComponent>>();
+
+function getClientLazy(retryKey: number): React.LazyExoticComponent<PasskeyAuthMenuClientComponent> {
+  const existing = clientLazyCache.get(retryKey);
+  if (existing) return existing;
+
+  const next = React.lazy(() =>
+    import('./client').then((m) => ({ default: m.PasskeyAuthMenuClient })),
+  ) as unknown as React.LazyExoticComponent<PasskeyAuthMenuClientComponent>;
+
+  clientLazyCache.set(retryKey, next);
+  return next;
+}
+
+function invalidateClientLazy(retryKey: number) {
+  clientLazyCache.delete(retryKey);
 }
 
 class LazyErrorBoundary extends React.Component<
   {
     fallback: (args: { error: Error; retry: () => void }) => React.ReactNode;
     onRetry: () => void;
+    onError?: (error: Error) => void;
     children: React.ReactNode;
   },
   { error: Error | null }
@@ -27,6 +46,10 @@ class LazyErrorBoundary extends React.Component<
     this.setState({ error: null });
     this.props.onRetry();
   };
+
+  componentDidCatch(error: Error) {
+    this.props.onError?.(error);
+  }
 
   render() {
     if (this.state.error) {
@@ -45,13 +68,13 @@ class LazyErrorBoundary extends React.Component<
 export const PasskeyAuthMenu: React.FC<PasskeyAuthMenuProps> = (props) => {
   const [isClient, setIsClient] = React.useState(false);
   const [retryKey, setRetryKey] = React.useState(0);
-  const ClientLazy = React.useMemo(() => createClientLazy(), [retryKey]);
+  const ClientLazy = React.useMemo(() => getClientLazy(retryKey), [retryKey]);
 
   // Align with the SDK Theme boundary when present (TatchiPasskeyProvider wraps one by default).
   // Falls back to system preference when used standalone.
   const { theme } = useTheme();
 
-  React.useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     setIsClient(true);
     // Start fetching the client chunk immediately; the skeleton remains as the Suspense fallback.
     preloadPasskeyAuthMenu();
@@ -66,6 +89,7 @@ export const PasskeyAuthMenu: React.FC<PasskeyAuthMenuProps> = (props) => {
       {isClient ? (
         <LazyErrorBoundary
           onRetry={() => setRetryKey((k) => k + 1)}
+          onError={() => invalidateClientLazy(retryKey)}
           fallback={({ retry }) => (
             <div>
               {skeleton}
