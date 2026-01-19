@@ -45,9 +45,7 @@ class LazyErrorBoundary extends React.Component<
 export const PasskeyAuthMenu: React.FC<PasskeyAuthMenuProps> = (props) => {
   const [isClient, setIsClient] = React.useState(false);
   const [retryKey, setRetryKey] = React.useState(0);
-  const [stylesReady, setStylesReady] = React.useState(false);
   const ClientLazy = React.useMemo(() => createClientLazy(), [retryKey]);
-  const skeletonRootRef = React.useRef<HTMLDivElement | null>(null);
 
   // Align with the SDK Theme boundary when present (TatchiPasskeyProvider wraps one by default).
   // Falls back to system preference when used standalone.
@@ -55,61 +53,9 @@ export const PasskeyAuthMenu: React.FC<PasskeyAuthMenuProps> = (props) => {
 
   React.useEffect(() => {
     setIsClient(true);
-    // Start fetching the client chunk immediately; we’ll still gate showing it on `stylesReady`.
+    // Start fetching the client chunk immediately; the skeleton remains as the Suspense fallback.
     preloadPasskeyAuthMenu();
   }, []);
-
-  // Avoid FOUC when PasskeyAuthMenu is code-split and styles are still streaming in:
-  // keep rendering the skeleton until we can observe CSS being applied.
-  React.useEffect(() => {
-    if (!isClient) return;
-    if (stylesReady) return;
-    if (typeof window === 'undefined' || typeof requestAnimationFrame !== 'function') {
-      setStylesReady(true);
-      return;
-    }
-
-    let cancelled = false;
-    const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const maxWaitMs = 1500;
-
-    const tick = () => {
-      if (cancelled) return;
-      const el = skeletonRootRef.current;
-      if (el) {
-        try {
-          const cs = window.getComputedStyle(el);
-          const sentinelReady = cs.getPropertyValue('--w3a-pam2-css-ready').trim() === '1';
-          // Back-compat heuristic if the sentinel is ever missing.
-          const borderOk = cs.borderTopStyle !== 'none' && cs.borderTopWidth !== '0px';
-          const radiusOk = cs.borderTopLeftRadius !== '0px';
-          if (sentinelReady || borderOk || radiusOk) {
-            setStylesReady(true);
-            return;
-          }
-        } catch {}
-      }
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      if (now - start >= maxWaitMs) {
-        setStylesReady(true);
-        return;
-      }
-      requestAnimationFrame(tick);
-    };
-
-    requestAnimationFrame(tick);
-    return () => {
-      cancelled = true;
-    };
-  }, [isClient, stylesReady]);
-
-  const skeletonWithRef = (
-    <PasskeyAuthMenuSkeletonInner
-      ref={skeletonRootRef}
-      className={props.className}
-      style={props.style}
-    />
-  );
 
   const skeleton = (
     <PasskeyAuthMenuSkeletonInner className={props.className} style={props.style} />
@@ -117,7 +63,7 @@ export const PasskeyAuthMenu: React.FC<PasskeyAuthMenuProps> = (props) => {
 
   return (
     <PasskeyAuthMenuThemeScope theme={theme}>
-      {isClient && stylesReady ? (
+      {isClient ? (
         <LazyErrorBoundary
           onRetry={() => setRetryKey((k) => k + 1)}
           fallback={({ retry }) => (
@@ -139,7 +85,7 @@ export const PasskeyAuthMenu: React.FC<PasskeyAuthMenuProps> = (props) => {
           </React.Suspense>
         </LazyErrorBoundary>
       ) : (
-        skeletonWithRef
+        skeleton
       )}
     </PasskeyAuthMenuThemeScope>
   );
