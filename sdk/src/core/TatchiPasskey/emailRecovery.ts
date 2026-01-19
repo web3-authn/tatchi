@@ -560,6 +560,10 @@ export class EmailRecoveryFlow {
     const nearAccountId = await this.assertValidAccountIdOrFail(1, accountId);
     await this.assertSufficientBalance(nearAccountId);
 
+    // Abort early before creating a passkey prompt if the per-account EmailRecoverer contract
+    // is not deployed for this user.
+    await this.preflightEmailRecovererContractOrFail(1, nearAccountId);
+
     // Determine deviceNumber from on-chain authenticators
     const deviceNumber = await this.getNextDeviceNumberFromContract(nearAccountId);
 
@@ -588,8 +592,6 @@ export class EmailRecoveryFlow {
         createdAt: Date.now(),
         status: 'awaiting-email',
       };
-
-      await this.preflightEmailRecovererContractOrFail(3, rec.accountId);
 
       const mailtoUrl = await this.buildMailtoUrlAndUpdateStatus(rec);
 
