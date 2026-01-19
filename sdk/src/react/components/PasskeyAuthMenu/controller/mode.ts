@@ -37,6 +37,11 @@ export interface UseAuthMenuModeArgs {
   currentValue: string;
   setCurrentValue: (v: string) => void;
   headings?: AuthMenuHeadings | null;
+  /**
+   * When true, forces the initial client render to start in Register mode, even if
+   * `accountExists` suggests Login. This is used to align hydration with the shell skeleton.
+   */
+  forceInitialRegister?: boolean;
 }
 
 export interface UseAuthMenuModeResult {
@@ -61,9 +66,14 @@ export function useAuthMenuMode({
   currentValue,
   setCurrentValue,
   headings,
+  forceInitialRegister = false,
 }: UseAuthMenuModeArgs): UseAuthMenuModeResult {
   const preferredDefaultMode = resolveDefaultMode(accountExists, defaultMode);
-  const [mode, setMode] = React.useState<AuthMenuMode>(preferredDefaultMode);
+  const [mode, setMode] = React.useState<AuthMenuMode>(() => {
+    if (typeof defaultMode === 'number') return defaultMode;
+    if (forceInitialRegister) return AuthMenuMode.Register;
+    return preferredDefaultMode;
+  });
   const title = React.useMemo(() => getModeTitle(mode, headings), [mode, headings]);
 
   const onSegmentChange = (nextMode: AuthMenuMode) => {

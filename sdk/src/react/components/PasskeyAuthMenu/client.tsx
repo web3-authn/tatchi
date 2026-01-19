@@ -6,7 +6,6 @@ import { ContentSwitcher } from './ui/ContentSwitcher';
 import { EmailRecoverySlide } from './ui/EmailRecoverySlide';
 import QRCodeIcon from '../QRCodeIcon';
 import { AuthMenuMode, type PasskeyAuthMenuProps } from './types';
-import './PasskeyAuthMenu.css';
 import { usePasskeyAuthMenuRuntime } from './adapters/tatchi';
 import { usePasskeyAuthMenuController } from './controller/usePasskeyAuthMenuController';
 import { useSDKEvents } from './controller/useSDKEvents';
@@ -65,7 +64,7 @@ export const PasskeyAuthMenuClient: React.FC<PasskeyAuthMenuProps> = ({
   );
 
   const prefetchQRCode = React.useCallback(() => {
-    void preloadShowQRCode().catch(() => {});
+    void preloadShowQRCode().catch(() => { });
   }, []);
 
   const segActiveBg = 'var(--w3a-passkey-auth-menu2-seg-active-bg)';
