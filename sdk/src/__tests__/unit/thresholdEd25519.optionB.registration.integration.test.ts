@@ -65,6 +65,7 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
     const relayerKeyId = 'relayer-keyid-mock-1';
     const relayerVerifyingShareB64u = toB64u(ed25519.Point.BASE.toBytes());
     let thresholdActivatedOnChain = false;
+    const accountsOnChain = new Set<string>();
 
     await page.route('**://test.rpc.fastnear.com/**', async (route) => {
       const req = route.request();
@@ -122,6 +123,82 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
             jsonrpc: '2.0',
             id,
             result: { result: resultBytes, logs: [`mock call_function ${String(methodName || '')}`] },
+          }),
+        });
+        return;
+      }
+
+      if (rpcMethod === 'query' && params?.request_type === 'view_account') {
+        const accountId = String(params?.account_id || '');
+        if (!accountsOnChain.has(accountId)) {
+          await route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32000,
+                message: 'UNKNOWN_ACCOUNT',
+                data: 'UNKNOWN_ACCOUNT',
+              },
+            }),
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            result: {
+              amount: '0',
+              locked: '0',
+              code_hash: '11111111111111111111111111111111',
+              storage_usage: 0,
+              storage_paid_at: 0,
+              block_height: blockHeight,
+              block_hash: blockHash,
+            },
+          }),
+        });
+        return;
+      }
+
+      if (rpcMethod === 'query' && params?.request_type === 'view_account') {
+        const accountId = String(params?.account_id || '');
+        if (!accountsOnChain.has(accountId)) {
+          await route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32000,
+                message: 'UNKNOWN_ACCOUNT',
+                data: 'UNKNOWN_ACCOUNT',
+              },
+            }),
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            result: {
+              amount: '0',
+              locked: '0',
+              code_hash: '11111111111111111111111111111111',
+              storage_usage: 0,
+              storage_paid_at: 0,
+              block_height: blockHeight,
+              block_hash: blockHash,
+            },
           }),
         });
         return;
@@ -210,6 +287,10 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
       const post = req.postData() || '{}';
       const payload = JSON.parse(post);
       localNearPublicKey = payload?.new_public_key || '';
+      const accountId = String(payload?.new_account_id || '');
+      if (accountId) {
+        accountsOnChain.add(accountId);
+      }
       const relayDigest = payload?.vrf_data?.intent_digest_32;
       if (Array.isArray(relayDigest)) {
         relayIntentDigest32 = relayDigest as number[];
@@ -362,6 +443,7 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
     let sendTxCount = 0;
     let localNearPublicKey = '';
     let thresholdActivatedOnChain = false;
+    const accountsOnChain = new Set<string>();
 
     await page.route('**://test.rpc.fastnear.com/**', async (route) => {
       const req = route.request();
@@ -406,6 +488,82 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
           status: 200,
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
           body: JSON.stringify({ jsonrpc: '2.0', id, result: { result: resultBytes, logs: [] } }),
+        });
+        return;
+      }
+
+      if (rpcMethod === 'query' && params?.request_type === 'view_account') {
+        const accountId = String(params?.account_id || '');
+        if (!accountsOnChain.has(accountId)) {
+          await route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32000,
+                message: 'UNKNOWN_ACCOUNT',
+                data: 'UNKNOWN_ACCOUNT',
+              },
+            }),
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            result: {
+              amount: '0',
+              locked: '0',
+              code_hash: '11111111111111111111111111111111',
+              storage_usage: 0,
+              storage_paid_at: 0,
+              block_height: blockHeight,
+              block_hash: blockHash,
+            },
+          }),
+        });
+        return;
+      }
+
+      if (rpcMethod === 'query' && params?.request_type === 'view_account') {
+        const accountId = String(params?.account_id || '');
+        if (!accountsOnChain.has(accountId)) {
+          await route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32000,
+                message: 'UNKNOWN_ACCOUNT',
+                data: 'UNKNOWN_ACCOUNT',
+              },
+            }),
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            result: {
+              amount: '0',
+              locked: '0',
+              code_hash: '11111111111111111111111111111111',
+              storage_usage: 0,
+              storage_paid_at: 0,
+              block_height: blockHeight,
+              block_hash: blockHash,
+            },
+          }),
         });
         return;
       }
@@ -476,6 +634,10 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
 
       const payload = JSON.parse(req.postData() || '{}');
       localNearPublicKey = payload?.new_public_key || '';
+      const accountId = String(payload?.new_account_id || '');
+      if (accountId) {
+        accountsOnChain.add(accountId);
+      }
 
       await route.fulfill({
         status: 200,

@@ -208,7 +208,7 @@ test.describe('Wallet iframe preferences sync', () => {
         });
 
         await tatchi.initWalletIframe();
-        tatchi.setTheme('dark');
+        tatchi.setTheme('light');
 
         return { success: true, currentTheme: tatchi.theme };
       } catch (error: any) {
@@ -222,7 +222,7 @@ test.describe('Wallet iframe preferences sync', () => {
       return;
     }
 
-    expect(result.currentTheme).toBe('dark');
+    expect(result.currentTheme).toBe('light');
 
     const walletFrame = page.frames().find((frame) => {
       const url = frame.url();
@@ -230,6 +230,6 @@ test.describe('Wallet iframe preferences sync', () => {
     });
     expect(walletFrame, 'wallet iframe should be mounted').toBeTruthy();
 
-    await walletFrame!.waitForFunction(() => (window as any).__lastSetTheme === 'dark', null, { timeout: 3000 });
+    await walletFrame!.waitForFunction(() => (window as any).__lastSetTheme === 'light', null, { timeout: 3000 });
   });
 });

@@ -23,6 +23,10 @@ export async function setupThresholdE2ePage(page: Page): Promise<void> {
   });
 }
 
+const DEFAULT_ACCOUNTS_ON_CHAIN = new Set<string>(
+  [DEFAULT_TEST_CONFIG.contractId, DEFAULT_TEST_CONFIG.relayerAccount].filter((id): id is string => !!id),
+);
+
 export function makeAuthServiceForThreshold(
   keysOnChain: Set<string>,
   thresholdEd25519KeyStore?: ThresholdEd25519KeyStoreConfigInput | null,
@@ -100,6 +104,8 @@ export function corsHeadersForRoute(route: Route): Record<string, string> {
 export async function installCreateAccountAndRegisterUserMock(page: Page, input: {
   relayerBaseUrl: string;
   onNewPublicKey: (publicKey: string) => void;
+  accountsOnChain?: Set<string>;
+  onNewAccountId?: (accountId: string) => void;
 }): Promise<void> {
   await page.route(`${input.relayerBaseUrl}/create_account_and_register_user`, async (route) => {
     const req = route.request();
@@ -112,7 +118,13 @@ export async function installCreateAccountAndRegisterUserMock(page: Page, input:
     const corsHeaders = corsHeadersForRoute(route);
     const payload = JSON.parse(req.postData() || '{}');
     const localNearPublicKey = String(payload?.new_public_key || '');
+    const accountId = String(payload?.new_account_id || '');
     if (localNearPublicKey) input.onNewPublicKey(localNearPublicKey);
+    if (accountId) {
+      input.onNewAccountId?.(accountId);
+      const accountsOnChain = input.accountsOnChain ?? DEFAULT_ACCOUNTS_ON_CHAIN;
+      accountsOnChain.add(accountId);
+    }
 
     await route.fulfill({
       status: 200,
@@ -127,8 +139,12 @@ export async function installFastNearRpcMock(page: Page, input: {
   nonceByPublicKey: Map<string, number>;
   onSendTx?: () => void;
   strictAccessKeyLookup?: boolean;
+  accountsOnChain?: Set<string>;
 }): Promise<void> {
   const strictAccessKeyLookup = input.strictAccessKeyLookup ?? true;
+  const accountsOnChain = input.accountsOnChain ?? DEFAULT_ACCOUNTS_ON_CHAIN;
+  const isKnownAccount = (accountId: string) =>
+    (accountId && accountsOnChain.has(accountId)) || DEFAULT_ACCOUNTS_ON_CHAIN.has(accountId);
 
   await page.route('**://test.rpc.fastnear.com/**', async (route) => {
     const req = route.request();
@@ -176,6 +192,47 @@ export async function installFastNearRpcMock(page: Page, input: {
         status: 200,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
         body: JSON.stringify({ jsonrpc: '2.0', id, result: { result: resultBytes, logs: [] } }),
+      });
+      return;
+    }
+
+    const requestType = typeof params?.request_type === 'string' ? params.request_type : '';
+    const isViewAccount = rpcMethod === 'query' && (requestType === 'view_account' || (!!params?.account_id && !requestType));
+
+    if (isViewAccount) {
+      const accountId = String(params?.account_id || '');
+      if (!isKnownAccount(accountId)) {
+        await route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            error: {
+              code: -32000,
+              message: 'UNKNOWN_ACCOUNT',
+              data: 'UNKNOWN_ACCOUNT',
+            },
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id,
+          result: {
+            amount: '0',
+            locked: '0',
+            code_hash: '11111111111111111111111111111111',
+            storage_usage: 0,
+            storage_paid_at: 0,
+            block_height: blockHeight,
+            block_hash: blockHash,
+          },
+        }),
       });
       return;
     }

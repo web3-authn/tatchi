@@ -114,6 +114,7 @@ test.describe('threshold-ed25519 (FROST) signing', () => {
 
     const keysOnChain = new Set<string>();
     const nonceByPublicKey = new Map<string, number>();
+    const accountsOnChain = new Set<string>();
     let localNearPublicKey = '';
     let thresholdPublicKeyFromKeygen = '';
     let sendTxCount = 0;
@@ -237,9 +238,13 @@ test.describe('threshold-ed25519 (FROST) signing', () => {
         };
         const payload = JSON.parse(req.postData() || '{}');
         localNearPublicKey = String(payload?.new_public_key || '');
+        const accountId = String(payload?.new_account_id || '');
         if (localNearPublicKey) {
           keysOnChain.add(localNearPublicKey);
           nonceByPublicKey.set(localNearPublicKey, 0);
+        }
+        if (accountId) {
+          accountsOnChain.add(accountId);
         }
 
         await route.fulfill({
@@ -302,6 +307,44 @@ test.describe('threshold-ed25519 (FROST) signing', () => {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders },
             body: JSON.stringify({ jsonrpc: '2.0', id, result: { result: resultBytes, logs: [] } }),
+          });
+          return;
+        }
+
+        if (rpcMethod === 'query' && params?.request_type === 'view_account') {
+          const accountId = String(params?.account_id || '');
+          if (!accountsOnChain.has(accountId)) {
+            await route.fulfill({
+              status: 200,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                id,
+                error: {
+                  code: -32000,
+                  message: 'UNKNOWN_ACCOUNT',
+                  data: 'UNKNOWN_ACCOUNT',
+                },
+              }),
+            });
+            return;
+          }
+          await route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                amount: '0',
+                locked: '0',
+                code_hash: '11111111111111111111111111111111',
+                storage_usage: 0,
+                storage_paid_at: 0,
+                block_height: blockHeight,
+                block_hash: blockHash,
+              },
+            }),
           });
           return;
         }

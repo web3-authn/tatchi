@@ -85,6 +85,7 @@ test.describe('Threshold Ed25519 rotation helper', () => {
     const relayerVerifyingShareB64uNew = toB64u(ed25519.Point.BASE.multiply(3n).toBytes());
 
     const thresholdKeysOnChain = new Set<string>();
+    const accountsOnChain = new Set<string>();
 
     await page.route('**://test.rpc.fastnear.com/**', async (route) => {
       // Mock NEAR JSON-RPC:
@@ -137,6 +138,44 @@ test.describe('Threshold Ed25519 rotation helper', () => {
           status: 200,
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
           body: JSON.stringify({ jsonrpc: '2.0', id, result: { result: resultBytes, logs: [] } }),
+        });
+        return;
+      }
+
+      if (rpcMethod === 'query' && params?.request_type === 'view_account') {
+        const accountId = String(params?.account_id || '');
+        if (!accountsOnChain.has(accountId)) {
+          await route.fulfill({
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32000,
+                message: 'UNKNOWN_ACCOUNT',
+                data: 'UNKNOWN_ACCOUNT',
+              },
+            }),
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            result: {
+              amount: '0',
+              locked: '0',
+              code_hash: '11111111111111111111111111111111',
+              storage_usage: 0,
+              storage_paid_at: 0,
+              block_height: blockHeight,
+              block_hash: blockHash,
+            },
+          }),
         });
         return;
       }
@@ -256,6 +295,10 @@ test.describe('Threshold Ed25519 rotation helper', () => {
 
       const payload = JSON.parse(req.postData() || '{}');
       localNearPublicKey = payload?.new_public_key || '';
+      const accountId = String(payload?.new_account_id || '');
+      if (accountId) {
+        accountsOnChain.add(accountId);
+      }
       const clientVerifyingShareB64u = payload?.threshold_ed25519?.client_verifying_share_b64u || '';
 
       thresholdPublicKeyOld = compute2of2GroupPk({

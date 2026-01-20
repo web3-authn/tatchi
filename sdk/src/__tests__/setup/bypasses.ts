@@ -30,55 +30,96 @@ export async function bypassContractVerification(
       const method = body?.method;
       const params = body?.params || {};
       const methodName = params?.method_name;
-      if (
-        method !== 'query' ||
-        params?.request_type !== 'call_function' ||
-        methodName !== 'verify_authentication_response'
-      ) {
+      if (method !== 'query' || params?.request_type !== 'call_function') {
         return route.fallback();
       }
 
       const contentType = request.headers()['content-type'] || '';
       expect(contentType).toContain('application/json');
 
-      let userId = 'unknown.user';
-      let rpId = 'example.localhost';
-      try {
-        const argsB64 = params?.args_base64 || '';
-        const argsJsonStr = Buffer.from(argsB64, 'base64').toString('utf8');
-        const args = JSON.parse(argsJsonStr);
-        userId = args?.vrf_data?.user_id || userId;
-        rpId = args?.vrf_data?.rp_id || rpId;
-      } catch {
-        // ignore decode failures
-      }
+      const decodeArgs = (): Record<string, any> => {
+        try {
+          const argsB64 = params?.args_base64 || '';
+          const argsJsonStr = Buffer.from(argsB64, 'base64').toString('utf8');
+          return JSON.parse(argsJsonStr) || {};
+        } catch {
+          return {};
+        }
+      };
 
-      const contractResponse = JSON.stringify({ verified: true });
-      const resultBytes = Array.from(Buffer.from(contractResponse, 'utf8'));
+      const respondWithResult = (result: unknown, logs: string[], idOverride?: string) => {
+        const resultBytes = Array.from(Buffer.from(JSON.stringify(result), 'utf8'));
+        const rpcResponse = {
+          jsonrpc: '2.0',
+          id: body?.id || idOverride || 'call_function',
+          result: {
+            result: resultBytes,
+            logs,
+          },
+        };
+        return route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rpcResponse),
+        });
+      };
 
-      const rpcResponse = {
-        jsonrpc: '2.0',
-        id: body?.id || 'verify_from_wasm',
-        result: {
-          result: resultBytes,
-          logs: [
+      if (methodName === 'verify_authentication_response') {
+        let userId = 'unknown.user';
+        let rpId = 'example.localhost';
+        try {
+          const args = decodeArgs();
+          userId = args?.vrf_data?.user_id || userId;
+          rpId = args?.vrf_data?.rp_id || rpId;
+        } catch {
+          // ignore decode failures
+        }
+
+        printLog('intercept', `contract verification bypass responded for ${userId}`, {
+          scope: 'contract',
+          indent: 1,
+        });
+
+        return respondWithResult(
+          { verified: true },
+          [
             'VRF Authentication: Verifying VRF proof + WebAuthn authentication',
             `  - User ID: ${userId}`,
             `  - RP ID (domain): ${rpId}`,
           ],
-        },
-      };
+          'verify_from_wasm',
+        );
+      }
 
-      printLog('intercept', `contract verification bypass responded for ${userId}`, {
-        scope: 'contract',
-        indent: 1,
-      });
+      if (methodName === 'get_credential_ids_by_account' || methodName === 'get_authenticators_by_user') {
+        const args = decodeArgs();
+        const accountId = String(args?.account_id || args?.user_id || '');
+        if (!accountId) {
+          return respondWithResult([], ['contract: missing account id'], 'account_sync_empty');
+        }
 
-      await route.fulfill({
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rpcResponse),
-      });
+        const credentialIdString = `test-credential-${accountId}-auth`;
+        const credentialIdB64u = Buffer.from(credentialIdString, 'utf8').toString('base64url');
+
+        if (methodName === 'get_credential_ids_by_account') {
+          return respondWithResult([credentialIdB64u], [`contract: credential ids for ${accountId}`], 'credential_ids');
+        }
+
+        const credentialPublicKey = Array.from({ length: 65 }, (_, i) => (i + 1) & 0xff);
+        const authenticator = {
+          credential_public_key: credentialPublicKey,
+          transports: ['internal'],
+          registered: new Date().toISOString(),
+          device_number: 1,
+        };
+        return respondWithResult(
+          [[credentialIdB64u, authenticator]],
+          [`contract: authenticators for ${accountId}`],
+          'authenticators_by_user',
+        );
+      }
+
+      return route.fallback();
     } catch (error) {
       printLog('intercept', `contract bypass fell back (${(error as Error).message})`, {
         scope: 'contract',
