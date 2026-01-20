@@ -186,195 +186,195 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   };
 
   return (
-    <Theme mode="scope-only">
-    <div className={`w3a-access-keys-modal-backdrop theme-${theme}`}
-      onClick={handleBackdropClick}
-      onMouseDown={(e) => e.stopPropagation()}
-      onMouseUp={(e) => e.stopPropagation()}
-    >
-      <div className="w3a-access-keys-modal-content"
-        onClick={handleModalContentClick}
+    <Theme>
+      <div className={`w3a-access-keys-modal-backdrop theme-${theme}`}
+        onClick={handleBackdropClick}
         onMouseDown={(e) => e.stopPropagation()}
         onMouseUp={(e) => e.stopPropagation()}
       >
-        <div className="w3a-access-keys-modal-header">
-          <h2 className="w3a-access-keys-modal-title">Linked Devices</h2>
-        </div>
-        <button className="w3a-access-keys-modal-close"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onClose();
-          }}
+        <div className="w3a-access-keys-modal-content"
+          onClick={handleModalContentClick}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
         >
-          ✕
-        </button>
-
-        {error && (
-          <div className="w3a-access-keys-error">
-            <p>{error}</p>
-            <button onClick={(e) => {
+          <div className="w3a-access-keys-modal-header">
+            <h2 className="w3a-access-keys-modal-title">Linked Devices</h2>
+          </div>
+          <button className="w3a-access-keys-modal-close"
+            onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              loadAuthenticators();
-            }} className="w3a-btn w3a-btn-primary">
-              Try Again
-            </button>
-          </div>
-        )}
+              onClose();
+            }}
+          >
+            ✕
+          </button>
 
-        {!isLoading && !error && authRows.filter(r => r.credentialId !== 'placeholder').length === 0 && (
-          <div className="w3a-access-keys-empty">
-            <p>No authenticators found.</p>
-          </div>
-        )}
+          {error && (
+            <div className="w3a-access-keys-error">
+              <p>{error}</p>
+              <button onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                loadAuthenticators();
+              }} className="w3a-btn w3a-btn-primary">
+                Try Again
+              </button>
+            </div>
+          )}
 
-        {!error && authRows.filter(r => r.credentialId !== 'placeholder').length > 0 && (
-          <div className="w3a-keys-list">
-            {(() => {
-              console.log("authRows", authRows)
-              const rows = authRows.filter(r => r.credentialId !== 'placeholder');
-              const current = (currentDeviceNumber != null)
-                ? rows.find(r => r.deviceNumber === currentDeviceNumber)
-                : null;
-              const others = (currentDeviceNumber != null)
-                ? rows.filter(r => r.deviceNumber !== currentDeviceNumber)
-                : rows;
+          {!isLoading && !error && authRows.filter(r => r.credentialId !== 'placeholder').length === 0 && (
+            <div className="w3a-access-keys-empty">
+              <p>No authenticators found.</p>
+            </div>
+          )}
 
-              const items: React.ReactNode[] = [];
+          {!error && authRows.filter(r => r.credentialId !== 'placeholder').length > 0 && (
+            <div className="w3a-keys-list">
+              {(() => {
+                console.log("authRows", authRows)
+                const rows = authRows.filter(r => r.credentialId !== 'placeholder');
+                const current = (currentDeviceNumber != null)
+                  ? rows.find(r => r.deviceNumber === currentDeviceNumber)
+                  : null;
+                const others = (currentDeviceNumber != null)
+                  ? rows.filter(r => r.deviceNumber !== currentDeviceNumber)
+                  : rows;
 
-              if (current) {
-                const index = 0;
-                const currentKey = current.nearPublicKey || loginState?.nearPublicKey || null;
-                const isCurrentKey = !!currentKey && loginState?.nearPublicKey === currentKey;
-                const canDelete = !!accessKeyList && accessKeyList.keys.length > 1;
-                const isDeletingThisKey = !!currentKey && deletingKeyPublicKey === currentKey;
-                items.push(
-                  <div key={`current-${current.deviceNumber}`} className="w3a-key-item">
-                    <div className="w3a-key-content">
-                      <div className="w3a-key-details">
-                        <div className="w3a-key-header">
-                          <div className="mono w3a-device-row">
-                            <span className="w3a-device-badge">Device {current.deviceNumber}</span>
-                            <span className="w3a-current-device-text">(current device)</span>
+                const items: React.ReactNode[] = [];
+
+                if (current) {
+                  const index = 0;
+                  const currentKey = current.nearPublicKey || loginState?.nearPublicKey || null;
+                  const isCurrentKey = !!currentKey && loginState?.nearPublicKey === currentKey;
+                  const canDelete = !!accessKeyList && accessKeyList.keys.length > 1;
+                  const isDeletingThisKey = !!currentKey && deletingKeyPublicKey === currentKey;
+                  items.push(
+                    <div key={`current-${current.deviceNumber}`} className="w3a-key-item">
+                      <div className="w3a-key-content">
+                        <div className="w3a-key-details">
+                          <div className="w3a-key-header">
+                            <div className="mono w3a-device-row">
+                              <span className="w3a-device-badge">Device {current.deviceNumber}</span>
+                              <span className="w3a-current-device-text">(current device)</span>
+                            </div>
                           </div>
+                          <div className="mono w3a-registered">Registered: {formatDateTime(current.registered)}</div>
+                          {currentKey && (
+                            <div
+                              className="mono w3a-copyable-key w3a-access-key-current"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(currentKey, index);
+                              }}
+                              onMouseEnter={() => setTooltipVisible(index)}
+                              onMouseLeave={() => setTooltipVisible(null)}
+                              title="Click to copy"
+                            >
+                              Access Key: {currentKey}
+                              {tooltipVisible === index && (
+                                <div className="w3a-copy-tooltip">Click to copy</div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <div className="mono w3a-registered">Registered: {formatDateTime(current.registered)}</div>
                         {currentKey && (
-                          <div
-                            className="mono w3a-copyable-key w3a-access-key-current"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyToClipboard(currentKey, index);
-                            }}
-                            onMouseEnter={() => setTooltipVisible(index)}
-                            onMouseLeave={() => setTooltipVisible(null)}
-                            title="Click to copy"
-                          >
-                            Access Key: {currentKey}
-                            {tooltipVisible === index && (
-                              <div className="w3a-copy-tooltip">Click to copy</div>
-                            )}
+                          <div className="w3a-key-status">
+                            <button
+                              className={`w3a-btn ${isCurrentKey ? 'w3a-btn-primary' : 'w3a-btn-danger'}`}
+                              style={{ width: '64px' }}
+                              disabled={!canDelete || isDeletingThisKey}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (canDelete && !isDeletingThisKey) {
+                                  void handleDeleteKey(currentKey);
+                                }
+                              }}
+                            >
+                              {isDeletingThisKey ? (
+                                <span className="w3a-spinner"/>
+                              ) : (
+                                'Delete'
+                              )}
+                            </button>
                           </div>
                         )}
                       </div>
-                      {currentKey && (
-                        <div className="w3a-key-status">
-                          <button
-                            className={`w3a-btn ${isCurrentKey ? 'w3a-btn-primary' : 'w3a-btn-danger'}`}
-                            style={{ width: '64px' }}
-                            disabled={!canDelete || isDeletingThisKey}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (canDelete && !isDeletingThisKey) {
-                                void handleDeleteKey(currentKey);
-                              }
-                            }}
-                          >
-                            {isDeletingThisKey ? (
-                              <span className="w3a-spinner"/>
-                            ) : (
-                              'Delete'
-                            )}
-                          </button>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                );
-              }
+                  );
+                }
 
-              others.forEach((item, i) => {
-                const canDelete = !!accessKeyList && accessKeyList.keys.length > 1;
-                const isDeletingThisKey = !!item.nearPublicKey && deletingKeyPublicKey === item.nearPublicKey;
-                items.push(
-                  <div key={`other-${item.deviceNumber}-${i}`} className="w3a-key-item">
-                    <div className="w3a-key-content">
-                      <div className="w3a-key-details">
-                        <div className="w3a-key-header">
-                          <div className="mono w3a-device-row">
-                            <span className="w3a-device-badge">Device {item.deviceNumber}</span>
+                others.forEach((item, i) => {
+                  const canDelete = !!accessKeyList && accessKeyList.keys.length > 1;
+                  const isDeletingThisKey = !!item.nearPublicKey && deletingKeyPublicKey === item.nearPublicKey;
+                  items.push(
+                    <div key={`other-${item.deviceNumber}-${i}`} className="w3a-key-item">
+                      <div className="w3a-key-content">
+                        <div className="w3a-key-details">
+                          <div className="w3a-key-header">
+                            <div className="mono w3a-device-row">
+                              <span className="w3a-device-badge">Device {item.deviceNumber}</span>
+                            </div>
                           </div>
+                          <div className="mono w3a-registered">Registered: {formatDateTime(item.registered)}</div>
+                          {item.nearPublicKey && (
+                            <div
+                              className="mono w3a-copyable-key"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(item.nearPublicKey!, 10 + i);
+                              }}
+                              onMouseEnter={() => setTooltipVisible(10 + i)}
+                              onMouseLeave={() => setTooltipVisible(null)}
+                              title="Click to copy"
+                            >
+                              Access Key: {item.nearPublicKey}
+                              {tooltipVisible === 10 + i && (
+                                <div className="w3a-copy-tooltip">Click to copy</div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <div className="mono w3a-registered">Registered: {formatDateTime(item.registered)}</div>
                         {item.nearPublicKey && (
-                          <div
-                            className="mono w3a-copyable-key"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyToClipboard(item.nearPublicKey!, 10 + i);
-                            }}
-                            onMouseEnter={() => setTooltipVisible(10 + i)}
-                            onMouseLeave={() => setTooltipVisible(null)}
-                            title="Click to copy"
-                          >
-                            Access Key: {item.nearPublicKey}
-                            {tooltipVisible === 10 + i && (
-                              <div className="w3a-copy-tooltip">Click to copy</div>
-                            )}
+                          <div className="w3a-key-status">
+                            <button
+                              className="w3a-btn w3a-btn-danger"
+                              style={{ width: '64px' }}
+                              disabled={!canDelete || isDeletingThisKey}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (canDelete && !isDeletingThisKey) {
+                                  void handleDeleteKey(item.nearPublicKey!);
+                                }
+                              }}
+                            >
+                              {isDeletingThisKey ? (
+                                <span className="w3a-spinner"/>
+                              ) : (
+                                'Delete'
+                              )}
+                            </button>
                           </div>
                         )}
                       </div>
-                      {item.nearPublicKey && (
-                        <div className="w3a-key-status">
-                          <button
-                            className="w3a-btn w3a-btn-danger"
-                            style={{ width: '64px' }}
-                            disabled={!canDelete || isDeletingThisKey}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (canDelete && !isDeletingThisKey) {
-                                void handleDeleteKey(item.nearPublicKey!);
-                              }
-                            }}
-                          >
-                            {isDeletingThisKey ? (
-                              <span className="w3a-spinner"/>
-                            ) : (
-                              'Delete'
-                            )}
-                          </button>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                );
-              });
+                  );
+                });
 
-              return items;
-            })()}
-          </div>
-        )}
+                return items;
+              })()}
+            </div>
+          )}
 
-        {deleteError && (
-          <div className="w3a-access-keys-error">
-            <p>{deleteError}</p>
-          </div>
-        )}
+          {deleteError && (
+            <div className="w3a-access-keys-error">
+              <p>{deleteError}</p>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
     </Theme>
   );
 };

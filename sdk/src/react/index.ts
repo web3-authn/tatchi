@@ -120,7 +120,7 @@ export { default as MoonIcon } from './components/AccountMenuButton/icons/MoonIc
 
 // Theme components
 export { useTheme, Theme } from './components/theme';
-export type { UseThemeReturn, ThemeProps, ThemeMode, ThemeName } from './components/theme';
+export type { UseThemeReturn, ThemeProps, ThemeName } from './components/theme';
 export { LIGHT_TOKENS, DARK_TOKENS } from './components/theme';
 
 // === ACCOUNT SYNC ENUMS ===

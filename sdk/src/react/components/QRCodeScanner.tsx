@@ -155,7 +155,7 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
 
   if (qrCamera.error) {
     return (
-      <Theme mode="scope-only">
+      <Theme>
         <div className="qr-scanner-error-container">
           <div className="qr-scanner-error-message">
             <p>{qrCamera.error}</p>
@@ -174,11 +174,11 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
           </div>
         </div>
       </Theme>
-    )
+    );
   }
 
   return (
-    <Theme mode="scope-only">
+    <Theme>
       <div
         className={`qr-scanner-modal ${className || ''}`}
         style={style}
