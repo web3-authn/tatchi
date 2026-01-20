@@ -22,6 +22,7 @@ import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../../defaultConfigs';
 import { createConfirmSession } from '../adapters/session';
 import { createConfirmTxFlowAdapters } from '../adapters/createAdapters';
 import { computeUiIntentDigestFromNep413 } from '../../../../digests/intentDigest';
+import type { ThemeName } from '../../../../types/tatchi';
 
 function getSigningAuthMode(request: SigningSecureConfirmRequest): SigningAuthMode {
   if (request.type === SecureConfirmationType.SIGN_TRANSACTION) {
@@ -37,9 +38,9 @@ export async function handleTransactionSigningFlow(
   ctx: VrfWorkerManagerContext,
   request: SigningSecureConfirmRequest,
   worker: Worker,
-  opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
+  opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary; theme: ThemeName },
 ): Promise<void> {
-  const { confirmationConfig, transactionSummary } = opts;
+  const { confirmationConfig, transactionSummary, theme } = opts;
   const adapters = createConfirmTxFlowAdapters(ctx);
   const session = createConfirmSession({
     adapters,
@@ -47,6 +48,7 @@ export async function handleTransactionSigningFlow(
     request,
     confirmationConfig,
     transactionSummary,
+    theme,
   });
   const nearAccountId = getNearAccountId(request);
   try {

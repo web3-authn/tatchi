@@ -6,6 +6,7 @@ import '@tatchi-xyz/sdk/react/styles';
 
 import { HomePage } from './pages/HomePage';
 import { ToasterThemed } from './components/ToasterThemed';
+import { useDocumentTheme } from './hooks/useDocumentTheme';
 import './index.css';
 
 // Note: Vite requires using `import.meta.env` exactly; optional chaining breaks env injection.
@@ -16,8 +17,11 @@ const walletServicePath = env.VITE_WALLET_SERVICE_PATH || '/wallet-service';
 const sdkBasePath = env.VITE_SDK_BASE_PATH || '/sdk';
 
 function App() {
+  const { theme, setTheme } = useDocumentTheme();
+
   return (
     <TatchiPasskeyProvider
+      theme={{ theme, setTheme }}
       config={{
         relayer: {
           url: relayerUrl,

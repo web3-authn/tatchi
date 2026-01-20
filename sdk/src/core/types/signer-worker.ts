@@ -372,15 +372,12 @@ export interface ConfirmationConfig {
   behavior: ConfirmationBehavior;
   /** Delay in milliseconds before auto-proceeding (only used with autoProceed) */
   autoProceedDelay?: number;
-  /** Theme for the confirmation UI: 'dark' | 'light' */
-  theme: 'dark' | 'light';
 }
 
 export const DEFAULT_CONFIRMATION_CONFIG: ConfirmationConfig = {
   uiMode: 'modal',
   behavior: 'requireClick',
   autoProceedDelay: 0,
-  theme: 'dark',
 };
 
 // WASM enum types for confirmation configuration

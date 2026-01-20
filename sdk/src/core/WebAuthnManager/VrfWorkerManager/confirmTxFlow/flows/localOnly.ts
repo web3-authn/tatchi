@@ -22,14 +22,16 @@ import {
 import { errorMessage } from '../../../../../utils/errors';
 import { createConfirmSession } from '../adapters/session';
 import { createConfirmTxFlowAdapters } from '../adapters/createAdapters';
+import type { ThemeName } from '../../../../types/tatchi';
 
 async function mountExportViewer(
   payload: ShowSecurePrivateKeyUiPayload,
   confirmationConfig: ConfirmationConfig,
+  theme: ThemeName,
 ): Promise<void> {
   await ensureDefined(W3A_EXPORT_VIEWER_IFRAME_ID, () => import('../../../LitComponents/ExportPrivateKey/iframe-host'));
   const host = document.createElement(W3A_EXPORT_VIEWER_IFRAME_ID) as ExportViewerIframeElement;
-  host.theme = payload.theme || confirmationConfig.theme || 'dark';
+  host.theme = payload.theme || theme || 'dark';
   host.variant = payload.variant || ((confirmationConfig.uiMode === 'drawer') ? 'drawer' : 'modal');
   host.accountId = payload.nearAccountId;
   host.publicKey = payload.publicKey;
@@ -51,10 +53,10 @@ export async function handleLocalOnlyFlow(
   ctx: VrfWorkerManagerContext,
   request: LocalOnlySecureConfirmRequest,
   worker: Worker,
-  opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
+  opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary; theme: ThemeName },
 ): Promise<void> {
 
-  const { confirmationConfig, transactionSummary } = opts;
+  const { confirmationConfig, transactionSummary, theme } = opts;
   const adapters = createConfirmTxFlowAdapters(ctx);
   const session = createConfirmSession({
     adapters,
@@ -62,13 +64,14 @@ export async function handleLocalOnlyFlow(
     request,
     confirmationConfig,
     transactionSummary,
+    theme,
   });
   const nearAccountId = getNearAccountId(request);
 
   // SHOW_SECURE_PRIVATE_KEY_UI: purely visual; keep UI open and return confirmed immediately
   if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
     try {
-      await mountExportViewer(request.payload as ShowSecurePrivateKeyUiPayload, confirmationConfig);
+      await mountExportViewer(request.payload as ShowSecurePrivateKeyUiPayload, confirmationConfig, theme);
       // Keep viewer open; do not close here.
       session.confirmAndCloseModal({
         requestId: request.requestId,

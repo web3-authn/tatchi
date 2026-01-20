@@ -32,6 +32,7 @@ import type {
   SignAndSendDelegateActionResult,
   SignDelegateActionResult,
   SignTransactionResult,
+  ThemeName,
   TatchiConfigs,
   TatchiConfigsInput,
 } from '../types/tatchi';
@@ -53,7 +54,7 @@ import { ConfirmationConfig, type SignerMode, type WasmSignedDelegate } from '..
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import type { DerivedAddressRecord, RecoveryEmailRecord } from '../IndexedDBManager';
-import { configureIndexedDB } from '../IndexedDBManager';
+import { configureIndexedDB, IndexedDBManager } from '../IndexedDBManager';
 import { chainsigAddressManager } from '../ChainsigAddressManager';
 import { ActionType, type ActionArgs, type TransactionInput } from '../types/actions';
 import type {
@@ -72,6 +73,7 @@ import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences'
 import type { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../utils/errors';
+import { coerceThemeName } from '../../utils/theme';
 import { isOffline, openOfflineExport } from '../OfflineExport';
 import type { DelegateActionInput } from '../types/delegate';
 import { buildConfigsFromEnv } from '../defaultConfigs';
@@ -85,6 +87,7 @@ export interface PasskeyManagerContext {
   webAuthnManager: WebAuthnManager;
   nearClient: NearClient;
   configs: TatchiConfigs;
+  theme: ThemeName;
 }
 
 let warnedAboutSameOriginWallet = false;
@@ -97,6 +100,7 @@ export class TatchiPasskey {
   private readonly webAuthnManager: WebAuthnManager;
   private readonly nearClient: NearClient;
   readonly configs: TatchiConfigs;
+  theme: ThemeName;
   private iframeRouter: WalletIframeRouter | null = null;
   // Deduplicate concurrent initWalletIframe() calls to avoid mounting multiple iframes.
   private walletIframeInitInFlight: Promise<void> | null = null;
@@ -121,6 +125,9 @@ export class TatchiPasskey {
     // Use provided client or create default one
     this.nearClient = nearClient || new MinimalNearClient(this.configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(this.configs, this.nearClient);
+
+    this.theme = 'dark';
+
     // Wallet-iframe mode: delegate signerMode persistence to the wallet host.
     // Non-iframe mode: ensure any previous writer is cleared (UserPreferences is a singleton).
     this.userPreferences.configureWalletIframeSignerModeWriter(
@@ -136,7 +143,7 @@ export class TatchiPasskey {
 
   /**
    * Direct access to user preferences manager for convenience
-   * Example: tatchi.userPreferences.onThemeChange(cb)
+   * For theming, prefer `tatchi.theme` + `tatchi.setTheme(...)` instead.
    */
   get userPreferences(): UserPreferencesManager {
     return this.webAuthnManager.getUserPreferences();
@@ -194,7 +201,6 @@ export class TatchiPasskey {
             servicePath: walletIframeConfig?.walletServicePath || '/wallet-service',
             connectTimeoutMs: 20_000, // 20s
             requestTimeoutMs: 60_000, // 60s
-            theme: this.configs.initialTheme,
             signerMode: this.configs.signerMode,
             nearRpcUrl: this.configs.nearRpcUrl,
             nearNetwork: this.configs.nearNetwork,
@@ -298,7 +304,42 @@ export class TatchiPasskey {
     return {
       webAuthnManager: this.webAuthnManager,
       nearClient: this.nearClient,
-      configs: this.configs
+      configs: this.configs,
+      theme: this.theme,
+    }
+  }
+
+  /**
+   * Set SDK theme and propagate to wallet/confirmation UI (best-effort).
+   * Theme propagation rules:
+   * - Always update in-memory theme immediately.
+   * - In wallet host mode, update `document.documentElement[data-w3a-theme]`.
+   * - In app-origin iframe mode, best-effort `router.setTheme(next)`.
+   * This never throws; callers should treat it as a fire-and-forget update.
+   */
+  setTheme(next: ThemeName): void {
+    const nextTheme = coerceThemeName(next);
+    if (!nextTheme) return;
+    if (this.theme === nextTheme) return;
+    this.theme = nextTheme;
+
+    try {
+      this.webAuthnManager.setTheme(nextTheme);
+    } catch {}
+
+    if (__isWalletIframeHostMode()) {
+      try {
+        document.documentElement.setAttribute('data-w3a-theme', nextTheme);
+      } catch {}
+    }
+
+    if (this.shouldUseWalletIframe()) {
+      void (async () => {
+        try {
+          const router = await this.requireWalletIframeRouter();
+          await router.setTheme(nextTheme);
+        } catch {}
+      })();
     }
   }
 
@@ -630,19 +671,6 @@ export class TatchiPasskey {
       return;
     }
     this.webAuthnManager.getUserPreferences().setConfirmationConfig(config);
-  }
-
-  setUserTheme(theme: 'dark' | 'light'): void {
-    if (this.shouldUseWalletIframe()) {
-      void (async () => {
-        try {
-          const router = await this.requireWalletIframeRouter();
-          await router.setTheme(theme);
-        } catch { }
-      })();
-      return;
-    }
-    this.webAuthnManager.getUserPreferences().setUserTheme(theme);
   }
 
   setSignerMode(signerMode: SignerMode | SignerMode['mode']): void {
@@ -1297,6 +1325,10 @@ export class TatchiPasskey {
     nearAccountId: string,
     options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }
   ): Promise<void> {
+    const resolvedOptions = {
+      ...options,
+      theme: options?.theme ?? this.theme,
+    };
     if (isOffline()) {
       // If offline, open the offline-export route
       await openOfflineExport({
@@ -1308,7 +1340,7 @@ export class TatchiPasskey {
     } else {
       // Prefer wallet iframe when ready
       if (this.iframeRouter?.isReady?.()) {
-        await this.iframeRouter.exportNearKeypairWithUI(nearAccountId, options);
+        await this.iframeRouter.exportNearKeypairWithUI(nearAccountId, resolvedOptions);
         return;
       }
       // Online but router not ready: prefer offline-export route via router (or new tab)
@@ -1320,7 +1352,7 @@ export class TatchiPasskey {
         return;
       }
       // Final fallback: local worker-driven UI
-      await this.webAuthnManager.exportNearKeypairWithUI(toAccountId(nearAccountId), options);
+      await this.webAuthnManager.exportNearKeypairWithUI(toAccountId(nearAccountId), resolvedOptions);
     }
   }
 

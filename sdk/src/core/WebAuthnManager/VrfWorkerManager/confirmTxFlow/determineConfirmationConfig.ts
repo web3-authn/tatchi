@@ -22,7 +22,7 @@ import { needsExplicitActivation } from '@/utils';
  *
  * Notes
  * - The function is pure (does not mutate the input object) and safe to call multiple times.
- * - Theme and unrelated visual options are preserved in all cases.
+ * - Unrelated options are preserved in all cases.
  */
 export function determineConfirmationConfig(
   ctx: VrfWorkerManagerContext,
@@ -39,8 +39,6 @@ export function determineConfirmationConfig(
   ) as Partial<ConfirmationConfig>;
   let cfg: ConfirmationConfig = { ...configBase, ...cleanedOverride } as ConfirmationConfig;
 
-  // Normalize theme default
-  cfg = { ...cfg, theme: cfg.theme || 'dark' } as ConfirmationConfig;
   // Default decrypt-private-key confirmations to 'skip' UI. The flow collects
   // WebAuthn credentials silently and the worker may follow up with a
   // SHOW_SECURE_PRIVATE_KEY_UI request to display the key.
@@ -49,7 +47,6 @@ export function determineConfirmationConfig(
       uiMode: 'skip',
       behavior: cfg.behavior,
       autoProceedDelay: cfg.autoProceedDelay,
-      theme: cfg.theme || 'dark',
       // container selection handled by uiMode only
     } as ConfirmationConfig;
   }
@@ -83,7 +80,6 @@ export function determineConfirmationConfig(
       uiMode: 'modal',
       behavior: 'requireClick',
       autoProceedDelay: cfg.autoProceedDelay,
-      theme: cfg.theme || 'dark',
     } as ConfirmationConfig;
   }
 

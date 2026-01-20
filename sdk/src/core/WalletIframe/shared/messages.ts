@@ -98,7 +98,6 @@ export interface PreferencesChangedPayload {
 }
 
 export interface PMSetConfigPayload {
-  theme?: 'dark' | 'light';
   // TatchiConfigs subset for wallet host
   nearRpcUrl?: string;
   nearNetwork?: 'testnet' | 'mainnet';
@@ -131,7 +130,7 @@ export interface PMRegisterPayload {
   nearAccountId: string;
   uiMode?: 'modal' | 'drawer';
   // Optional per-call confirmation override
-  confirmationConfig?: Record<string, unknown>;
+  confirmationConfig?: Partial<ConfirmationConfig>;
   options?: Record<string, unknown>;
 }
 
@@ -161,7 +160,7 @@ export interface PMSignTxsPayload {
   transactions: TransactionInput[];
   options: {
     signerMode: SignerMode;
-    confirmationConfig?: Record<string, unknown>;
+    confirmationConfig?: Partial<ConfirmationConfig>;
     confirmerText?: { title?: string; body?: string };
     [key: string]: unknown;
   };
@@ -175,7 +174,7 @@ export interface PMSignAndSendTxsPayload {
     // Keep only serializable fields; functions are bridged via PROGRESS
     waitUntil?: 'NONE' | 'INCLUDED' | 'INCLUDED_FINAL' | 'EXECUTED' | 'FINAL' | 'EXECUTED_OPTIMISTIC';
     executionWait?: Record<string, unknown>;
-    confirmationConfig?: Record<string, unknown>;
+    confirmationConfig?: Partial<ConfirmationConfig>;
     confirmerText?: { title?: string; body?: string };
     [key: string]: unknown;
   };
@@ -193,7 +192,7 @@ export interface PMExecuteActionPayload {
   options: {
     signerMode: SignerMode;
     waitUntil?: unknown;
-    confirmationConfig?: Record<string, unknown>;
+    confirmationConfig?: Partial<ConfirmationConfig>;
     confirmerText?: { title?: string; body?: string };
     [key: string]: unknown;
   };
@@ -204,7 +203,7 @@ export interface PMSignDelegateActionPayload {
   delegate: DelegateActionInput;
   options: {
     signerMode: SignerMode;
-    confirmationConfig?: Record<string, unknown>;
+    confirmationConfig?: Partial<ConfirmationConfig>;
     confirmerText?: { title?: string; body?: string };
     [key: string]: unknown;
   };
@@ -215,7 +214,7 @@ export interface PMSignNep413Payload {
   params: { message: string; recipient: string; state?: string };
   options: {
     signerMode: SignerMode;
-    confirmationConfig?: Record<string, unknown>;
+    confirmationConfig?: Partial<ConfirmationConfig>;
     confirmerText?: { title?: string; body?: string };
     [key: string]: unknown;
   };
@@ -226,7 +225,7 @@ export interface PMExportNearKeypairUiPayload { nearAccountId: string; variant?:
 
 export interface PMSetConfirmBehaviorPayload { behavior: 'requireClick' | 'autoProceed'; nearAccountId?: string }
 
-export interface PMSetConfirmationConfigPayload { config: Record<string, unknown>; nearAccountId?: string }
+export interface PMSetConfirmationConfigPayload { config: Partial<ConfirmationConfig>; nearAccountId?: string }
 
 export interface PMGetLoginSessionPayload { nearAccountId?: string }
 
@@ -251,7 +250,7 @@ export interface PMStartEmailRecoveryPayload {
   accountId: string;
   options?: {
     confirmerText?: { title?: string; body?: string };
-    confirmationConfig?: Record<string, unknown>;
+    confirmationConfig?: Partial<ConfirmationConfig>;
   };
 }
 
@@ -290,7 +289,7 @@ export interface PMSetRecoveryEmailsPayload {
   options: {
     signerMode: SignerMode;
     waitUntil?: unknown;
-    confirmationConfig?: Record<string, unknown>;
+    confirmationConfig?: Partial<ConfirmationConfig>;
     [key: string]: unknown;
   };
 }
@@ -353,7 +352,7 @@ export type ParentToChildEnvelope =
       qrData: DeviceLinkingQRData;
       fundingAmount: string;
       options?: {
-        confirmationConfig?: Record<string, unknown>;
+        confirmationConfig?: Partial<ConfirmationConfig>;
         confirmerText?: { title?: string; body?: string };
       };
     }>
@@ -361,7 +360,7 @@ export type ParentToChildEnvelope =
       ui?: 'modal' | 'inline';
       cameraId?: string;
       options?: {
-        confirmationConfig?: Record<string, unknown>;
+        confirmationConfig?: Partial<ConfirmationConfig>;
         confirmerText?: { title?: string; body?: string };
       };
     }>

@@ -4,6 +4,7 @@ import type { KnownSecureConfirmRequest, SecureConfirmDecision, TransactionSumma
 import type { VRFChallenge } from '../../../../types';
 import { sendConfirmResponse } from './common';
 import type { ConfirmTxFlowAdapters } from './interfaces';
+import type { ThemeName } from '../../../../types/tatchi';
 
 export function createConfirmSession({
   adapters,
@@ -11,12 +12,14 @@ export function createConfirmSession({
   request,
   confirmationConfig,
   transactionSummary,
+  theme,
 }: {
   adapters: ConfirmTxFlowAdapters;
   worker: Worker;
   request: KnownSecureConfirmRequest;
   confirmationConfig: ConfirmationConfig;
   transactionSummary: TransactionSummary;
+  theme: ThemeName;
 }): {
   setReservedNonces: (nonces?: string[]) => void;
   updateUI: (props: ConfirmUIUpdate) => void;
@@ -45,6 +48,7 @@ export function createConfirmSession({
       confirmationConfig,
       transactionSummary,
       vrfChallenge,
+      theme,
     });
     confirmHandle = handle;
     return { confirmed, error };

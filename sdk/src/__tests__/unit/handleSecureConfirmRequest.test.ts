@@ -26,9 +26,7 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
             getConfirmationConfig: () => ({
               uiMode: 'modal',
               behavior: 'requireClick',
-              autoProceedDelay: 0,
-              theme: 'dark'
-            })
+              autoProceedDelay: 0})
           }
         };
 
@@ -79,9 +77,7 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
             getConfirmationConfig: () => ({
               uiMode: 'modal',
               behavior: 'requireClick',
-              autoProceedDelay: 0,
-              theme: 'dark'
-            })
+              autoProceedDelay: 0})
           }
         };
 
@@ -131,9 +127,7 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
             getConfirmationConfig: () => ({
               uiMode: 'modal',
               behavior: 'requireClick',
-              autoProceedDelay: 0,
-              theme: 'dark'
-            })
+              autoProceedDelay: 0})
           }
         };
 

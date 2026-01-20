@@ -1,32 +1,19 @@
 import React from 'react'
-import { useTheme, SunIcon, MoonIcon, useTatchi } from '@tatchi-xyz/sdk/react'
+import { useTatchi, useTheme, SunIcon, MoonIcon } from '@tatchi-xyz/sdk/react'
 import NavbarProfilePlaceholder from './NavbarProfilePlaceholder'
 import { useVitepressRouter } from '../../hooks/useVitepressRouter'
 import NearLogo from '../icons/NearLogoWithText'
 import './Navbar.css'
 
-function applyVitepressAppearance(mode: 'light' | 'dark') {
-  if (typeof document === 'undefined') return
-  const html = document.documentElement
-  html.classList.toggle('dark', mode === 'dark')
-  try { localStorage.setItem('vitepress-theme-appearance', mode) } catch {}
-  try { window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: mode })) } catch {}
-}
-
 export const NavbarStatic: React.FC = () => {
-  const { isDark, toggleTheme, theme } = useTheme()
-  const { tatchi } = useTatchi();
+  const { tatchi } = useTatchi()
+  const { theme } = useTheme()
   const { linkProps } = useVitepressRouter()
 
-  const onToggle = React.useCallback(() => {
-    const next = isDark ? 'light' : 'dark'
-    // Toggle React SDK theme
-    toggleTheme()
-    // Toggle user preferences theme
-    tatchi.setUserTheme(next);
-    // Also sync VitePress <html> and storage so logged-out state updates correctly
-    applyVitepressAppearance(next)
-  }, [isDark, toggleTheme])
+  const onToggleTheme = React.useCallback(() => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    tatchi.setTheme(next)
+  }, [tatchi, theme])
 
   // Simple top-right navbar with links + dark mode toggle + profile button
   return (
@@ -66,7 +53,7 @@ export const NavbarStatic: React.FC = () => {
       >Docs</a>
       <button
         type="button"
-        onClick={onToggle}
+        onClick={onToggleTheme}
         style={{
           display: 'grid',
           placeContent: 'center',

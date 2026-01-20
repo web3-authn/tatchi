@@ -49,6 +49,7 @@ import {
 import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
 import { NonceManager } from '../../nonceManager';
+import type { ThemeName } from '../../types/tatchi';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
 import { toError } from '@/utils/errors';
 import { withSessionId } from './handlers/session';
@@ -70,6 +71,7 @@ export interface SignerWorkerManagerContext {
   indexedDB: UnifiedIndexedDBManager;
   userPreferencesManager: UserPreferencesManager;
   nonceManager: NonceManager;
+  getTheme?: () => ThemeName;
   relayerUrl: string;
   rpIdOverride?: string;
   nearExplorerUrl?: string;
@@ -102,6 +104,7 @@ export class SignerWorkerManager {
   private relayerUrl: string;
   private workerBaseOrigin: string | undefined;
   private nearExplorerUrl?: string;
+  private getTheme?: () => ThemeName;
 
   constructor(
     vrfWorkerManager: VrfWorkerManager,
@@ -112,6 +115,7 @@ export class SignerWorkerManager {
     rpIdOverride?: string,
     enableSafariGetWebauthnRegistrationFallback: boolean = true,
     nearExplorerUrl?: string,
+    getTheme?: () => ThemeName,
   ) {
     this.indexedDB = IndexedDBManager;
     this.touchIdPrompt = new TouchIdPrompt(rpIdOverride, enableSafariGetWebauthnRegistrationFallback);
@@ -121,6 +125,7 @@ export class SignerWorkerManager {
     this.nonceManager = nonceManager;
     this.relayerUrl = relayerUrl;
     this.nearExplorerUrl = nearExplorerUrl;
+    this.getTheme = getTheme;
   }
 
   setWorkerBaseOrigin(origin: string | undefined): void {
@@ -136,6 +141,7 @@ export class SignerWorkerManager {
       nearClient: this.nearClient,
       userPreferencesManager: this.userPreferencesManager,
       nonceManager: this.nonceManager,
+      getTheme: this.getTheme,
       rpIdOverride: this.touchIdPrompt.getRpId(),
       nearExplorerUrl: this.nearExplorerUrl,
       relayerUrl: this.relayerUrl,

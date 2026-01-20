@@ -57,7 +57,7 @@ const WALLET_STUB_CAPTURE_SCRIPT = String.raw`
         });
       }
       if (data.type === 'PM_GET_CONFIRMATION_CONFIG') {
-        respond({ theme: 'dark', behavior: 'requireClick', uiMode: 'modal' });
+        respond({ behavior: 'requireClick', uiMode: 'modal' });
       }
 
       if (data.type === 'PM_GET_SIGNER_MODE') {

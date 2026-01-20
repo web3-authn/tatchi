@@ -5,16 +5,13 @@ import {
   useTatchi,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
-  Theme,
-  useTheme,
 } from '@tatchi-xyz/sdk/react';
 import { AccountMenuButton } from '@tatchi-xyz/sdk/react/profile';
 import { DebugBanner } from './DebugBanner';
 
 export const Navbar: React.FC = () => {
 
-  const { loginState, tatchi } = useTatchi();
-  const { setTheme } = useTheme();
+  const { loginState } = useTatchi();
 
   const [isMobile, setIsMobile] = React.useState<boolean>(false);
 
@@ -30,21 +27,6 @@ export const Navbar: React.FC = () => {
       if ('removeEventListener' in mq) mq.removeEventListener('change', onChange);
     };
   }, []);
-
-  // Keep Theme synchronized with user preference (per-component)
-  React.useEffect(() => {
-    const up = tatchi?.userPreferences;
-    if (!up) return;
-
-    try {
-      const t = up.getUserTheme?.();
-      if (t === 'light' || t === 'dark') setTheme(t);
-    } catch {}
-
-    let unsub: (() => void) | undefined;
-    try { unsub = up.onThemeChange?.((t: 'light' | 'dark') => setTheme(t)); } catch {}
-    return () => { try { unsub?.(); } catch {} };
-  }, [tatchi, setTheme]);
 
   return (
     <nav className="navbar-container">

@@ -20,17 +20,9 @@ try {
   }
 } catch {}
 
-// Resolve theme preference from explicit param, user preferences, or DOM attribute
-function resolveTheme(ctx: VrfWorkerManagerContext, requested?: ThemeName): ThemeName {
-  let resolved = validateTheme(requested);
-  if (!resolved) {
-    try { resolved = validateTheme((ctx as any)?.userPreferencesManager?.getUserTheme?.()); } catch {}
-  }
-  if (!resolved) {
-    const domAttr = (document?.documentElement?.getAttribute('data-w3a-theme') || '').toLowerCase();
-    resolved = validateTheme(domAttr);
-  }
-  return resolved || 'dark';
+// Resolve theme preference from explicit param (fallback to default).
+function resolveTheme(_ctx: VrfWorkerManagerContext, requested?: ThemeName): ThemeName {
+  return validateTheme(requested) || 'dark';
 }
 
 // Minimal host element interface for the inline confirmer wrapper.

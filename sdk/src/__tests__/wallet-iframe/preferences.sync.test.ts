@@ -10,7 +10,8 @@ const PREFERENCES_PUSH_STUB = `
   // Extend the base wallet-service stub with preference RPCs + push updates.
   (function installPreferencesPushStub() {
     const nearAccountId = 'alice.testnet';
-    let confirmationConfig = { theme: 'light', behavior: 'requireClick', uiMode: 'modal' };
+    let confirmationConfig = { behavior: 'requireClick', uiMode: 'modal', autoProceedDelay: 0 };
+    const signerMode = { mode: 'local-signer' };
 
     const makeLoginSession = () => ({
       login: {
@@ -40,6 +41,7 @@ const PREFERENCES_PUSH_STUB = `
           payload: {
             nearAccountId,
             confirmationConfig,
+            signerMode,
             updatedAt: Date.now(),
           }
         });
@@ -72,18 +74,26 @@ const PREFERENCES_PUSH_STUB = `
           return;
         }
 
-        if (type === 'PM_SET_THEME') {
-          const theme = message?.payload?.theme;
-          if (theme === 'dark' || theme === 'light') {
-            confirmationConfig = { ...confirmationConfig, theme };
-          }
+        if (type === 'PM_SET_CONFIRMATION_CONFIG') {
+          const config = message?.payload?.config || {};
+          confirmationConfig = { ...confirmationConfig, ...config };
           respond(requestId, undefined);
           pushPreferencesChanged();
           return;
         }
 
+        if (type === 'PM_SET_THEME') {
+          const theme = message?.payload?.theme;
+          if (theme === 'dark' || theme === 'light') {
+            window.__lastSetTheme = theme;
+          }
+          respond(requestId, undefined);
+          return;
+        }
+
         return original && original(event);
       };
+      pushPreferencesChanged();
     };
 
     const __origAdoptPort = adoptPort;
@@ -109,7 +119,7 @@ test.describe('Wallet iframe preferences sync', () => {
     await page.unroute(WALLET_SERVICE_ROUTE).catch(() => {});
   });
 
-  test('app-origin mirrors wallet-host theme via PREFERENCES_CHANGED', async ({ page }) => {
+  test('app-origin mirrors wallet-host confirmation config via PREFERENCES_CHANGED', async ({ page }) => {
     const consoleErrors: string[] = [];
     page.on('console', (msg) => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -135,20 +145,23 @@ test.describe('Wallet iframe preferences sync', () => {
         });
 
         await tatchi.initWalletIframe();
-        const initialTheme = tatchi.userPreferences.getUserTheme();
+        const seeded = await waitFor(() => tatchi.getConfirmationConfig().uiMode === 'modal', 3000);
+        const initialTheme = tatchi.theme;
+        const initialConfig = tatchi.getConfirmationConfig();
 
-        const observedThemes: Array<'dark' | 'light'> = [];
-        tatchi.userPreferences.onThemeChange((t) => observedThemes.push(t));
-
-        tatchi.setUserTheme('dark');
-        const mirrored = await waitFor(() => tatchi.userPreferences.getUserTheme() === 'dark', 3000);
+        // Flip confirmation config on the wallet host and ensure the app-origin mirrors it via PREFERENCES_CHANGED.
+        const router = await (tatchi as any).requireWalletIframeRouter();
+        await router.setConfirmationConfig({ uiMode: 'drawer', behavior: 'autoProceed', autoProceedDelay: 5 });
+        const mirrored = await waitFor(() => tatchi.getConfirmationConfig().uiMode === 'drawer', 3000);
 
         return {
           success: true,
           initialTheme,
-          finalTheme: tatchi.userPreferences.getUserTheme(),
+          finalTheme: tatchi.theme,
+          initialConfig,
+          finalConfig: tatchi.getConfirmationConfig(),
           currentUser: String(tatchi.userPreferences.getCurrentUserAccountId?.() || ''),
-          observedThemes,
+          seeded,
           mirrored,
         };
       } catch (error: any) {
@@ -162,15 +175,61 @@ test.describe('Wallet iframe preferences sync', () => {
       return;
     }
 
-    expect(result.initialTheme).toBe('light');
+    expect(result.initialTheme).toBe('dark');
     expect(result.mirrored).toBe(true);
     expect(result.finalTheme).toBe('dark');
+    expect(result.initialConfig).toEqual({ behavior: 'requireClick', uiMode: 'modal', autoProceedDelay: 0 });
+    expect(result.finalConfig).toEqual({ behavior: 'autoProceed', uiMode: 'drawer', autoProceedDelay: 5 });
     expect(result.currentUser).toBe('alice.testnet');
-    expect(result.observedThemes).toContain('dark');
 
     const indexedDbNoise = consoleErrors.find((m) =>
       m.includes('PasskeyClientDBManager') || m.includes('IndexedDB is disabled in this environment')
     );
     expect(indexedDbNoise).toBeUndefined();
+  });
+
+  test('tatchi.setTheme forwards updates to the wallet host', async ({ page }) => {
+    const result = await page.evaluate(async ({ walletOrigin }) => {
+      try {
+        const base = window.location.origin === 'null' ? 'https://example.localhost' : window.location.origin;
+        const mod = await import(new URL('/sdk/esm/core/TatchiPasskey/index.js', base).toString());
+        const { TatchiPasskey } = mod as typeof import('../../core/TatchiPasskey');
+
+        const tatchi = new TatchiPasskey({
+          nearRpcUrl: 'https://test.rpc.fastnear.com',
+          nearNetwork: 'testnet',
+          contractId: 'w3a-v1.testnet',
+          relayer: { url: 'http://localhost:3000' },
+          iframeWallet: {
+            walletOrigin,
+            walletServicePath: '/wallet-service',
+            sdkBasePath: '/sdk',
+          },
+        });
+
+        await tatchi.initWalletIframe();
+        tatchi.setTheme('dark');
+
+        return { success: true, currentTheme: tatchi.theme };
+      } catch (error: any) {
+        return { success: false, error: error?.message || String(error) };
+      }
+    }, { walletOrigin: WALLET_ORIGIN });
+
+    if (!result.success) {
+      if (handleInfrastructureErrors(result)) return;
+      expect(result.success, result.error).toBe(true);
+      return;
+    }
+
+    expect(result.currentTheme).toBe('dark');
+
+    const walletFrame = page.frames().find((frame) => {
+      const url = frame.url();
+      return url.startsWith(WALLET_ORIGIN) && url.includes('/wallet-service');
+    });
+    expect(walletFrame, 'wallet iframe should be mounted').toBeTruthy();
+
+    await walletFrame!.waitForFunction(() => (window as any).__lastSetTheme === 'dark', null, { timeout: 3000 });
   });
 });

@@ -69,6 +69,7 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
     loginState,
     tatchi,
     logout,
+    themeCapabilities,
   } = useTatchi();
 
   // Use props if provided, otherwise fall back to context
@@ -155,9 +156,13 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
   };
 
   const handleToggleTheme = () => {
+    if (!themeCapabilities.canSetHostTheme) {
+      console.error('theme/setTheme needs to be passed to the SDK');
+      return;
+    }
     // Determine next theme from current visible theme when possible
     const newTheme = (theme === 'dark' ? 'light' : (theme === 'light' ? 'dark' : (currentConfirmConfig?.theme === 'dark' ? 'light' : 'dark')));
-    tatchi.setUserTheme(newTheme);
+    tatchi.setTheme(newTheme);
     // Always show a quick pulse to acknowledge the press
     if (typeof document !== 'undefined' && document.body) {
       document.body.setAttribute('data-w3a-theme-pulse', '1');
@@ -177,8 +182,9 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
   };
 
   // Menu items configuration with context-aware handlers
-  const MENU_ITEMS: MenuItem[] = useMemo(() => [
-    {
+  const MENU_ITEMS: MenuItem[] = useMemo(() => {
+    const items: MenuItem[] = [
+      {
       id: PROFILE_MENU_ITEM_IDS.EXPORT_KEYS,
       icon: <KeyIcon />,
       label: 'Export Keys',
@@ -198,7 +204,7 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
       },
       keepOpenOnClick: true,
     },
-    {
+      {
       id: PROFILE_MENU_ITEM_IDS.SCAN_LINK_DEVICE,
       icon: <ScanIcon />,
       label: 'Scan and Link Device',
@@ -209,7 +215,7 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
       },
       keepOpenOnClick: true,
     },
-    {
+      {
       id: PROFILE_MENU_ITEM_IDS.LINKED_DEVICES,
       icon: <LinkIcon />,
       label: 'Linked Devices',
@@ -218,7 +224,9 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
       onClick: () => setShowLinkedDevices(true),
       keepOpenOnClick: true,
     },
-    {
+    ];
+
+    items.push({
       id: PROFILE_MENU_ITEM_IDS.TOGGLE_THEME,
       icon: theme === 'dark' ? <SunIcon /> : <MoonIcon />,
       label: 'Toggle Theme',
@@ -226,8 +234,9 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
       disabled: false,
       onClick: handleToggleTheme,
       keepOpenOnClick: true,
-    },
-    {
+    });
+
+    items.push({
       id: PROFILE_MENU_ITEM_IDS.TRANSACTION_SETTINGS,
       icon: <SlidersIcon />,
       label: 'Transaction Settings',
@@ -235,8 +244,9 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
       disabled: !loginState.isLoggedIn,
       onClick: () => setTransactionSettingsOpen((v) => !v),
       keepOpenOnClick: true,
-    },
-  ], [tatchi, nearAccountId, loginState.isLoggedIn, theme, handleToggleTheme]);
+    });
+    return items;
+  }, [tatchi, nearAccountId, loginState.isLoggedIn, theme, handleToggleTheme]);
 
   const highlightedMenuItemId = highlightedMenuItem?.id;
   const highlightShouldFocus = highlightedMenuItem?.focus ?? true;
@@ -340,8 +350,9 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
 };
 
 export const AccountMenuButton: React.FC<AccountMenuButtonProps> = (props) => {
+  const { theme } = useTheme();
   return (
-    <Theme>
+    <Theme theme={theme}>
       <AccountMenuButtonInner {...props} />
     </Theme>
   );

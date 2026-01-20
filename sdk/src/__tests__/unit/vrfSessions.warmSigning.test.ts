@@ -26,7 +26,6 @@ test.describe('VRF sessions – warm signing', () => {
             uiMode: 'skip',
             behavior: 'requireClick',
             autoProceedDelay: 0,
-            theme: 'dark',
           }),
         },
         nonceManager: {

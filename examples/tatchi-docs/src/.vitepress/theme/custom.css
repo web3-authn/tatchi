@@ -163,6 +163,19 @@ body::-webkit-scrollbar {
   display: flex;
 }
 
+/* Ensure sidebar layouts inherit themed background colors. */
+.VPContent.has-sidebar,
+.VPContent .has-sidebar {
+  background-color: var(--vp-c-bg);
+}
+
+@media (min-width: 960px) {
+  .VPNavBar.has-sidebar.top,
+  .VPNavBar.has-sidebar {
+    background-color: var(--vp-c-bg);
+  }
+}
+
 /* Global docs footer styling (component in layout-bottom slot) */
 .global-footer { font-family: var(--fe-font-sans); }
 

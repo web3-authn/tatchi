@@ -259,7 +259,6 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
           uiMode: 'skip',
           behavior: 'autoProceed',
           autoProceedDelay: 0,
-          theme: 'dark',
         };
 
         (window as any).__registrationEvents = [];
@@ -514,7 +513,6 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
           uiMode: 'skip',
           behavior: 'autoProceed',
           autoProceedDelay: 0,
-          theme: 'dark',
         };
 
         (window as any).__registrationEvents = [];

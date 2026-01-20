@@ -440,7 +440,6 @@ test.describe('threshold-ed25519 (FROST) signing', () => {
             uiMode: 'skip',
             behavior: 'autoProceed',
             autoProceedDelay: 0,
-            theme: 'dark',
           };
 
           const reg = await pm.registerPasskeyInternal(

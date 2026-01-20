@@ -20,8 +20,9 @@ export function useTatchiWithSdkFlow(args: {
   beginSdkFlow: (kind: 'login' | 'register' | 'sync', accountId?: string) => number;
   appendSdkEventMessage: (seq: number, message: string) => void;
   endSdkFlow: (kind: 'login' | 'register' | 'sync', seq: number, status: 'success' | 'error', error?: string) => void;
+  hostSetTheme?: (theme: 'light' | 'dark') => void;
 }): TatchiPasskey {
-  const { tatchi, beginSdkFlow, appendSdkEventMessage, endSdkFlow } = args;
+  const { tatchi, beginSdkFlow, appendSdkEventMessage, endSdkFlow, hostSetTheme } = args;
 
   return useMemo(() => {
     /**
@@ -34,6 +35,7 @@ export function useTatchiWithSdkFlow(args: {
     type LoginAndCreateSessionFn = TatchiPasskey['loginAndCreateSession'];
     type RegisterPasskeyFn = TatchiPasskey['registerPasskey'];
     type SyncAccountFn = TatchiPasskey['syncAccount'];
+    type SetThemeFn = TatchiPasskey['setTheme'];
 
     const loginAndCreateSessionWithSdkFlow: LoginAndCreateSessionFn = async (
       nearAccountId,
@@ -124,6 +126,13 @@ export function useTatchiWithSdkFlow(args: {
       });
     };
 
+    const setThemeWithHost: SetThemeFn = (next) => {
+      try {
+        hostSetTheme?.(next);
+      } catch {}
+      tatchi.setTheme(next);
+    };
+
     return new Proxy(tatchi, {
       get(target, prop, receiver) {
         if (prop === 'loginAndCreateSession') {
@@ -138,13 +147,17 @@ export function useTatchiWithSdkFlow(args: {
           return syncAccountWithSdkFlow;
         }
 
+        if (prop === 'setTheme') {
+          return setThemeWithHost;
+        }
+
         const value: unknown = Reflect.get(target as object, prop, receiver);
         // For non-wrapped methods, bind to preserve `this` on the class instance.
         if (typeof value === 'function') return (value as (...args: unknown[]) => unknown).bind(target);
         return value;
       },
     });
-  }, [appendSdkEventMessage, beginSdkFlow, endSdkFlow, tatchi]);
+  }, [appendSdkEventMessage, beginSdkFlow, endSdkFlow, hostSetTheme, tatchi]);
 }
 
 export default useTatchiWithSdkFlow;

@@ -85,7 +85,7 @@ export async function registerPasskey(
 
     const confirmVariant = args.confirmVariant ?? 'skip';
     const overrides = (utils.confirmOverrides ?? {}) as Record<string, any>;
-    const defaultConfirm = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' };
+    const defaultConfirm = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0 };
     const confirmConfig = overrides[confirmVariant] ?? overrides.skip ?? defaultConfirm;
 
     try {

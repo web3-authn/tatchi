@@ -225,7 +225,6 @@ async function main(): Promise<void> {
           nearRpcUrl: 'https://rpc.invalid.local',
           nearNetwork: 'testnet',
           contractId: 'w3a-v1.testnet',
-          initialTheme: 'dark',
           iframeWallet: effectiveRpIdOverride ? { rpIdOverride: effectiveRpIdOverride } : undefined,
           relayer: {
             url: 'https://rpc.invalid.local',

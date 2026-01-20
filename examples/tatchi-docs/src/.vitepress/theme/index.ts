@@ -121,14 +121,22 @@ function safeLocalStorageSet(key: string, value: string): void {
 function applyAppearance(mode: 'light' | 'dark'): void {
   const html = document.documentElement
   html.classList.toggle('dark', mode === 'dark')
-  html.setAttribute('data-w3a-theme', mode)
+  // Keep `data-w3a-theme` in sync for global CSS even when the React docs app
+  // (wallet-app) is not mounted yet.
+  try {
+    const current = html.getAttribute('data-w3a-theme')
+    if (current !== mode) html.setAttribute('data-w3a-theme', mode)
+  } catch {}
   safeLocalStorageSet('vitepress-theme-appearance', mode)
   window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: mode }))
 }
 
 function toggleAppearance(): void {
   const isDark = document.documentElement.classList.contains('dark')
-  applyAppearance(isDark ? 'light' : 'dark')
+  const next = isDark ? 'light' : 'dark'
+  applyAppearance(next)
+  // Logged out: VitePress is the external source of truth; ask the SDK to match.
+  try { window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:set-theme', { detail: next })) } catch {}
 }
 
 function isSdkLoggedIn(): boolean {
@@ -136,7 +144,7 @@ function isSdkLoggedIn(): boolean {
 }
 
 function dispatchSdkToggle(): void {
-  const currentSdkMode = document.body.getAttribute('data-w3a-theme') === 'dark' ? 'dark' : 'light'
+  const currentSdkMode = document.documentElement.getAttribute('data-w3a-theme') === 'dark' ? 'dark' : 'light'
   const next = currentSdkMode === 'dark' ? 'light' : 'dark'
   window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:set-theme', { detail: next }))
 }
@@ -307,16 +315,34 @@ const theme: Theme = {
 
     setupThemeToggleBridge()
 
-    // Keep data-w3a-theme on <html> in sync with VitePress root class
-    const syncDataTheme = () => {
-      const mode: 'light' | 'dark' = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-      document.documentElement.setAttribute('data-w3a-theme', mode)
+    // Keep VitePress appearance (html.dark + localStorage) aligned with the SDK theme attribute.
+    // Source of truth for integration is `document.documentElement[data-w3a-theme]`.
+    const setupSdkThemeObserver = (): (() => void) => {
+      const root = document.documentElement
+      const read = (): 'light' | 'dark' | null => {
+        try {
+          const v = root.getAttribute('data-w3a-theme')
+          return v === 'light' || v === 'dark' ? v : null
+        } catch {
+          return null
+        }
+      }
+      let last: 'light' | 'dark' | null = null
+      const sync = () => {
+        const mode = read()
+        if (!mode) return
+        if (mode === last) return
+        last = mode
+        applyAppearance(mode)
+      }
+      // Seed on attach so first paint matches controller if wallet-app already ran
+      sync()
+      const mo = new MutationObserver(() => sync())
+      mo.observe(root, { attributes: true, attributeFilter: ['data-w3a-theme'] })
+      return () => { mo.disconnect() }
     }
-    // Initial sync
-    syncDataTheme()
-    // React to class changes from VitePress UI
-    const moTheme = new MutationObserver(syncDataTheme)
-    moTheme.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+
+    const detachSdkThemeObserver = setupSdkThemeObserver()
 
     // Hide VitePress navbar controls on the homepage only
     function isHomePath(): boolean {
@@ -399,6 +425,7 @@ const theme: Theme = {
         window.removeEventListener('w3a:login-state', applyAppearanceToggleVisibility as any)
         window.removeEventListener('popstate', applyHomepageNavbarVisibility)
         window.removeEventListener('hashchange', applyHomepageNavbarVisibility)
+        try { detachSdkThemeObserver?.() } catch {}
         mo.disconnect()
         mo2.disconnect()
       })

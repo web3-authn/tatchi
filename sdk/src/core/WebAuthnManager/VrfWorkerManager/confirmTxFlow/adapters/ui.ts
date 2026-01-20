@@ -5,6 +5,7 @@ import { SecureConfirmationType } from '../types';
 import type { VRFChallenge } from '../../../../types';
 import { awaitConfirmUIDecision, mountConfirmUI, type ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
 import { getNearAccountId, getSignTransactionPayload } from './requestHelpers';
+import type { ThemeName } from '../../../../types/tatchi';
 
 export function closeModalSafely(confirmed: boolean, handle?: ConfirmUIHandle) {
   handle?.close?.(confirmed);
@@ -16,12 +17,14 @@ export async function renderConfirmUI({
   confirmationConfig,
   transactionSummary,
   vrfChallenge,
+  theme,
 }: {
   ctx: VrfWorkerManagerContext,
   request: SecureConfirmRequest,
   confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,
   vrfChallenge?: Partial<VRFChallenge>;
+  theme: ThemeName;
 }): Promise<{ confirmed: boolean; confirmHandle?: ConfirmUIHandle; error?: string }> {
   const nearAccountIdForUi = getNearAccountId(request);
 
@@ -38,7 +41,7 @@ export async function renderConfirmUI({
         txSigningRequests,
         vrfChallenge,
         loading: true,
-        theme: confirmationConfig.theme,
+        theme,
         uiMode: mode,
         nearAccountIdOverride: nearAccountIdForUi,
       });
@@ -52,7 +55,7 @@ export async function renderConfirmUI({
       summary: transactionSummary,
       txSigningRequests,
       vrfChallenge,
-      theme: confirmationConfig.theme,
+      theme,
       uiMode: mode,
       nearAccountIdOverride: nearAccountIdForUi,
     });
@@ -76,7 +79,7 @@ export async function renderConfirmUI({
         txSigningRequests,
         vrfChallenge,
         loading: true,
-        theme: confirmationConfig.theme,
+        theme,
         uiMode: 'modal',
         nearAccountIdOverride: nearAccountIdForUi,
       });
@@ -84,4 +87,3 @@ export async function renderConfirmUI({
     }
   }
 }
-

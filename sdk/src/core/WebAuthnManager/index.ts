@@ -24,7 +24,7 @@ import {
 } from '../types/vrf-worker';
 import { ActionType, type ActionArgsWasm, type TransactionInputWasm } from '../types/actions';
 import type { RegistrationEventStep3, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/sdkSentEvents';
-import type { SignTransactionResult, TatchiConfigs } from '../types/tatchi';
+import type { SignTransactionResult, TatchiConfigs, ThemeName } from '../types/tatchi';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import type { DelegateActionInput } from '../types/delegate';
@@ -76,6 +76,7 @@ export class WebAuthnManager {
   private readonly nearClient: NearClient;
   private readonly nonceManager: NonceManager;
   private workerBaseOrigin: string = '';
+  private theme: ThemeName = 'dark';
   // VRF-owned signing session id per account (warm session reuse).
   private activeSigningSessionIds: Map<string, string> = new Map();
 
@@ -90,8 +91,6 @@ export class WebAuthnManager {
       true,
     );
     this.userPreferencesManager = UserPreferencesInstance;
-    // Apply integrator-provided default UI theme (in-memory only; user preferences may override later).
-    this.userPreferencesManager.configureWalletTheme?.(tatchiPasskeyConfigs.initialTheme);
     // Apply integrator-provided default signer mode (in-memory only; user preferences may override later).
     this.userPreferencesManager.configureDefaultSignerMode?.(tatchiPasskeyConfigs.signerMode);
     this.nonceManager = NonceManagerInstance;
@@ -112,6 +111,7 @@ export class WebAuthnManager {
         nonceManager: this.nonceManager,
         rpIdOverride: this.touchIdPrompt.getRpId(),
         nearExplorerUrl: tatchiPasskeyConfigs.nearExplorerUrl,
+        getTheme: () => this.theme,
       }
     );
     this.signerWorkerManager = new SignerWorkerManager(
@@ -123,6 +123,7 @@ export class WebAuthnManager {
       tatchiPasskeyConfigs.iframeWallet?.rpIdOverride,
       true,
       tatchiPasskeyConfigs.nearExplorerUrl,
+      () => this.theme,
     );
     // VRF worker initializes on-demand with proper error propagation
 
@@ -302,6 +303,15 @@ export class WebAuthnManager {
       contractId: this.tatchiPasskeyConfigs.contractId,
       nearRpcUrl: this.tatchiPasskeyConfigs.nearRpcUrl,
     });
+  }
+
+  setTheme(next: ThemeName): void {
+    if (next !== 'light' && next !== 'dark') return;
+    this.theme = next;
+  }
+
+  getTheme(): ThemeName {
+    return this.theme;
   }
 
   /**
@@ -1425,6 +1435,7 @@ export class WebAuthnManager {
     nearAccountId: AccountId,
     options?: { variant?: 'drawer' | 'modal', theme?: 'dark' | 'light' }
   ): Promise<void> {
+    const resolvedTheme = options?.theme ?? this.theme;
     await this.withSigningSession({
       prefix: 'export-session', handler: async (sessionId) => {
         // Phase 1: collect PRF via LocalOnly(DECRYPT_PRIVATE_KEY_WITH_PRF) inside VRF worker
@@ -1436,7 +1447,7 @@ export class WebAuthnManager {
         return this.signerWorkerManager.exportNearKeypairUi({
           nearAccountId,
           variant: options?.variant,
-          theme: options?.theme,
+          theme: resolvedTheme,
           sessionId,
         });
       }

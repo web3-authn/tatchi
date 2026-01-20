@@ -4,6 +4,7 @@ import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
 import type { ClientAuthenticatorData } from '../../../../IndexedDBManager';
 import type { SessionVrfWorkerManager } from '../../';
 import type { KnownSecureConfirmRequest, SerializableCredential, TransactionSummary } from '../types';
+import type { ThemeName } from '../../../../types/tatchi';
 
 export type NearContextResult = {
   transactionContext: TransactionContext | null;
@@ -50,6 +51,7 @@ export interface ConfirmUiRenderer {
     confirmationConfig: ConfirmationConfig;
     transactionSummary: TransactionSummary;
     vrfChallenge?: Partial<VRFChallenge>;
+    theme: ThemeName;
   }): Promise<{ confirmed: boolean; confirmHandle?: ConfirmUIHandle; error?: string }>;
 
   closeModalSafely(confirmed: boolean, handle?: ConfirmUIHandle): void;

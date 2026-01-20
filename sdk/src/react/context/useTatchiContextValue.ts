@@ -12,6 +12,7 @@ import type {
   RegistrationResult,
   TatchiContextType,
 } from '../types';
+import type { ThemeName } from '@/core/types/tatchi';
 import { useSDKFlowRuntime } from './useSDKFlowRuntime';
 import { useTatchiWithSdkFlow } from './useTatchiWithSdkFlow';
 
@@ -24,6 +25,7 @@ export function useTatchiContextValue(args: {
   accountInputState: AccountInputState;
   setInputUsername: TatchiContextType['setInputUsername'];
   refreshAccountData: TatchiContextType['refreshAccountData'];
+  hostSetTheme?: (theme: ThemeName) => void;
 }): TatchiContextType {
   const {
     tatchi,
@@ -34,10 +36,17 @@ export function useTatchiContextValue(args: {
     accountInputState,
     setInputUsername,
     refreshAccountData,
+    hostSetTheme,
   } = args;
 
   const { sdkFlow, beginSdkFlow, appendSdkEventMessage, endSdkFlow } = useSDKFlowRuntime();
-  const tatchiWithSdkFlow = useTatchiWithSdkFlow({ tatchi, beginSdkFlow, appendSdkEventMessage, endSdkFlow });
+  const tatchiWithSdkFlow = useTatchiWithSdkFlow({
+    tatchi,
+    beginSdkFlow,
+    appendSdkEventMessage,
+    endSdkFlow,
+    hostSetTheme,
+  });
 
   const logout: TatchiContextType['logout'] = useCallback(() => {
     try {
@@ -143,10 +152,6 @@ export function useTatchiContextValue(args: {
     tatchi.setConfirmationConfig(config);
   }, [tatchi]);
 
-  const setUserTheme: TatchiContextType['setUserTheme'] = useCallback((theme) => {
-    tatchi.setUserTheme(theme);
-  }, [tatchi]);
-
   const getConfirmationConfig: TatchiContextType['getConfirmationConfig'] = useCallback(() => {
     return tatchi.getConfirmationConfig();
   }, [tatchi]);
@@ -176,9 +181,11 @@ export function useTatchiContextValue(args: {
     refreshAccountData,
     setConfirmBehavior,
     setConfirmationConfig,
-    setUserTheme,
     getConfirmationConfig,
     viewAccessKeyList,
+    themeCapabilities: {
+      canSetHostTheme: typeof hostSetTheme === 'function',
+    },
   }), [
     tatchiWithSdkFlow,
     sdkFlow,
@@ -200,8 +207,8 @@ export function useTatchiContextValue(args: {
     refreshAccountData,
     setConfirmBehavior,
     setConfirmationConfig,
-    setUserTheme,
     getConfirmationConfig,
     viewAccessKeyList,
+    hostSetTheme,
   ]);
 }

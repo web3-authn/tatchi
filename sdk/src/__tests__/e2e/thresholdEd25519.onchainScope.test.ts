@@ -109,7 +109,7 @@ test.describe('threshold-ed25519 on-chain scope', () => {
             iframeWallet: { walletOrigin: '' },
           });
 
-          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' };
+          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0};
 
           const reg = await pm.registerPasskeyInternal(accountId, { signerMode: { mode: 'local-signer' } }, confirmConfig as any);
           if (!reg?.success) throw new Error(reg?.error || 'registration failed');

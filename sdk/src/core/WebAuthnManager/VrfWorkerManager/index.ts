@@ -33,6 +33,7 @@ import {
 import type { TransactionInputWasm } from '../../types/actions';
 import type { RpcCallPayload, ConfirmationConfig } from '../../types/signer-worker';
 import type { TransactionContext } from '../../types/rpc';
+import type { ThemeName } from '../../types/tatchi';
 import type { RegistrationCredentialConfirmationPayload } from '../SignerWorkerManager/handlers/validation';
 import type { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types/webauthn';
 import { handlePromptUserConfirmInJsMainThread } from './confirmTxFlow';
@@ -67,6 +68,7 @@ export interface VrfWorkerManagerContext {
   indexedDB: UnifiedIndexedDBManager;
   userPreferencesManager: UserPreferencesManager;
   nonceManager: NonceManager;
+  getTheme?: () => ThemeName;
   rpIdOverride?: string;
   nearExplorerUrl?: string;
   vrfWorkerManager?: SessionVrfWorkerManager;

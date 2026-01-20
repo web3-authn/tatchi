@@ -25,9 +25,7 @@ test.describe('confirmTxFlow – success paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'skip',
             behavior: 'autoProceed',
-            autoProceedDelay: 0,
-            theme: 'dark'
-          })
+            autoProceedDelay: 0})
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
@@ -194,7 +192,6 @@ test.describe('confirmTxFlow – success paths', () => {
           uiMode: 'drawer',
           behavior: 'requireClick',
           autoProceedDelay: 0,
-          theme: 'dark',
         };
 
         const msgs: any[] = [];
@@ -247,9 +244,7 @@ test.describe('confirmTxFlow – success paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'skip',
             behavior: 'autoProceed',
-            autoProceedDelay: 0,
-            theme: 'dark'
-          })
+            autoProceedDelay: 0})
         },
         nonceManager: {
           async getNonceBlockHashAndHeight(_nc: any, _opts?: any) {
@@ -363,9 +358,7 @@ test.describe('confirmTxFlow – success paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'skip',
             behavior: 'autoProceed',
-            autoProceedDelay: 0,
-            theme: 'dark'
-          })
+            autoProceedDelay: 0})
         },
         nonceManager: {
           async getNonceBlockHashAndHeight(_nc: any, _opts?: any) {
@@ -524,9 +517,7 @@ test.describe('confirmTxFlow – success paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'skip',
             behavior: 'autoProceed',
-            autoProceedDelay: 0,
-            theme: 'dark'
-          })
+            autoProceedDelay: 0})
         },
         nonceManager: {
           async getNonceBlockHashAndHeight(_nc: any, _opts?: any) {

@@ -27,9 +27,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'modal',
             behavior: 'requireClick',
-            autoProceedDelay: 0,
-            theme: 'dark'
-          }),
+            autoProceedDelay: 0}),
         },
         nonceManager: {
           async getNonceBlockHashAndHeight() {
@@ -129,9 +127,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'modal',
             behavior: 'requireClick',
-            autoProceedDelay: 0,
-            theme: 'light'
-          }),
+            autoProceedDelay: 0}),
         },
         nonceManager: {
           async getNonceBlockHashAndHeight() {
@@ -232,9 +228,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'modal',
             behavior: 'requireClick',
-            autoProceedDelay: 0,
-            theme: 'dark'
-          }),
+            autoProceedDelay: 0}),
         },
         nonceManager: {
           async getNonceBlockHashAndHeight() {
@@ -324,9 +318,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'drawer',
             behavior: 'requireClick',
-            autoProceedDelay: 0,
-            theme: 'dark'
-          }),
+            autoProceedDelay: 0}),
         },
         nonceManager: {
           getNonceBlockHashAndHeight: async () => ({
@@ -439,7 +431,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
       const worker = { postMessage: (msg: any) => workerMessages.push(msg) } as unknown as Worker;
 
       await handleLocalOnlyFlow(ctx, request, worker, {
-        confirmationConfig: { uiMode: 'skip', behavior: 'requireClick', autoProceedDelay: 0, theme: 'dark' },
+        confirmationConfig: { uiMode: 'skip', behavior: 'requireClick', autoProceedDelay: 0},
         transactionSummary: {},
       });
 
@@ -465,9 +457,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'skip',
             behavior: 'autoProceed',
-            autoProceedDelay: 0,
-            theme: 'dark'
-          }),
+            autoProceedDelay: 0}),
         },
         nonceManager: {
           async getNonceBlockHashAndHeight() {
@@ -569,9 +559,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'skip',
             behavior: 'autoProceed',
-            autoProceedDelay: 0,
-            theme: 'light'
-          }),
+            autoProceedDelay: 0}),
         },
         nonceManager: {
           async getNonceBlockHashAndHeight() {
@@ -657,9 +645,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
           getConfirmationConfig: () => ({
             uiMode: 'modal',
             behavior: 'requireClick',
-            autoProceedDelay: 0,
-            theme: 'dark'
-          }),
+            autoProceedDelay: 0}),
         },
         nonceManager: {
           async getNonceBlockHashAndHeight() {

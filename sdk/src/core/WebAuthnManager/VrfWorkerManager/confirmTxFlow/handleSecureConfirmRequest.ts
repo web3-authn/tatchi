@@ -23,6 +23,8 @@ import type {
   RegistrationSecureConfirmRequest,
   SigningSecureConfirmRequest,
 } from './types';
+import { coerceThemeName } from '../../../../utils/theme';
+import type { ThemeName } from '../../../types/tatchi';
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
@@ -42,12 +44,14 @@ export async function handlePromptUserConfirmInJsMainThread(
   let request: SecureConfirmRequest;
   let confirmationConfig: ConfirmationConfig;
   let transactionSummary: TransactionSummary;
+  let theme: ThemeName;
 
   try {
 
     request = validateSecureConfirmRequest(message.data);
     assertNoForbiddenMainThreadSigningSecrets(request);
     confirmationConfig = determineConfirmationConfig(ctx, request);
+    theme = coerceThemeName(ctx.getTheme?.()) ?? 'dark';
 
     const parsedSummary = parseTransactionSummary(request.summary);
     const intentDigest = getIntentDigest(request);
@@ -89,7 +93,7 @@ export async function handlePromptUserConfirmInJsMainThread(
   }
 
   try {
-    await handler({ ctx, request, worker, confirmationConfig, transactionSummary });
+    await handler({ ctx, request, worker, confirmationConfig, transactionSummary, theme });
   } catch (e: unknown) {
     console.error('[SecureConfirm][Host] handler failed', e);
     // Best-effort: always respond to the worker so VRF-side requests don't hang indefinitely.
@@ -108,6 +112,7 @@ type HandlerArgs = {
   worker: Worker;
   confirmationConfig: ConfirmationConfig;
   transactionSummary: TransactionSummary;
+  theme: ThemeName;
 };
 
 type Handler = (args: HandlerArgs) => Promise<void>;
@@ -122,28 +127,28 @@ async function importFlow<T>(label: string, loader: () => Promise<T>): Promise<T
 }
 
 const HANDLERS: Partial<Record<SecureConfirmationType, Handler>> = {
-  [SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF]: async ({ ctx, request, worker, confirmationConfig, transactionSummary }) => {
+  [SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF]: async ({ ctx, request, worker, confirmationConfig, transactionSummary, theme }) => {
     const { handleLocalOnlyFlow } = await importFlow('localOnly', () => import('./flows/localOnly'));
-    await handleLocalOnlyFlow(ctx, request as LocalOnlySecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
+    await handleLocalOnlyFlow(ctx, request as LocalOnlySecureConfirmRequest, worker, { confirmationConfig, transactionSummary, theme });
   },
-  [SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI]: async ({ ctx, request, worker, confirmationConfig, transactionSummary }) => {
+  [SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI]: async ({ ctx, request, worker, confirmationConfig, transactionSummary, theme }) => {
     const { handleLocalOnlyFlow } = await importFlow('localOnly', () => import('./flows/localOnly'));
-    await handleLocalOnlyFlow(ctx, request as LocalOnlySecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
+    await handleLocalOnlyFlow(ctx, request as LocalOnlySecureConfirmRequest, worker, { confirmationConfig, transactionSummary, theme });
   },
-  [SecureConfirmationType.REGISTER_ACCOUNT]: async ({ ctx, request, worker, confirmationConfig, transactionSummary }) => {
+  [SecureConfirmationType.REGISTER_ACCOUNT]: async ({ ctx, request, worker, confirmationConfig, transactionSummary, theme }) => {
     const { handleRegistrationFlow } = await importFlow('registration', () => import('./flows/registration'));
-    await handleRegistrationFlow(ctx, request as RegistrationSecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
+    await handleRegistrationFlow(ctx, request as RegistrationSecureConfirmRequest, worker, { confirmationConfig, transactionSummary, theme });
   },
-  [SecureConfirmationType.LINK_DEVICE]: async ({ ctx, request, worker, confirmationConfig, transactionSummary }) => {
+  [SecureConfirmationType.LINK_DEVICE]: async ({ ctx, request, worker, confirmationConfig, transactionSummary, theme }) => {
     const { handleRegistrationFlow } = await importFlow('registration', () => import('./flows/registration'));
-    await handleRegistrationFlow(ctx, request as RegistrationSecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
+    await handleRegistrationFlow(ctx, request as RegistrationSecureConfirmRequest, worker, { confirmationConfig, transactionSummary, theme });
   },
-  [SecureConfirmationType.SIGN_TRANSACTION]: async ({ ctx, request, worker, confirmationConfig, transactionSummary }) => {
+  [SecureConfirmationType.SIGN_TRANSACTION]: async ({ ctx, request, worker, confirmationConfig, transactionSummary, theme }) => {
     const { handleTransactionSigningFlow } = await importFlow('transactions', () => import('./flows/transactions'));
-    await handleTransactionSigningFlow(ctx, request as SigningSecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
+    await handleTransactionSigningFlow(ctx, request as SigningSecureConfirmRequest, worker, { confirmationConfig, transactionSummary, theme });
   },
-  [SecureConfirmationType.SIGN_NEP413_MESSAGE]: async ({ ctx, request, worker, confirmationConfig, transactionSummary }) => {
+  [SecureConfirmationType.SIGN_NEP413_MESSAGE]: async ({ ctx, request, worker, confirmationConfig, transactionSummary, theme }) => {
     const { handleTransactionSigningFlow } = await importFlow('transactions', () => import('./flows/transactions'));
-    await handleTransactionSigningFlow(ctx, request as SigningSecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
+    await handleTransactionSigningFlow(ctx, request as SigningSecureConfirmRequest, worker, { confirmationConfig, transactionSummary, theme });
   },
 };

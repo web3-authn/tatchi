@@ -1,7 +1,7 @@
 import React from 'react';
 import { TatchiContextProvider } from '.';
 import { Theme } from '../components/theme';
-import type { ThemeProps } from '../components/theme';
+import type { ThemeProps, ThemeName } from '../components/theme';
 import { usePreconnectWalletAssets } from '../hooks/usePreconnectWalletAssets';
 import { useWalletIframeZIndex } from '../hooks/useWalletIframeZIndex';
 import type { TatchiContextProviderProps } from '../types';
@@ -10,7 +10,10 @@ export interface TatchiPasskeyProviderProps {
   /** TatchiContextProvider configuration */
   config: TatchiContextProviderProps['config'];
   /** Theme props for the boundary (defaults to provider+scope) */
-  theme?: Omit<ThemeProps, 'children'>;
+  theme?: {
+    theme: ThemeName;
+    setTheme?: (theme: ThemeName) => void;
+  } & Omit<ThemeProps, 'children' | 'theme'>;
   /**
    * Optional z-index override for the wallet iframe overlay.
    * Sets the CSS variable --w3a-wallet-overlay-z on the document root.
@@ -48,9 +51,14 @@ export const TatchiPasskeyProvider: React.FC<TatchiPasskeyProviderProps> = ({
   // Optionally override the wallet iframe overlay z-index via CSS variable
   useWalletIframeZIndex(walletOverlayZIndex);
 
-  const themeProps: ThemeProps = { mode: 'provider+scope', ...(theme as any) };
+  const { theme: controlledTheme, setTheme, ...themeOverrides } = theme || ({} as any);
+  const themeProps: ThemeProps = {
+    mode: 'provider+scope',
+    theme: controlledTheme,
+    ...(themeOverrides as Omit<ThemeProps, 'children' | 'theme'>),
+  };
   return (
-    <TatchiContextProvider config={config} eager={eager}>
+    <TatchiContextProvider config={config} eager={eager} theme={controlledTheme ? { theme: controlledTheme, setTheme } : undefined}>
       <Theme {...themeProps}>{children}</Theme>
     </TatchiContextProvider>
   );

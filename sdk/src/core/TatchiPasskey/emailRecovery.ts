@@ -47,7 +47,6 @@ import {
 } from '../rpcCalls';
 import { ensureEd25519Prefix } from '../nearCrypto';
 import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
-import { persistInitialThemePreferenceFromWalletTheme } from './themePreference';
 
 export class EmailRecoveryFlow {
   private context: PasskeyManagerContext;
@@ -1005,9 +1004,6 @@ export class EmailRecoveryFlow {
 
   private async persistRecoveredUserData(rec: PendingEmailRecovery, accountId: AccountId): Promise<void> {
     const { webAuthnManager } = this.context;
-    const walletTheme = webAuthnManager.getUserPreferences().getUserTheme();
-    const hadUserRecordBefore = !!(await IndexedDBManager.clientDB.getUserByDevice(accountId, rec.deviceNumber).catch(() => null));
-
     const payload: StoreUserDataPayload = {
       nearAccountId: accountId,
       deviceNumber: rec.deviceNumber,
@@ -1025,13 +1021,6 @@ export class EmailRecoveryFlow {
     };
 
     await webAuthnManager.storeUserData(payload);
-    await persistInitialThemePreferenceFromWalletTheme({
-      nearAccountId: accountId,
-      deviceNumber: rec.deviceNumber,
-      walletTheme,
-      hadUserRecordBefore,
-      logTag: 'EmailRecoveryFlow',
-    });
   }
 
   /**

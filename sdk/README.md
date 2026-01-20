@@ -294,9 +294,17 @@ interface TatchiPasskeyConfig {
   // Optional relay server (for account creation & Shamir 3-pass)
   relayUrl?: string
 
-  // Optional theme customization
-  theme?: 'light' | 'dark' | 'auto'
 }
+```
+
+### Theme management
+
+- Read/write theme at runtime via `tatchi.theme` + `tatchi.setTheme(...)`:
+
+```ts
+// last write wins; v1 supports only 'light' | 'dark'
+tatchi.setTheme('dark')
+console.log(tatchi.theme) // 'dark'
 ```
 
 ### rpId Strategy

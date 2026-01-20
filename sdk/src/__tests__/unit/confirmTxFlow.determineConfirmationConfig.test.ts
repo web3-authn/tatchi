@@ -24,7 +24,6 @@ test.describe('determineConfirmationConfig', () => {
             uiMode: 'modal',
             behavior: 'requireClick',
             autoProceedDelay: 42,
-            theme: 'light'
           })
         }
       };
@@ -35,7 +34,6 @@ test.describe('determineConfirmationConfig', () => {
           uiMode: 'drawer',
           behavior: 'autoProceed',
           autoProceedDelay: 7,
-          theme: 'dark'
         }
       } as any;
 
@@ -47,11 +45,10 @@ test.describe('determineConfirmationConfig', () => {
       uiMode: 'drawer',
       behavior: 'autoProceed',
       autoProceedDelay: 7,
-      theme: 'dark'
     });
   });
 
-  test('decryptPrivateKeyWithPrf defaults to uiMode=skip and preserves theme', async ({ page }) => {
+  test('decryptPrivateKeyWithPrf defaults to uiMode=skip and preserves behavior', async ({ page }) => {
     const res = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.determine);
       const types = await import(paths.types);
@@ -63,7 +60,6 @@ test.describe('determineConfirmationConfig', () => {
             uiMode: 'modal',
             behavior: 'requireClick',
             autoProceedDelay: 0,
-            theme: 'light'
           })
         }
       };
@@ -75,10 +71,9 @@ test.describe('determineConfirmationConfig', () => {
 
     expect(res.cfg.uiMode).toBe('skip');
     expect(res.cfg.behavior).toBe('requireClick');
-    expect(res.cfg.theme).toBe('light');
   });
 
-  test('SHOW_SECURE_PRIVATE_KEY_UI inherits theme and uses modal/drawer UI', async ({ page }) => {
+  test('SHOW_SECURE_PRIVATE_KEY_UI uses modal/drawer UI', async ({ page }) => {
     const res = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.determine);
       const types = await import(paths.types);
@@ -90,7 +85,6 @@ test.describe('determineConfirmationConfig', () => {
             uiMode: 'modal',
             behavior: 'requireClick',
             autoProceedDelay: 0,
-            theme: 'dark'
           })
         }
       };
@@ -101,9 +95,8 @@ test.describe('determineConfirmationConfig', () => {
     }, { paths: IMPORT_PATHS });
 
     // The export viewer uses a full-screen modal/drawer; we only assert
-    // that it does not get forced to 'skip' and that it keeps the theme.
+    // that it does not get forced to 'skip'.
     expect(res.cfg.uiMode === 'modal' || res.cfg.uiMode === 'drawer').toBe(true);
-    expect(res.cfg.theme).toBe('dark');
   });
 
   test('in iframe + registration/link clamps to modal+requireClick when no override provided', async ({ page }) => {
@@ -153,7 +146,6 @@ test.describe('determineConfirmationConfig', () => {
               uiMode: 'drawer',
               behavior: 'autoProceed',
               autoProceedDelay: 5,
-              theme: 'dark'
             })
           }
         };
@@ -165,8 +157,8 @@ test.describe('determineConfirmationConfig', () => {
       }, { paths: IMPORT_PATHS });
     })();
 
-    // Should clamp to safe modal/requireClick, keeping theme
-    expect(result.cfg1).toEqual({ uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 5, theme: 'dark' });
-    expect(result.cfg2).toEqual({ uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 5, theme: 'dark' });
+    // Should clamp to safe modal/requireClick.
+    expect(result.cfg1).toEqual({ uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 5 });
+    expect(result.cfg2).toEqual({ uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 5 });
   });
 });

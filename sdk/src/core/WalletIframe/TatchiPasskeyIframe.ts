@@ -10,7 +10,7 @@
  * - Maintains API compatibility with the regular TatchiPasskey
  * - Handles hook callbacks (afterCall, onError, onEvent) locally
  * - Avoids app-origin IndexedDB persistence (no silent fallbacks)
- * - Manages theme preferences and user settings synchronization
+ * - Manages theme state and user settings synchronization
  * - Bridges progress events from iframe back to developer callbacks
  *
  * Architecture:
@@ -33,6 +33,7 @@ import type {
   RegistrationResult,
   SignDelegateActionResult,
   SignTransactionResult,
+  ThemeName,
   TatchiConfigs,
   TatchiConfigsInput,
 } from '../types/tatchi';
@@ -56,6 +57,7 @@ import { type ConfirmationConfig, type SignerMode, DEFAULT_CONFIRMATION_CONFIG }
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
 import type { SyncAccountResult, PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
+import { coerceThemeName } from '../../utils/theme';
 import type { WalletUIRegistry } from './host/iframe-lit-element-registry';
 import type { DelegateActionInput } from '../types/delegate';
 import { buildConfigsFromEnv } from '../defaultConfigs';
@@ -64,27 +66,15 @@ import { configureIndexedDB, type DerivedAddressRecord } from '../IndexedDBManag
 
 export class TatchiPasskeyIframe {
   readonly configs: TatchiConfigs;
+  theme: ThemeName;
   private router: WalletIframeRouter;
   private fallbackLocal: TatchiPasskey | null = null;
   private lastConfirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
-  private themeListeners: Set<(t: 'light' | 'dark') => void> = new Set();
   private prefsUnsubscribe: (() => void) | null = null;
 
   // Expose a userPreferences shim so API matches TatchiPasskey
   get userPreferences() {
     return {
-      onThemeChange: (cb: (t: 'light' | 'dark') => void) => {
-        this.themeListeners.add(cb);
-        // Immediately emit current value
-        cb(this.lastConfirmationConfig.theme);
-        return () => {
-          this.themeListeners.delete(cb);
-        };
-      },
-      getUserTheme: () => this.lastConfirmationConfig.theme,
-      setUserTheme: (t: 'light' | 'dark') => {
-        this.setUserTheme(t);
-      },
       setConfirmBehavior: (b: 'requireClick' | 'autoProceed') => { this.setConfirmBehavior(b); },
       setConfirmationConfig: (c: ConfirmationConfig) => { this.setConfirmationConfig(c); },
       getConfirmationConfig: () => this.getConfirmationConfig(),
@@ -116,6 +106,9 @@ export class TatchiPasskeyIframe {
       }
     }
 
+    this.theme = 'dark';
+    this.lastConfirmationConfig = { ...DEFAULT_CONFIRMATION_CONFIG } as ConfirmationConfig;
+
     this.router = new WalletIframeRouter({
       walletOrigin: parsedWalletOrigin.toString(),
       servicePath: this.configs.iframeWallet?.walletServicePath || '/wallet-service',
@@ -123,7 +116,6 @@ export class TatchiPasskeyIframe {
       // With 3_000ms, boot wait caps at ~750ms; improves sub‑second readiness in dev.
       connectTimeoutMs: 3_000,
       requestTimeoutMs: 60_000,
-      theme: this.configs.initialTheme,
       signerMode: this.configs.signerMode,
       nearRpcUrl: this.configs.nearRpcUrl,
       nearNetwork: this.configs.nearNetwork,
@@ -587,13 +579,17 @@ export class TatchiPasskeyIframe {
       .then(() => this.refreshConfirmationConfig())
       .catch(() => {});
   }
-  setConfirmationConfig(config: ConfirmationConfig): void {
-    void this.router.setConfirmationConfig(config)
+  setTheme(next: ThemeName): void {
+    const nextTheme = coerceThemeName(next);
+    if (!nextTheme) return;
+    if (this.theme === nextTheme) return;
+    this.theme = nextTheme;
+    void this.router.setTheme(nextTheme)
       .then(() => this.refreshConfirmationConfig())
       .catch(() => {});
   }
-  setUserTheme(theme: 'dark' | 'light'): void {
-    void this.router.setTheme(theme)
+  setConfirmationConfig(config: ConfirmationConfig): void {
+    void this.router.setConfirmationConfig(config)
       .then(() => this.refreshConfirmationConfig())
       .catch(() => {});
   }
@@ -756,21 +752,11 @@ export class TatchiPasskeyIframe {
     }
   }
 
-  private notifyTheme(t: 'light' | 'dark'): void {
-    for (const cb of Array.from(this.themeListeners)) {
-      try { cb(t); } catch {}
-    }
-  }
-
   private applyRemoteConfirmationConfig(cfg: ConfirmationConfig): void {
-    const prevTheme = this.lastConfirmationConfig.theme;
     this.lastConfirmationConfig = {
       ...DEFAULT_CONFIRMATION_CONFIG,
       ...(cfg || {}),
     } as ConfirmationConfig;
-    if (this.lastConfirmationConfig.theme !== prevTheme) {
-      this.notifyTheme(this.lastConfirmationConfig.theme);
-    }
   }
 
   private async refreshConfirmationConfig(): Promise<void> {

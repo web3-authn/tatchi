@@ -21,7 +21,6 @@ import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { buildThresholdEd25519Participants2pV1 } from '../../threshold/participants';
-import { persistInitialThemePreferenceFromWalletTheme } from './themePreference';
 import { checkNearAccountExistsBestEffort } from '../rpcCalls';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
@@ -78,11 +77,9 @@ export async function registerPasskeyInternal(
       message: 'Generating passkey credential...'
     });
 
-    const themeForFlow = webAuthnManager.getUserPreferences().getUserTheme();
     const confirmationConfig: Partial<ConfirmationConfig> = {
       uiMode: 'modal',
       behavior: 'requireClick', // cross‑origin safari requirement: must requireClick
-      theme: themeForFlow,
       ...(confirmationConfigOverride ?? options?.confirmationConfig ?? {}),
     };
 
@@ -253,8 +250,6 @@ export async function registerPasskeyInternal(
       message: 'Storing passkey wallet metadata...'
     });
 
-    const hadUserRecordBefore = !!(await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, 1).catch(() => null));
-
     await webAuthnManager.atomicStoreRegistrationData({
       nearAccountId,
       credential,
@@ -262,14 +257,6 @@ export async function registerPasskeyInternal(
       encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
       vrfPublicKey: deterministicVrfKeyResult.vrfPublicKey,
       serverEncryptedVrfKeypair: deterministicVrfKeyResult.serverEncryptedVrfKeypair,
-    });
-
-    await persistInitialThemePreferenceFromWalletTheme({
-      nearAccountId,
-      deviceNumber: 1,
-      walletTheme: themeForFlow,
-      hadUserRecordBefore,
-      logTag: 'Registration',
     });
 
     // Mark database as stored for rollback tracking

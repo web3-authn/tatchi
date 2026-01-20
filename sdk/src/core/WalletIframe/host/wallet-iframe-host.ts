@@ -67,7 +67,6 @@ let port: MessagePort | null = null;
 let walletConfigs: TatchiConfigsInput | null = null;
 let nearClient: MinimalNearClient | null = null;
 let tatchiPasskey: TatchiPasskey | null = null;
-let themeUnsubscribe: (() => void) | null = null;
 let prefsUnsubscribe: (() => void) | null = null;
 
 // Track request-level cancellations
@@ -94,6 +93,13 @@ function respondIfCancelled(requestId: string | undefined): boolean {
   return true;
 }
 
+function applyHostTheme(theme?: string): void {
+  if (theme !== 'light' && theme !== 'dark') return;
+  try {
+    document.documentElement.setAttribute('data-w3a-theme', theme);
+  } catch {}
+}
+
 function ensureTatchiPasskey(): void {
   if (!walletConfigs || !walletConfigs.nearRpcUrl) {
     throw new Error('Wallet service not configured. Call PM_SET_CONFIG first.');
@@ -112,19 +118,12 @@ function ensureTatchiPasskey(): void {
     tatchiPasskey = new TatchiPasskey(cfg, nearClient);
     // Warm critical resources (Signer/VRF workers, IndexedDB) on the wallet origin.
     // Non-blocking and safe to call without account context.
-    const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
-    if (pmAny?.warmCriticalResources) {
-      void pmAny.warmCriticalResources().catch(() => {});
-    }
-    // Bridge theme changes to the host document so embedded UIs can react via CSS
-    const up = tatchiPasskey.userPreferences;
-    // Set initial theme attribute
-    document.documentElement.setAttribute('data-w3a-theme', up.getUserTheme());
-    // Deduplicate subscription on reconfigurations
-    themeUnsubscribe?.();
-    themeUnsubscribe = up.onThemeChange((t) => {
-      document.documentElement.setAttribute('data-w3a-theme', t);
-    });
+	    const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
+	  if (pmAny?.warmCriticalResources) {
+	    void pmAny.warmCriticalResources().catch(() => {});
+	  }
+    applyHostTheme(tatchiPasskey.theme);
+	  const up = tatchiPasskey.userPreferences;
 
     // Bridge wallet-host preferences to the parent app so app UI can mirror wallet host state.
     prefsUnsubscribe?.();
@@ -247,13 +246,12 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       authenticatorOptions: payload?.authenticatorOptions || walletConfigs?.authenticatorOptions,
       vrfWorkerConfigs: payload?.vrfWorkerConfigs || walletConfigs?.vrfWorkerConfigs,
       emailRecoveryContracts: payload?.emailRecoveryContracts || walletConfigs?.emailRecoveryContracts,
-      initialTheme: payload?.theme || walletConfigs?.initialTheme || walletConfigs?.walletTheme,
-      iframeWallet: sanitizeWalletHostConfigs({
-        ...(walletConfigs || ({} as TatchiConfigsInput)),
-        iframeWallet: {
-          ...(walletConfigs?.iframeWallet || {}),
-          rpIdOverride: payload?.rpIdOverride || walletConfigs?.iframeWallet?.rpIdOverride,
-        },
+	      iframeWallet: sanitizeWalletHostConfigs({
+	        ...(walletConfigs || ({} as TatchiConfigsInput)),
+	        iframeWallet: {
+	          ...(walletConfigs?.iframeWallet || {}),
+	          rpIdOverride: payload?.rpIdOverride || walletConfigs?.iframeWallet?.rpIdOverride,
+	        },
       }).iframeWallet,
     } as TatchiConfigsInput;
 

@@ -121,10 +121,9 @@ Applied in `determineConfirmationConfig` after merging override + prefs:
   - Desktop: honors user prefs or per‑call override; autoproceed allowed
   - Mobile/iOS: requireClick is enforced via clamp regardless of prefs to meet activation reliably
 
-### Preference Storage and Theme
+### Preference Storage
 
 - Preferences are per‑user and persisted in IndexedDB. `UserPreferencesManager` loads last user settings on startup and updates when the current user changes. See `sdk/src/core/WebAuthnManager/userPreferences.ts:126` and `sdk/src/core/WebAuthnManager/userPreferences.ts:209`.
-- Theme comes from the confirmation config and defaults to `dark` if unset. During registration, the theme is taken from the current in-memory confirmation config (seeded by `initialTheme` and/or a logged-out theme override) for a consistent look. See `sdk/src/core/TatchiPasskey/registration.ts:81`.
 
 ## VRF + NEAR Context
 

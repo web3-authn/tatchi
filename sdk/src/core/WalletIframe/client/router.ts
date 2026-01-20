@@ -136,7 +136,6 @@ export interface WalletIframeRouterOptions {
   servicePath?: string; // default '/wallet-service'
   connectTimeoutMs?: number; // default 8000
   requestTimeoutMs?: number; // default 20000
-  theme?: 'dark' | 'light';
   /** Default signer policy applied inside the wallet iframe when per-call options omit `signerMode`. */
   signerMode?: SignerMode;
   // Enable verbose client-side logging for debugging
@@ -417,7 +416,6 @@ export class WalletIframeRouter {
       await this.post({
         type: 'PM_SET_CONFIG',
         payload: {
-          theme: this.opts.theme,
           signerMode: this.opts.signerMode,
           nearRpcUrl: this.opts.nearRpcUrl,
           nearNetwork: this.opts.nearNetwork,

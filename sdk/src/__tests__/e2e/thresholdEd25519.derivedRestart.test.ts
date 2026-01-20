@@ -149,7 +149,7 @@ test.describe('threshold-ed25519 derived share mode restart', () => {
             iframeWallet: { walletOrigin: '' },
           });
 
-          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' };
+          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0};
 
           const reg = await pm.registerPasskeyInternal(accountId, { signerMode: { mode: 'local-signer' } }, confirmConfig as any);
           if (!reg?.success) return { ok: false, error: reg?.error || 'registration failed' };
@@ -249,7 +249,7 @@ test.describe('threshold-ed25519 derived share mode restart', () => {
             iframeWallet: { walletOrigin: '' },
           });
 
-          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' };
+          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0};
 
           // After relayer restart, we must re-login (fresh threshold session / VRF confirmation).
           const login = await pm.loginAndCreateSession(accountId);

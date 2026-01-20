@@ -24,7 +24,6 @@ import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice'
 import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents';
 import type { DeviceLinkingSSEEvent } from '../types/sdkSentEvents';
 import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
-import { persistInitialThemePreferenceFromWalletTheme } from './themePreference';
 
 // Lazy-load QRCode to keep it an optional peer and reduce baseline bundle size
 async function generateQRCodeDataURL(data: string): Promise<string> {
@@ -827,8 +826,6 @@ export class LinkDeviceFlow {
       this.session.deviceNumber = deviceNumber;
 
       console.debug("Storing device authenticator data with device number: ", deviceNumber);
-      const walletTheme = webAuthnManager.getUserPreferences().getUserTheme();
-      const hadUserRecordBefore = !!(await IndexedDBManager.clientDB.getUserByDevice(accountId, deviceNumber).catch(() => null));
       // Generate device-specific account ID for storage with deviceNumber
       await webAuthnManager.storeUserData({
         nearAccountId: accountId,
@@ -846,13 +843,6 @@ export class LinkDeviceFlow {
         serverEncryptedVrfKeypair: deterministicKeysResult.serverEncryptedVrfKeypair || undefined, // Device linking now uses Shamir 3-pass encryption
       });
 
-      await persistInitialThemePreferenceFromWalletTheme({
-        nearAccountId: accountId,
-        deviceNumber,
-        walletTheme,
-        hadUserRecordBefore,
-        logTag: 'LinkDeviceFlow',
-      });
 
       // Store authenticator with deviceNumber
       const attestationB64u = credential.response.attestationObject;

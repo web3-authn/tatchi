@@ -845,37 +845,6 @@ export class PasskeyClientDBManager {
   }
 
   /**
-   * Get user's theme preference from IndexedDB
-   * @param nearAccountId - The user's account ID
-   * @returns 'dark' | 'light' | null
-   */
-  async getTheme(nearAccountId: AccountId): Promise<'dark' | 'light' | null> {
-    const user = await this.getUser(nearAccountId);
-    return user?.preferences?.confirmationConfig.theme || null;
-  }
-
-  /**
-   * Set user's theme preference in IndexedDB
-   * @param nearAccountId - The user's account ID
-   * @param theme - The theme to set ('dark' | 'light')
-   */
-  async setTheme(nearAccountId: AccountId, theme: 'dark' | 'light'): Promise<void> {
-    const existingConfig = await this.getConfirmationConfig(nearAccountId);
-    const confirmationConfig = { ...existingConfig, theme };
-    await this.updatePreferences(nearAccountId, { confirmationConfig });
-  }
-
-  /**
-   * Get user's theme with fallback to 'dark'
-   * @param nearAccountId - The user's account ID
-   * @returns 'dark' | 'light'
-   */
-  async getThemeOrDefault(nearAccountId: AccountId): Promise<'dark' | 'light'> {
-    const theme = await this.getTheme(nearAccountId);
-    return theme || 'dark';
-  }
-
-  /**
    * Get user's signer mode preference from IndexedDB
    */
   async getSignerMode(nearAccountId: AccountId): Promise<SignerMode> {
@@ -890,18 +859,6 @@ export class PasskeyClientDBManager {
   async setSignerMode(nearAccountId: AccountId, signerMode: SignerMode | SignerMode['mode']): Promise<void> {
     const next = coerceSignerMode(signerMode, DEFAULT_SIGNING_MODE);
     await this.updatePreferences(nearAccountId, { signerMode: next });
-  }
-
-  /**
-   * Toggle between dark and light theme for a user
-   * @param nearAccountId - The user's account ID
-   * @returns The new theme that was set
-   */
-  async toggleTheme(nearAccountId: AccountId): Promise<'dark' | 'light'> {
-    const currentTheme = await this.getThemeOrDefault(nearAccountId);
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    await this.setTheme(nearAccountId, newTheme);
-    return newTheme;
   }
 
   // === DERIVED ADDRESS METHODS ===

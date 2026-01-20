@@ -45,8 +45,8 @@ export async function setupTestUtilities(page: Page, config: PasskeyTestConfig):
         // - LocalOnly decrypt flows (DECRYPT_PRIVATE_KEY_WITH_PRF) typically run with uiMode: 'skip'
         //   and return PRF only to the VRF pipeline.
         // - Registration/signing flows use modal UI and never return PRF/WrapKeySeed to the signer worker.
-        skip: { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' },
-        autoProceed: { uiMode: 'modal', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' },
+        skip: { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0 },
+        autoProceed: { uiMode: 'modal', behavior: 'autoProceed', autoProceedDelay: 0 },
       },
       webAuthnUtils,
       // VRF diagnostics helper (best-effort):

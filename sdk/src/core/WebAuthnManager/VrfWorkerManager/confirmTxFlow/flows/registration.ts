@@ -18,15 +18,16 @@ import { isSerializedRegistrationCredential, serializeRegistrationCredentialWith
 import { toError } from '../../../../../utils/errors';
 import { createConfirmSession } from '../adapters/session';
 import { createConfirmTxFlowAdapters } from '../adapters/createAdapters';
+import type { ThemeName } from '../../../../types/tatchi';
 
 export async function handleRegistrationFlow(
   ctx: VrfWorkerManagerContext,
   request: RegistrationSecureConfirmRequest,
   worker: Worker,
-  opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
+  opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary; theme: ThemeName },
 ): Promise<void> {
 
-  const { confirmationConfig, transactionSummary } = opts;
+  const { confirmationConfig, transactionSummary, theme } = opts;
   const adapters = createConfirmTxFlowAdapters(ctx);
   const session = createConfirmSession({
     adapters,
@@ -34,6 +35,7 @@ export async function handleRegistrationFlow(
     request,
     confirmationConfig,
     transactionSummary,
+    theme,
   });
   const nearAccountId = getNearAccountId(request);
 

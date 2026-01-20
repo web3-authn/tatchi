@@ -3,17 +3,15 @@ import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider';
 
 import { HomePage } from './pages/HomePage';
 import { ToasterThemed } from './components/ToasterThemed';
-import { useSyncVitepressTheme } from './hooks/useSyncVitepressTheme';
-import { useThemeBridge } from './hooks/useThemeBridge';
+import { useVitepressTheme } from './hooks/useVitepressTheme';
 import { useBodyLoginStateBridge } from './hooks/useBodyLoginStateBridge';
 import { useExportKeyCancelToast } from './hooks/useExportKeyCancelToast';
 
 export const App: React.FC = () => {
   const env = import.meta.env;
+  const { theme, setTheme } = useVitepressTheme();
 
   const VitepressStateSync: React.FC = () => {
-    useSyncVitepressTheme();
-    useThemeBridge();
     useBodyLoginStateBridge();
     useExportKeyCancelToast();
     return null;
@@ -21,12 +19,20 @@ export const App: React.FC = () => {
 
   return (
     <TatchiPasskeyProvider
+      theme={{ theme, setTheme }}
       config={{
-        // Prefer reliable NEAR RPCs with fallback. You can override via VITE_NEAR_RPC_URL.
+        iframeWallet: {
+          walletOrigin: env.VITE_WALLET_ORIGIN,
+          walletServicePath: env.VITE_WALLET_SERVICE_PATH,
+          rpIdOverride: env.VITE_RP_ID_BASE,
+          sdkBasePath: env.VITE_SDK_BASE_PATH,
+        },
+        // Demo default: use threshold signing, but fallback to local signer if unavailable
+        signerMode: {
+          mode: 'threshold-signer',
+          behavior: 'fallback'
+        },
         nearRpcUrl: env.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
-        // Demo default: exercise threshold signing when available.
-        // Uses fallback so the demo still works against relayers that haven't enabled threshold routes yet.
-        signerMode: { mode: 'threshold-signer', behavior: 'fallback' },
         relayer: {
           url: env.VITE_RELAYER_URL!,
         },
@@ -34,12 +40,6 @@ export const App: React.FC = () => {
           shamir3pass: {
             relayServerUrl: env.VITE_RELAYER_URL!,
           },
-        },
-        iframeWallet: {
-          walletOrigin: env.VITE_WALLET_ORIGIN,
-          walletServicePath: env.VITE_WALLET_SERVICE_PATH,
-          rpIdOverride: env.VITE_RP_ID_BASE,
-          sdkBasePath: env.VITE_SDK_BASE_PATH,
         },
       }}
     >

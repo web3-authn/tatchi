@@ -5,7 +5,7 @@ A single theme module powers the UI using a scoped token → CSS variable system
 ## Exports (single module)
 
 - `Theme` — consolidated component. By default provides theme context and renders a boundary that applies CSS variables and `data-w3a-theme`. `mode` controls behavior: `'provider+scope' | 'provider-only' | 'scope-only'`.
-- `useTheme` — reads from context and returns `{ theme, tokens, isDark, toggleTheme, setTheme }`.
+- `useTheme` — reads from context and returns `{ theme, tokens, isDark }`.
 
 Import from the barrel for clarity:
 
@@ -37,10 +37,10 @@ Examples in CSS:
 - Text: `color: var(--w3a-colors-textPrimary);`
 - Hover border: `border-color: var(--w3a-colors-borderHover);`
 
-## Controlled vs Uncontrolled
+## Controlled Only
 
-- Controlled: pass `theme="dark" | "light"` and handle `onThemeChange`.
-- Uncontrolled: omit `theme` and optionally set `defaultTheme`. The provider listens to `tatchi.userPreferences` and `prefers-color-scheme` for initial value and persists using localStorage when not available.
+- Pass `theme="dark" | "light"` and treat the host app as the source of truth.
+- `Theme` does not persist or auto-derive theme state; it only reflects the provided value.
 
 ## Token Overrides (per instance)
 

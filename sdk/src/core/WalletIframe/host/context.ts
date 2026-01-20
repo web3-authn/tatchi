@@ -14,7 +14,6 @@ export interface HostContext {
   walletConfigs: TatchiConfigsInput | null;
   nearClient: MinimalNearClient | null;
   tatchiPasskey: TatchiPasskey | TatchiPasskeyIframe | null;
-  themeUnsubscribe?: () => void;
   onWindowMessage?: (e: MessageEvent) => void;
 }
 
@@ -25,7 +24,6 @@ export function createHostContext(): HostContext {
     walletConfigs: null,
     nearClient: null,
     tatchiPasskey: null,
-    themeUnsubscribe: undefined,
     onWindowMessage: undefined,
   };
 }
@@ -58,17 +56,10 @@ export function updateThemeBridge(ctx: HostContext): void {
   try {
     const pm = ctx.tatchiPasskey;
     if (!pm) return;
-    const up = pm.userPreferences as {
-      getUserTheme(): 'dark' | 'light';
-      onThemeChange(cb: (t: 'dark' | 'light') => void): () => void;
-    };
-    // Set initial theme attribute
-    document.documentElement.setAttribute('data-w3a-theme', up.getUserTheme());
-    // Deduplicate subscription on reconfigurations
-    ctx.themeUnsubscribe?.();
-    ctx.themeUnsubscribe = up.onThemeChange((t) => {
-      try { document.documentElement.setAttribute('data-w3a-theme', t); } catch {}
-    });
+    const theme = (pm as any)?.theme as string | undefined;
+    if (theme === 'light' || theme === 'dark') {
+      document.documentElement.setAttribute('data-w3a-theme', theme);
+    }
   } catch {}
 }
 
@@ -84,7 +75,6 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
     authenticatorOptions: payload?.authenticatorOptions || prev.authenticatorOptions,
     vrfWorkerConfigs: payload?.vrfWorkerConfigs || prev.vrfWorkerConfigs,
     emailRecoveryContracts: payload?.emailRecoveryContracts || prev.emailRecoveryContracts,
-    initialTheme: payload?.theme || prev.initialTheme || prev.walletTheme,
     iframeWallet: {
       ...(prev.iframeWallet || {}),
       rpIdOverride: payload?.rpIdOverride || prev.iframeWallet?.rpIdOverride,

@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -25,6 +26,7 @@ const TatchiContext = createContext<TatchiContextType | undefined>(undefined);
 export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
   children,
   config,
+  theme,
   eager,
 }) => {
   const [loginState, setLoginState] = useState<LoginState>({
@@ -95,6 +97,11 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
     setLoginState,
   });
 
+  useEffect(() => {
+    if (!theme?.theme) return;
+    tatchi.setTheme(theme.theme);
+  }, [tatchi, theme?.theme]);
+
   const value = useTatchiContextValue({
     tatchi,
     loginState,
@@ -104,6 +111,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
     accountInputState,
     setInputUsername,
     refreshAccountData,
+    hostSetTheme: theme?.setTheme,
   });
 
   return <TatchiContext.Provider value={value}>{children}</TatchiContext.Provider>;

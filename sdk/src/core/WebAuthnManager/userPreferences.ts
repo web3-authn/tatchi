@@ -12,7 +12,6 @@ import { IndexedDBManager, type IndexedDBEvent } from '../IndexedDBManager';
 
 export class UserPreferencesManager {
 
-  private themeChangeListeners: Set<(theme: 'dark' | 'light') => void> = new Set();
   private confirmationConfigChangeListeners: Set<(config: ConfirmationConfig) => void> = new Set();
   private signerModeChangeListeners: Set<(mode: SignerMode) => void> = new Set();
 
@@ -20,40 +19,14 @@ export class UserPreferencesManager {
   private confirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
   private signerMode: SignerMode = DEFAULT_SIGNING_MODE;
 
-  // Optional app-provided default theme (e.g., configs.initialTheme). This is NOT a per-user preference.
-  private walletThemeOverride: 'dark' | 'light' | null = null;
   // Optional app-provided default signer mode (e.g., configs.signerMode). This is NOT a per-user preference.
   private signerModeOverride: SignerMode | null = null;
   // Wallet-iframe app-origin: delegate signerMode persistence to the wallet host.
   private walletIframeSignerModeWriter: ((signerMode: SignerMode) => Promise<void>) | null = null;
-  // Prevent multiple one-time environment syncs per session
-  private envThemeSyncedForSession = false;
 
   constructor() {
     // Subscribe to IndexedDB change events for automatic sync
     this.subscribeToIndexedDBChanges();
-  }
-
-  /**
-   * Apply an app-provided default theme (e.g., `configs.initialTheme`) without
-   * persisting it as a per-user preference in IndexedDB.
-   *
-   * This also disables the one-time environment theme sync so host appearance
-   * (e.g., VitePress `html.dark`) cannot override an explicit config.
-   */
-  configureWalletTheme(theme?: 'dark' | 'light'): void {
-    if (theme !== 'dark' && theme !== 'light') return;
-    this.walletThemeOverride = theme;
-    // If integrator explicitly configured a theme, do not auto-sync from environment.
-    this.envThemeSyncedForSession = true;
-    if (this.confirmationConfig.theme !== theme) {
-      this.confirmationConfig = {
-        ...this.confirmationConfig,
-        theme,
-      };
-      this.notifyConfirmationConfigChange(this.confirmationConfig);
-      this.notifyThemeChange(theme);
-    }
   }
 
   /**
@@ -79,16 +52,6 @@ export class UserPreferencesManager {
   }
 
   /**
-   * Register a callback for theme change events
-   */
-  onThemeChange(callback: (theme: 'dark' | 'light') => void): () => void {
-    this.themeChangeListeners.add(callback);
-    return () => {
-      this.themeChangeListeners.delete(callback);
-    };
-  }
-
-  /**
    * Register a callback for confirmation config changes.
    * Used to keep app UI in sync with the wallet host in wallet-iframe mode.
    */
@@ -109,22 +72,6 @@ export class UserPreferencesManager {
     };
   }
 
-  /**
-   * Notify all registered listeners of theme changes
-   */
-  private notifyThemeChange(theme: 'dark' | 'light'): void {
-    if (this.themeChangeListeners.size === 0) {
-      // In many environments (e.g., wallet iframe host), there may be no UI subscribers.
-      // Use debug to avoid noisy warnings while still being helpful during development.
-      console.debug(`[UserPreferencesManager]: No listeners registered, theme change will not propagate.`);
-      return;
-    }
-
-    for (const listener of this.themeChangeListeners) {
-      listener(theme);
-    }
-  }
-
   private notifyConfirmationConfigChange(config: ConfirmationConfig): void {
     if (this.confirmationConfigChangeListeners.size === 0) return;
     for (const listener of this.confirmationConfigChangeListeners) {
@@ -137,6 +84,30 @@ export class UserPreferencesManager {
     for (const listener of this.signerModeChangeListeners) {
       listener(mode);
     }
+  }
+
+  private sanitizeConfirmationConfig(
+    config?: Partial<ConfirmationConfig> | null
+  ): Partial<ConfirmationConfig> {
+    if (!config) return {};
+    const { uiMode, behavior, autoProceedDelay } = config as ConfirmationConfig;
+    const next: Partial<ConfirmationConfig> = {};
+    if (uiMode != null) next.uiMode = uiMode;
+    if (behavior != null) next.behavior = behavior;
+    if (autoProceedDelay != null) next.autoProceedDelay = autoProceedDelay;
+    return next;
+  }
+
+  private mergeConfirmationConfig(
+    base: Partial<ConfirmationConfig>,
+    patch: Partial<ConfirmationConfig>
+  ): ConfirmationConfig {
+    const merged = { ...base, ...patch } as Partial<ConfirmationConfig>;
+    return {
+      uiMode: merged.uiMode ?? DEFAULT_CONFIRMATION_CONFIG.uiMode,
+      behavior: merged.behavior ?? DEFAULT_CONFIRMATION_CONFIG.behavior,
+      autoProceedDelay: merged.autoProceedDelay ?? DEFAULT_CONFIRMATION_CONFIG.autoProceedDelay,
+    };
   }
 
   /**
@@ -207,8 +178,6 @@ export class UserPreferencesManager {
       this.unsubscribeFromIndexedDB = undefined;
     }
     this.walletIframeSignerModeWriter = null;
-    // Clear all theme change listeners
-    this.themeChangeListeners.clear();
     this.confirmationConfigChangeListeners.clear();
     this.signerModeChangeListeners.clear();
   }
@@ -240,24 +209,15 @@ export class UserPreferencesManager {
     confirmationConfig: ConfirmationConfig;
   }): void {
     const { nearAccountId, confirmationConfig } = args || ({} as any);
-    const prevTheme = this.confirmationConfig.theme;
-    const next: ConfirmationConfig = {
-      ...DEFAULT_CONFIRMATION_CONFIG,
-      ...(confirmationConfig || {}),
-    } as ConfirmationConfig;
+    const sanitized = this.sanitizeConfirmationConfig(confirmationConfig);
+    const next = this.mergeConfirmationConfig(DEFAULT_CONFIRMATION_CONFIG, sanitized);
 
     if (nearAccountId) {
       this.currentUserAccountId = nearAccountId;
     }
 
-    // Prevent environment heuristics on the app origin from overriding wallet-host state.
-    this.envThemeSyncedForSession = true;
-
     this.confirmationConfig = next;
     this.notifyConfirmationConfigChange(this.confirmationConfig);
-    if (this.confirmationConfig.theme !== prevTheme) {
-      this.notifyThemeChange(this.confirmationConfig.theme);
-    }
   }
 
   /**
@@ -284,27 +244,6 @@ export class UserPreferencesManager {
     if (!IndexedDBManager.clientDB.isDisabled()) {
       void this.loadSettingsForUser(nearAccountId).catch(() => undefined);
     }
-
-    // One-time: align user theme to current host appearance (e.g., VitePress html.dark)
-    // In wallet-iframe mode (app origin), the wallet host owns preferences; do not override.
-    if (!IndexedDBManager.clientDB.isDisabled() && !this.envThemeSyncedForSession && !this.walletThemeOverride) {
-      let envTheme: 'dark' | 'light' | null = null;
-      const isDark = (globalThis as any)?.document?.documentElement?.classList?.contains?.('dark');
-      if (typeof isDark === 'boolean') envTheme = isDark ? 'dark' : 'light';
-      if (!envTheme) {
-        try {
-          const stored = (globalThis as any)?.localStorage?.getItem?.('vitepress-theme-appearance');
-          if (stored === 'dark' || stored === 'light') envTheme = stored;
-        } catch {
-          // Storage may be blocked by the environment (e.g., third-party iframes)
-        }
-      }
-      if (envTheme && envTheme !== this.confirmationConfig.theme) {
-        // Fire-and-forget; listeners will propagate the change
-        void this.setUserTheme(envTheme);
-      }
-      this.envThemeSyncedForSession = true;
-    }
   }
 
   /**
@@ -315,15 +254,9 @@ export class UserPreferencesManager {
     const user = await IndexedDBManager.clientDB.getLastUser().catch(() => null);
     if (!user || user.nearAccountId !== nearAccountId) return;
     if (user?.preferences?.confirmationConfig) {
-      const prevTheme = this.confirmationConfig.theme;
-      this.confirmationConfig = {
-        ...this.confirmationConfig,
-        ...user.preferences.confirmationConfig
-      };
+      const sanitized = this.sanitizeConfirmationConfig(user.preferences.confirmationConfig as ConfirmationConfig);
+      this.confirmationConfig = this.mergeConfirmationConfig(this.confirmationConfig, sanitized);
       this.notifyConfirmationConfigChange(this.confirmationConfig);
-      if (this.confirmationConfig.theme !== prevTheme) {
-        this.notifyThemeChange(this.confirmationConfig.theme);
-      }
     }
 
     // Signer mode: stored per-user preference (optional).
@@ -344,10 +277,7 @@ export class UserPreferencesManager {
    * Set confirmation behavior
    */
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
-    this.confirmationConfig = {
-      ...this.confirmationConfig,
-      behavior
-    };
+    this.confirmationConfig = this.mergeConfirmationConfig(this.confirmationConfig, { behavior });
     this.notifyConfirmationConfigChange(this.confirmationConfig);
     this.saveUserSettings();
   }
@@ -355,17 +285,13 @@ export class UserPreferencesManager {
   /**
    * Set confirmation configuration
    */
-  setConfirmationConfig(config: ConfirmationConfig): void {
-    const prevTheme = this.confirmationConfig.theme;
-    this.confirmationConfig = {
-      ...this.confirmationConfig,
-      ...config
-    };
+  setConfirmationConfig(config: Partial<ConfirmationConfig>, opts?: { persist?: boolean }): void {
+    const sanitized = this.sanitizeConfirmationConfig(config);
+    this.confirmationConfig = this.mergeConfirmationConfig(this.confirmationConfig, sanitized);
     this.notifyConfirmationConfigChange(this.confirmationConfig);
-    if (this.confirmationConfig.theme !== prevTheme) {
-      this.notifyThemeChange(this.confirmationConfig.theme);
+    if (opts?.persist !== false) {
+      this.saveUserSettings();
     }
-    this.saveUserSettings();
   }
 
   /**
@@ -375,18 +301,12 @@ export class UserPreferencesManager {
     if (IndexedDBManager.clientDB.isDisabled()) return;
     const user = await IndexedDBManager.clientDB.getLastUser().catch(() => null);
     if (user) {
-      const prevTheme = this.confirmationConfig.theme;
       this.currentUserAccountId = user.nearAccountId;
       // Load user's confirmation config if it exists, otherwise keep existing settings/defaults
       if (user.preferences?.confirmationConfig) {
-        this.confirmationConfig = {
-          ...this.confirmationConfig,
-          ...user.preferences.confirmationConfig
-        };
+        const sanitized = this.sanitizeConfirmationConfig(user.preferences.confirmationConfig as ConfirmationConfig);
+        this.confirmationConfig = this.mergeConfirmationConfig(this.confirmationConfig, sanitized);
         this.notifyConfirmationConfigChange(this.confirmationConfig);
-        if (this.confirmationConfig.theme !== prevTheme) {
-          this.notifyThemeChange(this.confirmationConfig.theme);
-        }
       } else {
         console.debug('[WebAuthnManager]: No user preferences found, using defaults');
       }
@@ -417,51 +337,11 @@ export class UserPreferencesManager {
         return;
       }
 
-      // Save confirmation config (which includes theme)
       await IndexedDBManager.clientDB.updatePreferences(accountId, {
         confirmationConfig: this.confirmationConfig,
       });
     } catch (error) {
       console.warn('[WebAuthnManager]: Failed to save user settings:', error);
-    }
-  }
-
-  /**
-   * Get user theme preference from IndexedDB
-   */
-  async getCurrentUserAccountIdTheme(): Promise<'dark' | 'light' | null> {
-    const id = this.currentUserAccountId;
-    if (!id) return null;
-    try {
-      return await IndexedDBManager.clientDB.getTheme(id);
-    } catch (error) {
-      console.debug('[WebAuthnManager]: getCurrentUserAccountIdTheme:', error);
-      return null;
-    }
-  }
-
-  getUserTheme(): 'dark' | 'light' {
-    return this.confirmationConfig.theme;
-  }
-
-  /**
-   * Set user theme preference in IndexedDB
-   */
-  async setUserTheme(theme: 'dark' | 'light'): Promise<void> {
-    const id = this.currentUserAccountId;
-    if (!id) return; // No-op when no user is set (logged-out state)
-    // Always update local UI state immediately; persistence is best-effort.
-    this.confirmationConfig = {
-      ...this.confirmationConfig,
-      theme
-    };
-    // Notify all listeners of theme change
-    this.notifyConfirmationConfigChange(this.confirmationConfig);
-    this.notifyThemeChange(theme);
-    try {
-      await IndexedDBManager.clientDB.setTheme(id, theme);
-    } catch (error) {
-      console.warn('[UserPreferencesManager]: Failed to save user theme:', error);
     }
   }
 

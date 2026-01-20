@@ -11,6 +11,7 @@ import type {
   SignNEP413MessageParams,
   SignNEP413MessageResult,
 } from '../core/TatchiPasskey';
+import type { ThemeName } from '../core/types/tatchi';
 import { TransactionInput } from '../core/types/actions';
 import type { ConfirmationConfig, ConfirmationBehavior } from '../core/types/signer-worker';
 import type { ClientUserData } from '../core/IndexedDBManager/passkeyClientDB';
@@ -216,10 +217,14 @@ export interface TatchiContextType {
   setConfirmBehavior: (behavior: ConfirmationBehavior) => void;
   setConfirmationConfig: (config: ConfirmationConfig) => void;
   getConfirmationConfig: () => ConfirmationConfig;
-  setUserTheme: (theme: 'dark' | 'light') => void;
 
   // Account management functions
   viewAccessKeyList: (accountId: string) => Promise<AccessKeyList>;
+
+  // Theme capabilities (controlled by host app)
+  themeCapabilities: {
+    canSetHostTheme: boolean;
+  };
 }
 
 /** Config options for TatchiContextProvider
@@ -240,6 +245,11 @@ export interface TatchiContextProviderProps {
   children: ReactNode;
   // Config overrides; provider resolves defaults and validates required fields.
   config: TatchiConfigsInput;
+  // Controlled theme from host app (optional).
+  theme?: {
+    theme: ThemeName;
+    setTheme?: (theme: ThemeName) => void;
+  };
   /**
    * When true, the provider will opportunistically pre-warm iframe + workers
    * on idle after mount to reduce first-action latency.

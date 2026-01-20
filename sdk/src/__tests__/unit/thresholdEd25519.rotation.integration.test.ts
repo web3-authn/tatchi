@@ -342,7 +342,6 @@ test.describe('Threshold Ed25519 rotation helper', () => {
           uiMode: 'skip',
           behavior: 'autoProceed',
           autoProceedDelay: 0,
-          theme: 'dark',
         };
 
         const reg = await pm.registerPasskeyInternal(

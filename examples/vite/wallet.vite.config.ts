@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
     const override = (env.VITE_COEP_MODE || '').trim()
     if (override === 'off') return 'off'
     if (override === 'strict') return 'strict'
-    return walletOrigin.startsWith('chrome-extension://') ? 'off' : 'strict'
+    return 'off'
   })()
   // Surface VITE_* into process.env so SDK dev plugins (Node-side) can read them
   if (env.VITE_WEBAUTHN_CONTRACT_ID) process.env.VITE_WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID

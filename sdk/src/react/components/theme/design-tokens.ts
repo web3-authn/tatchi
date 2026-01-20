@@ -152,8 +152,6 @@ export interface UseThemeReturn {
   theme: 'light' | 'dark';
   tokens: DesignTokens;
   isDark: boolean;
-  setTheme: (theme: 'light' | 'dark') => void;
-  toggleTheme: () => void;
 }
 
 // ============================================================================

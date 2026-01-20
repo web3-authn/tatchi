@@ -13,13 +13,13 @@ import { tatchiApp } from '@tatchi-xyz/sdk/plugins/vite'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.web3authn.org'
-  // Phase 0 extension embedding may fail under app-page COEP=require-corp.
-  // Allow opting out via env, and default to 'off' when targeting a chrome-extension:// wallet origin.
+  // Default COEP off on app pages (extension embedding + password managers).
+  // Opt in to cross-origin isolation via VITE_COEP_MODE=strict.
   const coepMode = (() => {
     const override = (env.VITE_COEP_MODE || '').trim()
     if (override === 'off') return 'off'
     if (override === 'strict') return 'strict'
-    return walletOrigin.startsWith('chrome-extension://') ? 'off' : 'strict'
+    return 'off'
   })()
   return {
     clearScreen: false,
