@@ -4,6 +4,7 @@ import type {
   ReadyPayload,
 } from '../shared/messages';
 import type { HostContext } from './context';
+import { IndexedDBManager } from '../../IndexedDBManager';
 
 export function post(ctx: HostContext, msg: ChildToParentEnvelope): void {
   try { ctx.port?.postMessage(msg); } catch {}
@@ -56,6 +57,9 @@ export function onWindowMessage(
     if (!shouldAcceptConnectEvent(e, !!ctx.port)) return;
     if (typeof e.origin === 'string' && e.origin.length && e.origin !== 'null') {
       ctx.parentOrigin = e.origin;
+      // Prevent cross-app overwrites on the shared wallet origin IndexedDB by
+      // namespacing the last-user pointer to the embedding app's origin.
+      try { IndexedDBManager.clientDB.setLastUserScope(ctx.parentOrigin); } catch {}
     }
     adoptPort(ctx, ports[0], onPortMessage, protocolVersion);
   }

@@ -103,6 +103,8 @@ export interface LastUserAccountIdState {
   deviceNumber: number;
 }
 
+const LAST_USER_ACCOUNT_ID_KEY = 'lastUserAccountId';
+
 interface PasskeyClientDBConfig {
   dbName: string;
   dbVersion: number;
@@ -174,6 +176,7 @@ export class PasskeyClientDBManager {
   private config: PasskeyClientDBConfig;
   private db: IDBPDatabase | null = null;
   private disabled = false;
+  private lastUserScope: string | null = null;
   private eventListeners: Set<(event: IndexedDBEvent) => void> = new Set();
 
   constructor(config: PasskeyClientDBConfig = DB_CONFIG) {
@@ -203,6 +206,57 @@ export class PasskeyClientDBManager {
     if (next) {
       try { (this.db as any)?.close?.(); } catch {}
       this.db = null;
+    }
+  }
+
+  /**
+   * Scope the `lastUserAccountId` app-state pointer to a particular parent/app origin.
+   *
+   * Context:
+   * - The wallet iframe runs on a shared origin (e.g. `wallet.web3authn.org`) across many apps.
+   * - IndexedDB on that origin is shared, so a single global `lastUserAccountId` key can be
+   *   overwritten by another app and cause cross-app session/key mismatches.
+   *
+   * Behavior:
+   * - When a scope is set, reads/writes use only `lastUserAccountId::<scope>`.
+   * - When no scope is set, reads/writes use the unscoped `lastUserAccountId`.
+   */
+  setLastUserScope(scope: string | null): void {
+    const trimmed = String(scope || '').trim();
+    if (!trimmed || trimmed === 'null') {
+      this.lastUserScope = null;
+      return;
+    }
+    this.lastUserScope = trimmed;
+  }
+
+  private getLastUserAppStateReadKeys(): string[] {
+    if (!this.lastUserScope) return [LAST_USER_ACCOUNT_ID_KEY];
+    return [`${LAST_USER_ACCOUNT_ID_KEY}::${this.lastUserScope}`];
+  }
+
+  private getLastUserAppStateWriteKeys(): string[] {
+    if (!this.lastUserScope) return [LAST_USER_ACCOUNT_ID_KEY];
+    return [`${LAST_USER_ACCOUNT_ID_KEY}::${this.lastUserScope}`];
+  }
+
+  private async getLastUserAccountIdState(): Promise<LastUserAccountIdState | null> {
+    for (const key of this.getLastUserAppStateReadKeys()) {
+      const state = await this.getAppState<LastUserAccountIdState | null>(key).catch(() => undefined);
+      if (state && typeof state === 'object') {
+        const accountId = (state as any)?.accountId;
+        const deviceNumber = (state as any)?.deviceNumber;
+        if (accountId && Number.isFinite(Number(deviceNumber))) {
+          return state as LastUserAccountIdState;
+        }
+      }
+    }
+    return null;
+  }
+
+  private async setLastUserAccountIdState(state: LastUserAccountIdState | null): Promise<void> {
+    for (const key of this.getLastUserAppStateWriteKeys()) {
+      await this.setAppState(key, state);
     }
   }
 
@@ -379,7 +433,7 @@ export class PasskeyClientDBManager {
         'defaulting to last logged-in user.'
       );
       console.log('defaulting to last used user deviceNumber');
-      const lastUserState = await this.getAppState<LastUserAccountIdState>('lastUserAccountId').catch(() => null);
+      const lastUserState = await this.getLastUserAccountIdState().catch(() => null);
       if (lastUserState && toAccountId(lastUserState.accountId) === accountId) {
         const keyed = await db.get(DB_CONFIG.userStore, [accountId, lastUserState.deviceNumber]);
         if (keyed) {
@@ -401,7 +455,7 @@ export class PasskeyClientDBManager {
    * This is maintained via app state and updated whenever a user is stored or updated
    */
   async getLastUser(): Promise<ClientUserData | null> {
-    const lastUserState = await this.getAppState<LastUserAccountIdState>('lastUserAccountId');
+    const lastUserState = await this.getLastUserAccountIdState();
     if (!lastUserState) return null;
     const db = await this.getDB();
     const accountId = toAccountId(lastUserState.accountId);
@@ -579,7 +633,7 @@ export class PasskeyClientDBManager {
       accountId: nearAccountId,
       deviceNumber,
     };
-    await this.setAppState('lastUserAccountId', lastUserState);
+    await this.setLastUserAccountIdState(lastUserState);
   }
 
   async updatePreferences(
@@ -637,7 +691,7 @@ export class PasskeyClientDBManager {
       deviceNumber: userData.deviceNumber,
     };
 
-    await this.setAppState('lastUserAccountId', lastUserState);
+    await this.setLastUserAccountIdState(lastUserState);
   }
 
   /**
@@ -976,9 +1030,9 @@ export class PasskeyClientDBManager {
       await db.delete(DB_CONFIG.userStore, nearAccountId);
 
       // Clear from app state if this was the last user
-      const lastUserAccount = await this.getAppState<string>('lastUserAccountId');
-      if (lastUserAccount === nearAccountId) {
-        await this.setAppState('lastUserAccountId', null);
+      const state = await this.getLastUserAccountIdState().catch(() => null);
+      if (state?.accountId && toAccountId(state.accountId) === toAccountId(nearAccountId)) {
+        await this.setLastUserAccountIdState(null);
       }
 
       console.debug(`Rolled back all registration data for ${nearAccountId}`);

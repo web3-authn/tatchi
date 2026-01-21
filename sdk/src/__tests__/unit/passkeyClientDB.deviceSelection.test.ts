@@ -125,4 +125,56 @@ test.describe('PasskeyClientDB device selection', () => {
     expect(result.helperDevice).toBe(6);
     expect(result.filteredIds).toEqual(['c-6']);
   });
+
+  test('lastUserAccountId is scoped by lastUserScope when set (wallet origin multi-app)', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const { PasskeyClientDBManager } = await import(paths.clientDB);
+
+      const db = new PasskeyClientDBManager();
+
+      // App A stores and selects alice under its scoped key.
+      db.setLastUserScope('https://app-a.example');
+      await db.storeWebAuthnUserData({
+        nearAccountId: 'alice.testnet',
+        deviceNumber: 1,
+        clientNearPublicKey: 'ed25519:pk-alice',
+        passkeyCredential: { id: 'c-alice', rawId: 'r-alice' },
+        encryptedVrfKeypair: { encryptedVrfDataB64u: 'vrf-alice', chacha20NonceB64u: 'nonce-alice' },
+      });
+
+      // App B stores and selects bob under its own scoped key.
+      db.setLastUserScope('https://app-b.example');
+      await db.storeWebAuthnUserData({
+        nearAccountId: 'bob.testnet',
+        deviceNumber: 1,
+        clientNearPublicKey: 'ed25519:pk-bob',
+        passkeyCredential: { id: 'c-bob', rawId: 'r-bob' },
+        encryptedVrfKeypair: { encryptedVrfDataB64u: 'vrf-bob', chacha20NonceB64u: 'nonce-bob' },
+      });
+
+      db.setLastUserScope('https://app-a.example');
+      const lastA = await db.getLastUser();
+
+      db.setLastUserScope('https://app-b.example');
+      const lastB = await db.getLastUser();
+
+      // No fallback: an app with no scoped key should not see a last user.
+      db.setLastUserScope('https://app-c.example');
+      const lastC = await db.getLastUser();
+
+      const legacyGlobal = await db.getAppState('lastUserAccountId');
+
+      return {
+        lastA: lastA?.nearAccountId || null,
+        lastB: lastB?.nearAccountId || null,
+        lastC: lastC?.nearAccountId || null,
+        legacyGlobal: legacyGlobal ?? null,
+      };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.lastA).toBe('alice.testnet');
+    expect(result.lastB).toBe('bob.testnet');
+    expect(result.lastC).toBeNull();
+    expect(result.legacyGlobal).toBeNull();
+  });
 });

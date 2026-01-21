@@ -56,6 +56,7 @@ import { assertWalletHostConfigsNoNestedIframeWallet, sanitizeWalletHostConfigs 
 // handlers moved to dedicated module; host no longer imports per-call hook types
 import { createWalletIframeHandlers } from './wallet-iframe-handlers';
 import { setEmbeddedBase } from '../../sdkPaths';
+import { IndexedDBManager } from '../../IndexedDBManager';
 
 const PROTOCOL: ReadyPayload['protocolVersion'] = '1.0.0';
 
@@ -341,6 +342,9 @@ function onWindowMessage(e: MessageEvent) {
     if (!shouldAcceptConnectEvent(e, !!port)) return;
     if (typeof e.origin === 'string' && e.origin.length && e.origin !== 'null') {
       parentOrigin = e.origin;
+      // Scope the wallet's "last user" app-state pointer to this parent origin to
+      // prevent cross-app overwrites on the shared wallet origin IndexedDB.
+      try { IndexedDBManager.clientDB.setLastUserScope(parentOrigin); } catch {}
     }
     adoptPort(ports[0]);
   }
