@@ -187,6 +187,22 @@ export class SignerWorkerManager {
   // Map of active signing sessions to reserved workers and optional WrapKeySeed ports
   private signingSessions: Map<string, SigningSessionEntry> = new Map();
   private readonly SIGNING_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  // Queue operations per Worker instance to avoid clobbering `worker.onmessage`
+  // when multiple sendMessage() calls target the same session worker concurrently.
+  private sendQueueByWorker: WeakMap<Worker, Promise<unknown>> = new WeakMap();
+
+  private enqueueOnWorker<T>(worker: Worker, task: () => Promise<T>): Promise<T> {
+    const prev = this.sendQueueByWorker.get(worker) ?? Promise.resolve();
+    const next = prev.catch(() => undefined).then(task);
+    this.sendQueueByWorker.set(worker, next as Promise<unknown>);
+    // Best-effort cleanup so resolved promises don't accumulate for long-lived session workers.
+    void next.finally(() => {
+      if (this.sendQueueByWorker.get(worker) === (next as Promise<unknown>)) {
+        this.sendQueueByWorker.delete(worker);
+      }
+    });
+    return next;
+  }
 
   /**
    * Force-terminate all worker instances and session state.
@@ -209,6 +225,8 @@ export class SignerWorkerManager {
       try { worker.terminate(); } catch {}
     }
     this.workerPool = [];
+    // Drop any queued message chains tied to terminated worker instances.
+    this.sendQueueByWorker = new WeakMap();
   }
 
   private getWorkerFromPool(): Worker {
@@ -439,7 +457,7 @@ export class SignerWorkerManager {
     const worker = sessionEntry ? sessionEntry.worker : this.getWorkerFromPool();
     const isSessionWorker = !!sessionEntry;
 
-    return new Promise((resolve, reject) => {
+    return this.enqueueOnWorker(worker, () => new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         try {
           if (isSessionWorker && effectiveSessionId) {
@@ -546,7 +564,7 @@ export class SignerWorkerManager {
       };
 
       worker.postMessage(formattedMessage);
-    });
+    }));
   }
 
   /**
