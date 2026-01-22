@@ -44,6 +44,7 @@ import {
   extractAuthorizeSigningPublicKey,
   isObject,
   normalizeByteArray32,
+  type ThresholdEd25519SessionClaims,
   verifyThresholdEd25519AuthorizeSigningPayloadSigningDigestOnly,
   verifyThresholdEd25519AuthorizeSigningPayload,
 } from './validation';
@@ -974,6 +975,7 @@ export class ThresholdSigningService {
   async authorizeThresholdEd25519WithSession(input: {
     sessionId: string;
     userId: string;
+    claims?: ThresholdEd25519SessionClaims;
     request: ThresholdEd25519AuthorizeWithSessionRequest;
   }): Promise<ThresholdEd25519AuthorizeResponse> {
     try {
@@ -988,6 +990,104 @@ export class ThresholdSigningService {
 
       await this.ensureReady();
 
+      // Prefer JWT-claim scoped auth when available to avoid KV record reads during /authorize.
+      // This reduces eventual-consistency failures where the session counter is visible but the
+      // session record is not (e.g. multi-region KV replication timing).
+      const claims = input.claims;
+      const claimsParticipantIds = normalizeThresholdEd25519ParticipantIds(claims?.participantIds);
+      const claimsExpiresAtMs = claims?.thresholdExpiresAtMs;
+      const hasClaimScopedSession =
+        !!claims
+        && claims.sub === userId
+        && claims.sessionId === sessionId
+        && typeof claimsExpiresAtMs === 'number'
+        && Number.isFinite(claimsExpiresAtMs)
+        && claimsExpiresAtMs > 0
+        && !!claimsParticipantIds;
+
+      if (hasClaimScopedSession) {
+        if (Date.now() > claimsExpiresAtMs) {
+          return { ok: false, code: 'unauthorized', message: 'threshold session expired' };
+        }
+
+        const consumed = await this.authSessionStore.consumeUseCount(sessionId);
+        if (!consumed.ok) {
+          return { ok: false, code: consumed.code, message: consumed.message };
+        }
+
+        for (const id of this.participantIds2p) {
+          if (!claimsParticipantIds.includes(id)) {
+            return {
+              ok: false,
+              code: 'unauthorized',
+              message: `threshold session token does not include server signer set (expected to include participantIds=[${this.participantIds2p.join(',')}])`,
+            };
+          }
+        }
+
+        if (relayerKeyId !== claims.relayerKeyId) {
+          return { ok: false, code: 'unauthorized', message: 'relayerKeyId does not match threshold session scope' };
+        }
+
+        const relayerKey = await this.resolveRelayerKeyMaterial({
+          relayerKeyId,
+          nearAccountId: userId,
+          rpId: claims.rpId,
+          clientVerifyingShareB64u,
+        });
+        if (!relayerKey.ok) {
+          return { ok: false, code: relayerKey.code, message: relayerKey.message };
+        }
+
+        const verifyPayload = await verifyThresholdEd25519AuthorizeSigningPayloadSigningDigestOnly({
+          purpose,
+          signingPayload,
+          signingDigest32,
+          userId,
+          ensureSignerWasm: this.ensureSignerWasm,
+          computeNearTxSigningDigests: threshold_ed25519_compute_near_tx_signing_digests,
+          computeDelegateSigningDigest: threshold_ed25519_compute_delegate_signing_digest,
+          computeNep413SigningDigest: threshold_ed25519_compute_nep413_signing_digest,
+        });
+        if (!verifyPayload.ok) {
+          return { ok: false, code: verifyPayload.code, message: verifyPayload.message };
+        }
+
+        const expectedSigningPublicKey = extractAuthorizeSigningPublicKey(purpose, signingPayload);
+        const scope = await ensureRelayerKeyIsActiveAccessKey({
+          nearAccountId: userId,
+          relayerPublicKey: relayerKey.publicKey,
+          ...(expectedSigningPublicKey ? { expectedSigningPublicKey } : {}),
+          viewAccessKeyList: this.viewAccessKeyList,
+        });
+        if (!scope.ok) {
+          return { ok: false, code: scope.code, message: scope.message };
+        }
+
+        const ttlMs = 60_000;
+        const expiresAtMs = Date.now() + ttlMs;
+        const mpcSessionId = this.createThresholdEd25519MpcSessionId();
+        await this.sessionStore.putMpcSession(mpcSessionId, {
+          expiresAtMs,
+          relayerKeyId,
+          purpose,
+          intentDigestB64u: base64UrlEncode(verifyPayload.intentDigest32),
+          signingDigestB64u: base64UrlEncode(signingDigest32),
+          userId,
+          rpId: claims.rpId,
+          clientVerifyingShareB64u,
+          participantIds: [...claimsParticipantIds],
+        }, ttlMs);
+
+        return {
+          ok: true,
+          mpcSessionId,
+          expiresAt: new Date(expiresAtMs).toISOString(),
+        };
+      }
+
+      // Back-compat path: rely on KV-backed session record when JWT doesn't include the
+      // threshold session scope claims (older relayer versions).
       const consumed = await this.authSessionStore.consumeUse(sessionId);
       if (!consumed.ok) {
         return { ok: false, code: consumed.code, message: consumed.message };

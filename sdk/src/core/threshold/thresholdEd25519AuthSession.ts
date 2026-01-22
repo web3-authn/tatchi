@@ -15,6 +15,7 @@ export type ThresholdEd25519AuthSession = {
   sessionPolicyDigest32: string;
   jwt?: string;
   expiresAtMs?: number;
+  createdAtMs?: number;
 };
 
 type ThresholdEd25519AuthSessionCacheEntry = ThresholdEd25519AuthSession;
@@ -43,7 +44,32 @@ export function getCachedThresholdEd25519AuthSession(cacheKey: string): Threshol
   const entry = authSessionCache.get(cacheKey);
   if (!entry) return null;
 
-  if (typeof entry.expiresAtMs === 'number' && Number.isFinite(entry.expiresAtMs) && Date.now() >= entry.expiresAtMs) {
+  const policy = entry.policy;
+  const ttlMs = Math.floor(Number(policy?.ttlMs) || 0);
+  const remainingUses = Math.floor(Number(policy?.remainingUses) || 0);
+  if (ttlMs <= 0 || remainingUses <= 0) {
+    authSessionCache.delete(cacheKey);
+    return null;
+  }
+
+  const now = Date.now();
+  const expiresAtMs = (() => {
+    const raw = entry.expiresAtMs;
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+    const createdAtMs = entry.createdAtMs;
+    if (typeof createdAtMs === 'number' && Number.isFinite(createdAtMs)) {
+      return createdAtMs + ttlMs;
+    }
+    return undefined;
+  })();
+
+  if (expiresAtMs === undefined) {
+    // Avoid using non-expiring cached tokens; treat as not cacheable.
+    authSessionCache.delete(cacheKey);
+    return null;
+  }
+
+  if (now >= expiresAtMs) {
     authSessionCache.delete(cacheKey);
     return null;
   }
@@ -52,7 +78,10 @@ export function getCachedThresholdEd25519AuthSession(cacheKey: string): Threshol
 }
 
 export function putCachedThresholdEd25519AuthSession(cacheKey: string, entry: ThresholdEd25519AuthSession): void {
-  authSessionCache.set(cacheKey, entry);
+  const createdAtMs = typeof entry.createdAtMs === 'number' && Number.isFinite(entry.createdAtMs)
+    ? entry.createdAtMs
+    : Date.now();
+  authSessionCache.set(cacheKey, { ...entry, createdAtMs });
 }
 
 export function clearCachedThresholdEd25519AuthSession(cacheKey: string): void {

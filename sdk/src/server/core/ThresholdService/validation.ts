@@ -297,6 +297,18 @@ export type ThresholdEd25519SessionClaims = {
   sessionId: string;
   relayerKeyId: string;
   rpId: string;
+  /**
+   * Server-enforced threshold session expiry (milliseconds since epoch).
+   *
+   * This is distinct from the JWT `exp` claim because the wallet session token may have a
+   * longer lifetime than the relayer threshold session budget.
+   */
+  thresholdExpiresAtMs?: number;
+  /**
+   * Optional signer-set binding carried in the token to avoid KV reads during `/authorize`.
+   * When omitted, the relayer must fall back to a KV-backed session record lookup.
+   */
+  participantIds?: number[];
 };
 
 export function parseThresholdEd25519SessionClaims(raw: unknown): ThresholdEd25519SessionClaims | null {
@@ -308,7 +320,23 @@ export function parseThresholdEd25519SessionClaims(raw: unknown): ThresholdEd255
   const relayerKeyId = toOptionalString(raw.relayerKeyId);
   const rpId = toOptionalString(raw.rpId);
   if (!sub || !sessionId || !relayerKeyId || !rpId) return null;
-  return { sub, kind, sessionId, relayerKeyId, rpId };
+  const thresholdExpiresAtMsRaw = (raw as Record<string, unknown>).thresholdExpiresAtMs;
+  const thresholdExpiresAtMsNum = thresholdExpiresAtMsRaw === undefined ? NaN : Number(thresholdExpiresAtMsRaw);
+  const thresholdExpiresAtMs = Number.isFinite(thresholdExpiresAtMsNum) && thresholdExpiresAtMsNum > 0
+    ? thresholdExpiresAtMsNum
+    : undefined;
+
+  const participantIds = normalizeThresholdEd25519ParticipantIds((raw as Record<string, unknown>).participantIds) || undefined;
+
+  return {
+    sub,
+    kind,
+    sessionId,
+    relayerKeyId,
+    rpId,
+    ...(thresholdExpiresAtMs !== undefined ? { thresholdExpiresAtMs } : {}),
+    ...(participantIds ? { participantIds } : {}),
+  };
 }
 
 export function normalizeByteArray32(input: unknown): Uint8Array | null {

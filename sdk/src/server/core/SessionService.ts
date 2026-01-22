@@ -29,6 +29,31 @@ export class SessionService<TClaims extends Record<string, unknown> = Record<str
     this.cfg = cfg || ({} as any);
   }
 
+  private enforceStandardJwtTimeClaims(payload: any): boolean {
+    try {
+      if (!payload || typeof payload !== 'object') return true;
+      const now = this.nowSeconds();
+
+      const expRaw = (payload as any).exp;
+      if (expRaw !== undefined) {
+        const exp = Number(expRaw);
+        if (!Number.isFinite(exp)) return false;
+        if (now >= exp) return false;
+      }
+
+      const nbfRaw = (payload as any).nbf;
+      if (nbfRaw !== undefined) {
+        const nbf = Number(nbfRaw);
+        if (!Number.isFinite(nbf)) return false;
+        if (now < nbf) return false;
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   getCookieName(): string {
     return this.cfg?.cookie?.name || 'w3a_session';
   }
@@ -90,7 +115,11 @@ export class SessionService<TClaims extends Record<string, unknown> = Record<str
   async verifyJwt(token: string): Promise<{ valid: boolean; payload?: any }> {
     const verify = this.cfg?.jwt?.verifyToken;
     if (typeof verify !== 'function') return { valid: false };
-    return await Promise.resolve(verify(token));
+    const v = await Promise.resolve(verify(token));
+    if (!v?.valid) return { valid: false };
+    // Do not assume the host verifyToken enforces standard claims; enforce exp/nbf here when present.
+    if (!this.enforceStandardJwtTimeClaims(v.payload)) return { valid: false };
+    return v;
   }
 
   parse(

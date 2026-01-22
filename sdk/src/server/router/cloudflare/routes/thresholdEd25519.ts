@@ -15,6 +15,10 @@ import {
   summarizeVrfData,
   validateThresholdEd25519AuthorizeInputs,
 } from '../../commonRouterUtils';
+import {
+  normalizeThresholdEd25519ParticipantIds,
+  THRESHOLD_ED25519_2P_PARTICIPANT_IDS,
+} from '../../../../threshold/participants';
 
 export async function handleThresholdEd25519(ctx: CloudflareRelayContext): Promise<Response | null> {
   if (ctx.method === 'GET' && ctx.pathname === '/threshold-ed25519/healthz') {
@@ -102,7 +106,21 @@ export async function handleThresholdEd25519(ctx: CloudflareRelayContext): Promi
       const userId = b.vrf_data.user_id;
       const rpId = b.vrf_data.rp_id;
       const relayerKeyId = b.relayerKeyId;
-      const token = await session.signJwt(userId, { kind: 'threshold_ed25519_session_v1', sessionId, relayerKeyId, rpId });
+      const thresholdExpiresAtMs = (() => {
+        const ms = result.expiresAt ? Date.parse(result.expiresAt) : NaN;
+        return Number.isFinite(ms) && ms > 0 ? ms : undefined;
+      })();
+      const participantIds =
+        normalizeThresholdEd25519ParticipantIds(b.sessionPolicy?.participantIds)
+        || [...THRESHOLD_ED25519_2P_PARTICIPANT_IDS];
+      const token = await session.signJwt(userId, {
+        kind: 'threshold_ed25519_session_v1',
+        sessionId,
+        relayerKeyId,
+        rpId,
+        ...(thresholdExpiresAtMs !== undefined ? { thresholdExpiresAtMs } : {}),
+        participantIds,
+      });
       const sessionKind = parseSessionKind(b);
 
       const res = json(sessionKind === 'cookie' ? { ...result, jwt: undefined } : { ...result, jwt: token }, { status: 200 });
@@ -149,6 +167,7 @@ export async function handleThresholdEd25519(ctx: CloudflareRelayContext): Promi
         : await threshold.authorizeThresholdEd25519WithSession({
           sessionId: validated.sessionId,
           userId: validated.userId,
+          claims: validated.claims,
           request: validated.request,
         });
       return respond(result);

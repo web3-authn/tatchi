@@ -491,12 +491,17 @@ export async function signTransactionsWithActionsInternal({
           });
         }
         if (progressEvent.phase === ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE) {
-          onEvent?.({
-            step: 6,
-            phase: ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE,
-            status: ActionStatus.SUCCESS,
-            message: 'Transaction signed successfully',
-          });
+          // `ActionSSEEvent` reserves STEP_6 for successful signing only.
+          // When the worker reports an error status here, we rely on the thrown error
+          // to emit `ActionPhase.ACTION_ERROR` in the outer catch.
+          if (progressEvent.status !== ActionStatus.ERROR) {
+            onEvent?.({
+              step: 6,
+              phase: ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE,
+              status: ActionStatus.SUCCESS,
+              message: progressEvent.message || 'Transaction signed successfully',
+            });
+          }
         }
         // Bridge worker onProgressEvents (generic) to ActionSSEEvent expected by public hooks
         onEvent(progressEvent as ActionSSEEvent);

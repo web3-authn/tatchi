@@ -14,6 +14,10 @@ import {
   summarizeVrfData,
   validateThresholdEd25519AuthorizeInputs,
 } from '../../commonRouterUtils';
+import {
+  normalizeThresholdEd25519ParticipantIds,
+  THRESHOLD_ED25519_2P_PARTICIPANT_IDS,
+} from '../../../../threshold/participants';
 
 function errMessage(e: unknown): string {
   if (e && typeof e === 'object' && 'message' in e) return String((e as { message?: unknown }).message || 'Internal error');
@@ -119,11 +123,24 @@ export function registerThresholdEd25519Routes(router: ExpressRouter, ctx: Expre
       const userId = body.vrf_data.user_id;
       const rpId = body.vrf_data.rp_id;
       const relayerKeyId = body.relayerKeyId;
+      const thresholdExpiresAtMs = (() => {
+        const ms = result.expiresAt ? Date.parse(result.expiresAt) : NaN;
+        return Number.isFinite(ms) && ms > 0 ? ms : undefined;
+      })();
+      const exp = thresholdExpiresAtMs ? Math.floor(thresholdExpiresAtMs / 1000) : undefined;
+      const iat = Math.floor(Date.now() / 1000);
+      const participantIds =
+        normalizeThresholdEd25519ParticipantIds(body.sessionPolicy?.participantIds)
+        || [...THRESHOLD_ED25519_2P_PARTICIPANT_IDS];
       const token = await session.signJwt(userId, {
         kind: 'threshold_ed25519_session_v1',
         sessionId,
         relayerKeyId,
         rpId,
+        ...(thresholdExpiresAtMs !== undefined ? { thresholdExpiresAtMs } : {}),
+        ...(exp !== undefined ? { exp } : {}),
+        iat,
+        participantIds,
       });
 
       const sessionKind = parseSessionKind(body);
@@ -166,6 +183,7 @@ export function registerThresholdEd25519Routes(router: ExpressRouter, ctx: Expre
       return threshold.authorizeThresholdEd25519WithSession({
         sessionId: validated.sessionId,
         userId: validated.userId,
+        claims: validated.claims,
         request: validated.request,
       });
     });

@@ -20,6 +20,10 @@ export type ThresholdEd25519AuthConsumeResult =
   | { ok: true; record: ThresholdEd25519AuthSessionRecord; remainingUses: number }
   | { ok: false; code: string; message: string };
 
+export type ThresholdEd25519AuthConsumeUsesResult =
+  | { ok: true; remainingUses: number }
+  | { ok: false; code: string; message: string };
+
 export interface ThresholdEd25519AuthSessionStore {
   putSession(
     id: string,
@@ -28,6 +32,13 @@ export interface ThresholdEd25519AuthSessionStore {
   ): Promise<void>;
   getSession(id: string): Promise<ThresholdEd25519AuthSessionRecord | null>;
   consumeUse(id: string): Promise<ThresholdEd25519AuthConsumeResult>;
+  /**
+   * Consume one use from the session counter without fetching the session record.
+   *
+   * This enables session-token-only authorization flows where scope/expiry are enforced from
+   * signed JWT claims instead of a KV-stored record, reducing KV read-after-write consistency issues.
+   */
+  consumeUseCount(id: string): Promise<ThresholdEd25519AuthConsumeUsesResult>;
 }
 
 class InMemoryThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSessionStore {
@@ -77,6 +88,21 @@ class InMemoryThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
     }
     entry.remainingUses -= 1;
     return { ok: true, record: entry.record, remainingUses: entry.remainingUses };
+  }
+
+  async consumeUseCount(id: string): Promise<ThresholdEd25519AuthConsumeUsesResult> {
+    const key = this.key(id);
+    const entry = this.map.get(key);
+    if (!entry) return { ok: false, code: 'unauthorized', message: 'threshold session expired or invalid' };
+    if (Date.now() > entry.expiresAtMs) {
+      this.map.delete(key);
+      return { ok: false, code: 'unauthorized', message: 'threshold session expired' };
+    }
+    if (entry.remainingUses <= 0) {
+      return { ok: false, code: 'unauthorized', message: 'threshold session exhausted' };
+    }
+    entry.remainingUses -= 1;
+    return { ok: true, remainingUses: entry.remainingUses };
   }
 }
 
@@ -130,6 +156,19 @@ class UpstashRedisRestThresholdEd25519AuthSessionStore implements ThresholdEd255
         return { ok: false, code: 'unauthorized', message: 'threshold session expired' };
       }
       return { ok: true, record, remainingUses };
+    } catch (e: unknown) {
+      const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Failed to consume threshold session');
+      return { ok: false, code: 'internal', message: msg };
+    }
+  }
+
+  async consumeUseCount(id: string): Promise<ThresholdEd25519AuthConsumeUsesResult> {
+    try {
+      const remainingUses = await this.client.incrby(this.usesKey(id), -1);
+      if (remainingUses < 0) {
+        return { ok: false, code: 'unauthorized', message: 'threshold session exhausted' };
+      }
+      return { ok: true, remainingUses };
     } catch (e: unknown) {
       const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Failed to consume threshold session');
       return { ok: false, code: 'internal', message: msg };
@@ -193,6 +232,24 @@ class RedisTcpThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
         return { ok: false, code: 'unauthorized', message: 'threshold session expired' };
       }
       return { ok: true, record, remainingUses };
+    } catch (e: unknown) {
+      const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Failed to consume threshold session');
+      return { ok: false, code: 'internal', message: msg };
+    }
+  }
+
+  async consumeUseCount(id: string): Promise<ThresholdEd25519AuthConsumeUsesResult> {
+    try {
+      const resp = await this.client.send(['INCRBY', this.usesKey(id), '-1']);
+      if (resp.type === 'error') return { ok: false, code: 'internal', message: `Redis INCRBY error: ${resp.value}` };
+      const remainingUses = resp.type === 'integer' ? resp.value : Number(resp.value ?? 0);
+      if (!Number.isFinite(remainingUses)) {
+        return { ok: false, code: 'internal', message: 'Redis INCRBY returned non-integer value' };
+      }
+      if (remainingUses < 0) {
+        return { ok: false, code: 'unauthorized', message: 'threshold session exhausted' };
+      }
+      return { ok: true, remainingUses };
     } catch (e: unknown) {
       const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Failed to consume threshold session');
       return { ok: false, code: 'internal', message: msg };

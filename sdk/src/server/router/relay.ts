@@ -17,6 +17,7 @@ import type {
   ThresholdEd25519SignInitRequest,
   ThresholdEd25519SignInitResponse,
 } from '../core/types';
+import type { ThresholdEd25519SessionClaims } from '../core/ThresholdService/validation';
 
 // Minimal session adapter interface expected by the routers.
 export type SessionClaims = Record<string, unknown>;
@@ -69,6 +70,7 @@ export interface ThresholdSigningAdapter {
   authorizeThresholdEd25519WithSession(input: {
     sessionId: string;
     userId: string;
+    claims?: ThresholdEd25519SessionClaims;
     request: ThresholdEd25519AuthorizeWithSessionRequest;
   }): Promise<ThresholdEd25519AuthorizeResponse>;
   thresholdEd25519Session(request: ThresholdEd25519SessionRequest): Promise<ThresholdEd25519SessionResponse>;

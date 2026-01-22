@@ -299,6 +299,12 @@ async function prepareThresholdSessionPlan(args: {
     wantsThresholdSession,
   } = args;
   if (!wantsThresholdSession || !relayUrl) return null;
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0 || !Number.isFinite(remainingUses) || remainingUses <= 0) {
+    console.debug(
+      '[login] threshold session mint disabled (ttlMs/remainingUses must be > 0); skipping threshold session'
+    );
+    return null;
+  }
 
   const { webAuthnManager } = context;
 

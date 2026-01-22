@@ -25,7 +25,11 @@ const session = new SessionService({
       algorithm: 'HS256',
       issuer: process.env.JWT_ISSUER || 'relay',
       audience: process.env.JWT_AUDIENCE || 'app',
-      expiresIn: Number(process.env.JWT_EXPIRES_SEC || 24 * 60 * 60)
+      // If the SDK passes a concrete `exp` (e.g. threshold session tokens), respect it by
+      // omitting `expiresIn`. Otherwise, fall back to a default TTL.
+      ...(typeof (payload as any)?.exp === 'number'
+        ? {}
+        : { expiresIn: Number(process.env.JWT_EXPIRES_SEC || 24 * 60 * 60) })
     }),
     verifyToken: async (token: string) => {
       try { const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-insecure') as any; return { valid: true, payload }; }

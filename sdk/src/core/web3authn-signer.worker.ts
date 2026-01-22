@@ -97,14 +97,24 @@ function sendProgressMessage(
     const parsedData = (typeof data === 'string') ? safeJsonParse(data, {}) : (data || {});
     const parsedLogs = (typeof logs === 'string') ? safeJsonParse(logs || '', []) : (logs || []);
 
+    const status = (() => {
+      if (stepName === 'error') return 'error';
+      const successFlag = (parsedData as any)?.success;
+      if (typeof successFlag === 'boolean') return successFlag ? 'success' : 'error';
+      if (
+        messageTypeName === 'REGISTRATION_COMPLETE' ||
+        messageTypeName === 'EXECUTE_ACTIONS_COMPLETE'
+      ) {
+        return 'success';
+      }
+      return 'progress';
+    })();
+
     // Create onProgressEvents-compatible payload
     const progressPayload = {
       step: step,
       phase: stepName,
-      status: (
-        messageTypeName === 'REGISTRATION_COMPLETE' ||
-        messageTypeName === 'EXECUTE_ACTIONS_COMPLETE'
-      ) ? 'success' : 'progress',
+      status,
       message: message,
       data: parsedData,
       logs: parsedLogs

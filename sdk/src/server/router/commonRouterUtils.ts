@@ -2,6 +2,7 @@ import type {
   ThresholdEd25519AuthorizeRequest,
   ThresholdEd25519AuthorizeWithSessionRequest,
 } from '../core/types';
+import type { ThresholdEd25519SessionClaims } from '../core/ThresholdService/validation';
 import { parseThresholdEd25519SessionClaims } from '../core/ThresholdService/validation';
 import type { SessionAdapter } from './relay';
 
@@ -42,6 +43,7 @@ export type ThresholdEd25519AuthorizeInputs =
   | {
       ok: true;
       mode: 'session';
+      claims: ThresholdEd25519SessionClaims;
       sessionId: string;
       userId: string;
       request: ThresholdEd25519AuthorizeWithSessionRequest;
@@ -76,6 +78,7 @@ export async function validateThresholdEd25519AuthorizeInputs(input: {
   return {
     ok: true,
     mode: 'session',
+    claims,
     sessionId: claims.sessionId,
     userId: claims.sub,
     request: requestBody as unknown as ThresholdEd25519AuthorizeWithSessionRequest,

@@ -96,7 +96,9 @@ export function isThresholdSessionAuthUnavailableError(err: unknown): boolean {
     msg.includes('relayer threshold session expired') ||
     msg.includes('threshold session exhausted') ||
     msg.includes('threshold session expired') ||
+    msg.includes('threshold session expired or invalid') ||
     msg.includes('Missing or invalid threshold session token') ||
+    msg.includes('Invalid threshold session token claims') ||
     msg.includes('Invalid session token kind') ||
     msg.includes('/authorize HTTP 401') ||
     msg.includes('/authorize HTTP 403')

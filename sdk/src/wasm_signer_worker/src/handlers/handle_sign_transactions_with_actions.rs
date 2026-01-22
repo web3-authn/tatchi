@@ -294,10 +294,15 @@ pub async fn handle_sign_transactions_with_actions(
     .await?;
 
     // Send completion progress message
+    let completion_message = if result.success {
+        format!("{} transactions signed successfully", tx_count)
+    } else {
+        "Transaction signing failed".to_string()
+    };
     send_completion_message(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::TransactionSigningComplete,
-        &format!("{} transactions signed successfully", tx_count),
+        &completion_message,
         Some(
             &ProgressData::new(4, 4)
                 .with_success(result.success)

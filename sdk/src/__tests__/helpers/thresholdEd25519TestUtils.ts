@@ -29,6 +29,7 @@ export function createThresholdSigningServiceForUnitTests(input: {
       putSession: async () => {},
       getSession: async () => null,
       consumeUse: async () => ({ ok: false, code: 'unauthorized', message: 'unused' }),
+      consumeUseCount: async () => ({ ok: false, code: 'unauthorized', message: 'unused' }),
     },
     config: input.config,
     ensureReady: async () => {},
