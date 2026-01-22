@@ -78,3 +78,6 @@ The deploy workflows already run `wrangler deploy --env production|staging` from
 - `.github/workflows/deploy-relay-staging.yml`
 
 When changing the DO class, bump the `[[migrations]]` tag in `wrangler.toml` so Cloudflare applies the migration.
+
+Cloudflare Free plan note
+- If you deploy on the Free plan, Cloudflare requires SQLite-backed Durable Objects. In `wrangler.toml` this means using a `[[migrations]]` entry with `new_sqlite_classes = ["ThresholdEd25519StoreDurableObject"]` (not `new_classes`).

@@ -15,8 +15,9 @@ name = "THRESHOLD_STORE"
 class_name = "ThresholdEd25519StoreDurableObject"
 
 [[migrations]]
-tag = "v1"
-new_classes = ["ThresholdEd25519StoreDurableObject"]
+tag = "v2"
+# Cloudflare Free plan requires SQLite-backed Durable Objects.
+new_sqlite_classes = ["ThresholdEd25519StoreDurableObject"]
 
 # Default inactive; add a cron schedule here when you enable rotation or heartbeats.
 [triggers]
