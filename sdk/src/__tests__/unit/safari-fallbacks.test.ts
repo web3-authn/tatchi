@@ -126,7 +126,7 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
     }
 
     expect(res.name).toBe('SecurityError');
-    expect(res.message.toLowerCase()).toContain('well-known/webauthn');
+    expect(String(res.message || '').toLowerCase()).toContain('well-known/webauthn');
   });
 
   test('get(): native ancestor error then bridge cancel → NotAllowedError', async ({ page }) => {
