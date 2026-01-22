@@ -12,6 +12,10 @@ export async function handleHealth(ctx: CloudflareRelayContext): Promise<Respons
   const shamir = ctx.service.shamirService;
   const shamirConfigured = Boolean(shamir && shamir.hasShamir());
   const thresholdConfigured = Boolean(ctx.opts.threshold);
+  const thresholdError =
+    (ctx.service && typeof (ctx.service as unknown as { getThresholdSigningServiceInitError?: unknown }).getThresholdSigningServiceInitError === 'function')
+      ? (ctx.service as unknown as { getThresholdSigningServiceInitError: () => string | null }).getThresholdSigningServiceInitError()
+      : null;
   let currentKeyId: string | null = null;
   if (shamirConfigured && shamir) {
     try {
@@ -29,7 +33,7 @@ export async function handleHealth(ctx: CloudflareRelayContext): Promise<Respons
     currentKeyId,
     shamir: { configured: shamirConfigured, currentKeyId },
     zkEmail: { configured: zkEmailConfigured, proverBaseUrl },
-    thresholdEd25519: { configured: thresholdConfigured },
+    thresholdEd25519: { configured: thresholdConfigured, error: thresholdError },
     cors: { allowedOrigins: corsAllowed },
   }, { status: 200 });
 }
@@ -43,6 +47,10 @@ export async function handleReady(ctx: CloudflareRelayContext): Promise<Response
   const shamir = ctx.service.shamirService;
   const shamirConfigured = Boolean(shamir && shamir.hasShamir());
   const thresholdConfigured = Boolean(ctx.opts.threshold);
+  const thresholdError =
+    (ctx.service && typeof (ctx.service as unknown as { getThresholdSigningServiceInitError?: unknown }).getThresholdSigningServiceInitError === 'function')
+      ? (ctx.service as unknown as { getThresholdSigningServiceInitError: () => string | null }).getThresholdSigningServiceInitError()
+      : null;
 
   let shamirReady: boolean | null = null;
   let shamirCurrentKeyId: string | null = null;
@@ -75,7 +83,7 @@ export async function handleReady(ctx: CloudflareRelayContext): Promise<Response
       currentKeyId: shamirCurrentKeyId,
       error: shamirError,
     },
-    thresholdEd25519: { configured: thresholdConfigured },
+    thresholdEd25519: { configured: thresholdConfigured, error: thresholdError },
     zkEmail: zk,
     cors: { allowedOrigins: corsAllowed },
   }, { status: ok ? 200 : 503 });

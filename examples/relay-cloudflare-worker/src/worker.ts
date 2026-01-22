@@ -28,26 +28,27 @@ type Env = {
   WEBAUTHN_CONTRACT_ID: string;
   ACCOUNT_INITIAL_BALANCE?: string;
   CREATE_ACCOUNT_AND_REGISTER_GAS?: string;
-  ZK_EMAIL_PROVER_BASE_URL?: string;
-  ZK_EMAIL_PROVER_TIMEOUT_MS?: string;
+  EXPECTED_ORIGIN?: string;
+  EXPECTED_WALLET_ORIGIN?: string;
+  // Shamir config
   SHAMIR_P_B64U: string;
   SHAMIR_E_S_B64U: string;
   SHAMIR_D_S_B64U: string;
-  EXPECTED_ORIGIN?: string;
-  EXPECTED_WALLET_ORIGIN?: string;
   ENABLE_ROTATION?: string;
+  // Email recovery
   RECOVER_EMAIL_RECIPIENT?: string;
-
   // Threshold signing (optional)
   THRESHOLD_ED25519_MASTER_SECRET_B64U?: string;
   THRESHOLD_ED25519_SHARE_MODE?: string;
   THRESHOLD_PREFIX?: string;
-
   // Durable Object binding for threshold state
   THRESHOLD_STORE: {
     idFromName(name: string): unknown;
     get(id: unknown): { fetch(input: RequestInfo, init?: RequestInit): Promise<Response> };
   };
+  // ZK Email recovery (optional)
+  ZK_EMAIL_PROVER_BASE_URL?: string;
+  ZK_EMAIL_PROVER_TIMEOUT_MS?: string;
 };
 
 function getAuthService(env: Env): AuthService {

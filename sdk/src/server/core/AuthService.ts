@@ -176,6 +176,7 @@ export class AuthService {
   private readonly logger: NormalizedLogger;
   private thresholdSigningServiceInitialized = false;
   private thresholdSigningService: ThresholdSigningServiceType | null = null;
+  private thresholdSigningServiceInitError: string | null = null;
 
   // Transaction queue to prevent nonce conflicts
   private transactionQueue: Promise<any> = Promise.resolve();
@@ -255,13 +256,26 @@ export class AuthService {
       return null;
     }
 
-    this.thresholdSigningService = createThresholdSigningService({
-      authService: this,
-      thresholdEd25519KeyStore: this.config.thresholdEd25519KeyStore,
-      logger: this.logger,
-      isNode: this.isNodeEnvironment(),
-    });
-    return this.thresholdSigningService;
+    try {
+      this.thresholdSigningService = createThresholdSigningService({
+        authService: this,
+        thresholdEd25519KeyStore: this.config.thresholdEd25519KeyStore,
+        logger: this.logger,
+        isNode: this.isNodeEnvironment(),
+      });
+      this.thresholdSigningServiceInitError = null;
+      return this.thresholdSigningService;
+    } catch (e: unknown) {
+      const msg = errorMessage(e) || String(e);
+      this.thresholdSigningServiceInitError = msg;
+      this.thresholdSigningService = null;
+      this.logger.error('[threshold-ed25519] Failed to initialize threshold signing service:', msg);
+      return null;
+    }
+  }
+
+  getThresholdSigningServiceInitError(): string | null {
+    return this.thresholdSigningServiceInitError;
   }
 
   getWebAuthnContractId(): string {

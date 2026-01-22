@@ -63,6 +63,11 @@ EXPECTED_WALLET_ORIGIN = "https://wallet.web3authn.org"
 THRESHOLD_PREFIX = "tatchi:prod:w3a"
 THRESHOLD_ED25519_SHARE_MODE = "derived"
 
+# Durable Object binding (explicit per-env to avoid any inheritance ambiguity).
+[[env.production.durable_objects.bindings]]
+name = "THRESHOLD_STORE"
+class_name = "ThresholdEd25519StoreDurableObject"
+
 # Staging worker (separate Worker name + tighter CORS allowlist)
 [env.staging]
 name = "w3a-relay-staging"
@@ -79,6 +84,11 @@ EXPECTED_ORIGIN = "https://staging.tatchi.xyz"
 EXPECTED_WALLET_ORIGIN = "https://wallet-staging.web3authn.org"
 THRESHOLD_PREFIX = "tatchi:staging:w3a"
 THRESHOLD_ED25519_SHARE_MODE = "derived"
+
+# Durable Object binding (explicit per-env to avoid any inheritance ambiguity).
+[[env.staging.durable_objects.bindings]]
+name = "THRESHOLD_STORE"
+class_name = "ThresholdEd25519StoreDurableObject"
 
 # Optional: explicitly enable cron and rotation (defaults to disabled)
 # ENABLE_ROTATION = "0"
