@@ -21,9 +21,6 @@ export type ThresholdEd25519SessionPolicy = {
   remainingUses: number;
 };
 
-export const THRESHOLD_SESSION_POLICY_MAX_TTL_MS = 10 * 60_000;
-export const THRESHOLD_SESSION_POLICY_MAX_USES = 20;
-
 // Default policy used when callers do not specify a policy explicitly.
 // These defaults are kept conservative to limit the blast radius of a stolen token.
 export const DEFAULT_THRESHOLD_SESSION_POLICY: Pick<ThresholdEd25519SessionPolicy, 'ttlMs' | 'remainingUses'> = {
@@ -35,11 +32,9 @@ export function clampThresholdSessionPolicy(input: {
   ttlMs: number;
   remainingUses: number;
 }): { ttlMs: number; remainingUses: number } {
-  const ttlMs = Math.max(0, Math.floor(Number(input.ttlMs) || 0));
-  const remainingUses = Math.max(0, Math.floor(Number(input.remainingUses) || 0));
   return {
-    ttlMs: Math.min(ttlMs, THRESHOLD_SESSION_POLICY_MAX_TTL_MS),
-    remainingUses: Math.min(remainingUses, THRESHOLD_SESSION_POLICY_MAX_USES),
+    ttlMs: Math.floor(Number(input.ttlMs) || 0),
+    remainingUses: Math.floor(Number(input.remainingUses) || 0),
   };
 }
 
@@ -74,6 +69,12 @@ export async function buildThresholdSessionPolicy(params: {
     ttlMs: params.ttlMs ?? DEFAULT_THRESHOLD_SESSION_POLICY.ttlMs,
     remainingUses: params.remainingUses ?? DEFAULT_THRESHOLD_SESSION_POLICY.remainingUses,
   });
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0 || !Number.isInteger(ttlMs)) {
+    throw new Error('threshold sessionPolicy ttlMs must be a positive integer');
+  }
+  if (!Number.isFinite(remainingUses) || remainingUses <= 0 || !Number.isInteger(remainingUses)) {
+    throw new Error('threshold sessionPolicy remainingUses must be a positive integer');
+  }
   const participantIds = normalizeThresholdEd25519ParticipantIds(params.participantIds);
   const policy: ThresholdEd25519SessionPolicy = {
     version: THRESHOLD_SESSION_POLICY_VERSION,

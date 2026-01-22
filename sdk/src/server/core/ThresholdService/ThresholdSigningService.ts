@@ -275,10 +275,10 @@ function parseThresholdEd25519SessionRequest(
     }
   }
 
-  if (!Number.isFinite(ttlMsRaw) || ttlMsRaw <= 0) {
+  if (!Number.isFinite(ttlMsRaw) || ttlMsRaw <= 0 || !Number.isInteger(ttlMsRaw)) {
     return { ok: false, code: 'invalid_body', message: 'sessionPolicy.ttlMs must be a positive number' };
   }
-  if (!Number.isFinite(remainingUsesRaw) || remainingUsesRaw <= 0) {
+  if (!Number.isFinite(remainingUsesRaw) || remainingUsesRaw <= 0 || !Number.isInteger(remainingUsesRaw)) {
     return { ok: false, code: 'invalid_body', message: 'sessionPolicy.remainingUses must be a positive number' };
   }
 
@@ -434,15 +434,10 @@ export class ThresholdSigningService {
 	    });
 	  }
 
-  private clampSessionPolicy(input: { ttlMs: number; remainingUses: number }): { ttlMs: number; remainingUses: number } {
-    const ttlMs = Math.max(0, Math.floor(Number(input.ttlMs) || 0));
-    const remainingUses = Math.max(0, Math.floor(Number(input.remainingUses) || 0));
-    // Hard caps (server-side). Session policy digest must be computed against these final values.
-    const MAX_TTL_MS = 10 * 60_000;
-    const MAX_USES = 20;
+  private normalizeSessionPolicy(input: { ttlMs: number; remainingUses: number }): { ttlMs: number; remainingUses: number } {
     return {
-      ttlMs: Math.min(ttlMs, MAX_TTL_MS),
-      remainingUses: Math.min(remainingUses, MAX_USES),
+      ttlMs: Math.floor(Number(input.ttlMs) || 0),
+      remainingUses: Math.floor(Number(input.remainingUses) || 0),
     };
   }
 
@@ -878,7 +873,7 @@ export class ThresholdSigningService {
         return { ok: false, code: relayerKey.code, message: relayerKey.message };
       }
 
-      const { ttlMs, remainingUses } = this.clampSessionPolicy({ ttlMs: ttlMsRaw, remainingUses: remainingUsesRaw });
+      const { ttlMs, remainingUses } = this.normalizeSessionPolicy({ ttlMs: ttlMsRaw, remainingUses: remainingUsesRaw });
       const participantIds = policyParticipantIds || [...this.participantIds2p];
       const normalizedPolicy = {
         version: 'threshold_session_v1',
