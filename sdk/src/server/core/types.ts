@@ -130,6 +130,18 @@ export type ThresholdEd25519KeyStoreEnvInput = {
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
   REDIS_URL?: string;
+  /**
+   * Optional global base prefix for all threshold keyspaces.
+   *
+   * When set, and the more specific `THRESHOLD_ED25519_*_PREFIX` variables are not set,
+   * the SDK derives:
+   * - `THRESHOLD_ED25519_AUTH_PREFIX` = `${THRESHOLD_PREFIX}:threshold-ed25519:auth:`
+   * - `THRESHOLD_ED25519_SESSION_PREFIX` = `${THRESHOLD_PREFIX}:threshold-ed25519:sess:`
+   * - `THRESHOLD_ED25519_KEYSTORE_PREFIX` = `${THRESHOLD_PREFIX}:threshold-ed25519:key:`
+   *
+   * Trailing `:` is optional.
+   */
+  THRESHOLD_PREFIX?: string;
   THRESHOLD_ED25519_KEYSTORE_PREFIX?: string;
   THRESHOLD_ED25519_SESSION_PREFIX?: string;
   THRESHOLD_ED25519_AUTH_PREFIX?: string;

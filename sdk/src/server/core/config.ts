@@ -123,6 +123,7 @@ function normalizeThresholdEd25519KeyStoreConfig(
     || toOptionalTrimmedString(c.THRESHOLD_ED25519_RELAYER_COSIGNER_T)
     || toOptionalTrimmedString(c.THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID)
     || toOptionalTrimmedString(c.THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID)
+    || toOptionalTrimmedString(c.THRESHOLD_PREFIX)
     || toOptionalTrimmedString(c.THRESHOLD_ED25519_AUTH_PREFIX)
     || toOptionalTrimmedString(c.THRESHOLD_ED25519_SESSION_PREFIX)
     || toOptionalTrimmedString(c.THRESHOLD_ED25519_KEYSTORE_PREFIX)

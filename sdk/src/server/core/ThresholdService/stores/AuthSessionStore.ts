@@ -5,6 +5,7 @@ import { toOptionalTrimmedString } from '../../../../utils/validation';
 import {
   isObject,
   toThresholdEd25519AuthPrefix,
+  toThresholdEd25519PrefixFromBase,
   parseThresholdEd25519AuthSessionRecord,
 } from '../validation';
 
@@ -263,7 +264,11 @@ export function createThresholdEd25519AuthSessionStore(input: {
   isNode: boolean;
 }): ThresholdEd25519AuthSessionStore {
   const config = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
-  const envPrefix = toOptionalTrimmedString(config.THRESHOLD_ED25519_AUTH_PREFIX);
+  const basePrefix = toOptionalTrimmedString(config.THRESHOLD_PREFIX);
+  const envPrefix =
+    toOptionalTrimmedString(config.THRESHOLD_ED25519_AUTH_PREFIX)
+    || toThresholdEd25519PrefixFromBase(basePrefix, 'auth')
+    || '';
 
   const kind = toOptionalTrimmedString(config.kind);
   if (kind === 'in-memory') return new InMemoryThresholdEd25519AuthSessionStore({ keyPrefix: envPrefix || undefined });

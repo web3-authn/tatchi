@@ -36,6 +36,42 @@ export function toThresholdEd25519AuthPrefix(prefix: unknown): string {
   return toPrefixWithColon(prefix, 'w3a:threshold-ed25519:auth:');
 }
 
+export type ThresholdEd25519PrefixKind = 'auth' | 'sess' | 'key';
+
+/**
+ * Derive a threshold-ed25519 KV prefix from a single, global base prefix.
+ *
+ * This enables simple configuration like:
+ * - THRESHOLD_PREFIX="tatchi:prod:w3a"
+ *
+ * which expands to:
+ * - tatchi:prod:w3a:threshold-ed25519:auth:
+ * - tatchi:prod:w3a:threshold-ed25519:sess:
+ * - tatchi:prod:w3a:threshold-ed25519:key:
+ */
+export function toThresholdEd25519PrefixFromBase(
+  prefixBase: unknown,
+  kind: ThresholdEd25519PrefixKind,
+): string | null {
+  const raw = toOptionalString(prefixBase).trim();
+  if (!raw) return null;
+
+  const base = raw.endsWith(':') ? raw : `${raw}:`;
+
+  // If the user mistakenly provided a full kind prefix, only accept it for that kind.
+  for (const candidate of ['auth', 'sess', 'key'] as const) {
+    const full = `threshold-ed25519:${candidate}:`;
+    if (base.includes(`:${full}`) || base.endsWith(full)) {
+      return candidate === kind ? base : null;
+    }
+  }
+
+  // If the user already included the algorithm namespace, don't append it again.
+  const alg = 'threshold-ed25519:';
+  const algBase = (base.includes(`:${alg}`) || base.endsWith(alg)) ? base : `${base}${alg}`;
+  return `${algBase}${kind}:`;
+}
+
 export type ParsedThresholdEd25519KeyRecord = {
   publicKey: string;
   relayerSigningShareB64u: string;
