@@ -15,10 +15,6 @@ import jwtSession from './jwtSession';
 
 export { ThresholdEd25519StoreDurableObject } from '@tatchi-xyz/sdk/server/router/cloudflare';
 
-// Singleton AuthService instance shared across fetch/email/scheduled events.
-// Singleton avoids re-initializing WASM clients, etc. on every request.
-let service: AuthService | null = null;
-
 type Env = {
   // base env vars
   RELAYER_ACCOUNT_ID: string;
@@ -52,41 +48,42 @@ type Env = {
 };
 
 function getAuthService(env: Env): AuthService {
-  if (!service) {
-    service = new AuthService({
-      relayerAccountId: env.RELAYER_ACCOUNT_ID,
-      relayerPrivateKey: env.RELAYER_PRIVATE_KEY,
-      webAuthnContractId: env.WEBAUTHN_CONTRACT_ID,
-      nearRpcUrl: env.NEAR_RPC_URL,
-      networkId: env.NETWORK_ID,
-      accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE,
-      createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS,
-      signerWasm: {
-        moduleOrPath: signerWasmModule, // Pass WASM module for Cloudflare Workers
-      },
-      thresholdEd25519KeyStore: {
-        kind: 'cloudflare-do',
-        namespace: env.THRESHOLD_STORE,
-        name: 'threshold-ed25519-store',
-        THRESHOLD_PREFIX: env.THRESHOLD_PREFIX,
-        THRESHOLD_ED25519_SHARE_MODE: env.THRESHOLD_ED25519_SHARE_MODE,
-        THRESHOLD_ED25519_MASTER_SECRET_B64U: env.THRESHOLD_ED25519_MASTER_SECRET_B64U,
-      },
-      shamir: {
-        SHAMIR_P_B64U: env.SHAMIR_P_B64U,
-        SHAMIR_E_S_B64U: env.SHAMIR_E_S_B64U,
-        SHAMIR_D_S_B64U: env.SHAMIR_D_S_B64U,
-        graceShamirKeysFile: '', // Do not use FS on Workers
-        moduleOrPath: shamirWasmModule, // Pass WASM module for Cloudflare Workers
-      },
-      // optional
-      zkEmailProver: {
-        ZK_EMAIL_PROVER_BASE_URL: env.ZK_EMAIL_PROVER_BASE_URL,
-        ZK_EMAIL_PROVER_TIMEOUT_MS: env.ZK_EMAIL_PROVER_TIMEOUT_MS,
-      },
-    });
-  }
-  return service;
+  // IMPORTANT (Cloudflare Workers):
+  // Do not cache per-request I/O objects (including some bindings) across requests.
+  // Threshold signing uses Durable Objects; caching the AuthService (and its DO stubs) across
+  // requests can trigger "Cannot perform I/O on behalf of a different request".
+  return new AuthService({
+    relayerAccountId: env.RELAYER_ACCOUNT_ID,
+    relayerPrivateKey: env.RELAYER_PRIVATE_KEY,
+    webAuthnContractId: env.WEBAUTHN_CONTRACT_ID,
+    nearRpcUrl: env.NEAR_RPC_URL,
+    networkId: env.NETWORK_ID,
+    accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE,
+    createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS,
+    signerWasm: {
+      moduleOrPath: signerWasmModule, // Pass WASM module for Cloudflare Workers
+    },
+    thresholdEd25519KeyStore: {
+      kind: 'cloudflare-do',
+      namespace: env.THRESHOLD_STORE,
+      name: 'threshold-ed25519-store',
+      THRESHOLD_PREFIX: env.THRESHOLD_PREFIX,
+      THRESHOLD_ED25519_SHARE_MODE: env.THRESHOLD_ED25519_SHARE_MODE,
+      THRESHOLD_ED25519_MASTER_SECRET_B64U: env.THRESHOLD_ED25519_MASTER_SECRET_B64U,
+    },
+    shamir: {
+      SHAMIR_P_B64U: env.SHAMIR_P_B64U,
+      SHAMIR_E_S_B64U: env.SHAMIR_E_S_B64U,
+      SHAMIR_D_S_B64U: env.SHAMIR_D_S_B64U,
+      graceShamirKeysFile: '', // Do not use FS on Workers
+      moduleOrPath: shamirWasmModule, // Pass WASM module for Cloudflare Workers
+    },
+    // optional
+    zkEmailProver: {
+      ZK_EMAIL_PROVER_BASE_URL: env.ZK_EMAIL_PROVER_BASE_URL,
+      ZK_EMAIL_PROVER_TIMEOUT_MS: env.ZK_EMAIL_PROVER_TIMEOUT_MS,
+    },
+  });
 }
 
 export default {
