@@ -68,8 +68,12 @@ jobs:
           fi
 
           # Build worker vars (avoid setting empty strings).
-          ARGS=(--var RECOVER_EMAIL_RECIPIENT="${RECOVER_EMAIL_RECIPIENT}")
-          ARGS+=(--var THRESHOLD_ED25519_SHARE_MODE="${THRESHOLD_ED25519_SHARE_MODE}")
+          #
+          # Wrangler expects `--var name:value` (colon), not `name=value`.
+          # If we pass `name=value`, Wrangler will treat the whole string as the variable name,
+          # which shows up in the Cloudflare dashboard as a variable named `NAME=value`.
+          ARGS=(--var "RECOVER_EMAIL_RECIPIENT:${RECOVER_EMAIL_RECIPIENT}")
+          ARGS+=(--var "THRESHOLD_ED25519_SHARE_MODE:${THRESHOLD_ED25519_SHARE_MODE}")
 
           pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --config wrangler.toml --env staging "${ARGS[@]}"
 
