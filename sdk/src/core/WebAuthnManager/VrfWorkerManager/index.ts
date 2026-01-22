@@ -192,6 +192,19 @@ export class VrfWorkerManager {
     return this.context;
   }
 
+  /**
+   * Force-terminate the underlying VRF worker and reset initialization state.
+   *
+   * This is primarily used during explicit logout flows to cancel any in-flight
+   * SecureConfirm/signing requests and ensure a clean worker state for the next login.
+   */
+  resetWorker(): void {
+    try { this.vrfWorker?.terminate(); } catch {}
+    this.vrfWorker = null;
+    this.initializationPromise = null;
+    this.currentVrfAccountId = null;
+  }
+
   private getHandlerContext(): VrfWorkerManagerHandlerContext {
     return {
       ensureWorkerReady: this.ensureWorkerReady.bind(this),
@@ -587,15 +600,17 @@ export class VrfWorkerManager {
     customTimeout?: number
   ): Promise<VRFWorkerResponse> {
     return new Promise((resolve, reject) => {
-      if (!this.vrfWorker) {
+      const worker = this.vrfWorker;
+      if (!worker) {
         reject(new Error('VRF Web Worker not available'));
         return;
       }
 
       const timeoutMs = (customTimeout ?? this.config.workerTimeout ?? 60_000);
-      const timeout = setTimeout(() => {
-        reject(new Error(`VRF Web Worker communication timeout (${timeoutMs}ms) for message type: ${message.type}`));
-      }, timeoutMs);
+      const cleanup = (handleMessage: (event: MessageEvent) => void, timeout: ReturnType<typeof setTimeout>) => {
+        clearTimeout(timeout);
+        try { worker.removeEventListener('message', handleMessage); } catch {}
+      };
 
       const handleMessage = (event: MessageEvent) => {
         const payload = event.data as VRFWorkerResponse | {
@@ -614,24 +629,31 @@ export class VrfWorkerManager {
             data: SecureConfirmRequest;
           };
           const ctx = this.getContext();
-          if (!this.vrfWorker) {
-            console.error('[VRF] SecureConfirm: vrfWorker missing for PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD');
-            return;
-          }
-          void handlePromptUserConfirmInJsMainThread(ctx, env, this.vrfWorker);
+          void handlePromptUserConfirmInJsMainThread(ctx, env, worker);
           return;
         }
 
         const response = payload as VRFWorkerResponse;
         if (response.id === message.id) {
-          clearTimeout(timeout);
-          this.vrfWorker!.removeEventListener('message', handleMessage);
+          cleanup(handleMessage, timeout);
           resolve(response);
         }
       };
 
-      this.vrfWorker.addEventListener('message', handleMessage);
-      this.vrfWorker.postMessage(message);
+      const timeout = setTimeout(() => {
+        cleanup(handleMessage, timeout);
+        // If the VRF worker stops responding, treat it as wedged and force-reset it so
+        // the next request can re-initialize a fresh instance.
+        try {
+          if (this.vrfWorker === worker) {
+            this.resetWorker();
+          }
+        } catch {}
+        reject(new Error(`VRF Web Worker communication timeout (${timeoutMs}ms) for message type: ${message.type}`));
+      }, timeoutMs);
+
+      worker.addEventListener('message', handleMessage);
+      worker.postMessage(message);
     });
   }
 

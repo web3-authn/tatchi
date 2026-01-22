@@ -1127,7 +1127,14 @@ export async function getRecentLogins(
  */
 export async function logoutAndClearSession(context: PasskeyManagerContext): Promise<void> {
   const { webAuthnManager } = context;
-  await webAuthnManager.clearVrfSession();
+  // Best-effort VRF logout. Do not block logout indefinitely if the VRF worker is
+  // stuck (e.g., an in-flight confirmation/signing flow).
+  try {
+    const clear = webAuthnManager.clearVrfSession().catch(() => undefined);
+    await Promise.race([clear, new Promise<void>((resolve) => setTimeout(resolve, 2000))]);
+  } catch {}
+  // Ensure all ephemeral signing state is torn down so the next login starts cleanly.
+  try { webAuthnManager.resetSigningState(); } catch {}
   try { webAuthnManager.getNonceManager().clear(); } catch {}
   try { clearAllCachedThresholdEd25519AuthSessions(); } catch {}
 }

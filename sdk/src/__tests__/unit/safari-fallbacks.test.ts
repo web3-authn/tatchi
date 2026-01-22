@@ -93,6 +93,42 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
     expect(res.threw).toBe(true);
   });
 
+  test('get(): bridge RP-ID/ROR failure → SecurityError (not cancellation)', async ({ page }) => {
+    const res = await page.evaluate(async ({ paths }) => {
+      try {
+        const { executeWebAuthnWithParentFallbacksSafari } = await import(paths.fallbacks);
+        const rpId = 'web3authn.org';
+        const publicKey = { rpId, challenge: new Uint8Array([1]) };
+
+        (window as any).__W3A_TEST_FORCE_NATIVE_FAIL = true;
+        const bridgeClient = {
+          request: async () => ({
+            ok: false,
+            error: 'The relying party ID is not a registrable domain suffix of, nor equal to, the current domain. /.well-known/webauthn resource of the claimed RP ID failed.',
+          })
+        };
+
+        try {
+          await executeWebAuthnWithParentFallbacksSafari('get', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
+          return { success: false, error: 'Expected rejection' };
+        } catch (e: any) {
+          try { delete (window as any).__W3A_TEST_FORCE_NATIVE_FAIL; } catch {}
+          return { success: true, name: e?.name || '', message: String(e?.message || e) };
+        }
+      } catch (err: any) {
+        return { success: false, error: err?.message || String(err) };
+      }
+    }, { paths: IMPORT_PATHS });
+
+    if (!res.success) {
+      test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`);
+      return;
+    }
+
+    expect(res.name).toBe('SecurityError');
+    expect(res.message.toLowerCase()).toContain('well-known/webauthn');
+  });
+
   test('get(): native ancestor error then bridge cancel → NotAllowedError', async ({ page }) => {
     const res = await page.evaluate(async ({ paths }) => {
       try {

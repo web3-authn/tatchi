@@ -188,6 +188,29 @@ export class SignerWorkerManager {
   private signingSessions: Map<string, SigningSessionEntry> = new Map();
   private readonly SIGNING_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
+  /**
+   * Force-terminate all worker instances and session state.
+   *
+   * Intended for explicit logout flows where we want to:
+   * - cancel any in-flight signing operations
+   * - close any session MessagePorts
+   * - zeroize worker memory by terminating workers
+   */
+  reset(): void {
+    // Terminate all active session workers and close associated ports.
+    for (const [sessionId, entry] of Array.from(this.signingSessions.entries())) {
+      try { entry.wrapKeySeedPort?.close(); } catch {}
+      try { entry.worker.terminate(); } catch {}
+      this.signingSessions.delete(sessionId);
+    }
+
+    // Terminate any idle workers in the pool.
+    for (const worker of this.workerPool) {
+      try { worker.terminate(); } catch {}
+    }
+    this.workerPool = [];
+  }
+
   private getWorkerFromPool(): Worker {
     if (this.workerPool.length > 0) {
       return this.workerPool.pop()!;

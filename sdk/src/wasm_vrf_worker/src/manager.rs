@@ -536,6 +536,16 @@ impl VRFKeyManager {
             self.sessions.clear();
             debug!("Cleared cached VRF sessions on logout");
         }
+
+        // Best-effort: close and drop any attached MessagePorts for WrapKeySeed delivery.
+        // These ports are one-shot, but if a signing flow is interrupted (e.g., user logs out
+        // mid-confirmation), the port can remain registered and must be closed to avoid leaks
+        // and cross-session interference.
+        #[cfg(target_arch = "wasm32")]
+        {
+            crate::wrap_key_seed_port::close_all_ports();
+            debug!("Closed all WrapKeySeed ports on logout");
+        }
         // Clear session data
         self.session_active = false;
         self.session_start_time = 0.0;

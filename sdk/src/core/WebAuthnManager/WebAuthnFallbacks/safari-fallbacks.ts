@@ -31,6 +31,36 @@ type BridgeOk = { ok: true; credential: unknown };
 type BridgeErr = { ok: false; error?: string; timeout?: boolean };
 type BridgeResponse = BridgeOk | BridgeErr;
 
+function isRorOrRpIdConfigErrorMessage(message: string): boolean {
+  const msg = String(message || '').toLowerCase();
+  // ROR / RP ID validation failures surface as SecurityErrors with messages like:
+  // - ".../.well-known/webauthn resource of the claimed RP ID failed."
+  // - "The relying party ID is not a registrable domain suffix of, nor equal to, the current domain"
+  return (
+    msg.includes('well-known/webauthn') ||
+    (msg.includes('relying party id') && msg.includes('registrable domain')) ||
+    (msg.includes('rp id') && msg.includes('well-known'))
+  );
+}
+
+function securityError(message: string): Error {
+  const e = new Error(message);
+  (e as any).name = 'SecurityError';
+  return e;
+}
+
+function bridgeFailureError(message: string): Error {
+  const msg = String(message || '').trim() || 'WebAuthn cancelled or failed (bridge)';
+  if (isRorOrRpIdConfigErrorMessage(msg)) return securityError(msg);
+  return notAllowedError(msg);
+}
+
+function normalizeBridgeError(err: unknown): Error {
+  const msg =
+    err instanceof Error ? err.message : String(err ?? '');
+  return bridgeFailureError(msg || 'WebAuthn bridge failed');
+}
+
 // Client interface used to request WebAuthn from the parent/top-level context
 export type ParentDomainWebAuthnClient = {
   request<K extends BridgeKind>(
@@ -100,12 +130,12 @@ export async function executeWebAuthnWithParentFallbacksSafari(
       const bridged = await requestParentDomainWebAuthn(kind, publicKey, bridgeClient, timeoutMs);
       if (bridged?.ok) return bridged.credential;
       if (bridged && !bridged.timeout) {
-        throw notAllowedError(bridged.error || 'WebAuthn cancelled or failed (bridge)');
+        throw bridgeFailureError(bridged.error || 'WebAuthn cancelled or failed (bridge)');
       }
       throw new Error('WebAuthn bridge timeout');
     } catch (be: unknown) {
       // Ensure consistent error type for unit tests
-      throw notAllowedError((be as any)?.message || 'WebAuthn bridge failed');
+      throw normalizeBridgeError(be);
     }
   }
 
@@ -149,10 +179,10 @@ export async function executeWebAuthnWithParentFallbacksSafari(
         const bridgedCredentials = await requestParentDomainWebAuthn(kind, publicKey, bridgeClient, timeoutMs);
         if (bridgedCredentials?.ok) return bridgedCredentials.credential;
         if (bridgedCredentials && !bridgedCredentials.timeout) {
-          throw notAllowedError(bridgedCredentials.error || 'WebAuthn get cancelled or failed (bridge)');
+          throw bridgeFailureError(bridgedCredentials.error || 'WebAuthn get cancelled or failed (bridge)');
         }
       } catch (be: unknown) {
-        throw notAllowedError((be as any)?.message || 'WebAuthn bridge failed');
+        throw normalizeBridgeError(be);
       }
     }
 
@@ -167,10 +197,10 @@ export async function executeWebAuthnWithParentFallbacksSafari(
           const bridgedCredentials = await requestParentDomainWebAuthn(kind, publicKey, bridgeClient, timeoutMs);
           if (bridgedCredentials?.ok) return bridgedCredentials.credential;
           if (bridgedCredentials && !bridgedCredentials.timeout) {
-            throw notAllowedError(bridgedCredentials.error || 'WebAuthn get cancelled or failed (bridge)');
+            throw bridgeFailureError(bridgedCredentials.error || 'WebAuthn get cancelled or failed (bridge)');
           }
         } catch (be: unknown) {
-          throw notAllowedError((be as any)?.message || 'WebAuthn bridge failed');
+          throw normalizeBridgeError(be);
         }
       }
     }
@@ -181,12 +211,12 @@ export async function executeWebAuthnWithParentFallbacksSafari(
         const bridgedCredentials = await requestParentDomainWebAuthn(kind, publicKey, bridgeClient, timeoutMs);
         if (bridgedCredentials?.ok) return bridgedCredentials.credential;
         if (bridgedCredentials && !bridgedCredentials.timeout) {
-          throw notAllowedError(bridgedCredentials.error || 'WebAuthn cancelled or failed (bridge)');
+          throw bridgeFailureError(bridgedCredentials.error || 'WebAuthn cancelled or failed (bridge)');
         }
         // Timeout: surface an explicit error without re‑trying native again
         throw new Error('WebAuthn bridge timeout');
       } catch (be: unknown) {
-        throw notAllowedError((be as any)?.message || 'WebAuthn bridge failed');
+        throw normalizeBridgeError(be);
       }
     }
 

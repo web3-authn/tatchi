@@ -775,6 +775,20 @@ export class WebAuthnManager {
   }
 
   /**
+   * Best-effort teardown of all ephemeral signing state.
+   *
+   * Use this during explicit logout flows to ensure that:
+   * - any in-flight signer sessions are terminated
+   * - VRF worker state (including pending confirmations) is cleared by termination
+   * - subsequent logins start with a fresh `sessionId` scope
+   */
+  resetSigningState(): void {
+    try { this.activeSigningSessionIds.clear(); } catch {}
+    try { this.signerWorkerManager.reset(); } catch {}
+    try { this.vrfWorkerManager.resetWorker(); } catch {}
+  }
+
+  /**
    * Check VRF worker status
    */
   async checkVrfStatus(): Promise<{
