@@ -55,6 +55,12 @@ Threshold signing endpoints are enabled only when you provide:
 
 You do **not** set this via `--var` (it’s a secret).
 
+Cloudflare-native persistence
+- This example uses a **Durable Object** to persist threshold auth sessions + FROST signing sessions.
+- Configure the base key prefix in `wrangler.toml` (or dashboard):
+  - `THRESHOLD_PREFIX` (e.g. `tatchi:prod:w3a`)
+  - Optional: `THRESHOLD_ED25519_SHARE_MODE=derived` (recommended for serverless)
+
 ### Session configuration (optional)
 
 The Worker mints sessions only when you provide a SessionService. No JWT library
@@ -67,9 +73,16 @@ Example hooks used in this example Worker entry:
 ```ts
 const session = new SessionService({
   jwt: {
-    signToken: ({ payload }) => jwt.sign(payload as any, env.JWT_SECRET || 'dev-token', {
-      algorithm: 'HS256', issuer: 'relay-worker-demo', audience: 'tatchi-app-demo', expiresIn: 86400
-    }),
+    // Important: if `payload.exp` is provided (e.g. for threshold-session tokens), do not override it with `expiresIn`.
+    signToken: ({ payload }) => {
+      const hasPayloadExp = typeof (payload as { exp?: unknown }).exp === 'number';
+      return jwt.sign(payload as any, env.JWT_SECRET || 'dev-token', {
+        algorithm: 'HS256',
+        issuer: 'relay-worker-demo',
+        audience: 'tatchi-app-demo',
+        ...(hasPayloadExp ? {} : { expiresIn: 86400 }),
+      });
+    },
     verifyToken: async (token) => { try { return { valid: true, payload: jwt.verify(token, env.JWT_SECRET || 'dev-token') }; } catch { return { valid: false }; } }
   },
   // Minimal cookie config (defaults are fine for Lax; customize with hooks below if needed)

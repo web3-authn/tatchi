@@ -1,6 +1,7 @@
 // Server package exports - Core NEAR Account Service
 export * from './core/types';
 export * from './core/config';
+export * from './core/defaultConfigsServer';
 export {
   AuthService
 } from './core/AuthService';

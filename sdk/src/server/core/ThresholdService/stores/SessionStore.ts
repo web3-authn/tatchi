@@ -4,11 +4,13 @@ import { RedisTcpClient, UpstashRedisRestClient, redisGetdelJson, redisSetJson }
 import { toOptionalTrimmedString } from '../../../../utils/validation';
 import {
   toThresholdEd25519SessionPrefix,
+  toThresholdEd25519PrefixFromBase,
   parseThresholdEd25519MpcSessionRecord,
   parseThresholdEd25519CoordinatorSigningSessionRecord,
   parseThresholdEd25519SigningSessionRecord,
   isObject,
 } from '../validation';
+import { createCloudflareDurableObjectThresholdEd25519Stores } from './CloudflareDurableObjectStore';
 
 export type ThresholdEd25519Commitments = { hiding: string; binding: string };
 
@@ -269,8 +271,15 @@ export function createThresholdEd25519SessionStore(input: {
   logger: NormalizedLogger;
   isNode: boolean;
 }): ThresholdEd25519SessionStore {
+  const doStores = createCloudflareDurableObjectThresholdEd25519Stores({ config: input.config, logger: input.logger });
+  if (doStores) return doStores.sessionStore;
+
   const config = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
-  const envPrefix = toOptionalTrimmedString(config.THRESHOLD_ED25519_SESSION_PREFIX);
+  const basePrefix = toOptionalTrimmedString(config.THRESHOLD_PREFIX);
+  const envPrefix =
+    toOptionalTrimmedString(config.THRESHOLD_ED25519_SESSION_PREFIX)
+    || toThresholdEd25519PrefixFromBase(basePrefix, 'sess')
+    || '';
 
   // Explicit config object
   const kind = toOptionalTrimmedString(config.kind);

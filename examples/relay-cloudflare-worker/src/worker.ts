@@ -8,15 +8,47 @@ import type {
   CfEmailMessage,
   CfScheduledEvent,
   CfExecutionContext as Ctx,
-  RelayCloudflareWorkerEnv as Env,
 } from '@tatchi-xyz/sdk/server/router/cloudflare';
 import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
 import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf';
 import jwtSession from './jwtSession';
 
+export { ThresholdEd25519StoreDurableObject } from '@tatchi-xyz/sdk/server/router/cloudflare';
+
 // Singleton AuthService instance shared across fetch/email/scheduled events.
 // Singleton avoids re-initializing WASM clients, etc. on every request.
 let service: AuthService | null = null;
+
+type Env = {
+  // base env vars
+  RELAYER_ACCOUNT_ID: string;
+  RELAYER_PRIVATE_KEY: string;
+  NEAR_RPC_URL?: string;
+  NETWORK_ID?: string;
+  WEBAUTHN_CONTRACT_ID: string;
+  ACCOUNT_INITIAL_BALANCE?: string;
+  CREATE_ACCOUNT_AND_REGISTER_GAS?: string;
+  ZK_EMAIL_PROVER_BASE_URL?: string;
+  ZK_EMAIL_PROVER_TIMEOUT_MS?: string;
+  SHAMIR_P_B64U: string;
+  SHAMIR_E_S_B64U: string;
+  SHAMIR_D_S_B64U: string;
+  EXPECTED_ORIGIN?: string;
+  EXPECTED_WALLET_ORIGIN?: string;
+  ENABLE_ROTATION?: string;
+  RECOVER_EMAIL_RECIPIENT?: string;
+
+  // Threshold signing (optional)
+  THRESHOLD_ED25519_MASTER_SECRET_B64U?: string;
+  THRESHOLD_ED25519_SHARE_MODE?: string;
+  THRESHOLD_PREFIX?: string;
+
+  // Durable Object binding for threshold state
+  THRESHOLD_STORE: {
+    idFromName(name: string): unknown;
+    get(id: unknown): { fetch(input: RequestInfo, init?: RequestInit): Promise<Response> };
+  };
+};
 
 function getAuthService(env: Env): AuthService {
   if (!service) {
@@ -28,11 +60,14 @@ function getAuthService(env: Env): AuthService {
       networkId: env.NETWORK_ID,
       accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE,
       createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS,
-      zkEmailProver: {
-        ZK_EMAIL_PROVER_BASE_URL: env.ZK_EMAIL_PROVER_BASE_URL,
-        ZK_EMAIL_PROVER_TIMEOUT_MS: env.ZK_EMAIL_PROVER_TIMEOUT_MS,
+      signerWasm: {
+        moduleOrPath: signerWasmModule, // Pass WASM module for Cloudflare Workers
       },
       thresholdEd25519KeyStore: {
+        kind: 'cloudflare-do',
+        namespace: env.THRESHOLD_STORE,
+        name: 'threshold-ed25519-store',
+        THRESHOLD_PREFIX: env.THRESHOLD_PREFIX,
         THRESHOLD_ED25519_SHARE_MODE: env.THRESHOLD_ED25519_SHARE_MODE,
         THRESHOLD_ED25519_MASTER_SECRET_B64U: env.THRESHOLD_ED25519_MASTER_SECRET_B64U,
       },
@@ -43,8 +78,10 @@ function getAuthService(env: Env): AuthService {
         graceShamirKeysFile: '', // Do not use FS on Workers
         moduleOrPath: shamirWasmModule, // Pass WASM module for Cloudflare Workers
       },
-      signerWasm: {
-        moduleOrPath: signerWasmModule, // Pass WASM module for Cloudflare Workers
+      // optional
+      zkEmailProver: {
+        ZK_EMAIL_PROVER_BASE_URL: env.ZK_EMAIL_PROVER_BASE_URL,
+        ZK_EMAIL_PROVER_TIMEOUT_MS: env.ZK_EMAIL_PROVER_TIMEOUT_MS,
       },
     });
   }

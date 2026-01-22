@@ -21,13 +21,15 @@ const demoCookieName = 'w3a_session';
 const jwtSession = new SessionService<DemoJwtClaims>({
   cookie: { name: demoCookieName },
   jwt: {
-    signToken: ({ payload }) =>
-      jwt.sign(payload, demoSecret, {
+    signToken: ({ payload }) => {
+      const hasPayloadExp = typeof (payload as { exp?: unknown }).exp === 'number';
+      return jwt.sign(payload, demoSecret, {
         algorithm: 'HS256',
         issuer: demoIssuer,
         audience: demoAudience,
-        expiresIn: demoExpiresInSec,
-      }),
+        ...(hasPayloadExp ? {} : { expiresIn: demoExpiresInSec }),
+      });
+    },
     verifyToken: async (token): Promise<{ valid: boolean; payload?: DemoJwtClaims }> => {
       try {
         const payload = jwt.verify(token, demoSecret, {

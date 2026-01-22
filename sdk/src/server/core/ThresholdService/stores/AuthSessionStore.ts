@@ -8,6 +8,7 @@ import {
   toThresholdEd25519PrefixFromBase,
   parseThresholdEd25519AuthSessionRecord,
 } from '../validation';
+import { createCloudflareDurableObjectThresholdEd25519Stores } from './CloudflareDurableObjectStore';
 
 export type ThresholdEd25519AuthSessionRecord = {
   expiresAtMs: number;
@@ -263,6 +264,9 @@ export function createThresholdEd25519AuthSessionStore(input: {
   logger: NormalizedLogger;
   isNode: boolean;
 }): ThresholdEd25519AuthSessionStore {
+  const doStores = createCloudflareDurableObjectThresholdEd25519Stores({ config: input.config, logger: input.logger });
+  if (doStores) return doStores.authSessionStore;
+
   const config = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
   const basePrefix = toOptionalTrimmedString(config.THRESHOLD_PREFIX);
   const envPrefix =

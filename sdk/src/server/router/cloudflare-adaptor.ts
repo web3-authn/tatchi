@@ -22,3 +22,5 @@ export type { CloudflareCronOptions } from './cloudflare/cron';
 export { createCloudflareCron } from './cloudflare/cron';
 
 export { createCloudflareRouter } from './cloudflare/createCloudflareRouter';
+
+export { ThresholdEd25519StoreDurableObject } from './cloudflare/durableObjects/thresholdEd25519Store';

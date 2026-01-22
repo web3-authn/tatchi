@@ -98,7 +98,7 @@ export class SessionService<TClaims extends Record<string, unknown> = Record<str
     return parts.join('; ');
   }
 
-  /** Sign a JWT with configured algorithm. Adds iat/exp and copies iss/aud. */
+  /** Sign a JWT using the configured signing hook. */
   async signJwt(sub: string, extraClaims?: Record<string, unknown>): Promise<string> {
     const jwt = this.cfg?.jwt || {};
     const built = await Promise.resolve(jwt.buildClaims?.({ sub, context: extraClaims })) || {};

@@ -9,6 +9,15 @@ type = "CompiledWasm"
 globs = ["**/*.wasm"]
 fallthrough = true
 
+# Durable Object for threshold session persistence (Cloudflare-native; required for prod threshold signing).
+[[durable_objects.bindings]]
+name = "THRESHOLD_STORE"
+class_name = "ThresholdEd25519StoreDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ThresholdEd25519StoreDurableObject"]
+
 # Default inactive; add a cron schedule here when you enable rotation or heartbeats.
 [triggers]
 crons = []
@@ -22,6 +31,8 @@ WEBAUTHN_CONTRACT_ID = "w3a-v1.testnet"
 ACCOUNT_INITIAL_BALANCE = "40000000000000000000000" # 0.04 NEAR
 CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
 RELAYER_URL = "https://relay.tatchi.xyz"
+THRESHOLD_PREFIX = "tatchi:prod:w3a"
+THRESHOLD_ED25519_SHARE_MODE = "derived"
 
 # Secrets are NOT defined here. Set them via Wrangler secrets (they persist across deploys):
 #   wrangler secret put RELAYER_PRIVATE_KEY
@@ -48,6 +59,8 @@ CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
 RELAYER_URL = "https://relay.tatchi.xyz"
 EXPECTED_ORIGIN = "https://tatchi.xyz"
 EXPECTED_WALLET_ORIGIN = "https://wallet.web3authn.org"
+THRESHOLD_PREFIX = "tatchi:prod:w3a"
+THRESHOLD_ED25519_SHARE_MODE = "derived"
 
 # Staging worker (separate Worker name + tighter CORS allowlist)
 [env.staging]
@@ -63,6 +76,8 @@ CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
 RELAYER_URL = "https://relay-staging.tatchi.xyz"
 EXPECTED_ORIGIN = "https://staging.tatchi.xyz"
 EXPECTED_WALLET_ORIGIN = "https://wallet-staging.web3authn.org"
+THRESHOLD_PREFIX = "tatchi:staging:w3a"
+THRESHOLD_ED25519_SHARE_MODE = "derived"
 
 # Optional: explicitly enable cron and rotation (defaults to disabled)
 # ENABLE_ROTATION = "0"

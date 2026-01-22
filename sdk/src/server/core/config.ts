@@ -5,6 +5,11 @@ import type {
   ShamirConfigEnvInput,
   ZkEmailProverConfigEnvInput,
 } from './types';
+import {
+  THRESHOLD_ED25519_DO_OBJECT_NAME_DEFAULT,
+  THRESHOLD_ED25519_SHARE_MODE_DEFAULT,
+  THRESHOLD_PREFIX_DEFAULT,
+} from './defaultConfigsServer';
 import { toOptionalTrimmedString, toTrimmedString } from '../../utils/validation';
 
 export const AUTH_SERVICE_CONFIG_DEFAULTS = {
@@ -138,7 +143,31 @@ function normalizeThresholdEd25519KeyStoreConfig(
     || toOptionalTrimmedString(c.REDIS_URL),
   );
   if (!anyProvided) return undefined;
-  return input;
+
+  // Apply sane defaults for common serverless/Worker configurations.
+  //
+  // Note: never default `THRESHOLD_ED25519_MASTER_SECRET_B64U` — it is always explicitly provided as a secret.
+  const normalized: Record<string, unknown> = { ...(input as Record<string, unknown>) };
+  const kind = toOptionalTrimmedString(normalized.kind);
+  if (kind === 'cloudflare-do') {
+    const name = toOptionalTrimmedString(normalized.name);
+    if (!name) normalized.name = THRESHOLD_ED25519_DO_OBJECT_NAME_DEFAULT;
+
+    const thresholdPrefix = toOptionalTrimmedString(normalized.THRESHOLD_PREFIX);
+    const anySpecificPrefix = Boolean(
+      toOptionalTrimmedString(normalized.THRESHOLD_ED25519_AUTH_PREFIX)
+      || toOptionalTrimmedString(normalized.THRESHOLD_ED25519_SESSION_PREFIX)
+      || toOptionalTrimmedString(normalized.THRESHOLD_ED25519_KEYSTORE_PREFIX),
+    );
+    if (!thresholdPrefix && !anySpecificPrefix) {
+      normalized.THRESHOLD_PREFIX = THRESHOLD_PREFIX_DEFAULT;
+    }
+
+    const shareMode = toOptionalTrimmedString(normalized.THRESHOLD_ED25519_SHARE_MODE);
+    if (!shareMode) normalized.THRESHOLD_ED25519_SHARE_MODE = THRESHOLD_ED25519_SHARE_MODE_DEFAULT;
+  }
+
+  return normalized as AuthServiceConfig['thresholdEd25519KeyStore'];
 }
 
 export function createAuthServiceConfig(input: AuthServiceConfigInput): AuthServiceConfig {

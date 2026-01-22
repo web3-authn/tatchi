@@ -114,12 +114,35 @@ export interface SignerWasmConfig {
 // Threshold Ed25519 key persistence
 // ================================
 
-export type ThresholdEd25519KeyStoreKind = 'in-memory' | 'upstash-redis-rest' | 'redis-tcp';
+export type ThresholdEd25519KeyStoreKind = 'in-memory' | 'upstash-redis-rest' | 'redis-tcp' | 'cloudflare-do';
+
+// Structural types so Workers can pass Durable Object bindings without depending on CF type packages.
+export interface CloudflareDurableObjectStubLike {
+  fetch(input: RequestInfo, init?: RequestInit): Promise<Response>;
+}
+
+export interface CloudflareDurableObjectNamespaceLike {
+  idFromName(name: string): unknown;
+  get(id: unknown): CloudflareDurableObjectStubLike;
+}
 
 export type ThresholdEd25519KeyStoreConfig =
   | { kind: 'in-memory' }
   | { kind: 'upstash-redis-rest'; url: string; token: string; keyPrefix?: string }
-  | { kind: 'redis-tcp'; redisUrl: string; keyPrefix?: string };
+  | { kind: 'redis-tcp'; redisUrl: string; keyPrefix?: string }
+  | {
+      kind: 'cloudflare-do';
+      /**
+       * Durable Object namespace binding (e.g. `env.THRESHOLD_STORE`).
+       * Must point to a DO class compatible with the SDK's threshold store protocol.
+       */
+      namespace: CloudflareDurableObjectNamespaceLike;
+      /**
+       * Optional DO instance name. Defaults to `threshold-ed25519-store`.
+       * Use different names to isolate environments within the same Worker script.
+       */
+      name?: string;
+    };
 
 /**
  * Env-shaped input for threshold key store selection.

@@ -11,8 +11,10 @@ import { toOptionalTrimmedString } from '../../../../utils/validation';
 import {
   isObject,
   toThresholdEd25519KeyPrefix,
+  toThresholdEd25519PrefixFromBase,
   parseThresholdEd25519KeyRecord,
 } from '../validation';
+import { createCloudflareDurableObjectThresholdEd25519Stores } from './CloudflareDurableObjectStore';
 
 export type ThresholdEd25519KeyRecord = {
   publicKey: string;
@@ -125,8 +127,15 @@ export function createThresholdEd25519KeyStore(input: {
   logger: NormalizedLogger;
   isNode: boolean;
 }): ThresholdEd25519KeyStore {
+  const doStores = createCloudflareDurableObjectThresholdEd25519Stores({ config: input.config, logger: input.logger });
+  if (doStores) return doStores.keyStore;
+
   const config = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
-  const envPrefix = toOptionalTrimmedString(config.THRESHOLD_ED25519_KEYSTORE_PREFIX);
+  const basePrefix = toOptionalTrimmedString(config.THRESHOLD_PREFIX);
+  const envPrefix =
+    toOptionalTrimmedString(config.THRESHOLD_ED25519_KEYSTORE_PREFIX)
+    || toThresholdEd25519PrefixFromBase(basePrefix, 'key')
+    || '';
 
   // Explicit config object
   const kind = toOptionalTrimmedString(config.kind);
