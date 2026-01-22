@@ -33,6 +33,7 @@ examples/relay-server/grace-keys.json
 examples/relay-server/.provision-cache.json
 
 examples/relay-cloudflare-worker/.wrangler
+examples/relay-cloudflare-worker/worker-configuration.d.ts
 
 # Playwright report
 passkey-sdk/playwright-report

@@ -1,6 +1,11 @@
 import type { EmailRecoveryContracts, TatchiConfigs, TatchiConfigsInput } from './types/tatchi';
 import { coerceSignerMode } from './types/signer-worker';
 import { toTrimmedString } from '@/utils';
+export {
+  THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
+  THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
+  THRESHOLD_ED25519_2P_PARTICIPANT_IDS,
+} from '../threshold/defaultsThreshold';
 
 // Default SDK configs suitable for local dev.
 // Cross-origin wallet isolation is recommended; set iframeWallet in your app config when you have a dedicated origin.
@@ -63,16 +68,6 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
     rpIdOverride: 'example.localhost',
   }
 };
-
-// Default threshold participant identifiers (2P FROST).
-// These are intentionally exported as standalone constants so apps can reuse them when wiring
-// threshold signing across client + server environments.
-export const THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID = 1 as const;
-export const THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID = 2 as const;
-export const THRESHOLD_ED25519_2P_PARTICIPANT_IDS = [
-  THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
-  THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
-] as const;
 
 // Threshold node roles.
 // Coordinator is the default because it exposes the public `/threshold-ed25519/sign/*` endpoints.

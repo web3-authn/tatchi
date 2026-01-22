@@ -36,6 +36,11 @@ type DoOk<T> = { ok: true; value: T };
 type DoErr = { ok: false; code: string; message: string };
 type DoResp<T> = DoOk<T> | DoErr;
 
+// Durable Object stubs use `fetch()` but do not actually perform an external network request.
+// The URL is ignored by Cloudflare's runtime router; we use `.invalid` (RFC 2606 reserved TLD)
+// to make it explicit that this is a synthetic/internal request and should never resolve.
+const DO_STUB_REQUEST_URL = 'https://threshold-store.invalid/' as const;
+
 type DoGetRequest = { op: 'get'; key: string };
 type DoSetRequest = { op: 'set'; key: string; value: unknown; ttlMs?: number };
 type DoDelRequest = { op: 'del'; key: string };
@@ -86,7 +91,7 @@ function resolveDoStub(input: {
 }
 
 async function callDo<T>(stub: DurableObjectStubLike, req: DoRequest): Promise<DoResp<T>> {
-  const resp = await stub.fetch('https://threshold-store.invalid/', {
+  const resp = await stub.fetch(DO_STUB_REQUEST_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(req),

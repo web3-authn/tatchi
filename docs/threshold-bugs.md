@@ -58,6 +58,20 @@ Current behavior:
 
 Cloudflare Workers isolates are ephemeral; relying on in-memory threshold session state can break the 2-step flow (`/threshold-ed25519/session` → `/threshold-ed25519/authorize`). Durable Objects (DO) are a good fit for these auth/signing sessions because they provide strong consistency and atomic updates for counters + one-shot session consumption.
 
+## Bug: Cloudflare Workers cross-request I/O (`OutgoingFactory`)
+
+### Symptoms
+- Threshold signing fails with an error like:
+  - `Cannot perform I/O on behalf of a different request... (I/O type: OutgoingFactory)`
+
+### Diagnosis
+Cloudflare Workers binds some objects (including certain request-scoped I/O objects and some binding-derived stubs) to the lifetime of a single request.
+If the Worker caches an `AuthService` singleton across requests, it can also accidentally cache those request-scoped objects (e.g. Durable Object stubs), triggering cross-request I/O errors.
+
+### Fix
+- Do not cache a process-global `AuthService` instance in the Cloudflare Worker.
+- In `examples/relay-cloudflare-worker/src/worker.ts`, instantiate `AuthService` per request/event (`fetch`, `scheduled`, `email`).
+
 ### What we implemented
 - **Durable Object class** (storage-backed; simple JSON protocol): `sdk/src/server/router/cloudflare/durableObjects/thresholdEd25519Store.ts`
   - ops: `get`, `set` (TTL), `del`, `getdel`, `authConsumeUse`, `authConsumeUseCount`
@@ -81,3 +95,7 @@ When changing the DO class, bump the `[[migrations]]` tag in `wrangler.toml` so 
 
 Cloudflare Free plan note
 - If you deploy on the Free plan, Cloudflare requires SQLite-backed Durable Objects. In `wrangler.toml` this means using a `[[migrations]]` entry with `new_sqlite_classes = ["ThresholdEd25519StoreDurableObject"]` (not `new_classes`).
+
+### Common deployment pitfalls
+- If `/healthz` reports `thresholdEd25519.configured=false` and includes an error like `expected config.namespace`, the Worker is missing the DO binding at runtime. Ensure the deploy uses `examples/relay-cloudflare-worker/wrangler.toml` (and the right `--env`) so `THRESHOLD_STORE` is bound.
+- If Cloudflare dashboard shows variables with `=` in the *name* (e.g. `RECOVER_EMAIL_RECIPIENT=...`), an older deploy ran `wrangler deploy --var NAME=value` instead of `NAME:value`. Delete the bogus variables in the dashboard; the workflows now use the correct colon syntax.

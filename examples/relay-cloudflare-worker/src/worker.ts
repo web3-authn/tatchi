@@ -1,4 +1,9 @@
-import { AuthService } from '@tatchi-xyz/sdk/server';
+import {
+  AuthService,
+  THRESHOLD_ED25519_DO_OBJECT_NAME_DEFAULT,
+  THRESHOLD_ED25519_SHARE_MODE_DEFAULT,
+  THRESHOLD_PREFIX_DEFAULT,
+} from '@tatchi-xyz/sdk/server';
 import {
   createCloudflareCron,
   createCloudflareEmailHandler,
@@ -66,9 +71,9 @@ function getAuthService(env: Env): AuthService {
     thresholdEd25519KeyStore: {
       kind: 'cloudflare-do',
       namespace: env.THRESHOLD_STORE,
-      name: 'threshold-ed25519-store',
-      THRESHOLD_PREFIX: env.THRESHOLD_PREFIX,
-      THRESHOLD_ED25519_SHARE_MODE: env.THRESHOLD_ED25519_SHARE_MODE,
+      name: THRESHOLD_ED25519_DO_OBJECT_NAME_DEFAULT,
+      THRESHOLD_PREFIX: env.THRESHOLD_PREFIX || THRESHOLD_PREFIX_DEFAULT,
+      THRESHOLD_ED25519_SHARE_MODE: env.THRESHOLD_ED25519_SHARE_MODE || THRESHOLD_ED25519_SHARE_MODE_DEFAULT,
       THRESHOLD_ED25519_MASTER_SECRET_B64U: env.THRESHOLD_ED25519_MASTER_SECRET_B64U,
     },
     shamir: {

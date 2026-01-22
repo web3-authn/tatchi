@@ -5,13 +5,13 @@ import {
   THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
   THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
   THRESHOLD_ED25519_2P_PARTICIPANT_IDS,
-} from '../core/defaultConfigs';
+} from './defaultsThreshold';
 
 export {
   THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
   THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
   THRESHOLD_ED25519_2P_PARTICIPANT_IDS,
-};
+} from './defaultsThreshold';
 
 /**
  * Metadata describing how a participant share is derived/stored.
