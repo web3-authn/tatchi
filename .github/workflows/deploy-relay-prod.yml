@@ -84,11 +84,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${CF_ZONE_ID:-}" ]; then
-            echo "CLOUDFLARE_ZONE_ID / CF_ZONE_ID not set; skipping email routing configuration" >&2
-            exit 0
+            echo "CLOUDFLARE_ZONE_ID (GitHub Environment Secret) is required to configure Email Routing" >&2
+            exit 1
           fi
           if [ -z "${RECOVER_EMAIL_RECIPIENT:-}" ]; then
-            echo "RECOVER_EMAIL_RECIPIENT env var is not set in this GitHub Environment" >&2
+            echo "RECOVER_EMAIL_RECIPIENT (GitHub Environment Var) is required to configure Email Routing" >&2
             exit 1
           fi
           if [ -z "${WORKER_NAME:-}" ]; then
