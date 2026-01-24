@@ -4,7 +4,6 @@ import {
   useTatchi,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
-  useTheme,
   DeviceLinkingSSEEvent,
 } from '@tatchi-xyz/sdk/react';
 import { AccountMenuButton } from '@tatchi-xyz/sdk/react/profile';
@@ -21,7 +20,6 @@ export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonPr
 }) => {
 
   const { loginState, tatchi } = useTatchi();
-  const { theme, setTheme } = useTheme();
   const [isMobile, setIsMobile] = React.useState<boolean>(false);
   const {
     isMenuOpen,
