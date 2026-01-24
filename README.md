@@ -1,4 +1,4 @@
-# Web3Authn SDK
+# Tatchi Passkey Embedded Wallet SDK
 
 Monorepo for `@tatchi-xyz/sdk`: an embedded passkey wallet SDK for NEAR.
 

@@ -218,6 +218,6 @@ app.use('/sdk/workers', (req, res, next) => {
 ## Additional Resources
 
 For more detailed information about wallet iframe integration:
-- [Install and Wallet Setup](./wallet-iframe-integration.md) - Complete setup guide
+- [Installation](/docs/getting-started/installation) - SDK install + wallet iframe setup
 - [Architecture](../concepts/architecture.md) - How origin isolation works
 - [Security Model](../concepts/security-model.md) - Defense-in-depth principles

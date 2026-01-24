@@ -6,7 +6,7 @@ title: Relay Server Deployment
 
 The relay server is an optional backend service that enables account creation, improves login UX, and manages key rotation. This guide covers deployment to both Node.js/Express and Cloudflare Workers.
 
-**Note**: NEAR does require a relay server for registering new accounts (requires gas for writing the authenticator onchain), but after registration the wallet is truly serverless and non-custodial. Relay servers can be setup by anyone.
+**Note**: NEAR does require a relay server for registering new accounts (which simply pays gas for the registration transaction), but after registration the wallet is serverless and non-custodial (local signer). Relay servers can be setup by anyone.
 
 
 ## When You Need a Relay Server
@@ -73,39 +73,38 @@ relay-server/
 
 ```typescript
 import express from 'express'
-import cors from 'cors'
 import { AuthService } from '@tatchi-xyz/sdk/server'
 import { createRelayRouter } from '@tatchi-xyz/sdk/server/router/express'
 
 const app = express()
 app.use(express.json())
-app.use(cors({
-  origin: [
-    process.env.EXPECTED_ORIGIN,
-    process.env.EXPECTED_WALLET_ORIGIN
-  ],
-  credentials: true
-}))
 
 // Initialize the authentication service
 const service = new AuthService({
   relayerAccountId: process.env.RELAYER_ACCOUNT_ID!,
   relayerPrivateKey: process.env.RELAYER_PRIVATE_KEY!,
   webAuthnContractId: process.env.WEBAUTHN_CONTRACT_ID || 'w3a-v1.testnet',
-  nearRpcUrl: process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
-  networkId: 'testnet',
-  accountInitialBalance: '30000000000000000000000', // 0.03 NEAR
-  createAccountAndRegisterGas: '85000000000000',
+  // Optional overrides (SDK defaults are applied when omitted)
+  nearRpcUrl: process.env.NEAR_RPC_URL,
+  networkId: process.env.NETWORK_ID,
+  accountInitialBalance: process.env.ACCOUNT_INITIAL_BALANCE, // default: 0.03 NEAR
+  createAccountAndRegisterGas: process.env.CREATE_ACCOUNT_AND_REGISTER_GAS, // default: 85 TGas
   shamir: {
-    shamir_p_b64u: process.env.SHAMIR_P_B64U!,
-    shamir_e_s_b64u: process.env.SHAMIR_E_S_B64U!,
-    shamir_d_s_b64u: process.env.SHAMIR_D_S_B64U!,
-    graceShamirKeysFile: process.env.SHAMIR_GRACE_KEYS_FILE, // optional
+    // Env-shaped config is supported for ergonomic wiring
+    SHAMIR_P_B64U: process.env.SHAMIR_P_B64U!,
+    SHAMIR_E_S_B64U: process.env.SHAMIR_E_S_B64U!,
+    SHAMIR_D_S_B64U: process.env.SHAMIR_D_S_B64U!,
+    SHAMIR_GRACE_KEYS_FILE: process.env.SHAMIR_GRACE_KEYS_FILE, // optional (Node only)
   },
 })
 
 // Mount relay endpoints
-app.use('/', createRelayRouter(service, { healthz: true }))
+app.use('/', createRelayRouter(service, {
+  healthz: true,
+  readyz: true,
+  // Optional built-in CORS. If you prefer custom CORS middleware, omit this and wire your own.
+  corsOrigins: [process.env.EXPECTED_ORIGIN, process.env.EXPECTED_WALLET_ORIGIN],
+}))
 app.listen(3000, () => {
   console.log('Relay server listening on port 3000')
 })
@@ -120,7 +119,10 @@ Create a `.env` file:
 RELAYER_ACCOUNT_ID=relayer.testnet
 RELAYER_PRIVATE_KEY=ed25519:...
 NEAR_RPC_URL=https://test.rpc.fastnear.com
+NETWORK_ID=testnet
 WEBAUTHN_CONTRACT_ID=w3a-v1.testnet
+ACCOUNT_INITIAL_BALANCE=30000000000000000000000
+CREATE_ACCOUNT_AND_REGISTER_GAS=85000000000000
 
 # CORS
 EXPECTED_ORIGIN=http://localhost:5173
@@ -134,23 +136,23 @@ SHAMIR_D_S_B64U=...                  # Server decryption key
 # Optional: Persist grace keys between restarts
 SHAMIR_GRACE_KEYS_FILE=./grace-keys.json
 
-# Optional: Auto-rotation interval (minutes)
+# Optional: Shamir key rotation
+ENABLE_ROTATION=1
 ROTATE_EVERY=60
 ```
 
 ### Key Rotation
 
-Add rotation logic with the built-in cron helper (Express):
+Add rotation logic with the built-in cron helper (Express). Rotation only applies when Shamir is configured:
 
 ```typescript
 import { startKeyRotationCronjob } from '@tatchi-xyz/sdk/server/router/express'
 
-// Rotates in memory and maintains grace keys (optionally persisted to disk if configured).
-// You are responsible for persisting the *current* Shamir keypair (e_s/d_s) to your secret store.
 startKeyRotationCronjob(service, {
   enabled: true,
   intervalMinutes: 60,
   maxGraceKeys: 5,
+  logger: console,
 })
 ```
 
@@ -188,7 +190,9 @@ relay-cloudflare-worker/
 
 ### Implementation
 
-The key difference from Express is WASM module handling:
+Cloudflare Workers can’t rely on Node-style file paths for WASM. Import the WASM modules and pass them via config.
+
+Also: avoid caching `AuthService` across requests if you use Workers bindings (e.g. Durable Objects), because some bindings are request-scoped.
 
 ```typescript
 import { AuthService } from '@tatchi-xyz/sdk/server'
@@ -210,14 +214,14 @@ function buildService(env: any) {
     networkId: env.NETWORK_ID || 'testnet',
     accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE,
     createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS,
-
-    // Pass WASM modules directly
-    signerWasm: { moduleOrPath: signerWasmModule },
+    signerWasm: { moduleOrPath: signerWasmModule }, // Pass WASM modules directly
     shamir: {
       moduleOrPath: shamirWasmModule,
-      shamir_p_b64u: env.SHAMIR_P_B64U,
-      shamir_e_s_b64u: env.SHAMIR_E_S_B64U,
-      shamir_d_s_b64u: env.SHAMIR_D_S_B64U,
+      SHAMIR_P_B64U: env.SHAMIR_P_B64U,
+      SHAMIR_E_S_B64U: env.SHAMIR_E_S_B64U,
+      SHAMIR_D_S_B64U: env.SHAMIR_D_S_B64U,
+      // Workers have no filesystem; keep grace keys in memory only (or persist externally)
+      graceShamirKeysFile: '',
     },
   })
 }
@@ -236,7 +240,6 @@ export default {
   // Optional: Enable automatic key rotation via cron
   async scheduled(event, env, ctx) {
     if (env.ENABLE_ROTATION !== '1') return
-
     // Note: rotation in Workers is ephemeral unless you persist keys externally.
     const service = buildService(env)
     const cron = createCloudflareCron(service, { enabled: true, rotate: true })
@@ -255,16 +258,45 @@ main = "src/worker.ts"
 compatibility_date = "2024-09-24"
 compatibility_flags = ["nodejs_compat"]
 
-# Bundle WASM modules
+# Configure module rules for WASM imports
 [[rules]]
 type = "CompiledWasm"
 globs = ["**/*.wasm"]
 fallthrough = true
 
+# Durable Object for threshold session persistence (Cloudflare-native; required for prod threshold signing).
+[[durable_objects.bindings]]
+name = "THRESHOLD_STORE"
+class_name = "ThresholdEd25519StoreDurableObject"
+
+[[migrations]]
+tag = "v2"
+# Cloudflare Free plan requires SQLite-backed Durable Objects.
+new_sqlite_classes = ["ThresholdEd25519StoreDurableObject"]
+
 [triggers]
 crons = []
 
-# Production worker (separate Worker name + CORS allowlist)
+# Defaults (can be overridden per env)
+[vars]
+RELAYER_ACCOUNT_ID = "w3a-relayer.testnet"
+NEAR_RPC_URL = "https://test.rpc.fastnear.com"
+NETWORK_ID = "testnet"
+WEBAUTHN_CONTRACT_ID = "w3a-v1.testnet"
+ACCOUNT_INITIAL_BALANCE = "40000000000000000000000" # 0.04 NEAR
+CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
+RELAYER_URL = "https://relay.example.com"
+EXPECTED_ORIGIN = "https://app.example.com"
+EXPECTED_WALLET_ORIGIN = "https://wallet.example.com"
+THRESHOLD_PREFIX = "tatchi:prod:w3a"
+THRESHOLD_ED25519_SHARE_MODE = "derived"
+
+# Secrets are NOT defined here. Set them via Wrangler secrets:
+#   wrangler secret put RELAYER_PRIVATE_KEY
+#   wrangler secret put SHAMIR_P_B64U
+#   wrangler secret put SHAMIR_E_S_B64U
+#   wrangler secret put SHAMIR_D_S_B64U
+
 [env.production]
 name = "w3a-relay-prod"
 
@@ -278,6 +310,12 @@ CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
 RELAYER_URL = "https://relay.example.com"
 EXPECTED_ORIGIN = "https://app.example.com"
 EXPECTED_WALLET_ORIGIN = "https://wallet.example.com"
+THRESHOLD_PREFIX = "tatchi:prod:w3a"
+THRESHOLD_ED25519_SHARE_MODE = "derived"
+
+[[env.production.durable_objects.bindings]]
+name = "THRESHOLD_STORE"
+class_name = "ThresholdEd25519StoreDurableObject"
 
 # Staging worker (separate Worker name + tighter CORS allowlist)
 [env.staging]
@@ -293,6 +331,12 @@ CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
 RELAYER_URL = "https://relay-staging.example.com"
 EXPECTED_ORIGIN = "https://staging.app.example.com"
 EXPECTED_WALLET_ORIGIN = "https://wallet-staging.example.com"
+THRESHOLD_PREFIX = "tatchi:staging:w3a"
+THRESHOLD_ED25519_SHARE_MODE = "derived"
+
+[[env.staging.durable_objects.bindings]]
+name = "THRESHOLD_STORE"
+class_name = "ThresholdEd25519StoreDurableObject"
 ```
 
 ### Managing Secrets
@@ -349,44 +393,15 @@ wrangler tail
 
 ## API Reference
 
-Both platforms expose identical endpoints used by the SDK:
+Both platforms expose identical HTTP endpoints. Most applications should not call these directly — the client SDK handles them. Payloads are considered SDK-internal and may change; if you need to integrate at this layer, use the TypeScript types from `@tatchi-xyz/sdk/server` (see `sdk/src/server/core/types.ts`).
 
-### Create Account + Register
+### Core endpoints
 
-**`POST /create_account_and_register_user`**
-
-Atomically creates a NEAR account and registers the passkey in a single blockchain transaction.
-
-**Request**:
-```json
-{
-  "new_account_id": "alice.testnet",
-  "new_public_key": "ed25519:...",
-  "webauthn_registration": {
-    "attestation_object": "...",
-    "client_data_json": "...",
-    "prf_outputs": "..."
-  },
-  "deterministic_vrf_public_key": "ed25519:...",
-  "vrf_data": {
-    "salt": "...",
-    "iterations": 100000
-  }
-}
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "transactionHash": "ABC123..."
-}
-```
-
-**Errors**:
-- `409`: Account already exists
-- `400`: Invalid passkey data
-- `500`: Blockchain transaction failed
+- `POST /create_account_and_register_user` — atomic account creation + registration (used during onboarding)
+- `POST /verify-authentication-response` — VRF + WebAuthn verification (VIEW call); optionally mints a session token/cookie when session support is configured
+- `POST /recover-email` — encrypted email recovery (TEE/DKIM by default; zk-email when enabled)
+- `GET /healthz` / `GET /readyz` — health/readiness checks (optional; enabled via router options)
+- `GET /session/auth` and `POST /session/logout` — session helpers (optional; enabled when a session adapter is provided)
 
 ### Shamir 3-Pass Operations
 
@@ -415,12 +430,12 @@ Client sends a client-locked KEK; server adds its lock and returns the double-lo
 
 **`POST /vrf/remove-server-lock`**
 
-Client sends a newly-locked value; server removes its original lock.
+Client sends the client+server locked value and the `keyId` used; server removes its lock and returns a client-locked value.
 
 **Request**:
 ```json
 {
-  "kek_st_b64u": "server-then-new-client-locked-base64url",
+  "kek_cs_b64u": "client-then-server-locked-base64url",
   "keyId": "sha256-hash-of-server-public-key"
 }
 ```
@@ -428,11 +443,11 @@ Client sends a newly-locked value; server removes its original lock.
 **Response**:
 ```json
 {
-  "kek_t_b64u": "only-client-locked-base64url"
+  "kek_c_b64u": "client-locked-kek-base64url"
 }
 ```
 
-**Error `403`**: Invalid or expired `keyId` (not in current or grace list).
+**Error `400`**: Unknown/expired `keyId` (not in current or grace list).
 
 #### Get Key Info
 
@@ -477,7 +492,7 @@ curl -X POST https://relay.example.com/vrf/apply-server-lock \
 curl -X POST https://relay.example.com/vrf/remove-server-lock \
   -H 'Content-Type: application/json' \
   -d '{
-    "kek_st_b64u":"<server-then-client-locked>",
+    "kek_cs_b64u":"<client-then-server-locked>",
     "keyId":"<key-id-from-apply-response>"
   }'
 ```
@@ -515,15 +530,15 @@ await service.rotateShamirServerKeypair({
 
 ### CORS Configuration
 
-Be explicit about allowed origins:
+Be explicit about allowed origins. If you use the built-in router CORS, configure `corsOrigins`:
 
-```typescript
-// Good: Specific origins
-cors({ origin: ['https://app.example.com', 'https://wallet.example.com'] })
-
-// Bad: Accept all origins
-cors({ origin: '*' })  // ← Don't do this in production
+```ts
+createRelayRouter(service, {
+  corsOrigins: ['https://app.example.com', 'https://wallet.example.com'],
+})
 ```
+
+Avoid `corsOrigins: '*'` when using cookie sessions (credentials cannot be used with wildcard CORS).
 
 ### Secret Management
 
@@ -570,9 +585,9 @@ cors({ origin: '*' })  // ← Don't do this in production
 2. Fund it: `near send your-account.testnet relayer.testnet 10`
 3. Verify `accountInitialBalance` in config is reasonable (0.03 NEAR is typical)
 
-#### Shamir Unlock Returns 403
+#### Shamir Unlock Returns 400
 
-**Cause**: Client is using an expired `keyId` not in the grace list.
+**Cause**: Client is using an unknown/expired `keyId` not in the grace list.
 
 **Fix**:
 1. Client should call `/shamir/key-info` to get the current `keyId`

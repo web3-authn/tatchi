@@ -226,16 +226,15 @@ export default defineConfig({
         text: 'Detailed Guides',
         collapsed: false,
         items: [
-          { text: 'Install and Wallet Setup', link: '/docs/guides/wallet-iframe-integration' },
           { text: 'Registration (Detailed)', link: '/docs/guides/registration-login-detailed' },
           { text: 'Progress Events', link: '/docs/guides/progress-events' },
-          { text: 'Sending Transactions', link: '/docs/guides/sending-transaction' },
           { text: 'Gasless Delegate Tranasctions', link: '/docs/guides/delegate-actions' },
+          { text: 'Plugin Configuration', link: '/docs/guides/plugin-configs' },
           { text: 'Advanced Features',
             collapsed: false,
             items: [
               { text: 'Device Linking', link: '/docs/guides/device-linking' },
-              { text: 'Authentication Sessions', link: '/docs/guides/authentication-sessions' },
+              { text: 'Signing Sessions', link: '/docs/guides/signing-sessions' },
               { text: 'Offline Key Export', link: '/docs/guides/offline-key-export' },
               { text: 'Shamir 3-Pass Protocol', link: '/docs/guides/shamir-3-pass-protocol' },
               { text: 'Nonce Manager', link: '/docs/guides/nonce-manager' },
@@ -253,9 +252,6 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'API Index', link: '/docs/api/' },
-          { text: 'Passkey Manager', link: '/docs/api/passkey-manager' },
-          { text: 'WebAuthn Manager', link: '/docs/api/webauthn-manager' },
-          { text: 'React Components', link: '/docs/api/react-components' },
           { text: 'Client', link: '/docs/api/client' },
           { text: 'Server', link: '/docs/api/server' },
           { text: 'Web3Authn Contract', link: '/docs/api/web3authn-contract' },

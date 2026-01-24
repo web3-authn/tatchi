@@ -6,6 +6,8 @@ title: VRF Sessions
 
 VRF sessions turn the VRF‑WebAuthn unlock into a short‑lived **session capability**: the user approves once (TouchID/WebAuthn), then the wallet can sign multiple actions for a limited window without re‑prompting.
 
+VRF sessions are for **local signing prompt reduction**. If you want to reduce WebAuthn prompts for **backend API authentication**, see [Signing Sessions](/docs/guides/signing-sessions) instead.
+
 Instead of keeping decrypted keys around, the wallet caches only the *minimum capability* needed to unwrap the vault inside workers:
 
 - **VRF worker (WASM)** keeps `{WrapKeySeed, wrapKeySalt}` + policy (`ttl_ms`, `remaining_uses`) in memory.
@@ -64,6 +66,7 @@ Warm signing sessions are **opt-in** and controlled by `signingSessionDefaults` 
 
 - When `ttlMs: 0` or `remainingUses: 0`, warm signing is effectively disabled (a TouchID/WebAuthn prompt is required for each signing operation).
 - Warm sessions are **in-memory only** (cleared on page refresh/close).
+- The SDK will automatically reuse a valid session when available; when missing/expired/exhausted it falls back to the cold path and re-mints after user confirmation.
 
 ### Configure defaults
 
@@ -141,6 +144,10 @@ sequenceDiagram
 - The signer worker is one‑shot and holds no cross‑request state; session enforcement lives in the VRF worker.
 - Warm signing is only possible if the VRF worker has a valid (unexpired, unexhausted) session capability.
 :::
+
+## See also
+
+- [Signing Sessions](/docs/guides/signing-sessions) (backend auth sessions + warm local signing sessions)
 
 ## Operational invariants
 

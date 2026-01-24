@@ -1,8 +1,0 @@
-name = "zk-email-cloudflare-worker"
-main = "src/email-worker.ts"
-compatibility_date = "2025-01-01"
-
-[vars]
-# Relay server URL used by the email worker to forward recovery emails.
-# Override per-environment via Cloudflare dashboard if needed.
-RELAYER_URL = "https://relay.tatchi.xyz"

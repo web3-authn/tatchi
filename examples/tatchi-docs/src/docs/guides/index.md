@@ -10,11 +10,11 @@ Practical, step-by-step guides for integrating and deploying the Web3Authn SDK. 
 
 Start here if you're building a new application:
 
-- **[Install and Wallet Setup](./wallet-iframe-integration)** - Install the SDK, configure the wallet iframe origin, and wire up `PasskeyProvider` for your app.
+- **[Installation](/docs/getting-started/installation)** - Install the SDK, configure the wallet iframe origin, and wire up `TatchiPasskeyProvider`.
 
 - **[Registration & Login Progress Events](./progress-events)** - Handle `onEvent` callbacks for registration, login, and transaction flows to drive custom progress UI.
 
-- **[Sending Transactions](./sending-transaction)** - Execute and broadcast transactions with confirmation UI, hooks, and configuration options.
+- **[Plugin Configuration](./plugin-configs)** - Configure framework plugins (Vite/Next) for headers, wallet-service routes, and SDK asset serving.
 
 - **[Chain Signatures](./chain-signatures)** - Sign and relay transactions on external chains using NEAR MPC.
 
@@ -24,7 +24,8 @@ Enhance your integration with these features:
 
 - **[Device Linking](./device-linking)** - Add new devices to existing accounts via QR codes. No seed phrases or manual secret sharing required.
 
-- **[Authentication Sessions](./authentication-sessions)** - Reduce repeated signing prompts with short-lived warm signing sessions in the VRF worker. One TouchID at login, then session-based auth for API calls.
+- **[Signing Sessions](./signing-sessions)** - Reduce repeated prompts: backend auth (JWT/cookie) and warm local signing sessions.
+- **[VRF Sessions](/docs/concepts/vrf-sessions)** - Reduce repeated prompts for local signing with short-lived “warm” sessions in the VRF worker.
 
 - **[Email Recovery (Passkey + Email)](./email-recovery-flow)** - Recover an account by sending a verified recovery email and registering a new passkey-derived device key.
 

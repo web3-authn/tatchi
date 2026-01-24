@@ -14,7 +14,7 @@ This section focuses on **registration**, showing how to wire `registerPasskey` 
 
 Prerequisites:
 
-- App is wrapped in `TatchiPasskeyProvider` (see [Install and Wallet Setup](./wallet-iframe-integration.md)).
+- App is wrapped in `TatchiPasskeyProvider` (see [Installation](/docs/getting-started/installation)).
 - Wallet iframe is configured and reachable.
 
 ### 1. Attach `onEvent` to `registerPasskey`

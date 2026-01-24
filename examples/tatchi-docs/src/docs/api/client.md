@@ -34,4 +34,4 @@ From there you can use high-level flows like:
 - `syncAccount({ accountId?, options? })`
 - Email recovery: `setRecoveryEmails`, `getRecoveryEmails`, `startEmailRecovery`, `finalizeEmailRecovery`
 
-For the full set of methods and common call patterns, see [Passkey Manager](./passkey-manager.md).
+For the full set of methods, refer to the `TatchiPasskey` TypeScript types in `@tatchi-xyz/sdk`.

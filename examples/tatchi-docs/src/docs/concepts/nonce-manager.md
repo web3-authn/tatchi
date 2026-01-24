@@ -4,7 +4,9 @@ title: Nonce Manager
 
 # Nonce Manager
 
-Blockchain transactions require careful sequencing. The Nonce Manager ensures your NEAR transactions stay correctly ordered, even when sending multiple transactions concurrently.
+`NonceManager` is an internal SDK component that helps the signing flow pick correct NEAR nonces and block context (block hash/height) without adding extra latency to UI confirmation.
+
+You generally should not interact with it directly. Use the higher-level APIs (`executeAction`, `signTransactionsWithActions`, `signAndSendTransactions`, etc.) and the SDK will manage nonces for you.
 
 ## The Blockchain Nonce Problem
 
@@ -33,47 +35,35 @@ await rpc.sendTransaction(transaction);
 
 This works fine for single transactions, but fails catastrophically when:
 - Multiple components trigger transactions at once
-- Users have your app open in multiple tabs
+- Users have your app open in multiple tabs (or multiple devices sign with the same key)
 - Transactions are sent in quick succession
 
-## How the Nonce Manager Works
+## What the SDK’s Nonce Manager Actually Does
 
-The Nonce Manager provides a **concurrency-safe API** that eliminates these race conditions through careful state management.
+`NonceManager` is a singleton held in memory inside the SDK. In a browser, that means “per tab” (per JS runtime) — it does not coordinate between tabs or devices. It reduces nonce-related race conditions inside a single app instance, but it cannot prevent conflicts if the same access key is used concurrently elsewhere.
 
-### Core Capabilities
+### Responsibilities
 
-**Prefetching**: Fetches blockchain metadata (block height, block hash, current nonce) in the background before you need it.
+**Fetch transaction context**: Pulls the latest final block hash/height and the current access-key nonce from NEAR RPC (as needed) so the signer can build valid transactions.
 
-**Coalescing**: Multiple concurrent requests share the same RPC call instead of hammering the blockchain with duplicate queries.
+**Coalesce concurrent fetches**: Multiple overlapping calls in the same tab share the same in-flight RPC work (unless a “force refresh” is requested).
 
-**Reservation**: Reserves nonces per browser tab/session so components can't accidentally reuse values.
+**Reserve nonces locally**: For signing batches, it reserves a consecutive nonce range in memory so concurrent signing requests in the same tab don’t reuse the same nonce.
 
-**Batch Support**: Reserves multiple consecutive nonces at once for transaction batches.
+**Reconcile after broadcast (best-effort)**: When the SDK successfully broadcasts a transaction via its send helpers, it fetches the latest access-key nonce and advances the local “next nonce” pointer. This is tolerant of finality lag by advancing based on `max(chainNonce + 1, actualNonce + 1, localNextNonce, lastReserved + 1)`.
 
-**State Tracking**: Maintains an internal view of nonce state and synchronizes with the blockchain after each transaction.
+### Caching & Freshness
 
-### Three-Phase Lifecycle
+To reduce latency and avoid redundant RPC calls, the SDK caches:
 
-#### 1. Prefetch Phase
+- Access-key nonce for ~5 seconds
+- Block hash/height for ~20 seconds
+- Background prefetch is debounced (~400ms) and is best-effort (errors are swallowed)
 
-The manager proactively fetches:
-- Latest block height and hash (needed to build valid transactions)
-- Current nonce for your access key
-- Caches this data so concurrent operations don't trigger redundant RPC calls
+### What it does *not* do
 
-#### 2. Reserve Phase
-
-When you request a nonce:
-- The manager calculates the next available value
-- Marks it as reserved in local state (isolated per browser tab)
-- For batches, call `reserveNonces(n)` to get `n` consecutive nonces atomically
-
-#### 3. Update Phase
-
-After submitting a transaction:
-- The manager queries the blockchain to confirm the new state
-- Updates its internal pointer to reflect what actually happened on-chain
-- Handles edge cases where the blockchain moved ahead independently
+- **Cross-tab / cross-device locking**: There is no shared lock or persistence across tabs. If two tabs (or devices) send transactions using the same access key at the same time, NEAR can still reject one with an invalid/stale nonce. In that case, retrying the action is the correct recovery path.
+- **A public, stable API**: The methods exist on the TypeScript class, but they are internal implementation details and may change.
 
 ### Automatic Integration
 
@@ -85,18 +75,27 @@ const signed = await tatchi.signTransactionsWithActions({
   nearAccountId: 'user.near',
   transactions: [tx1, tx2, tx3],
 })
-// Nonces are assigned correctly, even for concurrent calls
+// Nonces are assigned correctly for concurrent calls within the same tab/runtime
 ```
 
 The Nonce Manager is an internal component of the signing flow; the public API is intentionally higher-level (sign/send helpers).
 
 ## Lifecycle Management
 
-**Initialization**: The Nonce Manager is created when you log in with a passkey and gain access to an access key.
+**Initialization**: The SDK initializes the `NonceManager` with the active user’s `nearAccountId` and `nearPublicKey` after login/unlock.
 
 **Reset**: When you log out, the manager's state is cleared to prevent stale data.
 
-**Per-Session**: Each browser tab maintains its own reservation state, but all tabs eventually synchronize with the blockchain's ground truth.
+**Per-tab**: Reservations and cached values are in-memory only (cleared on refresh, and not shared across tabs).
+
+## Internal Options (for advanced debugging)
+
+These knobs are used internally by the SDK. They’re documented here so you know what’s happening when reading logs or debugging edge cases:
+
+- `getNonceBlockHashAndHeight(nearClient, { force?: boolean })`: fetches/returns transaction context. With `force: true`, bypasses freshness checks and starts a new RPC fetch (used in a few “just-in-time refresh” paths).
+- `refreshNow(nearClient, { clearReservations?: boolean })`: forces a refresh and can optionally drop any locally reserved nonces.
+- `reserveNonces(count)`: reserves `count` consecutive nonce strings in local memory (requires that a transaction context has already been fetched).
+- `updateNonceFromBlockchain(nearClient, actualNonce)`: after a successful broadcast, refreshes the access-key nonce and advances the local pointer; also releases/prunes any now-stale reservations.
 
 ## Why This Matters
 
