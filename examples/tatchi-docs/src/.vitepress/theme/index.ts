@@ -127,7 +127,9 @@ function applyAppearance(mode: 'light' | 'dark'): void {
     const current = html.getAttribute('data-w3a-theme')
     if (current !== mode) html.setAttribute('data-w3a-theme', mode)
   } catch {}
-  safeLocalStorageSet('vitepress-theme-appearance', mode)
+  // VitePress uses @vueuse/core useStorage(), which JSON-serializes strings (e.g. `"dark"`).
+  // Writing raw values breaks cross-tab syncing because other tabs attempt JSON.parse(...) and fall back.
+  safeLocalStorageSet('vitepress-theme-appearance', JSON.stringify(mode))
   window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: mode }))
 }
 

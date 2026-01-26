@@ -2,28 +2,61 @@ import * as React from 'react'
 
 export type VitepressTheme = 'light' | 'dark'
 
-export function getVitepressTheme(): VitepressTheme {
-  if (typeof window !== 'undefined') {
-    const stored = window.localStorage?.getItem?.('vitepress-theme-appearance')
-    if (stored === 'light' || stored === 'dark') return stored
-  }
+type VitepressAppearance = VitepressTheme | 'auto'
 
+const VITEPRESS_APPEARANCE_KEY = 'vitepress-theme-appearance'
+
+function parseVitepressAppearance(raw: string | null | undefined): VitepressAppearance | null {
+  if (!raw) return null
+  if (raw === 'light' || raw === 'dark' || raw === 'auto') return raw
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed === 'light' || parsed === 'dark' || parsed === 'auto') return parsed
+  } catch {}
+
+  const normalized = raw.replace(/\"/g, '')
+  if (normalized === 'light' || normalized === 'dark' || normalized === 'auto') return normalized
+
+  return null
+}
+
+function getSystemTheme(): VitepressTheme {
   if (typeof document !== 'undefined') {
+    try {
+      const attr = document.documentElement.getAttribute('data-w3a-theme')
+      if (attr === 'light' || attr === 'dark') return attr
+    } catch {}
+
     const isDark = document.documentElement.classList.contains('dark')
     return isDark ? 'dark' : 'light'
   }
 
-  if (typeof document !== 'undefined') {
-    const attr = document.documentElement.getAttribute('data-w3a-theme')
-    if (attr === 'light' || attr === 'dark') return attr
+  if (typeof window !== 'undefined') {
+    try {
+      return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light'
+    } catch {}
   }
 
   return 'dark'
 }
 
+export function getVitepressTheme(): VitepressTheme {
+  if (typeof window !== 'undefined') {
+    const stored = parseVitepressAppearance(window.localStorage?.getItem?.(VITEPRESS_APPEARANCE_KEY))
+    if (stored === 'light' || stored === 'dark') return stored
+    if (stored === 'auto') return getSystemTheme()
+  }
+
+  return getSystemTheme()
+}
+
 function applyVitepressTheme(next: VitepressTheme): void {
   if (typeof window !== 'undefined') {
-    window.localStorage?.setItem?.('vitepress-theme-appearance', next)
+    // VitePress uses @vueuse/core useStorage() under the hood, which JSON-serializes strings.
+    // If we write raw values here, other tabs will attempt JSON.parse(...) and fall back,
+    // causing the "flash then revert" behavior.
+    window.localStorage?.setItem?.(VITEPRESS_APPEARANCE_KEY, JSON.stringify(next))
   }
 
   if (typeof document !== 'undefined') {
@@ -62,9 +95,10 @@ export function useVitepressTheme() {
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 
     const onStorage = (e: StorageEvent) => {
-      if (e.key !== 'vitepress-theme-appearance') return
-      const next = e.newValue === 'dark' ? 'dark' : 'light'
-      setThemeState(next)
+      if (e.key !== VITEPRESS_APPEARANCE_KEY) return
+      const stored = parseVitepressAppearance(e.newValue)
+      if (stored === 'light' || stored === 'dark') setThemeState(stored)
+      else if (stored === 'auto' || stored === null) setThemeState(getSystemTheme())
     }
     window.addEventListener('storage', onStorage)
 
