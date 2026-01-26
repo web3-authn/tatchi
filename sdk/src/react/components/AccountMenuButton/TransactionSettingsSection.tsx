@@ -18,7 +18,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
 
   React.useEffect(() => {
     if (!isOpen) return;
-    if (currentConfirmConfig?.behavior !== 'autoProceed') return;
+    if (currentConfirmConfig?.behavior !== 'skipClick') return;
     const delay = currentConfirmConfig?.autoProceedDelay ?? 0;
     if (delay === 0) return;
     onSetDelay(0);
@@ -28,7 +28,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
     e.stopPropagation();
   };
 
-  const disableRequireClick = currentConfirmConfig?.uiMode === 'skip';
+  const disableRequireClick = currentConfirmConfig?.uiMode === 'none';
   const disableAll = !isOpen;
   const selectedSignerMode = signerMode?.mode ?? 'local-signer';
 
@@ -80,12 +80,12 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
               <div style={{ width: '100%' }}>
                 <SegmentedControl
                   items={[
-                    { value: 'skip', label: 'skip', disabled: disableAll },
+                    { value: 'none', label: 'none', disabled: disableAll },
                     { value: 'modal', label: 'modal', disabled: disableAll },
                     { value: 'drawer', label: 'drawer', disabled: disableAll },
                   ]}
                   value={(currentConfirmConfig?.uiMode ?? 'modal')}
-                  onValueChange={(v) => onSetUiMode?.(v as 'skip' | 'modal' | 'drawer')}
+                  onValueChange={(v) => onSetUiMode?.(v as 'none' | 'modal' | 'drawer')}
                   activeBg={'var(--w3a-colors-primary)'}
                   height={40}
                   buttonFontSize={12}
@@ -107,10 +107,10 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                     { value: 'auto', label: 'auto proceed', disabled: disableAll || disableRequireClick },
                     { value: 'require', label: 'require click', disabled: disableAll || disableRequireClick },
                   ]}
-                  value={(currentConfirmConfig?.behavior === 'autoProceed') ? 'auto' : 'require'}
+                  value={(currentConfirmConfig?.behavior === 'skipClick') ? 'auto' : 'require'}
                   onValueChange={(v) => {
                     const wantsAuto = v === 'auto';
-                    const isAuto = currentConfirmConfig?.behavior === 'autoProceed';
+                    const isAuto = currentConfirmConfig?.behavior === 'skipClick';
                     if (wantsAuto && (currentConfirmConfig?.autoProceedDelay ?? 0) !== 0) {
                       onSetDelay(0);
                     }

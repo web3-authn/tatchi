@@ -83,7 +83,7 @@ test.describe('threshold-ed25519 keygen integrity', () => {
             iframeWallet: { walletOrigin: '' },
           });
 
-          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0};
+          const confirmConfig = { uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0};
 
           const reg = await pm.registerPasskeyInternal(accountId, { signerMode: { mode: 'local-signer' } }, confirmConfig as any);
           if (!reg?.success) return { success: false, error: reg?.error || 'registration failed' };
@@ -159,7 +159,7 @@ test.describe('threshold-ed25519 keygen integrity', () => {
             iframeWallet: { walletOrigin: '' },
           });
 
-          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0};
+          const confirmConfig = { uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0};
 
           const reg = await pm.registerPasskeyInternal(accountId, { signerMode: { mode: 'local-signer' } }, confirmConfig as any);
           if (!reg?.success) return { success: false, error: reg?.error || 'registration failed' };

@@ -480,8 +480,8 @@ test.describe('threshold-ed25519 (FROST) signing', () => {
 	          });
 
           const confirmConfig = {
-            uiMode: 'skip',
-            behavior: 'autoProceed',
+            uiMode: 'none',
+            behavior: 'skipClick',
             autoProceedDelay: 0,
           };
 

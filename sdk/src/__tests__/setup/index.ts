@@ -257,8 +257,8 @@ export interface TestUtils {
     testReceiverAccountId: string;
   };
   confirmOverrides?: {
-    skip: { uiMode: 'skip'; behavior: 'autoProceed'; autoProceedDelay: number };
-    autoProceed: { uiMode: 'modal'; behavior: 'autoProceed'; autoProceedDelay: number };
+    skip: { uiMode: 'none'; behavior: 'skipClick'; autoProceedDelay: number };
+    autoProceed: { uiMode: 'modal'; behavior: 'skipClick'; autoProceedDelay: number };
   };
   generateTestAccountId: () => string;
   verifyAccountExists: (accountId: string) => Promise<boolean>;

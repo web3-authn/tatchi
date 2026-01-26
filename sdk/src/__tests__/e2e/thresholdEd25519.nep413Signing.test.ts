@@ -89,7 +89,7 @@ test.describe('threshold-ed25519 NEP-413 signing', () => {
             iframeWallet: { walletOrigin: '' },
           });
 
-          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0};
+          const confirmConfig = { uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0};
 
           const reg = await pm.registerPasskeyInternal(accountId, { signerMode: { mode: 'local-signer' } }, confirmConfig as any);
           if (!reg?.success) return { ok: false, error: reg?.error || 'registration failed' };

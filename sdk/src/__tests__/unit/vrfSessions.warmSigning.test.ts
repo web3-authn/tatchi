@@ -23,7 +23,7 @@ test.describe('VRF sessions – warm signing', () => {
       const ctx: any = {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
-            uiMode: 'skip',
+            uiMode: 'none',
             behavior: 'requireClick',
             autoProceedDelay: 0,
           }),

@@ -350,27 +350,27 @@ export interface WorkerRequestTypeMap {
 /**
  * Validation rules for ConfirmationConfig to ensure behavior conforms to UI mode:
  *
- * - uiMode: 'skip' → behavior is ignored, autoProceedDelay is ignored
- * - uiMode: 'modal' | 'drawer' → behavior: 'requireClick' | 'autoProceed', autoProceedDelay only used with 'autoProceed'
+ * - uiMode: 'none' → behavior is ignored, autoProceedDelay is ignored
+ * - uiMode: 'modal' | 'drawer' → behavior: 'requireClick' | 'skipClick', autoProceedDelay only used with 'skipClick'
  *
  * The WASM worker automatically validates and overrides these settings:
- * - For 'skip' mode: behavior is set to 'autoProceed' with autoProceedDelay: 0
+ * - For 'none' mode: behavior is set to 'skipClick' with autoProceedDelay: 0
  * - For 'modal' and 'drawer' modes: behavior and autoProceedDelay are used as specified
  *
  * The actual type would be the following, but we use the flat interface for simplicity:
  * export interface ConfirmationConfig {
- *   uiMode: 'skip' | 'modal' | 'drawer'
+ *   uiMode: 'none' | 'modal' | 'drawer'
  *
  * }
  */
-export type ConfirmationUIMode = 'skip' | 'modal' | 'drawer';
-export type ConfirmationBehavior = 'requireClick' | 'autoProceed';
+export type ConfirmationUIMode = 'none' | 'modal' | 'drawer';
+export type ConfirmationBehavior = 'requireClick' | 'skipClick';
 export interface ConfirmationConfig {
-  /** Type of UI to display for confirmation: 'skip' | 'modal' | 'drawer' */
+  /** Type of UI to display for confirmation: 'none' | 'modal' | 'drawer' */
   uiMode: ConfirmationUIMode;
-  /** How the confirmation UI behaves: 'requireClick' | 'autoProceed' */
+  /** How the confirmation UI behaves: 'requireClick' | 'skipClick' */
   behavior: ConfirmationBehavior;
-  /** Delay in milliseconds before auto-proceeding (only used with autoProceed) */
+  /** Delay in milliseconds before proceeding without a click (only used with skipClick) */
   autoProceedDelay?: number;
 }
 
@@ -380,6 +380,41 @@ export const DEFAULT_CONFIRMATION_CONFIG: ConfirmationConfig = {
   autoProceedDelay: 0,
 };
 
+export function coerceConfirmationUIMode(
+  input: unknown,
+  fallback: ConfirmationUIMode = DEFAULT_CONFIRMATION_CONFIG.uiMode,
+): ConfirmationUIMode {
+  // v2 values
+  if (input === 'none' || input === 'modal' || input === 'drawer') return input;
+  // legacy values
+  if (input === 'skip') return 'none';
+  return fallback;
+}
+
+export function coerceConfirmationBehavior(
+  input: unknown,
+  fallback: ConfirmationBehavior = DEFAULT_CONFIRMATION_CONFIG.behavior,
+): ConfirmationBehavior {
+  // v2 values
+  if (input === 'requireClick' || input === 'skipClick') return input;
+  // legacy values (typo)
+  if (input === 'requireClick') return 'requireClick';
+  // legacy values (pre-rename)
+  if (input === 'autoProceed') return 'skipClick';
+  return fallback;
+}
+
+export function coerceConfirmationConfig(
+  input: Partial<ConfirmationConfig> | null | undefined,
+  fallback: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG,
+): ConfirmationConfig {
+  const raw = (input || {}) as Record<string, unknown>;
+  const uiMode = coerceConfirmationUIMode(raw.uiMode, fallback.uiMode);
+  const behavior = coerceConfirmationBehavior(raw.behavior, fallback.behavior);
+  const autoProceedDelay = typeof raw.autoProceedDelay === 'number' ? raw.autoProceedDelay : fallback.autoProceedDelay;
+  return { uiMode, behavior, autoProceedDelay };
+}
+
 // WASM enum types for confirmation configuration
 export type WasmConfirmationUIMode = wasmModule.ConfirmationUIMode;
 export type WasmConfirmationBehavior = wasmModule.ConfirmationBehavior;
@@ -387,7 +422,7 @@ export type WasmConfirmationBehavior = wasmModule.ConfirmationBehavior;
 // Mapping functions to convert string literals to numeric enum values
 export const mapUIModeToWasm = (uiMode: ConfirmationUIMode): number => {
   switch (uiMode) {
-    case 'skip': return wasmModule.ConfirmationUIMode.Skip;
+    case 'none': return wasmModule.ConfirmationUIMode.Skip;
     case 'modal': return wasmModule.ConfirmationUIMode.Modal;
     // Drawer now has a dedicated WASM enum variant
     case 'drawer': return (wasmModule as any).ConfirmationUIMode.Drawer ?? wasmModule.ConfirmationUIMode.Modal;
@@ -398,7 +433,7 @@ export const mapUIModeToWasm = (uiMode: ConfirmationUIMode): number => {
 export const mapBehaviorToWasm = (behavior: ConfirmationBehavior): number => {
   switch (behavior) {
     case 'requireClick': return wasmModule.ConfirmationBehavior.RequireClick;
-    case 'autoProceed': return wasmModule.ConfirmationBehavior.AutoProceed;
+    case 'skipClick': return wasmModule.ConfirmationBehavior.AutoProceed;
     default: return wasmModule.ConfirmationBehavior.RequireClick;
   }
 };

@@ -53,7 +53,7 @@ import type { ActionArgs, TransactionInput, TxExecutionStatus } from '../types';
 import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults } from '../types/linkDevice';
 import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types/linkDevice';
 import type { EmailRecoveryFlowOptions } from '../types/emailRecovery';
-import { type ConfirmationConfig, type SignerMode, DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
+import { type ConfirmationBehavior, type ConfirmationConfig, type SignerMode, DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
 import type { SyncAccountResult, PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
@@ -75,7 +75,7 @@ export class TatchiPasskeyIframe {
   // Expose a userPreferences shim so API matches TatchiPasskey
   get userPreferences() {
     return {
-      setConfirmBehavior: (b: 'requireClick' | 'autoProceed') => { this.setConfirmBehavior(b); },
+      setConfirmBehavior: (b: ConfirmationBehavior) => { this.setConfirmBehavior(b); },
       setConfirmationConfig: (c: ConfirmationConfig) => { this.setConfirmationConfig(c); },
       getConfirmationConfig: () => this.getConfirmationConfig(),
     };
@@ -574,7 +574,7 @@ export class TatchiPasskeyIframe {
   }
 
   // Parity with PasskeyManager API
-  setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
+  setConfirmBehavior(behavior: ConfirmationBehavior): void {
     void this.router.setConfirmBehavior(behavior)
       .then(() => this.refreshConfirmationConfig())
       .catch(() => {});

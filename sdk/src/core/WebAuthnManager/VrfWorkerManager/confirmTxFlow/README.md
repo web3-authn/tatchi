@@ -69,7 +69,7 @@ This keeps “how we confirm” as a single path (less complexity) while still a
 ## UI Behavior
 
 - `determineConfirmationConfig` combines user prefs and request overrides, with wallet‑iframe safety defaults
-- `renderConfirmUI` supports `uiMode: 'skip' | 'modal' | 'drawer'` and `behavior: 'autoProceed' | 'requireClick'`
+- `renderConfirmUI` supports `uiMode: 'none' | 'modal' | 'drawer'` and `behavior: 'skipClick' | 'requireClick'`
 - For warm sessions (`signingAuthMode: 'warmSession'`), `vrfChallenge` may be omitted; the confirmer UI still renders, but no WebAuthn prompt is performed.
 - Wallet iframe overlay considerations remain: requireClick flows must be visible for clicks to register
 
@@ -105,9 +105,9 @@ This section documents how a ConfirmationConfig is chosen for each confirmation,
 
 Applied in `determineConfirmationConfig` after merging override + prefs:
 
-- Decrypt Private Key flow: forces `uiMode: 'skip'` (UI suppressed; worker may follow with a separate UI). See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:47`.
+- Decrypt Private Key flow: forces `uiMode: 'none'` (UI suppressed; worker may follow with a separate UI). See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:47`.
 - Activation heuristic: if `needsExplicitActivation()` is true, promote any configuration to a visible, clickable confirmation to reliably satisfy WebAuthn user activation:
-  - Clamp to `behavior: 'requireClick'` and upgrade `uiMode: 'skip'` to a visible mode. See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:64`.
+  - Clamp to `behavior: 'requireClick'` and upgrade `uiMode: 'none'` to a visible mode. See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:64`.
 - Wallet‑iframe host, Registration/Link flows:
   - All platforms: always use `{ uiMode: 'modal', behavior: 'requireClick' }` so the click lands inside the iframe. This currently overrides both user prefs and request overrides for these flow types. See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:89`.
 

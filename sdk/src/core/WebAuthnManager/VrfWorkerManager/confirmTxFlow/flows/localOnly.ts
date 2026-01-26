@@ -93,8 +93,8 @@ export async function handleLocalOnlyFlow(
   // and return it to the VRF worker; VRF worker extracts PRF outputs internally.
   if (request.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF) {
     if (__isWalletIframeHostMode()) {
-      confirmationConfig.uiMode = 'skip';
-      confirmationConfig.behavior = 'autoProceed';
+      confirmationConfig.uiMode = 'none';
+      confirmationConfig.behavior = 'skipClick';
     }
 
     const vrfChallenge = createRandomVRFChallenge() as VRFChallenge;
@@ -102,7 +102,7 @@ export async function handleLocalOnlyFlow(
     // there is typically no transient user activation. If confirmationConfig chooses
     // a visible UI mode (modal/drawer), prompt first so the click lands inside the
     // wallet iframe and grants activation for the subsequent WebAuthn call.
-    if (confirmationConfig.uiMode !== 'skip') {
+    if (confirmationConfig.uiMode !== 'none') {
       // Provide a sensible title/body for non-transaction flows so the confirmer
       // doesn't fall back to "Register with Passkey" (txSigningRequests is empty).
       try {

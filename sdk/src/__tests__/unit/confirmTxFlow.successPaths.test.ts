@@ -23,8 +23,8 @@ test.describe('confirmTxFlow – success paths', () => {
       const ctx: any = {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
-            uiMode: 'skip',
-            behavior: 'autoProceed',
+            uiMode: 'none',
+            behavior: 'skipClick',
             autoProceedDelay: 0})
         },
         touchIdPrompt: {
@@ -113,8 +113,8 @@ test.describe('confirmTxFlow – success paths', () => {
     //   TouchID/WebAuthn prompt (no "Confirm Decryption" UI that requires an extra click).
     //
     // Therefore the effective confirmation behavior in host mode must be:
-    // - `uiMode: 'skip'` (skip intermediate confirmer UI entirely)
-    // - `behavior: 'autoProceed'` (no click gating; go straight to TouchID prompt)
+    // - `uiMode: 'none'` (skip intermediate confirmer UI entirely)
+    // - `behavior: 'skipClick'` (no click gating; go straight to TouchID prompt)
     //
     // If we ever regress to `uiMode: 'drawer'` + `behavior: 'requireClick'`, the user is forced
     // to click a redundant drawer before the TouchID prompt appears (the bug that prompted this test).
@@ -227,8 +227,8 @@ test.describe('confirmTxFlow – success paths', () => {
     expect(result.credId).toBe('auth-cred');
     expect(result.promptCalls).toBe(1);
     expect(result.createdConfirmUiElements).toBe(0);
-    expect(result.finalUiMode).toBe('skip');
-    expect(result.finalBehavior).toBe('autoProceed');
+    expect(result.finalUiMode).toBe('none');
+    expect(result.finalBehavior).toBe('skipClick');
   });
 
   test('Registration: collects registration credential and emits vrfChallenge + tx context', async ({ page }) => {
@@ -242,8 +242,8 @@ test.describe('confirmTxFlow – success paths', () => {
       const ctx: any = {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
-            uiMode: 'skip',
-            behavior: 'autoProceed',
+            uiMode: 'none',
+            behavior: 'skipClick',
             autoProceedDelay: 0})
         },
         nonceManager: {
@@ -356,8 +356,8 @@ test.describe('confirmTxFlow – success paths', () => {
       const ctx: any = {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
-            uiMode: 'skip',
-            behavior: 'autoProceed',
+            uiMode: 'none',
+            behavior: 'skipClick',
             autoProceedDelay: 0})
         },
         nonceManager: {
@@ -515,8 +515,8 @@ test.describe('confirmTxFlow – success paths', () => {
       const ctx: any = {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
-            uiMode: 'skip',
-            behavior: 'autoProceed',
+            uiMode: 'none',
+            behavior: 'skipClick',
             autoProceedDelay: 0})
         },
         nonceManager: {

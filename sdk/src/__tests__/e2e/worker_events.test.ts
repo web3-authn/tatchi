@@ -73,7 +73,7 @@ test.describe('Worker Communication Protocol', () => {
 
         // Register first to have an account (skip confirmation UI in tests)
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
-          || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0} as const);
+          || ({ uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0} as const);
         const registrationResult = await tatchi.registerPasskeyInternal(testAccountId, {
           onEvent: (event: any) => {
             progressEvents.push(event);
@@ -387,7 +387,7 @@ test.describe('Worker Communication Protocol', () => {
         const registrationEvents: Array<{ phase: string; status: string }> = [];
         const loginEvents: Array<{ phase: string; status: string; message: string }> = [];
 
-        const cfg = (utils?.confirmOverrides?.skip) || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0} as const);
+        const cfg = (utils?.confirmOverrides?.skip) || ({ uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0} as const);
         const registrationResult = await utils.tatchi.registerPasskeyInternal(testAccountId, {
           onEvent: (event: any) => {
             registrationEvents.push({
@@ -503,7 +503,7 @@ test.describe('Worker Communication Protocol', () => {
         try {
           // Test registration flow (should generate REGISTRATION_PROGRESS messages)
           const cfg2 = ((window as any).testUtils?.confirmOverrides?.skip)
-            || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0} as const);
+            || ({ uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0} as const);
           const registrationResult = await tatchi.registerPasskeyInternal(testAccountId, {
             onEvent: (event: any) => {
               progressEvents.push(event);
@@ -627,7 +627,7 @@ test.describe('Worker Communication Protocol', () => {
         // Test error handling with a forced relay failure (should still send progress messages)
         try {
           const cfg3 = ((window as any).testUtils?.confirmOverrides?.skip)
-            || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0} as const);
+            || ({ uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0} as const);
           result = await tatchi.registerPasskeyInternal(validAccountId, {
             onEvent: (event: any) => {
               progressEvents.push(event);

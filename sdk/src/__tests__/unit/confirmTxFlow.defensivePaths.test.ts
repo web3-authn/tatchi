@@ -431,7 +431,7 @@ test.describe('confirmTxFlow – defensive paths', () => {
       const worker = { postMessage: (msg: any) => workerMessages.push(msg) } as unknown as Worker;
 
       await handleLocalOnlyFlow(ctx, request, worker, {
-        confirmationConfig: { uiMode: 'skip', behavior: 'requireClick', autoProceedDelay: 0},
+        confirmationConfig: { uiMode: 'none', behavior: 'requireClick', autoProceedDelay: 0},
         transactionSummary: {},
       });
 
@@ -455,8 +455,8 @@ test.describe('confirmTxFlow – defensive paths', () => {
       const ctx: any = {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
-            uiMode: 'skip',
-            behavior: 'autoProceed',
+            uiMode: 'none',
+            behavior: 'skipClick',
             autoProceedDelay: 0}),
         },
         nonceManager: {
@@ -557,8 +557,8 @@ test.describe('confirmTxFlow – defensive paths', () => {
       const ctx: any = {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
-            uiMode: 'skip',
-            behavior: 'autoProceed',
+            uiMode: 'none',
+            behavior: 'skipClick',
             autoProceedDelay: 0}),
         },
         nonceManager: {

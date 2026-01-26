@@ -47,7 +47,7 @@ test.describe('NonceManager Integration Tests', () => {
 
         // Register and login to get a working session
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
-          || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0} as const);
+          || ({ uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0} as const);
         const registrationResult = await pm.registerPasskeyInternal(testAccountId, {}, cfg as any);
         if (!registrationResult.success) {
           throw new Error(`Registration failed: ${registrationResult.error}`);
@@ -137,7 +137,7 @@ test.describe('NonceManager Integration Tests', () => {
 
         // Register and login
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
-          || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0} as const);
+          || ({ uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0} as const);
         const registrationResult = await pm.registerPasskeyInternal(testAccountId, {}, cfg as any);
         if (!registrationResult.success) {
           throw new Error(`Registration failed: ${registrationResult.error}`);
@@ -234,7 +234,7 @@ test.describe('NonceManager Integration Tests', () => {
 
         // Register and login
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
-          || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0} as const);
+          || ({ uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0} as const);
         const registrationResult = await pm.registerPasskeyInternal(testAccountId, {}, cfg as any);
         if (!registrationResult.success) {
           throw new Error(`Registration failed: ${registrationResult.error}`);

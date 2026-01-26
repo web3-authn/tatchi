@@ -139,14 +139,14 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
   }, [currentSignerMode]);
 
   // Handlers for transaction settings
-  const handleSetUiMode = (mode: 'skip' | 'modal' | 'drawer') => {
+  const handleSetUiMode = (mode: 'none' | 'modal' | 'drawer') => {
     // Only patch the field we intend to change to avoid overwriting theme or other values
     tatchi.setConfirmationConfig({ uiMode: mode } as any);
   };
 
   const handleToggleSkipClick = () => {
     if (!currentConfirmConfig) return;
-    const newBehavior = currentConfirmConfig.behavior === 'requireClick' ? 'autoProceed' : 'requireClick';
+    const newBehavior = currentConfirmConfig.behavior === 'requireClick' ? 'skipClick' : 'requireClick';
     tatchi.setConfirmBehavior(newBehavior);
   };
 

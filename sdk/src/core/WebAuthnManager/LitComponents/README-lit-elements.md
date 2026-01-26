@@ -77,7 +77,7 @@ Examples omitted for brevity; see HaloBorder, PasskeyHaloLoading, and Modal view
 - File: `sdk/src/core/WebAuthnManager/LitComponents/confirm-ui.ts`
 - Element contract: `sdk/src/core/WebAuthnManager/LitComponents/confirm-ui-types.ts`
 
-Confirm UI is container‑agnostic and driven by `uiMode: 'skip' | 'modal' | 'drawer'`.
+Confirm UI is container‑agnostic and driven by `uiMode: 'none' | 'modal' | 'drawer'`.
 - Element contract: `ConfirmUIElement` supports `deferClose` and `close(confirmed)`.
 - Helpers: `mountConfirmUI()` and `awaitConfirmUIDecision()` mount and coordinate lifecycle.
 

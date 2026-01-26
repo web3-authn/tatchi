@@ -382,8 +382,8 @@ test.describe('Threshold Ed25519 rotation helper', () => {
         });
 
         const confirmConfig = {
-          uiMode: 'skip',
-          behavior: 'autoProceed',
+          uiMode: 'none',
+          behavior: 'skipClick',
           autoProceedDelay: 0,
         };
 

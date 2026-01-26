@@ -337,8 +337,8 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
         });
 
         const confirmConfig = {
-          uiMode: 'skip',
-          behavior: 'autoProceed',
+          uiMode: 'none',
+          behavior: 'skipClick',
           autoProceedDelay: 0,
         };
 
@@ -672,8 +672,8 @@ test.describe('Threshold Ed25519 Option B (post-registration AddKey)', () => {
         });
 
         const confirmConfig = {
-          uiMode: 'skip',
-          behavior: 'autoProceed',
+          uiMode: 'none',
+          behavior: 'skipClick',
           autoProceedDelay: 0,
         };
 

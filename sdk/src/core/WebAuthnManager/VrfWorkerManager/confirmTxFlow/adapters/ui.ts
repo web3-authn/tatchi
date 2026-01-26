@@ -34,7 +34,7 @@ export async function renderConfirmUI({
     : [];
 
   const renderDrawerOrModal = async (mode: 'drawer' | 'modal') => {
-    if (confirmationConfig.behavior === 'autoProceed') {
+    if (confirmationConfig.behavior === 'skipClick') {
       const handle = await mountConfirmUI({
         ctx,
         summary: transactionSummary,
@@ -63,7 +63,7 @@ export async function renderConfirmUI({
   };
 
   switch (uiMode) {
-    case 'skip': {
+    case 'none': {
       return { confirmed: true, confirmHandle: undefined };
     }
     case 'drawer': {

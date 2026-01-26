@@ -39,12 +39,12 @@ export function determineConfirmationConfig(
   ) as Partial<ConfirmationConfig>;
   let cfg: ConfirmationConfig = { ...configBase, ...cleanedOverride } as ConfirmationConfig;
 
-  // Default decrypt-private-key confirmations to 'skip' UI. The flow collects
+  // Default decrypt-private-key confirmations to 'none' UI. The flow collects
   // WebAuthn credentials silently and the worker may follow up with a
   // SHOW_SECURE_PRIVATE_KEY_UI request to display the key.
   if (request?.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF) {
     return {
-      uiMode: 'skip',
+      uiMode: 'none',
       behavior: cfg.behavior,
       autoProceedDelay: cfg.autoProceedDelay,
       // container selection handled by uiMode only
@@ -55,11 +55,11 @@ export function determineConfirmationConfig(
 
   // On Safari/iOS or mobile devices without a fresh user activation,
   // clamp to a clickable UI to reliably satisfy WebAuthn requirements.
-  // - If caller/user set uiMode: 'skip', promote to 'modal' + requireClick
-  // - If behavior is 'autoProceed', upgrade to 'requireClick'
+  // - If caller/user set uiMode: 'none', promote to 'drawer' + requireClick
+  // - If behavior is 'skipClick', upgrade to 'requireClick'
   // Use shared heuristic to decide if explicit activation is necessary
   if (needsExplicitActivation()) {
-    const newUiMode: ConfirmationConfig['uiMode'] = (cfg.uiMode === 'skip') ? 'drawer' : cfg.uiMode;
+    const newUiMode: ConfirmationConfig['uiMode'] = (cfg.uiMode === 'none') ? 'drawer' : cfg.uiMode;
     cfg = {
       ...cfg,
       uiMode: newUiMode,

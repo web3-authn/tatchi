@@ -32,7 +32,7 @@ test.describe('determineConfirmationConfig', () => {
         type: types.SecureConfirmationType.SIGN_TRANSACTION,
         confirmationConfig: {
           uiMode: 'drawer',
-          behavior: 'autoProceed',
+          behavior: 'skipClick',
           autoProceedDelay: 7,
         }
       } as any;
@@ -43,12 +43,12 @@ test.describe('determineConfirmationConfig', () => {
 
     expect(res.cfg).toEqual({
       uiMode: 'drawer',
-      behavior: 'autoProceed',
+      behavior: 'skipClick',
       autoProceedDelay: 7,
     });
   });
 
-  test('decryptPrivateKeyWithPrf defaults to uiMode=skip and preserves behavior', async ({ page }) => {
+  test('decryptPrivateKeyWithPrf defaults to uiMode=none and preserves behavior', async ({ page }) => {
     const res = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.determine);
       const types = await import(paths.types);
@@ -69,7 +69,7 @@ test.describe('determineConfirmationConfig', () => {
       return { cfg };
     }, { paths: IMPORT_PATHS });
 
-    expect(res.cfg.uiMode).toBe('skip');
+    expect(res.cfg.uiMode).toBe('none');
     expect(res.cfg.behavior).toBe('requireClick');
   });
 
@@ -144,7 +144,7 @@ test.describe('determineConfirmationConfig', () => {
           userPreferencesManager: {
             getConfirmationConfig: () => ({
               uiMode: 'drawer',
-              behavior: 'autoProceed',
+              behavior: 'skipClick',
               autoProceedDelay: 5,
             })
           }

@@ -1,10 +1,13 @@
 import {
   ConfirmationConfig,
+  type ConfirmationBehavior,
   DEFAULT_CONFIRMATION_CONFIG,
   type SignerMode,
   DEFAULT_SIGNING_MODE,
   coerceSignerMode,
   mergeSignerMode,
+  coerceConfirmationBehavior,
+  coerceConfirmationUIMode,
 } from '../types/signer-worker';
 import type { AccountId } from '../types/accountIds';
 import { IndexedDBManager, type IndexedDBEvent } from '../IndexedDBManager';
@@ -90,11 +93,14 @@ export class UserPreferencesManager {
     config?: Partial<ConfirmationConfig> | null
   ): Partial<ConfirmationConfig> {
     if (!config) return {};
-    const { uiMode, behavior, autoProceedDelay } = config as ConfirmationConfig;
+    const raw = config as Record<string, unknown>;
+    const uiMode = raw.uiMode;
+    const behavior = raw.behavior;
+    const autoProceedDelay = raw.autoProceedDelay;
     const next: Partial<ConfirmationConfig> = {};
-    if (uiMode != null) next.uiMode = uiMode;
-    if (behavior != null) next.behavior = behavior;
-    if (autoProceedDelay != null) next.autoProceedDelay = autoProceedDelay;
+    if (uiMode != null) next.uiMode = coerceConfirmationUIMode(uiMode);
+    if (behavior != null) next.behavior = coerceConfirmationBehavior(behavior);
+    if (typeof autoProceedDelay === 'number') next.autoProceedDelay = autoProceedDelay;
     return next;
   }
 
@@ -104,9 +110,9 @@ export class UserPreferencesManager {
   ): ConfirmationConfig {
     const merged = { ...base, ...patch } as Partial<ConfirmationConfig>;
     return {
-      uiMode: merged.uiMode ?? DEFAULT_CONFIRMATION_CONFIG.uiMode,
-      behavior: merged.behavior ?? DEFAULT_CONFIRMATION_CONFIG.behavior,
-      autoProceedDelay: merged.autoProceedDelay ?? DEFAULT_CONFIRMATION_CONFIG.autoProceedDelay,
+      uiMode: coerceConfirmationUIMode(merged.uiMode, DEFAULT_CONFIRMATION_CONFIG.uiMode),
+      behavior: coerceConfirmationBehavior(merged.behavior, DEFAULT_CONFIRMATION_CONFIG.behavior),
+      autoProceedDelay: typeof merged.autoProceedDelay === 'number' ? merged.autoProceedDelay : DEFAULT_CONFIRMATION_CONFIG.autoProceedDelay,
     };
   }
 
@@ -276,8 +282,9 @@ export class UserPreferencesManager {
   /**
    * Set confirmation behavior
    */
-  setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
-    this.confirmationConfig = this.mergeConfirmationConfig(this.confirmationConfig, { behavior });
+  setConfirmBehavior(behavior: ConfirmationBehavior): void {
+    const nextBehavior = coerceConfirmationBehavior(behavior);
+    this.confirmationConfig = this.mergeConfirmationConfig(this.confirmationConfig, { behavior: nextBehavior });
     this.notifyConfirmationConfigChange(this.confirmationConfig);
     this.saveUserSettings();
   }

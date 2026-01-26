@@ -151,7 +151,7 @@ test.describe('Wallet iframe preferences sync', () => {
 
         // Flip confirmation config on the wallet host and ensure the app-origin mirrors it via PREFERENCES_CHANGED.
         const router = await (tatchi as any).requireWalletIframeRouter();
-        await router.setConfirmationConfig({ uiMode: 'drawer', behavior: 'autoProceed', autoProceedDelay: 5 });
+        await router.setConfirmationConfig({ uiMode: 'drawer', behavior: 'skipClick', autoProceedDelay: 5 });
         const mirrored = await waitFor(() => tatchi.getConfirmationConfig().uiMode === 'drawer', 3000);
 
         return {
@@ -179,7 +179,7 @@ test.describe('Wallet iframe preferences sync', () => {
     expect(result.mirrored).toBe(true);
     expect(result.finalTheme).toBe('dark');
     expect(result.initialConfig).toEqual({ behavior: 'requireClick', uiMode: 'modal', autoProceedDelay: 0 });
-    expect(result.finalConfig).toEqual({ behavior: 'autoProceed', uiMode: 'drawer', autoProceedDelay: 5 });
+    expect(result.finalConfig).toEqual({ behavior: 'skipClick', uiMode: 'drawer', autoProceedDelay: 5 });
     expect(result.currentUser).toBe('alice.testnet');
 
     const indexedDbNoise = consoleErrors.find((m) =>

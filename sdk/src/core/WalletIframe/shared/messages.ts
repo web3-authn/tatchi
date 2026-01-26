@@ -15,7 +15,7 @@ import {
 } from '../../types';
 import { type DeviceLinkingQRData } from '../../types/linkDevice';
 import type { DelegateActionInput } from '../../types/delegate';
-import type { ConfirmationConfig } from '../../types/signer-worker';
+import type { ConfirmationBehavior, ConfirmationConfig } from '../../types/signer-worker';
 import type { SignerMode } from '../../types/signer-worker';
 
 export type WalletProtocolVersion = '1.0.0';
@@ -223,7 +223,7 @@ export interface PMSignNep413Payload {
 export interface PMExportNearKeypairPayload { nearAccountId: string }
 export interface PMExportNearKeypairUiPayload { nearAccountId: string; variant?: 'modal' | 'drawer'; theme?: 'dark' | 'light' }
 
-export interface PMSetConfirmBehaviorPayload { behavior: 'requireClick' | 'autoProceed'; nearAccountId?: string }
+export interface PMSetConfirmBehaviorPayload { behavior: ConfirmationBehavior; nearAccountId?: string }
 
 export interface PMSetConfirmationConfigPayload { config: Partial<ConfirmationConfig>; nearAccountId?: string }
 

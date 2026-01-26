@@ -99,7 +99,7 @@ export interface ProfileDropdownProps {
   currentConfirmConfig?: any;
   signerMode?: SignerMode;
   onToggleThresholdSigning?: (enabled: boolean) => void;
-  onSetUiMode?: (mode: 'skip' | 'modal' | 'drawer') => void;
+  onSetUiMode?: (mode: 'none' | 'modal' | 'drawer') => void;
   onToggleShowDetails?: () => void;
   onToggleSkipClick?: () => void;
   onSetDelay?: (delay: number) => void;
@@ -136,7 +136,7 @@ export interface TransactionSettingsSectionProps {
   currentConfirmConfig: any;
   signerMode?: SignerMode;
   onToggleThresholdSigning?: (enabled: boolean) => void;
-  onSetUiMode?: (mode: 'skip' | 'modal' | 'drawer') => void;
+  onSetUiMode?: (mode: 'none' | 'modal' | 'drawer') => void;
   onToggleShowDetails?: () => void;
   onToggleSkipClick: () => void;
   onSetDelay: (delay: number) => void;

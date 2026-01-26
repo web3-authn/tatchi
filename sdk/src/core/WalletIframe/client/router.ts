@@ -116,7 +116,7 @@ import {
   StartDevice2LinkingFlowResults,
 } from '../../types/linkDevice'
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
-import { mergeSignerMode, type ConfirmationConfig, type SignerMode } from '../../types/signer-worker';
+import { mergeSignerMode, type ConfirmationBehavior, type ConfirmationConfig, type SignerMode } from '../../types/signer-worker';
 import type { AccessKeyList } from '../../NearClient';
 import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
 import type { SyncAccountResult } from '../../TatchiPasskey';
@@ -878,7 +878,7 @@ export class WalletIframeRouter {
     return res.result;
   }
 
-  async setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): Promise<void> {
+  async setConfirmBehavior(behavior: ConfirmationBehavior): Promise<void> {
     let { nearAccountId } = (await this.getLoginSession()).login;
     await this.post<void>({
       type: 'PM_SET_CONFIRM_BEHAVIOR',

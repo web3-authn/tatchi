@@ -8,6 +8,7 @@ import {
   type SignerMode,
   DEFAULT_SIGNING_MODE,
   coerceSignerMode,
+  coerceConfirmationConfig,
 } from '../types/signer-worker'
 
 
@@ -895,7 +896,7 @@ export class PasskeyClientDBManager {
    */
   async getConfirmationConfig(nearAccountId: AccountId): Promise<ConfirmationConfig> {
     const user = await this.getUser(nearAccountId);
-    return user?.preferences?.confirmationConfig || DEFAULT_CONFIRMATION_CONFIG;
+    return coerceConfirmationConfig(user?.preferences?.confirmationConfig, DEFAULT_CONFIRMATION_CONFIG);
   }
 
   /**

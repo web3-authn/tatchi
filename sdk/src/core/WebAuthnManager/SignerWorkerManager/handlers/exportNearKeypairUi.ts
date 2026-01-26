@@ -11,7 +11,7 @@ import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 
 /**
  * Two-phase export (worker-driven):
- *  - Phase 1: collect PRF (uiMode: 'skip') and derive WrapKeySeed in VRF worker
+ *  - Phase 1: collect PRF (uiMode: 'none') and derive WrapKeySeed in VRF worker
  *  - Decrypt inside signer worker (session-bound)
  *  - Phase 2: show export UI with decrypted key (kept open until user closes)
  */

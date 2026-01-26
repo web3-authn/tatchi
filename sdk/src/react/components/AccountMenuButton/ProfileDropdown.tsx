@@ -9,7 +9,7 @@ interface ProfileDropdownWithRefs extends Omit<ProfileDropdownProps, 'menuItemsR
   menuItemsRef: React.MutableRefObject<(HTMLElement | null)[]>;
   // Transaction settings props
   currentConfirmConfig?: any;
-  onSetUiMode?: (mode: 'skip' | 'modal' | 'drawer') => void;
+  onSetUiMode?: (mode: 'none' | 'modal' | 'drawer') => void;
   onToggleShowDetails?: () => void;
   onToggleSkipClick?: () => void;
   onSetDelay?: (delay: number) => void;

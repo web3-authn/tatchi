@@ -158,8 +158,8 @@ export async function rotateThresholdEd25519KeyPostRegistrationHandler(
         rpcCall,
         signerMode: { mode: 'local-signer' },
         confirmationConfigOverride: {
-          uiMode: 'skip',
-          behavior: 'autoProceed',
+          uiMode: 'none',
+          behavior: 'skipClick',
           autoProceedDelay: 0,
         },
         title: 'Rotate threshold key',

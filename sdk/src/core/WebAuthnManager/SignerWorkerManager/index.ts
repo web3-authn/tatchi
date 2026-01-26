@@ -796,7 +796,7 @@ export class SignerWorkerManager {
 
   /**
    * Two-phase export (worker-driven):
-   *  - Phase 1: collect PRF (uiMode: 'skip')
+   *  - Phase 1: collect PRF (uiMode: 'none')
    *  - Decrypt inside worker
    *  - Phase 2: show export UI with decrypted key (kept open until user closes)
    */

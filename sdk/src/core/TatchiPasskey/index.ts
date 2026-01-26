@@ -50,7 +50,7 @@ import type {
   SignTransactionHooksOptions,
 } from '../types/sdkSentEvents';
 import { ActionPhase, ActionStatus } from '../types/sdkSentEvents';
-import { ConfirmationConfig, type SignerMode, type WasmSignedDelegate } from '../types/signer-worker';
+import { ConfirmationConfig, type ConfirmationBehavior, type SignerMode, type WasmSignedDelegate } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import type { DerivedAddressRecord, RecoveryEmailRecord } from '../IndexedDBManager';
@@ -642,7 +642,7 @@ export class TatchiPasskey {
   /**
    * Set confirmation behavior setting for the current user
    */
-  setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
+  setConfirmBehavior(behavior: ConfirmationBehavior): void {
     if (this.shouldUseWalletIframe()) {
       // Fire and forget; persistence handled in wallet host. Avoid unhandled rejections.
       void (async () => {

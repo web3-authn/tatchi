@@ -113,7 +113,7 @@ test.describe('threshold-ed25519 strict vs fallback semantics', () => {
             iframeWallet: { walletOrigin: '' },
           });
 
-          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0};
+          const confirmConfig = { uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0};
 
           const reg = await pm.registerPasskeyInternal(accountId, { signerMode: { mode: 'local-signer' } }, confirmConfig as any);
           if (!reg?.success) return { ok: false, error: reg?.error || 'registration failed' };
@@ -198,7 +198,7 @@ test.describe('threshold-ed25519 strict vs fallback semantics', () => {
             iframeWallet: { walletOrigin: '' },
           });
 
-          const confirmConfig = { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0};
+          const confirmConfig = { uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0};
 
           // Ensure VRF + warm signing session are available. Threshold session mint is best-effort and may fail.
           const login = await pm.loginAndCreateSession(accountId);
