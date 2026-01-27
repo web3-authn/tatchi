@@ -253,6 +253,13 @@ export class WindowParentDomainWebAuthnClient implements ParentDomainWebAuthnCli
       const finish = (val: BridgeResponse) => { if (!settled) { settled = true; resolve(val); } };
 
       const onMessage = (ev: MessageEvent) => {
+        // Only accept replies from the direct parent window to avoid postMessage spoofing.
+        // (We cannot reliably check origin here because the parent may be cross-origin.)
+        try {
+          if (ev.source !== window.parent) return;
+        } catch {
+          return;
+        }
         const payload = ev?.data as unknown;
         if (!payload || typeof (payload as { type?: unknown }).type !== 'string') return;
         const t = (payload as { type: string }).type;

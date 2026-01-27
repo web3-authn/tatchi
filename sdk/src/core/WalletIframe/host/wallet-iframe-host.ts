@@ -206,6 +206,7 @@ function shouldAcceptConnectEvent(e: MessageEvent, hasAdoptedPort: boolean): boo
     updateWalletConfigs: (patch) => {
       walletConfigs = { ...walletConfigs, ...patch } as TatchiConfigsInput;
     },
+    getParentOrigin: () => parentOrigin,
     postToParent,
   });
 })();

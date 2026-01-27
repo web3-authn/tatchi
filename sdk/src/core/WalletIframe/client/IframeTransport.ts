@@ -94,6 +94,14 @@ export class IframeTransport {
       return;
     }
     if (type === WebAuthnBridgeMessage.Create || type === WebAuthnBridgeMessage.Get) {
+      // Only accept bridge requests from the wallet iframe we created.
+      // This prevents other same-origin windows/frames from abusing the parent-bridge path.
+      try {
+        const expected = this.iframeEl?.contentWindow;
+        if (expected && e.source !== expected) return;
+      } catch {
+        return;
+      }
       this.performWebAuthnBridge(type as typeof WebAuthnBridgeMessage.Create | typeof WebAuthnBridgeMessage.Get, data, e);
     }
   };
@@ -397,10 +405,13 @@ export class IframeTransport {
     ok: boolean,
     payload: { credential?: unknown; error?: string },
   ): void {
-    // Reply directly to the requesting window; wildcard target avoids transient
-    // 'null' origin warnings during early navigation while remaining safe since
-    // we already validated the sender's origin before bridging.
-    source?.postMessage({ type, requestId, ok, ...payload }, '*');
+    // Reply directly to the requesting wallet iframe window and scope by the expected wallet origin.
+    // If the iframe is misconfigured and has an opaque origin, fall back to '*' to avoid hard failures.
+    try {
+      source?.postMessage({ type, requestId, ok, ...payload }, this.walletOrigin);
+    } catch {
+      try { source?.postMessage({ type, requestId, ok, ...payload }, '*'); } catch {}
+    }
   }
 
   private performWebAuthnBridge(

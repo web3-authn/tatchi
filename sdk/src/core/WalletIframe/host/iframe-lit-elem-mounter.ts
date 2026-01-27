@@ -123,10 +123,16 @@ type SetupLitElemMounterOptions = {
   getTatchiPasskey: GetPasskeyManager;
   updateWalletConfigs: UpdateWalletConfigs;
   postToParent: (message: WalletUiOutboundMessage) => void;
+  /**
+   * Optional getter for the embedding parent origin.
+   * When provided, inbound UI-control messages are scoped to that origin once known.
+   */
+  getParentOrigin?: () => string | null;
 };
 
 export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
   const { ensureTatchiPasskey, getTatchiPasskey, updateWalletConfigs } = opts;
+  const getParentOrigin = opts.getParentOrigin || (() => null);
 
   // Generic registry for mountable components
   let uiRegistry: WalletUIRegistry = { ...uiBuiltinRegistry };
@@ -396,6 +402,20 @@ export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
   };
 
   window.addEventListener('message', (evt: MessageEvent<WalletUiInboundMessage>) => {
+    // Only accept messages from our direct parent window. This prevents other windows
+    // (including same-origin popups) from driving UI actions inside the wallet host.
+    try {
+      if (evt.source !== window.parent) return;
+    } catch {
+      return;
+    }
+    // Once a concrete parent origin is known (from CONNECT), require an origin match.
+    // If the parent origin is still unknown or opaque ('null'), fall back to source-only gating.
+    try {
+      const expected = getParentOrigin();
+      if (expected && expected !== 'null' && evt.origin !== expected) return;
+    } catch {}
+
     const data = evt?.data;
     if (!data || !isObject(data) || !('type' in data)) return;
     const message = data as WalletUiInboundMessage;
