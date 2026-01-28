@@ -44,6 +44,7 @@ function SidePanelInner() {
       // that services signing requests from the app. Unlock that host directly via runtime messaging.
       await callWalletHost({
         type: 'TATCHI_WALLET_UNLOCK',
+        targetHostKind: 'embedded',
         nearAccountId: id,
         signingSession: { ttlMs: 12 * 60 * 60 * 1000, remainingUses: 10_000 },
       });
@@ -101,7 +102,7 @@ function SidePanelInner() {
               setError('');
               setBusy(true);
               try {
-                await callWalletHost({ type: 'TATCHI_WALLET_LOCK' });
+                await callWalletHost({ type: 'TATCHI_WALLET_LOCK', targetHostKind: 'embedded' });
               } catch (e: any) {
                 setError(String(e?.message || e || 'Lock failed'));
               } finally {

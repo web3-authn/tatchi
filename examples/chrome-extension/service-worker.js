@@ -20,18 +20,31 @@ try {
 // Protocol:
 // - wallet host connects: `chrome.runtime.connect({ name: 'TATCHI_WALLET_HOST' })`
 // - SW forwards unlock/lock messages to all connected wallet-host ports and returns first ack.
-const walletHostPorts = new Set();
+// Track connected wallet hosts (wallet-service iframes / extension pages).
+// We attach a small "hello" handshake so we can target the correct host:
+// - embedded: wallet-service iframe mounted by a web page (referrer is http/https)
+// - extension: wallet-service mounted by extension UI (side panel / popup)
+const walletHostPorts = new Map(); // port -> { hostKind?: 'embedded' | 'extension' }
 const walletHostPending = new Map(); // requestId -> { resolve, timer }
 
 try {
   chrome.runtime.onConnect.addListener((port) => {
     try {
       if (!port || port.name !== 'TATCHI_WALLET_HOST') return;
-      walletHostPorts.add(port);
+      walletHostPorts.set(port, {});
       port.onDisconnect.addListener(() => {
         walletHostPorts.delete(port);
       });
       port.onMessage.addListener((msg) => {
+        if (msg?.type === 'TATCHI_WALLET_HOST_HELLO') {
+          const meta = walletHostPorts.get(port) || {};
+          if (msg?.hostKind === 'embedded' || msg?.hostKind === 'extension') {
+            meta.hostKind = msg.hostKind;
+          }
+          walletHostPorts.set(port, meta);
+          return;
+        }
+
         const requestId = msg?.requestId;
         const type = msg?.type;
         if (!requestId || (type !== 'TATCHI_WALLET_UNLOCK_RESULT' && type !== 'TATCHI_WALLET_LOCK_RESULT')) return;
@@ -48,8 +61,20 @@ try {
 async function forwardWalletHostControl(message) {
   const requestId = `${message.type}:${Date.now()}:${Math.random().toString(16).slice(2)}`;
   const timeoutMs = 25_000;
-  const ports = Array.from(walletHostPorts);
-  if (!ports.length) return { ok: false, error: 'No wallet host connected yet. Open the app page first so the extension wallet iframe mounts.' };
+  const targetHostKind = message?.targetHostKind === 'embedded' || message?.targetHostKind === 'extension'
+    ? message.targetHostKind
+    : null;
+
+  const allPorts = Array.from(walletHostPorts.keys());
+  if (!allPorts.length) return { ok: false, error: 'No wallet host connected yet. Open the app page first so the extension wallet iframe mounts.' };
+
+  const ports = targetHostKind
+    ? allPorts.filter((p) => walletHostPorts.get(p)?.hostKind === targetHostKind)
+    : allPorts;
+
+  if (targetHostKind && !ports.length) {
+    return { ok: false, error: `No ${targetHostKind} wallet host connected yet. Open the app page so the extension wallet iframe mounts, then try again.` };
+  }
 
   const waitForAck = () =>
     new Promise((resolve) => {

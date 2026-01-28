@@ -895,21 +895,34 @@ export class WebAuthnManager {
       throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
     }
 
-    // Extract PRF.first_auth from the already-collected credential.
-    const { ttlMs, remainingUses } = this.resolveSigningSessionPolicy(args);
+	    // Extract PRF.first_auth from the already-collected credential.
+	    const { ttlMs, remainingUses } = this.resolveSigningSessionPolicy(args);
 
-    await this.vrfWorkerManager.mintSessionKeysAndSendToSigner({
-      sessionId,
-      wrapKeySalt,
-      contractId: args.contractId,
-      nearRpcUrl: args.nearRpcUrl,
-      ttlMs,
-      remainingUses,
-      credential: args.credential,
-    });
+	    // IMPORTANT (extension warm sessions):
+	    // `MINT_SESSION_KEYS_AND_SEND_TO_SIGNER` expects a signer-facing MessagePort to be
+	    // attached for this `sessionId` so the VRF worker can deliver WrapKeySeed.
+	    //
+	    // During login/unlock we are not necessarily inside `withSigningSession(...)`,
+	    // so we must wire the VRF→Signer channel here explicitly; otherwise the mint
+	    // will fail and the extension will remain "locked" for subsequent warm-session signing.
+	    const signerPort = await this.vrfWorkerManager.createSigningSessionChannel(sessionId);
+	    await this.signerWorkerManager.reserveSignerWorkerSession(sessionId, { signerPort });
+	    try {
+	      await this.vrfWorkerManager.mintSessionKeysAndSendToSigner({
+	        sessionId,
+	        wrapKeySalt,
+	        contractId: args.contractId,
+	        nearRpcUrl: args.nearRpcUrl,
+	        ttlMs,
+	        remainingUses,
+	        credential: args.credential,
+	      });
+	    } finally {
+	      this.signerWorkerManager.releaseSigningSession(sessionId);
+	    }
 
-    return await this.vrfWorkerManager.checkSessionStatus({ sessionId });
-  }
+	    return await this.vrfWorkerManager.checkSessionStatus({ sessionId });
+	  }
 
   /**
    * Introspect the VRF-owned signing session for UI (no prompt, metadata only).

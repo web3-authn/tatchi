@@ -125,6 +125,29 @@ function attachExtensionControlChannel(): void {
   try {
     if (typeof runtime.connect === 'function') {
       extensionControlPort = runtime.connect({ name: 'TATCHI_WALLET_HOST' });
+
+      // Identify this wallet host instance for the service worker broker so it can target
+      // unlock/lock requests to the correct runtime (embedded web page vs extension UI).
+      //
+      // Why: the side panel may also mount a wallet-service iframe (for settings/UI),
+      // but warm sessions live in-memory inside the wallet host that will service the app’s
+      // signing requests. If the SW forwards unlock to the "wrong" host, signing remains locked.
+      try {
+        const ref = String(document?.referrer || '');
+        const ancestorTop = (() => {
+          try {
+            const ao = (window.location as any)?.ancestorOrigins;
+            const top = ao && typeof ao.length === 'number' && ao.length ? String(ao[0] || '') : '';
+            return top;
+          } catch {
+            return '';
+          }
+        })();
+        const isEmbedded = /^https?:\/\//.test(ref) || /^https?:\/\//.test(ancestorTop);
+        const hostKind = isEmbedded ? 'embedded' : 'extension';
+        extensionControlPort?.postMessage?.({ type: 'TATCHI_WALLET_HOST_HELLO', hostKind });
+      } catch {}
+
       extensionControlPort?.onMessage?.addListener?.((message: any) => {
         const type = message?.type;
         const requestId = message?.requestId;
