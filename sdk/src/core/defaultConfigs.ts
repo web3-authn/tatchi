@@ -144,6 +144,9 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
       // to disable iframe-wallet mode in tests and some apps.
       walletOrigin: overrides.iframeWallet?.walletOrigin
         ?? defaults.iframeWallet?.walletOrigin,
+      // Optional extension wallet origin (chrome-extension://...) for progressive hardening.
+      extensionWalletOrigin: overrides.iframeWallet?.extensionWalletOrigin
+        ?? defaults.iframeWallet?.extensionWalletOrigin,
       rpIdOverride: overrides.iframeWallet?.rpIdOverride
         ?? defaults.iframeWallet?.rpIdOverride,
       // IMPORTANT: the following fields are often wired from CI env vars like `VITE_SDK_BASE_PATH`.
@@ -154,6 +157,9 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
       walletServicePath: toTrimmedString(overrides.iframeWallet?.walletServicePath)
         || toTrimmedString(defaults.iframeWallet?.walletServicePath)
         || '/wallet-service',
+      extensionWalletServicePath: toTrimmedString(overrides.iframeWallet?.extensionWalletServicePath)
+        || toTrimmedString(defaults.iframeWallet?.extensionWalletServicePath)
+        || undefined,
       sdkBasePath: toTrimmedString(overrides.iframeWallet?.sdkBasePath)
         || toTrimmedString(defaults.iframeWallet?.sdkBasePath)
         || '/sdk',

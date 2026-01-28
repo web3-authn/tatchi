@@ -5,6 +5,7 @@ import { W3A_DRAWER_ID } from '../tags';
 import TxConfirmContentElement from './tx-confirm-content';
 import PadlockIconElement from '../common/PadlockIcon';
 import { ensureExternalStyles } from '../css/css-loader';
+import { waitForNextPaint } from '../common/nextPaint';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import type { ThemeName } from '../confirm-ui-types';
@@ -155,8 +156,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       // Preload drawer.css so fallback <link> is loaded before opening
       ensureExternalStyles(root, 'drawer.css', 'data-w3a-drawer-css'),
     ]);
-    // Open after mount with double-rAF to let layout/styles settle
-    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    // Open after mount; prefer double-rAF but fall back to a timeout if rAF is throttled.
+    await waitForNextPaint();
     this._open = true;
     this.requestUpdate();
   }

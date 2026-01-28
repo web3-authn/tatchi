@@ -127,7 +127,7 @@ export function registerThresholdEd25519Routes(router: ExpressRouter, ctx: Expre
         const ms = result.expiresAt ? Date.parse(result.expiresAt) : NaN;
         return Number.isFinite(ms) && ms > 0 ? ms : undefined;
       })();
-      const exp = thresholdExpiresAtMs ? Math.floor(thresholdExpiresAtMs / 1000) : undefined;
+      const vrfSessionExp = thresholdExpiresAtMs ? Math.floor(thresholdExpiresAtMs / 1000) : undefined;
       const iat = Math.floor(Date.now() / 1000);
       const participantIds =
         normalizeThresholdEd25519ParticipantIds(body.sessionPolicy?.participantIds)
@@ -138,7 +138,7 @@ export function registerThresholdEd25519Routes(router: ExpressRouter, ctx: Expre
         relayerKeyId,
         rpId,
         ...(thresholdExpiresAtMs !== undefined ? { thresholdExpiresAtMs } : {}),
-        ...(exp !== undefined ? { exp } : {}),
+        ...(vrfSessionExp !== undefined ? { vrfSessionExp } : {}),
         iat,
         participantIds,
       });

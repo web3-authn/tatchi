@@ -11,6 +11,17 @@ import type {
   SignNEP413MessageParams,
   SignNEP413MessageResult,
 } from '../core/TatchiPasskey';
+import type {
+  ExtensionMigrationOptions,
+  ExtensionMigrationResult,
+  ExtensionMigrationState,
+} from '../core/types/extensionMigration';
+export type {
+  ExtensionMigrationOptions,
+  ExtensionMigrationResult,
+  ExtensionMigrationState,
+  ExtensionMigrationEvent,
+} from '../core/types/extensionMigration';
 import type { ThemeName } from '../core/types/tatchi';
 import { TransactionInput } from '../core/types/actions';
 import type { ConfirmationConfig, ConfirmationBehavior } from '../core/types/signer-worker';
@@ -198,6 +209,14 @@ export interface TatchiContextType {
   }>;
 
   stopDevice2LinkingFlow: () => Promise<void>;
+
+  // Extension migration flow
+  startExtensionMigration: (args: {
+    accountId: string;
+    options?: ExtensionMigrationOptions;
+  }) => Promise<ExtensionMigrationResult>;
+  cancelExtensionMigration: (message?: string) => void;
+  getExtensionMigrationState: () => ExtensionMigrationState;
 
   // Login State
   loginState: LoginState;

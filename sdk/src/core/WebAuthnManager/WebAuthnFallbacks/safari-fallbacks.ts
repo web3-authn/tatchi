@@ -3,6 +3,8 @@
 // - Bridges create/get to top-level via postMessage when needed
 // - Keeps helpers private to reduce file count and surface area
 
+import { isChromeExtensionContext } from '../../ExtensionWallet';
+
 type Kind = 'create' | 'get';
 
 // Typed message names for parent-domain bridge
@@ -18,8 +20,8 @@ export type BridgeResultKind = typeof WebAuthnBridgeMessage.CreateResult | typeo
 
 type ResultTypeFor<K extends BridgeKind> =
   K extends typeof WebAuthnBridgeMessage.Get
-    ? typeof WebAuthnBridgeMessage.GetResult
-    : typeof WebAuthnBridgeMessage.CreateResult;
+  ? typeof WebAuthnBridgeMessage.GetResult
+  : typeof WebAuthnBridgeMessage.CreateResult;
 
 function getResultTypeFor<K extends BridgeKind>(kind: K): ResultTypeFor<K> {
   return (kind === WebAuthnBridgeMessage.Get
@@ -111,6 +113,20 @@ export async function executeWebAuthnWithParentFallbacksSafari(
   } = deps;
   const bridgeClient = deps.bridgeClient || new WindowParentDomainWebAuthnClient();
 
+  // Chrome Extension embed limitation:
+  // Chrome does not reliably delegate WebAuthn to `chrome-extension://...` iframes via Permissions-Policy.
+  // When the extension wallet is embedded, native WebAuthn can throw NotAllowedError
+  // ("feature is not enabled in this document").
+  //
+  // Using the "parent bridge" fallback is also invalid for extension-scoped passkeys:
+  // it would attempt WebAuthn in the *embedding* https origin, which will fail RP-ID validation.
+  //
+  // Therefore, for embedded extension wallets we always run BOTH create() and get() ceremonies
+  // in a top-level extension popup.
+  if (inIframe && isChromeExtensionContext()) {
+    return await performExtensionPopupWebAuthn(kind, publicKey);
+  }
+
   const isTestForceNativeFail = (): boolean => {
     const g = (globalThis as any);
     const w = (typeof window !== 'undefined' ? (window as any) : undefined);
@@ -166,7 +182,12 @@ export async function executeWebAuthnWithParentFallbacksSafari(
     // do not attempt any bridge fallbacks that would re-prompt Touch ID. Propagate immediately.
     // This avoids double prompts when a user cancels the native sheet.
     const name = safeName(e);
-    if (name === 'NotAllowedError' && !isAncestorOriginError(e) && !isDocumentNotFocusedError(e)) {
+    if (
+      name === 'NotAllowedError'
+      && !isAncestorOriginError(e)
+      && !isDocumentNotFocusedError(e)
+      && !isPermissionsPolicyIframeError(e)
+    ) {
       throw e;
     }
 
@@ -190,7 +211,7 @@ export async function executeWebAuthnWithParentFallbacksSafari(
     if (isDocumentNotFocusedError(e)) {
       const focused = await attemptRefocus();
       if (focused) {
-        try { return await tryNative(); } catch {}
+        try { return await tryNative(); } catch { }
       }
       if (inIframe) {
         try {
@@ -292,6 +313,23 @@ function isAncestorOriginError(err: unknown): boolean {
   return /origin of the document is not the same as its ancestors/i.test(msg);
 }
 
+function isPermissionsPolicyIframeError(err: unknown): boolean {
+  const msg = safeMessage(err).toLowerCase();
+  // Chrome-style Permissions Policy failures for WebAuthn inside cross-origin iframes often look like:
+  // "The 'publickey-credentials-create' feature is not enabled in this document..."
+  // These are NOT user-cancel events; allow the parent-bridge fallback to run in iframe contexts.
+  if (!msg) return false;
+  const mentionsWebAuthnDirective = msg.includes('publickey-credentials-');
+  const mentionsAllowOrDelegation =
+    msg.includes('allow attribute')
+    || msg.includes('permission policy')
+    || msg.includes('cross-origin child frame')
+    || msg.includes('cross-origin child frames')
+    || msg.includes('delegat'); // delegate/delegation
+  const mentionsNotEnabled = msg.includes('not enabled in this document');
+  return mentionsWebAuthnDirective && (mentionsNotEnabled || mentionsAllowOrDelegation);
+}
+
 function isDocumentNotFocusedError(err: unknown): boolean {
   const name = safeName(err);
   const msg = safeMessage(err);
@@ -323,4 +361,71 @@ async function attemptRefocus(maxRetries = 2, delays: number[] = [50, 120]): Pro
     (window as any).focus?.();
   }
   return document.hasFocus();
+}
+
+async function performExtensionPopupWebAuthn(
+  kind: Kind,
+  publicKey: PublicKeyCredentialCreationOptions | PublicKeyCredentialRequestOptions,
+): Promise<unknown> {
+  const chromeAny = (globalThis as any)?.chrome as any;
+  const runtime = chromeAny?.runtime;
+  if (!runtime?.getURL) throw new Error('Chrome extension runtime not available');
+
+  const requestId = `${kind}:${Date.now()}:${Math.random().toString(16).slice(2)}`;
+  const brokerRegister = 'W3A_POPUP_REGISTER_REQUEST';
+  const brokerWait = 'W3A_POPUP_WAIT_RESULT';
+
+  // Register the request with the extension service worker broker so the popup can fetch it reliably.
+  await new Promise<void>((resolve, reject) => {
+    runtime.sendMessage({ type: brokerRegister, requestId, kind, options: publicKey }, (resp: any) => {
+      const err = runtime.lastError;
+      if (err) return reject(new Error(err.message || String(err)));
+      if (!resp || resp.ok !== true) return reject(new Error(resp?.error || 'Popup broker register failed'));
+      resolve();
+    });
+  });
+
+  const popupUrl = runtime.getURL(`wallet-popup.html?rid=${encodeURIComponent(requestId)}`);
+  const w = 420;
+  const h = 600;
+  const left = Math.max(0, Math.round((window.screen.width / 2) - (w / 2)));
+  const top = Math.max(0, Math.round((window.screen.height / 2) - (h / 2)));
+
+  // Prefer extension-controlled popup windows to avoid browser popup blockers.
+  const openedViaChromeWindow = await new Promise<boolean>((resolve) => {
+    const create = chromeAny?.windows?.create;
+    if (typeof create !== 'function') return resolve(false);
+    create({ url: popupUrl, type: 'popup', width: w, height: h, left, top, focused: true }, () => {
+      const err = runtime.lastError;
+      if (err) return resolve(false);
+      resolve(true);
+    });
+  });
+  if (!openedViaChromeWindow) {
+    const popup = window.open(
+      popupUrl,
+      'tatchi-wallet-popup',
+      `width=${w},height=${h},top=${top},left=${left},resizable=no,scrollbars=no,status=no,toolbar=no,menubar=no,location=no`,
+    );
+    if (!popup) throw new Error('Extension popup blocked.');
+  }
+
+  // Poll the broker for results. This avoids relying on runtime.onMessage in the embedded iframe context.
+  const timeoutMs = 60_000;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const res = await new Promise<any>((resolve) => {
+      runtime.sendMessage({ type: brokerWait, requestId }, resolve);
+    });
+    const err = runtime.lastError;
+    if (err) throw new Error(err.message || String(err));
+    if (res?.ok && res.payload) {
+      const payload = res.payload;
+      if (payload.ok) return payload.payload?.credential;
+      throw new Error(payload.payload?.error || 'Popup operation failed');
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  throw new Error('Popup timed out');
 }

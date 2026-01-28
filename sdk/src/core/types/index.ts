@@ -28,5 +28,6 @@ export * from './sdkSentEvents'
 export * from './tatchi'
 export * from './delegate'
 export * from './emailRecovery'
+export * from './extensionMigration'
 
 export type { ClientUserData } from '../IndexedDBManager/passkeyClientDB';

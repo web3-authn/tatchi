@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tatchi Wallet</title>
+    <!-- Surface styles are external so strict CSP can keep style-src 'self' -->
+    <link rel="stylesheet" href="/sdk/wallet-service.css" />
+    <!-- Component theme CSS: shared tokens + component-scoped tokens -->
+    <link rel="stylesheet" href="/sdk/w3a-components.css" />
+    <link rel="stylesheet" href="/sdk/drawer.css" />
+    <link rel="stylesheet" href="/sdk/tx-tree.css" />
+    <link rel="stylesheet" href="/sdk/tx-confirmer.css" />
+    <!-- Minimal shims some ESM bundles expect -->
+    <script src="/sdk/wallet-shims.js"></script>
+    <style>
+      body {
+        background: #ffffff;
+        color: #111111;
+        margin: 0;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      #status {
+        padding: 12px;
+        font-size: 12px;
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="status">Loading…</div>
+    <script type="module" src="/sdk/wallet-confirm-host.js"></script>
+  </body>
+</html>

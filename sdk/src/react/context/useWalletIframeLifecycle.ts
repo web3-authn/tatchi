@@ -25,7 +25,9 @@ export function useWalletIframeLifecycle(args: {
 
     (async () => {
       try {
-        const useIframe = !!tatchi.configs.iframeWallet?.walletOrigin;
+        const useIframe = !!(
+          tatchi.configs.iframeWallet?.walletOrigin || tatchi.configs.iframeWallet?.extensionWalletOrigin
+        );
         if (!useIframe) {
           setWalletIframeConnected(false);
           return;
@@ -87,4 +89,3 @@ export function useWalletIframeLifecycle(args: {
     };
   }, [setLoginState, setWalletIframeConnected, tatchi, walletIframeClientRef]);
 }
-

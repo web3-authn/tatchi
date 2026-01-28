@@ -19,9 +19,11 @@ import type { ConfirmationBehavior, ConfirmationConfig } from '../../types/signe
 import type { SignerMode } from '../../types/signer-worker';
 
 export type WalletProtocolVersion = '1.0.0';
+export const WALLET_PROTOCOL_VERSION: WalletProtocolVersion = '1.0.0';
 
 export type ParentToChildType =
   | 'PING'
+  | 'PM_GET_CAPABILITIES'
   | 'PM_SET_CONFIG'
   | 'PM_CANCEL'
   // TatchiPasskey API surface
@@ -55,6 +57,10 @@ export type ParentToChildType =
   | 'PM_HAS_PASSKEY'
   | 'PM_VIEW_ACCESS_KEYS'
   | 'PM_DELETE_DEVICE_KEY'
+  | 'PM_CLEAR_USER_DATA'
+  // Extension migration (existing account → new origin)
+  | 'PM_PREPARE_EXTENSION_MIGRATION'
+  | 'PM_FINALIZE_EXTENSION_MIGRATION'
   // Device linking (both sides into iframe)
   | 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA' // Device1: Scan QR in parent, execute AddKey in iframe
   | 'PM_START_DEVICE2_LINKING_FLOW'     // Device2: Generate QR + poll, render UI in iframe
@@ -246,6 +252,23 @@ export interface PMDeleteDeviceKeyPayload {
   };
 }
 
+export interface PMClearUserDataPayload {
+  accountId: string;
+}
+
+export interface PMPrepareExtensionMigrationPayload {
+  accountId: string;
+  deviceNumber: number;
+  options?: {
+    confirmerText?: { title?: string; body?: string };
+    confirmationConfig?: Partial<ConfirmationConfig>;
+  };
+}
+
+export interface PMFinalizeExtensionMigrationPayload {
+  accountId: string;
+}
+
 export interface PMStartEmailRecoveryPayload {
   accountId: string;
   options?: {
@@ -302,6 +325,27 @@ export interface ProgressPayload {
   data?: unknown;
 }
 
+export interface WalletIframeCapabilities {
+  protocolVersion: WalletProtocolVersion;
+  origin: string;
+  href: string;
+  isSecureContext: boolean;
+  userAgent: string;
+  hasWebAuthn: boolean;
+  /**
+   * Best-effort flags returned by `PublicKeyCredential.getClientCapabilities()` (when supported).
+   * Keys are capability names; values are booleans.
+   */
+  webauthnClientCapabilities?: Record<string, boolean>;
+  /**
+   * Best-effort shortcut derived from `webauthnClientCapabilities.prf` when available.
+   * When undefined, the environment did not expose a reliable PRF capability signal.
+   */
+  hasPrfExtension?: boolean;
+  isChromeExtension: boolean;
+  chromeExtensionId?: string;
+}
+
 export interface PMResultPayload {
   ok: boolean;
   result?: unknown;
@@ -316,6 +360,7 @@ export interface ErrorPayload {
 
 export type ParentToChildEnvelope =
   | RpcEnvelope<'PING'>
+  | RpcEnvelope<'PM_GET_CAPABILITIES'>
   | RpcEnvelope<'PM_SET_CONFIG', PMSetConfigPayload>
   | RpcEnvelope<'PM_CANCEL', PMCancelPayload>
   | RpcEnvelope<'PM_REGISTER', PMRegisterPayload>
@@ -347,6 +392,9 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_HAS_PASSKEY', PMHasPasskeyPayload>
   | RpcEnvelope<'PM_VIEW_ACCESS_KEYS', PMViewAccessKeysPayload>
   | RpcEnvelope<'PM_DELETE_DEVICE_KEY', PMDeleteDeviceKeyPayload>
+  | RpcEnvelope<'PM_CLEAR_USER_DATA', PMClearUserDataPayload>
+  | RpcEnvelope<'PM_PREPARE_EXTENSION_MIGRATION', PMPrepareExtensionMigrationPayload>
+  | RpcEnvelope<'PM_FINALIZE_EXTENSION_MIGRATION', PMFinalizeExtensionMigrationPayload>
   // Device linking
   | RpcEnvelope<'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA', {
       qrData: DeviceLinkingQRData;

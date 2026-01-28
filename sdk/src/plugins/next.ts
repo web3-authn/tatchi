@@ -14,8 +14,21 @@ import * as path from 'node:path'
 export type NextHeader = { key: string; value: string }
 export type NextHeaderEntry = { source: string; headers: NextHeader[] }
 
+function normalizeWalletOrigins(input?: string | string[]): string[] {
+  if (Array.isArray(input)) {
+    return input.map((v) => String(v ?? '').trim()).filter((v) => v.length > 0)
+  }
+  const raw = String(input ?? '').trim()
+  if (!raw) return []
+  // Convenience: allow comma-separated origins (multi-target dev).
+  if (raw.includes(',')) {
+    return raw.split(',').map((v) => v.trim()).filter((v) => v.length > 0)
+  }
+  return [raw]
+}
+
 export function tatchiNextHeaders(opts: {
-  walletOrigin: string
+  walletOrigin: string | string[]
   cspMode?: CspMode
   extraFrameSrc?: string[]
   /** Optional allowlist for script-src (e.g., wallet origin for modulepreload in dev) */
@@ -23,13 +36,13 @@ export function tatchiNextHeaders(opts: {
   allowUnsafeEvalDev?: boolean
   compatibleInDev?: boolean
 }): NextHeaderEntry[] {
-  const wallet = opts.walletOrigin
-  const permissions = buildPermissionsPolicy(wallet)
+  const walletOrigins = normalizeWalletOrigins(opts.walletOrigin)
+  const permissions = buildPermissionsPolicy(walletOrigins)
   const isDev = process.env.NODE_ENV !== 'production'
   const mode: CspMode = opts.cspMode ?? (isDev && (opts.compatibleInDev ?? true) ? 'compatible' : 'strict')
   const allowUnsafeEval = isDev && (opts.allowUnsafeEvalDev ?? true)
   const csp = buildWalletCsp({
-    frameSrc: [wallet, ...(opts.extraFrameSrc || [])],
+    frameSrc: [...walletOrigins, ...(opts.extraFrameSrc || [])],
     scriptSrcAllowlist: [...(opts.extraScriptSrc || [])],
     mode,
     allowUnsafeEval,
@@ -48,7 +61,7 @@ export function tatchiNextHeaders(opts: {
  * emitHeaders has no effect for Next.js; kept for parity with Vite wrappers.
  */
 export function tatchiNextApp(opts: {
-  walletOrigin: string
+  walletOrigin: string | string[]
   emitHeaders?: boolean
   cspMode?: CspMode
   extraFrameSrc?: string[]
@@ -78,7 +91,7 @@ export function tatchiNextApp(opts: {
  * proxy wallet routes through Next in dev.
  */
 export function tatchiNextWallet(opts: {
-  walletOrigin: string
+  walletOrigin: string | string[]
   emitHeaders?: boolean
   cspMode?: CspMode
   extraFrameSrc?: string[]
@@ -97,7 +110,7 @@ export function tatchiNextWallet(opts: {
         const user = typeof existing === 'function' ? await existing() : []
         return [...(user || []), ...tatchiNextHeaders(opts)]
       },
-}
+    }
   }
 }
 

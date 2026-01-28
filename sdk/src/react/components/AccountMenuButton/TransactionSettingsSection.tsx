@@ -104,7 +104,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
               <div style={{ width: '100%' }}>
                 <SegmentedControl
                   items={[
-                    { value: 'auto', label: 'auto proceed', disabled: disableAll || disableRequireClick },
+                    { value: 'auto', label: 'skip', disabled: disableAll || disableRequireClick },
                     { value: 'require', label: 'require click', disabled: disableAll || disableRequireClick },
                   ]}
                   value={(currentConfirmConfig?.behavior === 'skipClick') ? 'auto' : 'require'}

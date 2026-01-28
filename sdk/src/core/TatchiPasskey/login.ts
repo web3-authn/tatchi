@@ -31,6 +31,7 @@ import {
   putCachedThresholdEd25519AuthSession,
 } from '../threshold/thresholdEd25519AuthSession';
 import { normalizeThresholdEd25519ParticipantIds } from '../../threshold/participants';
+import { isChromeExtensionContext } from '../ExtensionWallet';
 
 type WarmSigningSessionPolicy = { ttlMs: number; remainingUses: number };
 
@@ -118,8 +119,9 @@ export async function loginAndCreateSession(
     const preferredDeviceNumber = deviceNumberHint ?? base.activeDeviceNumber;
     const warmPolicy = resolveWarmSigningSessionPolicy(context, options);
 
-    const wantsThresholdSession =
-      webAuthnManager.getUserPreferences().getSignerMode().mode === 'threshold-signer';
+    // Unauthenticated flows (login) default to threshold signer behavior.
+    // Threshold session minting is best-effort and will no-op when threshold key material is missing.
+    const wantsThresholdSession = true;
     const relayUrl = (session?.relayUrl || context.configs.relayer.url).trim();
     const verifyRoute = (session?.route || '/verify-authentication-response').trim();
 
@@ -192,10 +194,26 @@ function resolveWarmSigningSessionPolicy(
   options?: LoginHooksOptions
 ): WarmSigningSessionPolicy {
   const defaults = context.configs.signingSessionDefaults;
-  return {
+  const resolved = {
     ttlMs: options?.signingSession?.ttlMs ?? defaults.ttlMs,
     remainingUses: options?.signingSession?.remainingUses ?? defaults.remainingUses,
   };
+  // Extension signer UX: lock/unlock on login/logout.
+  // If the caller didn't explicitly configure a signingSession policy and the config defaults
+  // are still "disabled" (0/0), enable a conservative warm session so per-transaction TouchID
+  // is not required when signing via the extension.
+  if (
+    isChromeExtensionContext()
+    && !options?.signingSession
+    && resolved.ttlMs === 0
+    && resolved.remainingUses === 0
+  ) {
+    return {
+      ttlMs: 12 * 60 * 60 * 1000, // 12h
+      remainingUses: 10_000,
+    };
+  }
+  return resolved;
 }
 
 async function attachSigningSessionStatus(args: {

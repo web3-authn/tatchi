@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTatchi } from '@tatchi-xyz/sdk/react';
+import { detectTatchiWalletExtension } from '@tatchi-xyz/sdk';
+import { parseWalletOrigins, readUseExtensionWalletPreference, writeUseExtensionWalletPreference } from '../walletRouting';
 
 export const DebugBanner: React.FC = () => {
   // Hide on mobile devices (coarse pointers / typical UA tokens)
@@ -35,6 +37,36 @@ export const DebugBanner: React.FC = () => {
     ? 'connected'
     : (connecting ? 'connecting…' : 'waiting for READY');
 
+  const env = import.meta.env;
+  const walletOrigins = parseWalletOrigins(env.VITE_WALLET_ORIGIN as string | undefined);
+  const hasExtensionOrigin = !!walletOrigins.extensionWalletOrigin;
+  const [useExtensionWallet, setUseExtensionWallet] = useState<boolean>(() => readUseExtensionWalletPreference());
+  const [extensionHandshake, setExtensionHandshake] = useState<{ protocolVersion: string; extensionVersion: string } | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!walletOrigins.extensionWalletOrigin) {
+        setExtensionHandshake(undefined);
+        return;
+      }
+      const extensionId = (() => {
+        try {
+          return new URL(walletOrigins.extensionWalletOrigin!).hostname;
+        } catch {
+          return '';
+        }
+      })();
+      if (!extensionId) {
+        setExtensionHandshake(null);
+        return;
+      }
+      const res = await detectTatchiWalletExtension(extensionId, { timeoutMs: 400 });
+      if (!cancelled) setExtensionHandshake(res);
+    })();
+    return () => { cancelled = true; };
+  }, [walletOrigins.extensionWalletOrigin]);
+
   return (
     <div style={{
       position: 'fixed',
@@ -49,6 +81,31 @@ export const DebugBanner: React.FC = () => {
       alignItems: 'center',
     }}>
       <strong>wallet iframe:</strong> <span>{status}</span>
+      {hasExtensionOrigin && (
+        <>
+          <span>|</span>
+          <strong>ext:</strong>{' '}
+          <span>
+            {extensionHandshake
+              ? `v${extensionHandshake.extensionVersion}`
+              : (extensionHandshake === null ? 'not detected' : '…')}
+          </span>
+          <span>|</span>
+          <label style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={useExtensionWallet}
+              onChange={(e) => {
+                const next = !!e.target.checked;
+                setUseExtensionWallet(next);
+                writeUseExtensionWalletPreference(next);
+                try { window.location.reload(); } catch {}
+              }}
+            />
+            use extension
+          </label>
+        </>
+      )}
       {walletIframeConnected &&
         <>
           <span>|</span>

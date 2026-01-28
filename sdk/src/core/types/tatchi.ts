@@ -140,7 +140,11 @@ export interface TatchiConfigsInput {
   // Iframe Wallet configuration (when using a separate wallet origin)
   iframeWallet?: {
     walletOrigin?: string; // e.g., https://wallet.example.com
+    /** Optional Chrome-extension wallet origin (e.g., chrome-extension://<id>) for progressive hardening. */
+    extensionWalletOrigin?: string;
     walletServicePath?: string; // defaults to '/wallet-service'
+    /** Optional override for the extension wallet service path (often '/wallet-service.html'). */
+    extensionWalletServicePath?: string;
     // SDK assets base used by the parent app to tell the wallet
     // where to load embedded bundles from.
     sdkBasePath?: string; // defaults to '/sdk'
@@ -197,7 +201,9 @@ export interface TatchiConfigs {
   };
   iframeWallet?: {
     walletOrigin?: string;
+    extensionWalletOrigin?: string;
     walletServicePath: string;
+    extensionWalletServicePath?: string;
     sdkBasePath: string;
     rpIdOverride?: string;
   };

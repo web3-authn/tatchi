@@ -78,7 +78,21 @@ export async function handleRegistrationFlow(
     let uiVrfChallenge: VRFChallenge = bootstrap.vrfChallenge;
     console.debug('[RegistrationFlow] VRF bootstrap ok', { blockHeight: uiVrfChallenge.blockHeight });
 
-    // 3) UI confirm
+    // 3) JIT refresh VRF (best-effort)
+    //
+    // Important for extension popup flow: once the user clicks "Confirm" in the UI we want to
+    // immediately open the extension popup (window.open) while the browser still considers the
+    // call chain user-activated. Doing network work after the confirm click can clear transient
+    // activation and cause the popup to be blocked. Refresh *before* prompting the user instead.
+    try {
+      const refreshed = await adapters.vrf.maybeRefreshVrfChallenge(request, nearAccountId);
+      uiVrfChallenge = refreshed.vrfChallenge;
+      console.debug('[RegistrationFlow] VRF JIT refresh ok', { blockHeight: uiVrfChallenge.blockHeight });
+    } catch (e) {
+      console.debug('[RegistrationFlow] VRF JIT refresh skipped', e);
+    }
+
+    // 4) UI confirm
     const { confirmed, error: uiError } = await session.promptUser({ vrfChallenge: uiVrfChallenge });
     if (!confirmed) {
       console.debug('[RegistrationFlow] user cancelled');
@@ -90,21 +104,11 @@ export async function handleRegistrationFlow(
       });
     }
 
-    // 4) JIT refresh VRF (best-effort)
-    try {
-      const refreshed = await adapters.vrf.maybeRefreshVrfChallenge(request, nearAccountId);
-      uiVrfChallenge = refreshed.vrfChallenge;
-      session.updateUI({ vrfChallenge: uiVrfChallenge });
-      console.debug('[RegistrationFlow] VRF JIT refresh ok', { blockHeight: uiVrfChallenge.blockHeight });
-    } catch (e) {
-      console.debug('[RegistrationFlow] VRF JIT refresh skipped', e);
-    }
-
     // 5) Collect registration credentials (with duplicate retry)
-    let credential: PublicKeyCredential | undefined;
+    let credential: unknown;
     let deviceNumber = request.payload?.deviceNumber ?? 1;
 
-    const tryCreate = async (dn?: number): Promise<PublicKeyCredential> => {
+    const tryCreate = async (dn?: number): Promise<PublicKeyCredential | WebAuthnRegistrationCredential> => {
       console.debug('[RegistrationFlow] navigator.credentials.create start', { deviceNumber: dn });
       return await adapters.webauthn.createRegistrationCredential({
         nearAccountId,
@@ -162,7 +166,7 @@ export async function handleRegistrationFlow(
     const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential)
       ? (credential as unknown as WebAuthnRegistrationCredential)
       : serializeRegistrationCredentialWithPRF({
-          credential: credential! as PublicKeyCredential,
+          credential: credential as PublicKeyCredential,
           firstPrfOutput: true,
           secondPrfOutput: true,
       });

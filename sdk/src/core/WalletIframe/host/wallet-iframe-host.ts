@@ -41,7 +41,9 @@ import type {
   ReadyPayload,
   PMSetConfigPayload,
   PreferencesChangedPayload,
+  WalletIframeCapabilities,
 } from '../shared/messages';
+import { WALLET_PROTOCOL_VERSION } from '../shared/messages';
 import { CONFIRM_UI_ELEMENT_SELECTORS } from '../../WebAuthnManager/LitComponents/tags';
 import { MinimalNearClient } from '../../NearClient';
 import { setupLitElemMounter } from './iframe-lit-elem-mounter';
@@ -58,7 +60,7 @@ import { createWalletIframeHandlers } from './wallet-iframe-handlers';
 import { setEmbeddedBase } from '../../sdkPaths';
 import { IndexedDBManager } from '../../IndexedDBManager';
 
-const PROTOCOL: ReadyPayload['protocolVersion'] = '1.0.0';
+const PROTOCOL: ReadyPayload['protocolVersion'] = WALLET_PROTOCOL_VERSION;
 
 // Early bootstrap (transparent surface, env shims, default asset base, telemetry)
 bootstrapTransparentHost();
@@ -69,6 +71,8 @@ let walletConfigs: TatchiConfigsInput | null = null;
 let nearClient: MinimalNearClient | null = null;
 let tatchiPasskey: TatchiPasskey | null = null;
 let prefsUnsubscribe: (() => void) | null = null;
+let extensionControlChannelAttached = false;
+let extensionControlPort: any | null = null;
 
 // Track request-level cancellations
 const cancelledRequests = new Set<string>();
@@ -98,6 +102,98 @@ function applyHostTheme(theme?: string): void {
   if (theme !== 'light' && theme !== 'dark') return;
   try {
     document.documentElement.setAttribute('data-w3a-theme', theme);
+  } catch { }
+}
+
+function isChromeExtensionHost(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.location?.protocol === 'chrome-extension:';
+  } catch {
+    return false;
+  }
+}
+
+function attachExtensionControlChannel(): void {
+  if (extensionControlChannelAttached) return;
+  if (!isChromeExtensionHost()) return;
+  const runtime = (globalThis as any)?.chrome?.runtime;
+  if (!runtime) return;
+  extensionControlChannelAttached = true;
+
+  // Preferred: long-lived Port to the MV3 service worker so it can broker unlock requests.
+  // This avoids relying on direct runtime.sendMessage delivery to embedded extension iframes.
+  try {
+    if (typeof runtime.connect === 'function') {
+      extensionControlPort = runtime.connect({ name: 'TATCHI_WALLET_HOST' });
+      extensionControlPort?.onMessage?.addListener?.((message: any) => {
+        const type = message?.type;
+        const requestId = message?.requestId;
+        if (!requestId || (type !== 'TATCHI_WALLET_UNLOCK' && type !== 'TATCHI_WALLET_LOCK')) return;
+        (async () => {
+          try {
+            const pm = getTatchiPasskey();
+            if (type === 'TATCHI_WALLET_LOCK') {
+              await pm.logoutAndClearSession();
+              extensionControlPort?.postMessage?.({ type: 'TATCHI_WALLET_LOCK_RESULT', requestId, ok: true });
+              return;
+            }
+
+            const nearAccountId = String(message?.nearAccountId || '').trim();
+            if (!nearAccountId) {
+              extensionControlPort?.postMessage?.({ type: 'TATCHI_WALLET_UNLOCK_RESULT', requestId, ok: false, error: 'Missing nearAccountId' });
+              return;
+            }
+            await pm.loginAndCreateSession(nearAccountId, {
+              session: undefined,
+              signingSession: message?.signingSession,
+            } as any);
+            extensionControlPort?.postMessage?.({ type: 'TATCHI_WALLET_UNLOCK_RESULT', requestId, ok: true });
+          } catch (err: unknown) {
+            extensionControlPort?.postMessage?.({ type: 'TATCHI_WALLET_UNLOCK_RESULT', requestId, ok: false, error: errorMessage(err) });
+          }
+        })();
+      });
+    }
+  } catch {}
+
+  // Fallback: allow direct messages in environments where the host is the background page.
+  try {
+    runtime.onMessage?.addListener?.((message: any, _sender: any, sendResponse: any) => {
+      try {
+        const type = message?.type;
+        if (type !== 'TATCHI_WALLET_UNLOCK' && type !== 'TATCHI_WALLET_LOCK') return;
+
+        (async () => {
+          try {
+            const pm = getTatchiPasskey();
+            if (type === 'TATCHI_WALLET_LOCK') {
+              await pm.logoutAndClearSession();
+              sendResponse({ ok: true });
+              return;
+            }
+
+            const nearAccountId = String(message?.nearAccountId || '').trim();
+            if (!nearAccountId) {
+              sendResponse({ ok: false, error: 'Missing nearAccountId' });
+              return;
+            }
+
+            await pm.loginAndCreateSession(nearAccountId, {
+              session: undefined,
+              signingSession: message?.signingSession,
+            } as any);
+
+            sendResponse({ ok: true });
+          } catch (err: unknown) {
+            sendResponse({ ok: false, error: errorMessage(err) });
+          }
+        })();
+        return true;
+      } catch (err: unknown) {
+        try { sendResponse({ ok: false, error: errorMessage(err) }); } catch { }
+        return true;
+      }
+    });
   } catch {}
 }
 
@@ -119,12 +215,12 @@ function ensureTatchiPasskey(): void {
     tatchiPasskey = new TatchiPasskey(cfg, nearClient);
     // Warm critical resources (Signer/VRF workers, IndexedDB) on the wallet origin.
     // Non-blocking and safe to call without account context.
-	    const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
-	  if (pmAny?.warmCriticalResources) {
-	    void pmAny.warmCriticalResources().catch(() => {});
-	  }
+    const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
+    if (pmAny?.warmCriticalResources) {
+      void pmAny.warmCriticalResources().catch(() => { });
+    }
     applyHostTheme(tatchiPasskey.theme);
-	  const up = tatchiPasskey.userPreferences;
+    const up = tatchiPasskey.userPreferences;
 
     // Bridge wallet-host preferences to the parent app so app UI can mirror wallet host state.
     prefsUnsubscribe?.();
@@ -144,11 +240,13 @@ function ensureTatchiPasskey(): void {
     const unsubCfg = up.onConfirmationConfigChange?.(() => emitPreferencesChanged()) || null;
     const unsubSignerMode = up.onSignerModeChange?.(() => emitPreferencesChanged()) || null;
     prefsUnsubscribe = () => {
-      try { unsubCfg?.(); } catch {}
-      try { unsubSignerMode?.(); } catch {}
+      try { unsubCfg?.(); } catch { }
+      try { unsubSignerMode?.(); } catch { }
     };
     // Emit a best-effort snapshot as soon as the host is ready.
-    Promise.resolve().then(() => emitPreferencesChanged()).catch(() => {});
+    Promise.resolve().then(() => emitPreferencesChanged()).catch(() => { });
+    // Extension-only: allow side panel / popup UIs to lock/unlock this host instance.
+    attachExtensionControlChannel();
   }
 }
 
@@ -221,6 +319,77 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   if (!req || !isObject(req)) return;
   const requestId = req.requestId;
 
+  // Lightweight, side-effect free runtime capability probe for the embedding app.
+  if (req.type === 'PM_GET_CAPABILITIES') {
+    const isChromeExtension = (() => {
+      try {
+        if (window.location.protocol === 'chrome-extension:') return true;
+      } catch { }
+      try {
+        return typeof (globalThis as any)?.chrome?.runtime?.id === 'string';
+      } catch {
+        return false;
+      }
+    })();
+    const chromeExtensionId = (() => {
+      try {
+        const id = (globalThis as any)?.chrome?.runtime?.id;
+        return typeof id === 'string' && id.length > 0 ? id : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+    const webauthnClientCapabilities = await (async (): Promise<Record<string, boolean> | undefined> => {
+      try {
+        const pkc = (globalThis as any)?.PublicKeyCredential;
+        const fn = pkc?.getClientCapabilities;
+        if (typeof fn !== 'function') return undefined;
+        const res = await fn.call(pkc);
+        if (!res || typeof res !== 'object') return undefined;
+
+        const out: Record<string, boolean> = {};
+        for (const [key, value] of Object.entries(res as Record<string, unknown>)) {
+          if (typeof value === 'boolean') out[key] = value;
+        }
+        return Object.keys(out).length > 0 ? out : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+    const hasPrfExtension = (() => {
+      try {
+        const v = (webauthnClientCapabilities as Record<string, unknown> | undefined)?.['prf'];
+        return typeof v === 'boolean' ? v : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+    const capabilities: WalletIframeCapabilities = {
+      protocolVersion: PROTOCOL,
+      origin: (() => {
+        try { return window.location.origin || ''; } catch { return ''; }
+      })(),
+      href: (() => {
+        try { return window.location.href || ''; } catch { return ''; }
+      })(),
+      isSecureContext: (() => {
+        try { return !!window.isSecureContext; } catch { return false; }
+      })(),
+      userAgent: (() => {
+        try { return navigator.userAgent || ''; } catch { return ''; }
+      })(),
+      hasWebAuthn: (() => {
+        try { return !!navigator.credentials?.create && !!navigator.credentials?.get; } catch { return false; }
+      })(),
+      webauthnClientCapabilities,
+      hasPrfExtension,
+      isChromeExtension,
+      chromeExtensionId,
+    };
+    post({ type: 'PM_RESULT', requestId, payload: { ok: true, result: capabilities } });
+    return;
+  }
+
   // Handle ping/pong for connection health checks
   if (req.type === 'PING') {
     // Initialize TatchiPasskey and prewarm workers on wallet origin (non-blocking)
@@ -229,7 +398,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         ensureTatchiPasskey();
         const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
         if (pmAny?.warmCriticalResources) return pmAny.warmCriticalResources();
-      }).catch(() => {});
+      }).catch(() => { });
     }
     post({ type: 'PONG', requestId });
     return;
@@ -248,12 +417,12 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       authenticatorOptions: payload?.authenticatorOptions || walletConfigs?.authenticatorOptions,
       vrfWorkerConfigs: payload?.vrfWorkerConfigs || walletConfigs?.vrfWorkerConfigs,
       emailRecoveryContracts: payload?.emailRecoveryContracts || walletConfigs?.emailRecoveryContracts,
-	      iframeWallet: sanitizeWalletHostConfigs({
-	        ...(walletConfigs || ({} as TatchiConfigsInput)),
-	        iframeWallet: {
-	          ...(walletConfigs?.iframeWallet || {}),
-	          rpIdOverride: payload?.rpIdOverride || walletConfigs?.iframeWallet?.rpIdOverride,
-	        },
+      iframeWallet: sanitizeWalletHostConfigs({
+        ...(walletConfigs || ({} as TatchiConfigsInput)),
+        iframeWallet: {
+          ...(walletConfigs?.iframeWallet || {}),
+          rpIdOverride: payload?.rpIdOverride || walletConfigs?.iframeWallet?.rpIdOverride,
+        },
       }).iframeWallet,
     } as TatchiConfigsInput;
 
@@ -280,7 +449,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
           const norm = u.toString().endsWith('/') ? u.toString() : (u.toString() + '/');
           resolvedBase = norm;
         }
-      } catch {}
+      } catch { }
     }
     setEmbeddedBase(resolvedBase);
     nearClient = null; tatchiPasskey = null;
@@ -303,7 +472,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     for (const el of els) {
       try {
         el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
-      } catch {}
+      } catch { }
     }
     // Also cancel any device linking flow
     ensureTatchiPasskey();
@@ -345,7 +514,7 @@ function onWindowMessage(e: MessageEvent) {
       parentOrigin = e.origin;
       // Scope the wallet's "last user" app-state pointer to this parent origin to
       // prevent cross-app overwrites on the shared wallet origin IndexedDB.
-      try { IndexedDBManager.clientDB.setLastUserScope(parentOrigin); } catch {}
+      try { IndexedDBManager.clientDB.setLastUserScope(parentOrigin); } catch { }
     }
     adoptPort(ports[0]);
   }
@@ -353,4 +522,4 @@ function onWindowMessage(e: MessageEvent) {
 
 window.addEventListener('message', onWindowMessage);
 
-export {};
+export { };

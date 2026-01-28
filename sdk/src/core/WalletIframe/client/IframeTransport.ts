@@ -26,7 +26,7 @@
  * - Manages timing issues with cross-origin iframe boot sequences
  */
 
-import type { ChildToParentEnvelope } from '../shared/messages';
+import type { ChildToParentEnvelope, ReadyPayload } from '../shared/messages';
 import { isObject } from '@/utils/validation';
 import { serializeRegistrationCredentialWithPRF, serializeAuthenticationCredentialWithPRF } from '../../WebAuthnManager/credentialsHelpers';
 import { ensureOverlayBase } from './overlay-styles';
@@ -64,6 +64,7 @@ export class IframeTransport {
   private iframeEl: HTMLIFrameElement | null = null;
   private serviceBooted = false; // set when wallet host sends SERVICE_HOST_BOOTED (best-effort only)
   private connectInFlight: Promise<MessagePort> | null = null;
+  private readyPayload: ReadyPayload | null = null;
   private readonly walletServiceUrl: URL;
   private readonly walletOrigin: string;
   private readonly testOptions: { routerId?: string; ownerTag?: string };
@@ -136,10 +137,19 @@ export class IframeTransport {
   /** Returns the underlying iframe element if it exists. */
   getIframeEl(): HTMLIFrameElement | null { return this.iframeEl; }
 
+  /** Returns the READY handshake protocol version when available. */
+  getProtocolVersion(): ReadyPayload['protocolVersion'] | null {
+    return this.readyPayload?.protocolVersion ?? null;
+  }
+
   /** Remove global listeners created by this transport instance. */
-  dispose(): void {
+  dispose(opts?: { removeIframe?: boolean }): void {
     if (typeof window !== 'undefined') {
       window.removeEventListener('message', this.onWindowMessage);
+    }
+    if (opts?.removeIframe) {
+      try { this.iframeEl?.remove(); } catch { }
+      this.iframeEl = null;
     }
   }
 
@@ -182,7 +192,7 @@ export class IframeTransport {
     }
 
     for (const el of matches) {
-      try { el.remove(); } catch {}
+      try { el.remove(); } catch { }
     }
   }
 
@@ -199,7 +209,7 @@ export class IframeTransport {
     iframe.classList.add('w3a-wallet-overlay', 'is-hidden');
     // Ensure the base overlay stylesheet is installed early so computed styles
     // (opacity/pointer-events) reflect the hidden state immediately after mount.
-    try { ensureOverlayBase(iframe); } catch {}
+    try { ensureOverlayBase(iframe); } catch { }
     // Ensure no initial footprint even before stylesheet attaches
     iframe.setAttribute('width', '0');
     iframe.setAttribute('height', '0');
@@ -293,11 +303,20 @@ export class IframeTransport {
         const channel = new MessageChannel();
         const port1 = channel.port1;
         const port2 = channel.port2;
-        const cleanup = () => { try { port1.onmessage = null; } catch {} };
+        const cleanup = () => { try { port1.onmessage = null; } catch { } };
 
         port1.onmessage = (e: MessageEvent<ChildToParentEnvelope>) => {
           const data = e.data;
           if (data.type === IframeMessage.Ready) {
+            const payload = (data as { payload?: unknown }).payload;
+            const protocolVersion = (() => {
+              if (!payload || !isObject(payload)) return null;
+              const pv = (payload as { protocolVersion?: unknown }).protocolVersion;
+              return typeof pv === 'string' && pv.length > 0 ? pv as ReadyPayload['protocolVersion'] : null;
+            })();
+            if (protocolVersion) {
+              this.readyPayload = { protocolVersion };
+            }
             resolved = true;
             cleanup();
             port1.start?.();
@@ -306,7 +325,7 @@ export class IframeTransport {
         };
 
         // Ensure the receiving side is actively listening before we post the CONNECT
-        try { port1.start?.(); } catch {}
+        try { port1.start?.(); } catch { }
 
         const cw = iframe.contentWindow;
         if (!cw) {
@@ -361,7 +380,7 @@ export class IframeTransport {
         console.warn('[IframeTransport] CONNECT blocked; iframe origin appears to be null. Check that %s is reachable and responds with Cross-Origin-Resource-Policy: cross-origin.', this.walletServiceUrl.toString());
       }
       // Attempt wildcard fallback and continue retries
-      try { cw.postMessage(data, '*', [port2]); } catch {}
+      try { cw.postMessage(data, '*', [port2]); } catch { }
       console.debug('[IframeTransport] CONNECT attempt %d threw after %d ms; retrying.', attempt, elapsed);
       return { warnedNullOrigin };
     }
@@ -391,7 +410,24 @@ export class IframeTransport {
   }
 
   private buildAllowAttr(walletOrigin: string): string {
-    return `publickey-credentials-get 'self' ${walletOrigin}; publickey-credentials-create 'self' ${walletOrigin}; clipboard-read; clipboard-write`;
+    // Permissions Policy for WebAuthn in cross-origin iframes.
+    //
+    // Why this exists (extension):
+    // - The extension wallet runs at a `chrome-extension://...` origin.
+    // - Chrome does not reliably accept non-http(s) origins in iframe `allow` allowlists.
+    //   When that happens, the browser behaves as if only `'self'` is allowed, which means
+    //   `navigator.credentials.create()` / `.get()` inside the extension iframe throws
+    //   NotAllowedError ("feature is not enabled in this document").
+    //
+    // So: for non-http(s) wallet origins we fall back to `*` delegation for the WebAuthn
+    // directives. This is still scoped to this iframe instance (we create it) and does
+    // not grant WebAuthn to arbitrary frames.
+    const origin = (() => {
+      try { return new URL(walletOrigin).origin; } catch { return walletOrigin; }
+    })();
+    const isHttp = /^https?:\/\//i.test(origin);
+    const allowlist = isHttp ? `'self' ${origin}` : '*';
+    return `publickey-credentials-get ${allowlist}; publickey-credentials-create ${allowlist}; clipboard-read; clipboard-write`;
   }
 
   private formatBridgeError(err: unknown): string {
@@ -410,7 +446,7 @@ export class IframeTransport {
     try {
       source?.postMessage({ type, requestId, ok, ...payload }, this.walletOrigin);
     } catch {
-      try { source?.postMessage({ type, requestId, ok, ...payload }, '*'); } catch {}
+      try { source?.postMessage({ type, requestId, ok, ...payload }, '*'); } catch { }
     }
   }
 

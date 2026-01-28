@@ -353,6 +353,7 @@ test.describe('confirmTxFlow – success paths', () => {
 
       let reserved: string[] = [];
       let refreshed = 0;
+      let mintArgs: any = null;
       const ctx: any = {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
@@ -394,7 +395,8 @@ test.describe('confirmTxFlow – success paths', () => {
           async checkVrfStatus() {
             return { active: true, nearAccountId: 'carol.testnet' };
           },
-          async mintSessionKeysAndSendToSigner() {
+          async mintSessionKeysAndSendToSigner(args: any) {
+            mintArgs = args;
             return;
           },
         },
@@ -493,6 +495,7 @@ test.describe('confirmTxFlow – success paths', () => {
         reserved,
         refreshed,
         prf: resp?.prfOutput,
+        mintArgs,
       };
     }, { paths: IMPORT_PATHS });
 
@@ -502,6 +505,131 @@ test.describe('confirmTxFlow – success paths', () => {
     expect(result.refreshed).toBeGreaterThanOrEqual(0);
     // Signing responses must not expose PRF in VRF-centric design.
     expect(result.prf).toBeUndefined();
+    expect(result.mintArgs?.contractId).toBe('w3a-v1.testnet');
+    expect(result.mintArgs?.nearRpcUrl).toBe('https://rpc.testnet.near.org');
+  });
+
+  test('Signing (extension): skips contract verification gating for WebAuthn assertions', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const mod = await import(paths.handle);
+      const types = await import(paths.types);
+      const handle = mod.handlePromptUserConfirmInJsMainThread as Function;
+
+      // Simulate extension runtime availability in a normal page context.
+      const prevFlag = (window as any).__W3A_TEST_EXTENSION_CONTEXT;
+      (window as any).__W3A_TEST_EXTENSION_CONTEXT = true;
+
+      let mintArgs: any = null;
+      const ctx: any = {
+        userPreferencesManager: {
+          getConfirmationConfig: () => ({ uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0 })
+        },
+        nonceManager: {
+          async getNonceBlockHashAndHeight() {
+            return {
+              nearPublicKeyStr: 'pk',
+              accessKeyInfo: { nonce: 200 },
+              nextNonce: '201',
+              txBlockHeight: '2000',
+              txBlockHash: 'h0'
+            };
+          },
+          reserveNonces() {
+            return ['201'];
+          },
+          releaseNonce() { },
+        },
+        nearClient: {
+          async viewBlock() {
+            return { header: { height: 2001, hash: 'h1' } };
+          }
+        },
+        vrfWorkerManager: {
+          async generateVrfChallengeForSession({ blockHeight, blockHash }: any) {
+            return { vrfOutput: 'v-out', vrfProof: 'v-proof', blockHeight, blockHash };
+          },
+          async checkVrfStatus() {
+            return { active: true, nearAccountId: 'carol.testnet' };
+          },
+          async mintSessionKeysAndSendToSigner(args: any) {
+            mintArgs = args;
+          },
+        },
+        touchIdPrompt: {
+          getRpId: () => 'ext-test',
+          getAuthenticationCredentialsSerialized: async () => ({
+            id: 'auth-cred',
+            rawId: 'CQ',
+            type: 'public-key',
+            response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw', userHandle: undefined },
+            clientExtensionResults: { prf: { results: { first: 'BQ', second: undefined } } },
+          }) as any,
+          getAuthenticationCredentialsSerializedDualPrf: async () => ({
+            id: 'auth-cred',
+            rawId: 'CQ',
+            type: 'public-key',
+            response: { clientDataJSON: 'AQ', authenticatorData: 'Ag', signature: 'Aw', userHandle: undefined },
+            clientExtensionResults: { prf: { results: { first: 'BQ', second: 'Bg' } } },
+          }) as any,
+        },
+        indexedDB: {
+          clientDB: {
+            getAuthenticatorsByUser: async () => [],
+            ensureCurrentPasskey: async () => ({ authenticatorsForPrompt: [], wrongPasskeyError: undefined }),
+            getLastUser: async () => ({ nearAccountId: 'carol.testnet', deviceNumber: 1 }),
+            getUserByDevice: async () => ({ deviceNumber: 1 }),
+          },
+          nearKeysDB: {
+            getLocalKeyMaterial: async () => ({
+              kind: 'local_near_sk_v3',
+              nearAccountId: 'carol.testnet',
+              deviceNumber: 1,
+              publicKey: 'ed25519:pk',
+              encryptedSk: 'ciphertext-b64u',
+              chacha20NonceB64u: 'nonce-b64u',
+              wrapKeySalt: 'salt-sign',
+              timestamp: Date.now(),
+            }),
+            getThresholdKeyMaterial: async () => null,
+          },
+        },
+      };
+
+      const request = {
+        requestId: 'r3-ext',
+        type: types.SecureConfirmationType.SIGN_TRANSACTION,
+        summary: {},
+        payload: {
+          intentDigest: 'intent-1',
+          nearAccountId: 'carol.testnet',
+          txSigningRequests: [{ receiverId: 'x', actions: [] }],
+          rpcCall: {
+            method: 'sign',
+            argsJson: {},
+            nearAccountId: 'carol.testnet',
+            contractId: 'w3a-v1.testnet',
+            nearRpcUrl: 'https://rpc.testnet.near.org'
+          },
+        }
+      } as any;
+
+      const msgs: any[] = [];
+      const worker = { postMessage: (m: any) => msgs.push(m) } as unknown as Worker;
+      await handle(ctx, { type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD, data: request }, worker);
+
+      // Restore
+      (window as any).__W3A_TEST_EXTENSION_CONTEXT = prevFlag;
+
+      return {
+        confirmed: msgs[0]?.data?.confirmed,
+        error: msgs[0]?.data?.error,
+        mintArgs,
+      };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.confirmed, result.error || 'unknown error').toBe(true);
+    expect(result.mintArgs?.contractId).toBeUndefined();
+    expect(result.mintArgs?.nearRpcUrl).toBeUndefined();
   });
 
   test('NEP-413: collects assertion credential, emits vrfChallenge + tx context without PRF', async ({ page }) => {

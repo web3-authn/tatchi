@@ -1,6 +1,7 @@
 import { isObject, isString, isBoolean } from '@/utils/validation';
 import { LitComponentEvents, type LitComponentEventDetailMap } from '../lit-events';
 import { W3A_DRAWER_ID, W3A_EXPORT_KEY_VIEWER_ID } from '../tags';
+import { waitForNextPaint } from '../common/nextPaint';
 
 type MessageType =
   | 'READY'
@@ -112,7 +113,7 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
       drawer.dragToClose = true;
       drawer.overpullPx = 160;
       // Defer open by two frames so slot content renders before initial measurement
-      requestAnimationFrame(() => requestAnimationFrame(() => { drawer.open = true; }));
+      void waitForNextPaint().then(() => { drawer.open = true; });
       break;
     }
     case 'SET_LOADING': {

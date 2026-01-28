@@ -65,7 +65,7 @@ Takeaways:
 
 ## Environment variables
 
-- `VITE_WALLET_ORIGIN` – absolute wallet origin used in `Permissions-Policy`.
+- `VITE_WALLET_ORIGIN` – absolute wallet origin(s) used in `Permissions-Policy` (supports comma-separated origins for multi-wallet dev/migrations).
 - `VITE_WALLET_SERVICE_PATH` – path for wallet HTML (default `/wallet-service`).
 - `VITE_SDK_BASE_PATH` – path for SDK assets (default `/sdk`).
 - `VITE_COEP_MODE` – `'strict' | 'off'` (defaults to off; tests should set `strict`).
@@ -117,6 +117,7 @@ App origin:
 import { tatchiNextApp } from '@tatchi-xyz/sdk/plugins/next'
 
 const isDev = process.env.NODE_ENV !== 'production'
+// Can be a single origin, or comma-separated origins for migrations (e.g. web wallet + extension wallet).
 const walletOrigin = process.env.NEXT_PUBLIC_WALLET_ORIGIN || 'https://wallet.example.localhost'
 
 const baseConfig = {

@@ -5,6 +5,7 @@
     "install-all": "pnpm -r install",
     "build:sdk": "pnpm -C sdk build",
     "build:sdk-prod": "pnpm -C sdk build:prod",
+    "build:extension": "node examples/chrome-extension/scripts/sync-sdk.mjs",
     "examples:vite": "pnpm -C examples/vite dev",
     "examples:vite-iphone": "pnpm -C examples/vite dev:iphone",
     "examples:vue": "pnpm -C examples/vue dev",

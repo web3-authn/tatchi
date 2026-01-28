@@ -33,6 +33,16 @@ export type {
   // Actions
   ActionResult,
 } from './core/types/tatchi';
+export type {
+  ExtensionMigrationOptions,
+  ExtensionMigrationResult,
+  ExtensionMigrationState,
+  ExtensionMigrationEvent,
+} from './core/types/extensionMigration';
+export {
+  ExtensionMigrationStep,
+  ExtensionMigrationStatus,
+} from './core/types/extensionMigration';
 
 export type {
   RegistrationSSEEvent,

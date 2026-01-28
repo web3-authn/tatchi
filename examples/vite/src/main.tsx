@@ -8,13 +8,24 @@ import { HomePage } from './pages/HomePage';
 import { ToasterThemed } from './components/ToasterThemed';
 import { useDocumentTheme } from './hooks/useDocumentTheme';
 import './index.css';
+import { parseWalletOrigins, readUseExtensionWalletPreference } from './walletRouting';
 
 // Note: Vite requires using `import.meta.env` exactly; optional chaining breaks env injection.
 const env = import.meta.env;
 const relayerUrl = env.VITE_RELAYER_URL!;
-const walletOrigin = env.VITE_WALLET_ORIGIN;
-const walletServicePath = env.VITE_WALLET_SERVICE_PATH || '/wallet-service';
 const sdkBasePath = env.VITE_SDK_BASE_PATH || '/sdk';
+
+const walletOrigins = parseWalletOrigins(env.VITE_WALLET_ORIGIN);
+const preferredExtension = readUseExtensionWalletPreference();
+const selectedWalletOrigin =
+  (preferredExtension && walletOrigins.extensionWalletOrigin)
+    ? walletOrigins.extensionWalletOrigin
+    : (walletOrigins.webWalletOrigin ?? walletOrigins.extensionWalletOrigin);
+const usingExtensionWallet = !!selectedWalletOrigin && selectedWalletOrigin.startsWith('chrome-extension://');
+const walletServicePath = usingExtensionWallet
+  ? '/wallet-service.html'
+  : (env.VITE_WALLET_SERVICE_PATH || '/wallet-service');
+const rpIdOverride = usingExtensionWallet ? undefined : env.VITE_RP_ID_BASE;
 
 function App() {
   const { theme, setTheme } = useDocumentTheme();
@@ -27,9 +38,9 @@ function App() {
           url: relayerUrl,
         },
         iframeWallet: {
-          walletOrigin,
+          walletOrigin: selectedWalletOrigin,
           walletServicePath,
-          rpIdOverride: env.VITE_RP_ID_BASE,
+          rpIdOverride,
           sdkBasePath,
         },
       }}

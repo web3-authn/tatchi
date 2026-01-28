@@ -177,4 +177,54 @@ test.describe('PasskeyClientDB device selection', () => {
     expect(result.lastC).toBeNull();
     expect(result.legacyGlobal).toBeNull();
   });
+
+  test('resolveDeviceNumberForAccount recovers device when scoped lastUser is missing', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const { PasskeyClientDBManager } = await import(paths.clientDB);
+      const { getLastLoggedInDeviceNumber, resolveDeviceNumberForAccount } = await import(paths.getDeviceNumber);
+
+      const db = new PasskeyClientDBManager();
+
+      // User exists in IndexedDB, but lastUser pointer is scoped to a different parent origin.
+      db.setLastUserScope('https://app-a.example');
+      await db.storeWebAuthnUserData({
+        nearAccountId: 'alice.testnet',
+        deviceNumber: 1,
+        clientNearPublicKey: 'ed25519:pk-alice',
+        passkeyCredential: { id: 'c-alice', rawId: 'r-alice' },
+        encryptedVrfKeypair: { encryptedVrfDataB64u: 'vrf-alice', chacha20NonceB64u: 'nonce-alice' },
+        lastUpdated: 1234,
+      });
+
+      // Switch to a new scope that does not have a lastUser pointer yet.
+      db.setLastUserScope('https://app-b.example');
+
+      const before = await (async () => {
+        try {
+          const dn = await getLastLoggedInDeviceNumber('alice.testnet', db);
+          return { ok: true, deviceNumber: dn };
+        } catch (e: any) {
+          return { ok: false, message: String(e?.message || e) };
+        }
+      })();
+
+      const resolved = await resolveDeviceNumberForAccount('alice.testnet', db);
+      const after = await getLastLoggedInDeviceNumber('alice.testnet', db);
+      const last = await db.getLastUser();
+
+      return {
+        before,
+        resolved,
+        after,
+        lastNearAccountId: last?.nearAccountId || null,
+        lastDeviceNumber: last?.deviceNumber || null,
+      };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.before.ok).toBe(false);
+    expect(result.resolved).toBe(1);
+    expect(result.after).toBe(1);
+    expect(result.lastNearAccountId).toBe('alice.testnet');
+    expect(result.lastDeviceNumber).toBe(1);
+  });
 });

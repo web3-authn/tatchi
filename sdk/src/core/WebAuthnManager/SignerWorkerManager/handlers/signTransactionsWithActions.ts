@@ -18,7 +18,7 @@ import { AccountId } from '../../../types/accountIds';
 import { SignerWorkerManagerContext } from '..';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../defaultConfigs';
 import { toAccountId } from '../../../types/accountIds';
-import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
+import { resolveDeviceNumberForAccount } from '../getDeviceNumber';
 import { generateSessionId } from '../sessionHandshake.js';
 import { WebAuthnAuthenticationCredential } from '../../../types';
 import { removePrfOutputGuard } from '../../credentialsHelpers';
@@ -39,6 +39,7 @@ import {
   isThresholdSignerMissingKeyError,
 } from '../../../threshold/thresholdSessionPolicy';
 import { normalizeThresholdEd25519ParticipantIds } from '../../../../threshold/participants';
+import { isChromeExtensionContext } from '../../../ExtensionWallet';
 
 /**
  * Sign multiple transactions with shared VRF challenge and credential
@@ -72,7 +73,7 @@ export async function signTransactionsWithActions({
 }>> {
 
   const sessionId = providedSessionId ?? generateSessionId();
-  const nearAccountId = rpcCall.nearAccountId;
+  const nearAccountId = toAccountId(rpcCall.nearAccountId);
   const relayerUrl = ctx.relayerUrl;
 
   transactions.forEach(txPayload => {
@@ -81,7 +82,7 @@ export async function signTransactionsWithActions({
     })
   })
 
-  const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
+  const deviceNumber = await resolveDeviceNumberForAccount(nearAccountId, ctx.indexedDB.clientDB);
 
   // Retrieve encrypted key data from IndexedDB in main thread
   const [localKeyMaterial, thresholdKeyMaterial] = await Promise.all([
@@ -139,11 +140,19 @@ export async function signTransactionsWithActions({
   if (!ctx.vrfWorkerManager) {
     throw new Error('VrfWorkerManager not available for signing');
   }
+
+  // Extension local signing should never prompt TouchID per-transaction.
+  // The extension signer is locked/unlocked at login/logout (warm session owned by the VRF worker).
+  const signingAuthMode =
+    (!signingContext.threshold && isChromeExtensionContext())
+      ? 'warmSession'
+      : (signingContext.threshold && !signingContext.threshold.thresholdSessionJwt ? 'webauthn' : undefined);
+
   const confirmation = await ctx.vrfWorkerManager.confirmAndPrepareSigningSession({
     ctx,
     sessionId,
     kind: 'transaction',
-    ...(signingContext.threshold && !signingContext.threshold.thresholdSessionJwt ? { signingAuthMode: 'webauthn' } : {}),
+    ...(signingAuthMode ? { signingAuthMode } : {}),
     txSigningRequests: transactions,
     rpcCall: resolvedRpcCall,
     confirmationConfigOverride,

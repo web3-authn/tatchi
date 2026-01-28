@@ -6,6 +6,7 @@ import { LinkIcon } from './icons/LinkIcon';
 import { SlidersIcon } from './icons/SlidersIcon';
 import { SunIcon } from './icons/SunIcon';
 import { MoonIcon } from './icons/MoonIcon';
+import { EclipseIcon } from './icons/EclipseIcon';
 import { UserAccountButton } from './UserAccountButton';
 import { ProfileDropdown } from './ProfileDropdown';
 import { useProfileState } from './hooks/useProfileState';
@@ -14,6 +15,7 @@ import type { AccountMenuButtonProps, MenuItem } from './types';
 import { PROFILE_MENU_ITEM_IDS } from './types';
 import { QRCodeScanner } from '../QRCodeScanner';
 import { LinkedDevicesModal } from './LinkedDevicesModal';
+import { ExtensionUpgradeModal } from './ExtensionUpgradeModal';
 import './Web3AuthProfileButton.css';
 import { Theme, useTheme } from '../theme';
 import { AccountId, toAccountId } from '../../../core/types/accountIds';
@@ -56,6 +58,7 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
   hideUsername = false,
   onLogout: onLogout,
   deviceLinkingScannerParams,
+  extensionMigrationParams,
   toggleColors,
   style,
   className,
@@ -80,6 +83,7 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
   // Local state for modals/expanded sections
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showLinkedDevices, setShowLinkedDevices] = useState(false);
+  const [showExtensionUpgrade, setShowExtensionUpgrade] = useState(false);
   const [transactionSettingsOpen, setTransactionSettingsOpen] = useState(false);
   const [currentConfirmConfig, setCurrentConfirmConfig] = useState<any>(null);
   const [currentSignerMode, setCurrentSignerMode] = useState<SignerMode | null>(null);
@@ -98,6 +102,7 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
 
   // Read current theme from Theme context (falls back to system preference)
   const { theme } = useTheme();
+  const extensionOrigin = tatchi?.configs?.iframeWallet?.extensionWalletOrigin || '';
 
   // Keep local view state in sync with SDK preferences (mirrors wallet host in iframe mode)
   useEffect(() => {
@@ -224,6 +229,15 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
       onClick: () => setShowLinkedDevices(true),
       keepOpenOnClick: true,
     },
+      {
+      id: PROFILE_MENU_ITEM_IDS.UPGRADE_EXTENSION,
+      icon: <EclipseIcon />,
+      label: 'Upgrade to Extension',
+      description: extensionOrigin ? 'Move to the extension wallet' : 'Extension wallet not configured',
+      disabled: !loginState.isLoggedIn || !extensionOrigin,
+      onClick: () => setShowExtensionUpgrade(true),
+      keepOpenOnClick: true,
+    },
     ];
 
     items.push({
@@ -246,7 +260,7 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
       keepOpenOnClick: true,
     });
     return items;
-  }, [tatchi, nearAccountId, loginState.isLoggedIn, theme, handleToggleTheme]);
+  }, [tatchi, nearAccountId, loginState.isLoggedIn, theme, handleToggleTheme, extensionOrigin]);
 
   const highlightedMenuItemId = highlightedMenuItem?.id;
   const highlightShouldFocus = highlightedMenuItem?.focus ?? true;
@@ -344,6 +358,17 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
           nearAccountId={nearAccountId!}
           isOpen={showLinkedDevices}
           onClose={() => setShowLinkedDevices(false)}
+        />, (portalTarget || document.body))}
+
+      {/* Extension Upgrade Modal (portaled to nearest root for robustness) */}
+      {createPortal(
+        <ExtensionUpgradeModal
+          nearAccountId={nearAccountId!}
+          isOpen={showExtensionUpgrade}
+          cleanupDefaults={extensionMigrationParams?.cleanupDefaults}
+          onEvent={extensionMigrationParams?.onEvent}
+          onError={extensionMigrationParams?.onError}
+          onClose={() => setShowExtensionUpgrade(false)}
         />, (portalTarget || document.body))}
     </div>
   );

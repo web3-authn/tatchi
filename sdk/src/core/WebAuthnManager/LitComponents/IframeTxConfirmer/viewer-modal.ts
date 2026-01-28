@@ -6,6 +6,7 @@ import type { VRFChallenge } from '../../../types/vrf-worker';
 
 import TxTree from '../TxTree';
 import { ensureExternalStyles } from '../css/css-loader';
+import { waitForNextPaint } from '../common/nextPaint';
 import TxConfirmContentElement from './tx-confirm-content';
 import type { ThemeName } from '../confirm-ui-types';
 // Ensure required custom elements are defined in this bundle (avoid tree-shake drops)
@@ -205,9 +206,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   protected shouldUpdate(_changed: PropertyValues): boolean {
     if (this._stylesReady) return true;
     if (!this._stylesAwaiting) {
-      const p = Promise.all(this._stylePromises).then(
-        () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
-      );
+      const p = Promise.all(this._stylePromises).then(() => waitForNextPaint());
       this._stylesAwaiting = p.then(() => { this._stylesReady = true; this.requestUpdate(); });
     }
     return false;

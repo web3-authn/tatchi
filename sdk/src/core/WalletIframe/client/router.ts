@@ -66,6 +66,8 @@ import {
   type ChildToParentEnvelope,
   type ProgressPayload,
   type PreferencesChangedPayload,
+  type WalletProtocolVersion,
+  type WalletIframeCapabilities,
 } from '../shared/messages';
 import { SignedTransaction } from '../../NearClient';
 import { OnEventsProgressBus, defaultPhaseHeuristics } from './on-events-progress-bus';
@@ -189,6 +191,7 @@ export class WalletIframeRouter {
   private state = {
     port: null as MessagePort | null,
     ready: false,
+    protocolVersion: null as WalletProtocolVersion | null,
     // Deduplicate concurrent init() calls and avoid race conditions
     initInFlight: null as Promise<void> | null,
     pending: new Map<string, Pending>(),
@@ -346,6 +349,11 @@ export class WalletIframeRouter {
     globalThis.addEventListener?.('message', this.windowMsgHandlerBound);
   }
 
+  /** Returns the configured wallet origin for this router. */
+  getWalletOrigin(): string {
+    return this.opts.walletOrigin;
+  }
+
   private attachExportUiClosedListener = (walletOrigin: string): (() => void) => {
     const onUiClosed = (ev: MessageEvent) => {
       if (ev.origin !== walletOrigin) return;
@@ -408,6 +416,7 @@ export class WalletIframeRouter {
       // Respect autoMount=false by deferring connect until first use
       if (this.opts.testOptions.autoMount !== false) {
         this.state.port = await this.transport.connect();
+        this.state.protocolVersion = this.transport.getProtocolVersion();
         this.state.port.onmessage = (ev) => this.onPortMessage(ev);
         this.state.port.start?.();
         this.state.ready = true;
@@ -452,6 +461,47 @@ export class WalletIframeRouter {
   }
 
   isReady(): boolean { return this.state.ready; }
+
+  getProtocolVersion(): WalletProtocolVersion | null { return this.state.protocolVersion; }
+
+  /**
+   * Best-effort teardown for this router instance.
+   * Useful when switching between wallet origins (e.g., web → extension fallback).
+   */
+  dispose(opts?: { removeIframe?: boolean }): void {
+    // Reject any in-flight requests to avoid hanging promises.
+    for (const [requestId, pending] of Array.from(this.state.pending.entries())) {
+      try {
+        if (pending.timer) window.clearTimeout(pending.timer);
+      } catch {}
+      try {
+        pending.reject(new Error('Wallet iframe router disposed'));
+      } catch {}
+      try {
+        this.progressBus.unregister(requestId);
+      } catch {}
+    }
+    this.state.pending.clear();
+    try { this.progressBus.clearAll(); } catch {}
+    try { this.overlayState.controller.setSticky(false); } catch {}
+    try { this.hideFrameForActivation(); } catch {}
+
+    try { this.state.port?.close?.(); } catch {}
+    this.state.port = null;
+    this.state.ready = false;
+    this.state.protocolVersion = null;
+    this.state.initInFlight = null;
+    this.state.device2StartPromise = null;
+
+    try {
+      if (this.windowMsgHandlerBound) {
+        globalThis.removeEventListener?.('message', this.windowMsgHandlerBound);
+      }
+    } catch {}
+    this.windowMsgHandlerBound = undefined;
+
+    try { this.transport.dispose({ removeIframe: !!opts?.removeIframe }); } catch {}
+  }
 
   // ===== UI registry/window-message helpers (generic mounting) =====
   registerUiTypes(registry: WalletUIRegistry): void {
@@ -651,6 +701,66 @@ export class WalletIframeRouter {
       // Step 5: Always release overlay lock and hide when done (success or error)
       this.overlayState.forceFullscreen = false;
       this.overlayState.controller.setSticky(false);
+      this.hideFrameForActivation();
+    }
+  }
+
+  async prepareExtensionMigration(payload: {
+    accountId: string;
+    deviceNumber: number;
+    options?: {
+      confirmerText?: { title?: string; body?: string };
+      confirmationConfig?: Partial<ConfirmationConfig>;
+    };
+  }): Promise<RegistrationResult> {
+    this.overlayState.forceFullscreen = true;
+    this.overlayState.controller.setSticky(true);
+    this.overlayState.controller.showFullscreen();
+
+    try {
+      const safeOptions = payload.options
+        ? {
+            ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
+            ...(payload.options.confirmationConfig
+              ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+              : {}),
+          }
+        : undefined;
+
+      const res = await this.post<RegistrationResult>({
+        type: 'PM_PREPARE_EXTENSION_MIGRATION',
+        payload: {
+          accountId: payload.accountId,
+          deviceNumber: payload.deviceNumber,
+          ...(safeOptions && Object.keys(safeOptions).length > 0 ? { options: safeOptions } : {}),
+        },
+      });
+
+      return res.result;
+    } finally {
+      this.overlayState.forceFullscreen = false;
+      this.overlayState.controller.setSticky(false);
+      this.hideFrameForActivation();
+    }
+  }
+
+  async finalizeExtensionMigration(payload: { accountId: string }): Promise<{
+    success: boolean;
+    transactionId?: string;
+    error?: string;
+  }> {
+    this.showFrameForActivation();
+    try {
+      const res = await this.post<{
+        success: boolean;
+        transactionId?: string;
+        error?: string;
+      }>({
+        type: 'PM_FINALIZE_EXTENSION_MIGRATION',
+        payload: { accountId: payload.accountId },
+      });
+      return res.result;
+    } finally {
       this.hideFrameForActivation();
     }
   }
@@ -878,16 +988,16 @@ export class WalletIframeRouter {
     return res.result;
   }
 
-  async setConfirmBehavior(behavior: ConfirmationBehavior): Promise<void> {
-    let { nearAccountId } = (await this.getLoginSession()).login;
+  async setConfirmBehavior(behavior: ConfirmationBehavior, opts?: { nearAccountId?: string }): Promise<void> {
+    const nearAccountId = opts?.nearAccountId || (await this.getLoginSession()).login.nearAccountId || undefined;
     await this.post<void>({
       type: 'PM_SET_CONFIRM_BEHAVIOR',
       payload: { behavior, nearAccountId }
     });
   }
 
-  async setConfirmationConfig(config: ConfirmationConfig): Promise<void> {
-    let { nearAccountId } = (await this.getLoginSession()).login;
+  async setConfirmationConfig(config: Partial<ConfirmationConfig>, opts?: { nearAccountId?: string }): Promise<void> {
+    const nearAccountId = opts?.nearAccountId || (await this.getLoginSession()).login.nearAccountId || undefined;
     await this.post<void>({
       type: 'PM_SET_CONFIRMATION_CONFIG',
       payload: { config, nearAccountId }
@@ -899,8 +1009,9 @@ export class WalletIframeRouter {
     return res.result
   }
 
-  async setSignerMode(signerMode: SignerMode): Promise<void> {
-    await this.post<void>({ type: 'PM_SET_SIGNER_MODE', payload: { signerMode } });
+  async setSignerMode(signerMode: SignerMode, opts?: { nearAccountId?: string }): Promise<void> {
+    const nearAccountId = opts?.nearAccountId || (await this.getLoginSession()).login.nearAccountId || undefined;
+    await this.post<void>({ type: 'PM_SET_SIGNER_MODE', payload: { signerMode, nearAccountId } });
   }
 
   async getSignerMode(opts?: { timeoutMs?: number }): Promise<SignerMode> {
@@ -910,6 +1021,20 @@ export class WalletIframeRouter {
 
   async setTheme(theme: 'dark' | 'light'): Promise<void> {
     await this.post<void>({ type: 'PM_SET_THEME', payload: { theme } });
+  }
+
+  /**
+   * Best-effort health check for the wallet host.
+   * Resolves once the host responds with `PONG` for the correlated requestId.
+   */
+  async ping(opts?: { timeoutMs?: number }): Promise<void> {
+    await this.post<void>({ type: 'PING' }, opts);
+  }
+
+  async getCapabilities(opts?: { timeoutMs?: number }): Promise<WalletIframeCapabilities> {
+    const res = await this.post<WalletIframeCapabilities>({ type: 'PM_GET_CAPABILITIES' }, opts);
+    this.state.protocolVersion = res.result.protocolVersion ?? this.state.protocolVersion;
+    return res.result;
   }
 
   async prefetchBlockheight(): Promise<void> {
@@ -1169,6 +1294,13 @@ export class WalletIframeRouter {
       }
     });
     return res.result;
+  }
+
+  async clearUserData(accountId: string): Promise<void> {
+    await this.post<void>({
+      type: 'PM_CLEAR_USER_DATA',
+      payload: { accountId },
+    });
   }
 
   async finalizeEmailRecovery(payload: {
@@ -1469,10 +1601,17 @@ export class WalletIframeRouter {
    * - ProgressBus handles hide timing; OverlayController just executes the decision.
    */
   private computeOverlayIntent(type: ParentToChildEnvelope['type']): { mode: 'hidden' | 'fullscreen' } {
+    // Extension wallet runs on `chrome-extension://...` and surfaces all user-facing UI
+    // (WebAuthn + confirmations) in extension-controlled top-level popups/side panels.
+    // The embedding page (app origin) should not show a fullscreen wallet iframe overlay.
+    if (this.walletOriginUrl?.protocol === 'chrome-extension:') {
+      return { mode: 'hidden' };
+    }
     switch (type) {
       // Operations that require fullscreen overlay for WebAuthn activation
       case 'PM_EXPORT_NEAR_KEYPAIR_UI':
       case 'PM_REGISTER':
+      case 'PM_PREPARE_EXTENSION_MIGRATION':
       case 'PM_LOGIN':
       case 'PM_SYNC_ACCOUNT_FLOW':
       case 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA':
@@ -1490,6 +1629,11 @@ export class WalletIframeRouter {
 
   // Temporarily show the service iframe to capture user activation
   private showFrameForActivation(): void {
+    if (this.walletOriginUrl?.protocol === 'chrome-extension:') {
+      // For extension wallets, activation/click capture happens in extension popups.
+      // Keep the embedded iframe hidden.
+      return;
+    }
     // Ensure iframe exists so overlay can be applied immediately
     this.transport.ensureIframeMounted();
     if (this.overlayState.forceFullscreen) {

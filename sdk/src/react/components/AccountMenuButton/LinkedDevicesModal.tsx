@@ -21,6 +21,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
 }) => {
   const { tatchi, loginState, viewAccessKeyList } = useTatchi();
   const { theme } = useTheme();
+  const devicesPerPage = 4;
   // Authenticators list: credentialId + registered timestamp + device number
   const [authRows, setAuthRows] = useState<Array<{
     credentialId: string;
@@ -36,6 +37,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   const [currentDeviceNumber, setCurrentDeviceNumber] = useState<number | null>(null);
   const [deletingKeyPublicKey, setDeletingKeyPublicKey] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const formatDateTime = (iso: string) => {
     if (!iso) return '—';
@@ -45,6 +47,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       loadAuthenticators();
+      setCurrentPage(1);
       // Also resolve current device number for highlighting
       (async () => {
         try {
@@ -62,6 +65,23 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
       })();
     }
   }, [isOpen]);
+
+  // If the list size changes (or current device changes), ensure the current page is in range.
+  useEffect(() => {
+    if (!isOpen) return;
+    const rows = authRows.filter(r => r.credentialId !== 'placeholder');
+    const others = (currentDeviceNumber != null)
+      ? rows.filter(r => r.deviceNumber !== currentDeviceNumber)
+      : rows;
+    const totalPages = Math.max(1, Math.ceil(others.length / devicesPerPage));
+    setCurrentPage((p) => Math.min(p, totalPages));
+  }, [authRows, currentDeviceNumber, devicesPerPage, isOpen]);
+
+  // Hide hover/copy tooltips when paging.
+  useEffect(() => {
+    if (!isOpen) return;
+    setTooltipVisible(null);
+  }, [currentPage, isOpen]);
 
   // Close on ESC press while modal is open
   useEffect(() => {
@@ -185,6 +205,17 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
     // Don't call onClose here - we want to keep the modal open
   };
 
+  const rows = authRows.filter(r => r.credentialId !== 'placeholder');
+  const current = (currentDeviceNumber != null)
+    ? rows.find(r => r.deviceNumber === currentDeviceNumber)
+    : null;
+  const others = (currentDeviceNumber != null)
+    ? rows.filter(r => r.deviceNumber !== currentDeviceNumber)
+    : rows;
+  const totalPages = Math.max(1, Math.ceil(others.length / devicesPerPage));
+  const pageStart = (currentPage - 1) * devicesPerPage;
+  const pageRows = others.slice(pageStart, pageStart + devicesPerPage);
+
   return (
     <Theme>
       <div className={`w3a-access-keys-modal-backdrop theme-${theme}`}
@@ -223,33 +254,23 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
             </div>
           )}
 
-          {!isLoading && !error && authRows.filter(r => r.credentialId !== 'placeholder').length === 0 && (
+          {!isLoading && !error && rows.length === 0 && (
             <div className="w3a-access-keys-empty">
               <p>No authenticators found.</p>
             </div>
           )}
 
-          {!error && authRows.filter(r => r.credentialId !== 'placeholder').length > 0 && (
-            <div className="w3a-keys-list">
-              {(() => {
-                console.log("authRows", authRows)
-                const rows = authRows.filter(r => r.credentialId !== 'placeholder');
-                const current = (currentDeviceNumber != null)
-                  ? rows.find(r => r.deviceNumber === currentDeviceNumber)
-                  : null;
-                const others = (currentDeviceNumber != null)
-                  ? rows.filter(r => r.deviceNumber !== currentDeviceNumber)
-                  : rows;
-
-                const items: React.ReactNode[] = [];
-
-                if (current) {
+          {!error && rows.length > 0 && (
+            <>
+              <div className="w3a-keys-list">
+                {current && (() => {
                   const index = 0;
                   const currentKey = current.nearPublicKey || loginState?.nearPublicKey || null;
                   const isCurrentKey = !!currentKey && loginState?.nearPublicKey === currentKey;
                   const canDelete = !!accessKeyList && accessKeyList.keys.length > 1;
                   const isDeletingThisKey = !!currentKey && deletingKeyPublicKey === currentKey;
-                  items.push(
+
+                  return (
                     <div key={`current-${current.deviceNumber}`} className="w3a-key-item">
                       <div className="w3a-key-content">
                         <div className="w3a-key-details">
@@ -265,7 +286,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                               className="mono w3a-copyable-key w3a-access-key-current"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                copyToClipboard(currentKey, index);
+                                void copyToClipboard(currentKey, index);
                               }}
                               onMouseEnter={() => setTooltipVisible(index)}
                               onMouseLeave={() => setTooltipVisible(null)}
@@ -303,13 +324,16 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                       </div>
                     </div>
                   );
-                }
+                })()}
 
-                others.forEach((item, i) => {
+                {pageRows.map((item, i) => {
                   const canDelete = !!accessKeyList && accessKeyList.keys.length > 1;
                   const isDeletingThisKey = !!item.nearPublicKey && deletingKeyPublicKey === item.nearPublicKey;
-                  items.push(
-                    <div key={`other-${item.deviceNumber}-${i}`} className="w3a-key-item">
+                  const globalIndex = pageStart + i;
+                  const keyIndex = 10 + globalIndex;
+
+                  return (
+                    <div key={`other-${item.deviceNumber}-${globalIndex}`} className="w3a-key-item">
                       <div className="w3a-key-content">
                         <div className="w3a-key-details">
                           <div className="w3a-key-header">
@@ -323,14 +347,14 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                               className="mono w3a-copyable-key"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                copyToClipboard(item.nearPublicKey!, 10 + i);
+                                void copyToClipboard(item.nearPublicKey!, keyIndex);
                               }}
-                              onMouseEnter={() => setTooltipVisible(10 + i)}
+                              onMouseEnter={() => setTooltipVisible(keyIndex)}
                               onMouseLeave={() => setTooltipVisible(null)}
                               title="Click to copy"
                             >
                               Access Key: {item.nearPublicKey}
-                              {tooltipVisible === 10 + i && (
+                              {tooltipVisible === keyIndex && (
                                 <div className="w3a-copy-tooltip">Click to copy</div>
                               )}
                             </div>
@@ -361,11 +385,39 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                       </div>
                     </div>
                   );
-                });
+                })}
+              </div>
 
-                return items;
-              })()}
-            </div>
+              {totalPages > 1 && (
+                <div className="w3a-pagination">
+                  <button
+                    className="w3a-btn w3a-btn-secondary"
+                    disabled={currentPage <= 1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentPage((p) => Math.max(1, p - 1));
+                    }}
+                  >
+                    Previous
+                  </button>
+                  <div className="w3a-pagination-info">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <button
+                    className="w3a-btn w3a-btn-secondary"
+                    disabled={currentPage >= totalPages}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentPage((p) => Math.min(totalPages, p + 1));
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
           {deleteError && (

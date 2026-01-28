@@ -238,7 +238,7 @@ pub async fn handle_sign_delegate_action(
     send_progress_message(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::TransactionSigningProgress,
-        "Decrypting private key and signing delegate action...",
+        "Signing delegate action...",
         Some(&ProgressData::new(3, 4).with_context("delegate")),
     );
 

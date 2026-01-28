@@ -37,7 +37,7 @@ export type Web3AuthnDevOptions = {
   sdkDistRoot?: string
   sdkBasePath?: string
   walletServicePath?: string
-  walletOrigin?: string
+  walletOrigin?: string | string[]
   setDevHeaders?: boolean
   enableDebugRoutes?: boolean
   /**
@@ -65,7 +65,7 @@ export type WalletServiceOptions = {
 }
 
 export type DevHeadersOptions = {
-  walletOrigin?: string
+  walletOrigin?: string | string[]
   walletServicePath?: string
   sdkBasePath?: string
   /**
@@ -94,6 +94,19 @@ function tryFile(...candidates: string[]): string | undefined {
     } catch {}
   }
   return undefined
+}
+
+function normalizeWalletOrigins(input?: string | string[]): string[] {
+  if (Array.isArray(input)) {
+    return input.map((v) => String(v ?? '').trim()).filter((v) => v.length > 0)
+  }
+  const raw = String(input ?? '').trim()
+  if (!raw) return []
+  // Convenience: allow comma-separated origins (multi-target dev).
+  if (raw.includes(',')) {
+    return raw.split(',').map((v) => v.trim()).filter((v) => v.length > 0)
+  }
+  return [raw]
 }
 
 // RPC helpers are provided by plugin-utils to share logic across frameworks.
@@ -310,15 +323,15 @@ export function tatchiWasmMime(): VitePlugin {
  * - Wallet dev CSP can be toggled strict/compatible via opts.devCSP.
  */
 export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
-  const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
-  const walletOrigin = walletOriginRaw?.trim()
+  const walletOrigins = normalizeWalletOrigins(opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)
+  const walletOrigin = walletOrigins[0]
   const walletServicePath = toBasePath(opts.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
   const sdkBasePath = toBasePath(opts.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
   const devCSPMode = (opts.devCSP ?? (process.env.VITE_WALLET_DEV_CSP as 'strict' | 'compatible' | undefined))
   const coepMode = resolveCoepMode(opts.coepMode)
 
   // Build headers via shared helpers to avoid drift.
-  const permissionsPolicy = buildPermissionsPolicy(walletOrigin)
+  const permissionsPolicy = buildPermissionsPolicy(walletOrigins.length ? walletOrigins : walletOrigin)
 
   // Dev convenience: dynamic ROR from NEAR RPC (no relay dependency)
   // The dev server will fetch the allowlist from chain on demand when a contract id is provided.
@@ -356,8 +369,8 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
           const walletCsp = buildWalletCsp({ mode })
           res.setHeader('Content-Security-Policy', walletCsp)
         }
-        // Resource hints: help parent pages preconnect to the wallet origin early in dev
-        addPreconnectLink(res, walletOrigin)
+        // Resource hints: help parent pages preconnect to wallet origins early in dev
+        for (const origin of walletOrigins) addPreconnectLink(res, origin)
 
         // Serve /.well-known/webauthn for ROR using chain state in dev
         const isWellKnown = url === '/.well-known/webauthn' || url === '/.well-known/webauthn/'
@@ -422,7 +435,8 @@ function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
   const mode: Required<Web3AuthnDevOptions>['mode'] = options.mode || 'self-contained'
   const sdkBasePath = toBasePath(options.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
   const walletServicePath = toBasePath(options.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
-  const walletOrigin = (options.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)?.trim()
+  const walletOrigins = normalizeWalletOrigins(options.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)
+  const walletOrigin = walletOrigins[0]
   const setDevHeaders = options.setDevHeaders !== false // default true
   const enableDebugRoutes = options.enableDebugRoutes === true
   const sdkDistRoot = resolveSdkDistRoot(options.sdkDistRoot)
@@ -435,7 +449,7 @@ function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
   // Flip wallet CSP to strict by default in dev. Consumers can override via
   // VITE_WALLET_DEV_CSP or by composing tatchiHeaders directly.
   const headersPlugin = setDevHeaders
-    ? tatchiHeaders({ walletOrigin, walletServicePath, sdkBasePath, devCSP: 'strict', coepMode })
+    ? tatchiHeaders({ walletOrigin: walletOrigins.length ? walletOrigins : walletOrigin, walletServicePath, sdkBasePath, devCSP: 'strict', coepMode })
     : undefined
 
   return {
@@ -466,15 +480,15 @@ function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
  * Where it runs: build for either the app or a static wallet host (not used in dev).
  * Notes: no-ops if `_headers` already exists in `outDir` (to avoid overriding platform config).
  */
-export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { accessControlAllowOrigin?: string }, coepMode?: 'strict' | 'off' } = {}): VitePlugin {
-  const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
-  const walletOrigin = walletOriginRaw?.trim()
+export function tatchiBuildHeaders(opts: { walletOrigin?: string | string[], cors?: { accessControlAllowOrigin?: string }, coepMode?: 'strict' | 'off' } = {}): VitePlugin {
+  const walletOrigins = normalizeWalletOrigins(opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)
+  const walletOrigin = walletOrigins[0]
   const walletServicePath = toBasePath(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
   const sdkBasePath = toBasePath(process.env.VITE_SDK_BASE_PATH, '/sdk')
   const coepMode = resolveCoepMode(opts.coepMode)
 
   // Build headers via shared helpers to avoid drift between frameworks
-  const permissionsPolicy = buildPermissionsPolicy(walletOrigin)
+  const permissionsPolicy = buildPermissionsPolicy(walletOrigins.length ? walletOrigins : walletOrigin)
   const walletCsp = buildWalletCsp({ mode: 'strict' })
 
   let outDir = 'dist'
@@ -609,7 +623,7 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
 }
 
 // Small test helpers to keep unit tests decoupled from Vite server implementation
-export function computeDevPermissionsPolicy(walletOrigin?: string): string {
+export function computeDevPermissionsPolicy(walletOrigin?: string | string[]): string {
   return buildPermissionsPolicy(walletOrigin)
 }
 
@@ -643,10 +657,11 @@ export function tatchiAppServer(options: Omit<Web3AuthnDevOptions, 'mode'> = {})
  */
 export function tatchiApp(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHeaders?: boolean } = {}): any[] /* Vite Plugin[] */ {
   const { emitHeaders, ...devOpts } = options
-  const walletOrigin = (devOpts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)?.trim()
   const app = tatchiAppServer(devOpts)
   // Build-time emission is opt-in and will no-op if `_headers` already exists.
-  const hdr = emitHeaders ? tatchiBuildHeaders({ walletOrigin, coepMode: devOpts.coepMode }) : undefined
+  const hdr = emitHeaders
+    ? tatchiBuildHeaders({ walletOrigin: devOpts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN, coepMode: devOpts.coepMode })
+    : undefined
   return [app, hdr].filter(Boolean) as any[]
 }
 
@@ -667,9 +682,10 @@ export function tatchiApp(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHea
  */
 export function tatchiWallet(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHeaders?: boolean } = {}): any[] /* Vite Plugin[] */ {
   const { emitHeaders, ...devOpts } = options
-  const walletOrigin = (devOpts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)?.trim()
   const wallet = tatchiWalletServer(devOpts)
   // Build-time emission is opt-in and will no-op if `_headers` already exists.
-  const hdr = emitHeaders ? tatchiBuildHeaders({ walletOrigin, coepMode: devOpts.coepMode }) : undefined
+  const hdr = emitHeaders
+    ? tatchiBuildHeaders({ walletOrigin: devOpts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN, coepMode: devOpts.coepMode })
+    : undefined
   return [wallet, hdr].filter(Boolean) as any[]
 }

@@ -7,7 +7,7 @@ type DemoJwtClaims = {
   iss?: string;
   aud?: string;
   iat?: number;
-  exp?: number;
+  vrfSessionExp?: number;
   rpId?: string;
   blockHeight?: number;
 };
@@ -21,13 +21,28 @@ const demoCookieName = 'w3a_session';
 const jwtSession = new SessionService<DemoJwtClaims>({
   cookie: { name: demoCookieName },
   jwt: {
-    signToken: ({ payload }) =>
-      jwt.sign(payload, demoSecret, {
+    signToken: ({ payload }) => {
+      const record = (payload && typeof payload === 'object')
+        ? (payload as Record<string, unknown>)
+        : {};
+      const vrfSessionExp = typeof record.vrfSessionExp === 'number' ? record.vrfSessionExp : undefined;
+      const iat = typeof record.iat === 'number' ? record.iat : Math.floor(Date.now() / 1000);
+      const expiresIn = (() => {
+        if (typeof vrfSessionExp === 'number') {
+          const seconds = Math.floor(vrfSessionExp - iat);
+          if (Number.isFinite(seconds) && seconds > 0) return seconds;
+        }
+        return demoExpiresInSec;
+      })();
+      const { exp: _omitExp, ...rest } = record as { exp?: unknown } & Record<string, unknown>;
+
+      return jwt.sign(rest, demoSecret, {
         algorithm: 'HS256',
         issuer: demoIssuer,
         audience: demoAudience,
-        expiresIn: demoExpiresInSec,
-      }),
+        expiresIn,
+      });
+    },
     verifyToken: async (token): Promise<{ valid: boolean; payload?: DemoJwtClaims }> => {
       try {
         const payload = jwt.verify(token, demoSecret, {

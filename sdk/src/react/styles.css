@@ -1,6 +1,7 @@
 /* React Component Styles for @tatchi-xyz/sdk/react */
 
 /* Import AccountMenuButton styles */
+@import './components/AccountMenuButton/ExtensionUpgradeModal.css';
 @import './components/AccountMenuButton/LinkedDevicesModal.css';
 @import './components/AccountMenuButton/MenuItem.css';
 @import './components/AccountMenuButton/ProfileDropdown.css';

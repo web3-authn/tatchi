@@ -25,6 +25,7 @@ import { normalizeThresholdEd25519ParticipantIds } from '../../../../threshold/p
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { generateSessionId } from '../sessionHandshake.js';
 import { SignerWorkerManagerContext } from '..';
+import { isChromeExtensionContext } from '../../../ExtensionWallet';
 
 /**
  * Sign a NEP-413 message using the user's passkey-derived private key
@@ -91,13 +92,18 @@ export async function signNep413Message({ ctx, payload }: {
       thresholdKeyMaterial,
     });
 
+    // Extension local signing should never prompt TouchID per-request.
+    // The extension signer is locked/unlocked at login/logout (warm session owned by the VRF worker).
+    const signingAuthMode =
+      (!signingContext.threshold && isChromeExtensionContext())
+        ? 'warmSession'
+        : (signingContext.threshold && !signingContext.threshold.thresholdSessionJwt ? 'webauthn' : undefined);
+
     const confirmation = await vrfWorkerManager.confirmAndPrepareSigningSession({
       ctx,
       sessionId,
       kind: 'nep413',
-      ...(signingContext.threshold && !signingContext.threshold.thresholdSessionJwt
-        ? { signingAuthMode: 'webauthn' }
-        : {}),
+      ...(signingAuthMode ? { signingAuthMode } : {}),
       nearAccountId,
       message: payload.message,
       recipient: payload.recipient,

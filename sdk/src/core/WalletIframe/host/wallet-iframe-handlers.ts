@@ -8,6 +8,8 @@ import type {
   PMStartEmailRecoveryPayload,
   PMFinalizeEmailRecoveryPayload,
   PMStopEmailRecoveryPayload,
+  PMPrepareExtensionMigrationPayload,
+  PMFinalizeExtensionMigrationPayload,
 } from '../shared/messages';
 import type { TatchiPasskey } from '../../TatchiPasskey';
 import { OFFLINE_EXPORT_FALLBACK, EXPORT_NEAR_KEYPAIR_CANCELLED, WALLET_UI_CLOSED } from '../../OfflineExport/messages';
@@ -36,6 +38,7 @@ import { toAccountId } from '../../types/accountIds';
 import { SignedTransaction } from '../../NearClient';
 import { isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, PlainSignedTransactionLike } from '@/utils/validation';
 import type { ActionArgs } from '../../types';
+import { IndexedDBManager } from '../../IndexedDBManager';
 
 type Req<T extends ParentToChildType> = Extract<ParentToChildEnvelope, { type: T }>;
 type HandlerMap = { [K in ParentToChildType]: (req: Extract<ParentToChildEnvelope, { type: K }>) => Promise<void> };
@@ -93,7 +96,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const result: RegistrationResult = !confirmationConfig
         ? await pm.registerPasskey(nearAccountId, hooksOptions)
         : await pm.registerPasskeyInternal(nearAccountId, hooksOptions,
-            confirmationConfig as unknown as ConfirmationConfig);
+          confirmationConfig as unknown as ConfirmationConfig);
 
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
@@ -222,6 +225,9 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     PM_EXECUTE_ACTION: async (req: Req<'PM_EXECUTE_ACTION'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, receiverId, actionArgs, options } = (req.payload || ({} as Partial<PMExecuteActionPayload>));
+      if (nearAccountId) {
+        try { pm.userPreferences.setCurrentUser(toAccountId(String(nearAccountId))); } catch {}
+      }
       const result = await pm.executeAction({
         nearAccountId: nearAccountId as string,
         receiverId: receiverId as string,
@@ -238,6 +244,9 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     PM_SIGN_DELEGATE_ACTION: async (req: Req<'PM_SIGN_DELEGATE_ACTION'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, delegate, options } = req.payload!;
+      if (nearAccountId) {
+        try { pm.userPreferences.setCurrentUser(toAccountId(String(nearAccountId))); } catch {}
+      }
       const result = await pm.signDelegateAction({
         nearAccountId: nearAccountId,
         delegate,
@@ -253,6 +262,9 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     PM_SIGN_NEP413: async (req: Req<'PM_SIGN_NEP413'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, params, options } = req.payload!;
+      if (nearAccountId) {
+        try { pm.userPreferences.setCurrentUser(toAccountId(String(nearAccountId))); } catch {}
+      }
       const result = await pm.signNEP413Message({
         nearAccountId,
         params,
@@ -347,7 +359,10 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
 
     PM_SET_CONFIRM_BEHAVIOR: async (req: Req<'PM_SET_CONFIRM_BEHAVIOR'>) => {
       const pm = getTatchiPasskey();
-      const { behavior } = req.payload!;
+      const { behavior, nearAccountId } = req.payload!;
+      if (nearAccountId) {
+        try { pm.userPreferences.setCurrentUser(toAccountId(nearAccountId)); } catch {}
+      }
       pm.setConfirmBehavior(behavior);
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
@@ -357,6 +372,9 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const { nearAccountId } = (req.payload || {});
       const incoming = (req.payload?.config || {}) as Record<string, unknown>;
       let patch: Record<string, unknown> = { ...incoming };
+      if (nearAccountId) {
+        try { pm.userPreferences.setCurrentUser(toAccountId(nearAccountId)); } catch {}
+      }
       if (nearAccountId) {
         await pm.getLoginSession(nearAccountId)
           .then(({ login }) => {
@@ -378,10 +396,13 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
 
     PM_SET_SIGNER_MODE: async (req: Req<'PM_SET_SIGNER_MODE'>) => {
       const pm = getTatchiPasskey();
-      const { signerMode } = req.payload!;
+      const { signerMode, nearAccountId } = req.payload!;
+      if (nearAccountId) {
+        try { pm.userPreferences.setCurrentUser(toAccountId(nearAccountId)); } catch {}
+      }
       try {
         pm.setSignerMode(signerMode);
-      } catch {}
+      } catch { }
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
@@ -394,12 +415,12 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     PM_SET_THEME: async (req: Req<'PM_SET_THEME'>) => {
       const pm = getTatchiPasskey();
       const { theme } = req.payload!;
-      try { pm.setTheme(theme); } catch {}
+      try { pm.setTheme(theme); } catch { }
       try {
         if (theme === 'light' || theme === 'dark') {
           document.documentElement.setAttribute('data-w3a-theme', theme);
         }
-      } catch {}
+      } catch { }
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
@@ -431,6 +452,41 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         ...(options || {}),
         onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
       } as ActionHooksOptions);
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_CLEAR_USER_DATA: async (req: Req<'PM_CLEAR_USER_DATA'>) => {
+      const pm = getTatchiPasskey();
+      const { accountId } = req.payload!;
+      const normalized = toAccountId(accountId);
+
+      await pm.logoutAndClearSession();
+      try { await IndexedDBManager.clientDB.deleteAllAuthenticatorsForUser(normalized); } catch { }
+      try { await IndexedDBManager.clientDB.deleteUser(normalized); } catch { }
+      try { await IndexedDBManager.nearKeysDB.deleteKeyMaterial(normalized); } catch { }
+
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+    },
+
+    PM_PREPARE_EXTENSION_MIGRATION: async (req: Req<'PM_PREPARE_EXTENSION_MIGRATION'>) => {
+      const pm = getTatchiPasskey();
+      const { accountId, deviceNumber, options } = (req.payload || {}) as PMPrepareExtensionMigrationPayload;
+      if (respondIfCancelled(req.requestId)) return;
+      const result = await pm.prepareExtensionMigrationDevice({
+        accountId,
+        deviceNumber,
+        options,
+      });
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_FINALIZE_EXTENSION_MIGRATION: async (req: Req<'PM_FINALIZE_EXTENSION_MIGRATION'>) => {
+      const pm = getTatchiPasskey();
+      const { accountId } = (req.payload || {}) as PMFinalizeExtensionMigrationPayload;
+      if (respondIfCancelled(req.requestId)) return;
+      const result = await pm.finalizeExtensionMigrationDevice({ accountId });
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
@@ -484,7 +540,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         if (typeof maybeCancel === 'function') {
           await maybeCancel.call(pm, { accountId, nearPublicKey });
         }
-      } catch {}
+      } catch { }
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
   } as unknown as HandlerMap;

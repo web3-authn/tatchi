@@ -9,8 +9,11 @@ function resolveStylesheetUrl(assetName: string): string {
   const base = resolveEmbeddedBase();
   const join = (s: string) => (s.endsWith('/') ? s : s + '/');
 
-  // Absolute base already includes origin
-  if (/^https?:/i.test(base)) return `${join(base)}${assetName}`;
+  // Absolute base already includes a scheme/origin (e.g., https://..., chrome-extension://...).
+  // This matters for the extension wallet where `__W3A_WALLET_SDK_BASE__` is typically
+  // `chrome-extension://<id>/sdk/`. Treating it as a relative path would yield broken URLs like:
+  //   chrome-extension://<id>/chrome-extension://<id>/sdk/w3a-components.css
+  if (/^[a-z][a-z0-9+.-]*:/i.test(base)) return `${join(base)}${assetName}`;
 
   // Warn early when running inside srcdoc with a relative base.
   // In this case, relative URLs will resolve against the host app origin,
@@ -28,7 +31,7 @@ function resolveStylesheetUrl(assetName: string): string {
 
   // Relative base: prefix with current document origin if available
   const origin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
-  if (origin && origin !== 'null' && /^https?:/i.test(origin)) {
+  if (origin && origin !== 'null' && /^[a-z][a-z0-9+.-]*:/i.test(origin)) {
     const prefix = base.startsWith('/') ? base : `/${base}`;
     return `${join(origin + prefix)}${assetName}`;
   }
@@ -45,8 +48,18 @@ function getDoc(root: ShadowRoot | DocumentFragment | HTMLElement): Document | n
 
 function waitForStylesheet(link: HTMLLinkElement): Promise<void> {
   return new Promise<void>((resolve) => {
-    const done = () => { (link as any)._w3aLoaded = true; resolve(); };
+    let timeoutId: number | null = null;
+    const done = () => {
+      try {
+        if (timeoutId != null) window.clearTimeout(timeoutId);
+      } catch {}
+      (link as any)._w3aLoaded = true;
+      resolve();
+    };
     if ((link as any)._w3aLoaded || link.sheet) return done();
+    // Safety: avoid hanging UI forever if the stylesheet request stalls (no load/error).
+    // This can happen in some dev/proxy/CSP setups and would block confirm UI rendering.
+    timeoutId = window.setTimeout(done, 2_000);
     link.addEventListener('load', done, { once: true } as AddEventListenerOptions);
     link.addEventListener('error', done, { once: true } as AddEventListenerOptions);
   });
@@ -63,23 +76,27 @@ async function ensureDocumentLink(doc: Document, assetName: string, markerAttr: 
   await waitForStylesheet(link);
 }
 
-function ensureScopedImport(root: ShadowRoot | DocumentFragment | HTMLElement, assetName: string, markerAttr: string): void {
-  try {
-    const doc = getDoc(root);
-    if (!doc) return;
-    const canQuery = typeof (root as any).querySelector === 'function';
-    if (canQuery) {
-      const existing = (root as any).querySelector?.(`style[${markerAttr}]`) as HTMLStyleElement | null;
-      if (existing) return;
-    }
-    const style = doc.createElement('style');
-    style.setAttribute(markerAttr, '');
-    style.textContent = `@import url("${resolveStylesheetUrl(assetName)}");`;
-    if (typeof (root as any).appendChild === 'function') (root as any).appendChild(style);
-    else doc.head?.appendChild(style);
-  } catch (e) {
-    try { console.warn('[W3A][css-loader] Failed to append @import style for', assetName, e); } catch {}
-  }
+/**
+ * Shadow-root stylesheet fallback.
+ *
+ * Why: In the Chrome-extension wallet we load SDK CSS from `chrome-extension://.../sdk/*.css`.
+ * When constructable stylesheets are unavailable or `fetch()` is blocked/fails (common in
+ * strict CSP / extension contexts), a document-level <link> does NOT style Shadow DOM.
+ *
+ * Using a shadow-root <link rel="stylesheet"> keeps styles scoped to the component and
+ * avoids inline <style> (compatible with `style-src-attr 'none'`).
+ */
+async function ensureShadowLink(root: ShadowRoot, assetName: string, markerAttr: string): Promise<void> {
+  const existing = root.querySelector(`link[${markerAttr}]`) as HTMLLinkElement | null;
+  if (existing) { await waitForStylesheet(existing); return; }
+  const doc = getDoc(root);
+  if (!doc) return;
+  const link = doc.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = resolveStylesheetUrl(assetName);
+  link.setAttribute(markerAttr, '');
+  root.appendChild(link);
+  await waitForStylesheet(link);
 }
 
 async function adoptConstructable(root: ShadowRoot, assetName: string): Promise<boolean> {
@@ -112,8 +129,8 @@ async function adoptConstructable(root: ShadowRoot, assetName: string): Promise<
  * Ensure an external CSS asset is applied to the given target.
  *
  * Strategy:
- * - For ShadowRoot: try constructable; if that fails and we're in about:srcdoc,
- *   inject a scoped @import; otherwise ensure a document-level <link>.
+ * - For ShadowRoot: try constructable; if that fails (e.g., fetch blocked in extension/CSP),
+ *   fall back to a shadow-root <link rel="stylesheet"> so styles still apply to Shadow DOM.
  * - For Document/HTMLElement targets: ensure a document-level <link>.
  */
 export async function ensureExternalStyles(
@@ -137,10 +154,10 @@ export async function ensureExternalStyles(
     if (isShadow) {
       // 1) Try constructable stylesheets (CSP-safe)
       if (await adoptConstructable(root as ShadowRoot, assetName)) return;
-      // 2) Strict‑CSP compatible fallback: never inject inline <style>.
-      //    Use a document‑level <link rel="stylesheet"> so style-src 'self' and
-      //    style-src-attr 'none' policies are respected, even inside about:srcdoc.
-      if (doc) { await ensureDocumentLink(doc, assetName, markerAttr); }
+      // 2) Strict‑CSP compatible fallback: use a shadow-root <link rel="stylesheet">
+      //    (no inline <style>). This keeps the stylesheet scoped to the shadow tree
+      //    even when `adoptedStyleSheets` is unavailable or fetch fails.
+      await ensureShadowLink(root as ShadowRoot, assetName, markerAttr);
       return;
     }
 

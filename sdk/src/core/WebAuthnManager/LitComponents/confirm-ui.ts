@@ -326,10 +326,17 @@ function mountHostElement({
   // Ensure hidden state (idempotent) and mount
   portal.classList.remove('w3a-portal--visible');
   portal.replaceChildren(el);
-  // Reveal in the next frame via class toggle
-  requestAnimationFrame(() => {
-    portal.classList.add('w3a-portal--visible');
-  });
+  // Reveal after mount. Prefer rAF for smoothness, but also schedule a timeout fallback
+  // to avoid a stuck-invisible portal in environments where rAF is throttled/paused.
+  const reveal = () => {
+    try { portal.classList.add('w3a-portal--visible'); } catch {}
+  };
+  try {
+    requestAnimationFrame(reveal);
+  } catch {
+    setTimeout(reveal, 0);
+  }
+  setTimeout(reveal, 100);
   const handle = createHostConfirmHandle(el);
   return { el, handle };
 }

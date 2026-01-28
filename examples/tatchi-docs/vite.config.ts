@@ -56,7 +56,10 @@ export default defineConfig(({ mode }) => {
         enableDebugRoutes: true,
         sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
-        walletOrigin: env.VITE_WALLET_ORIGIN,
+        // Include the extension wallet origin in Permissions-Policy delegation so an embedded
+        // `chrome-extension://...` wallet-service iframe can call WebAuthn (if the browser allows it).
+        // This is a dev-only convenience; production apps should make this explicit in their headers.
+        walletOrigin: [env.VITE_WALLET_ORIGIN, env.VITE_EXTENSION_WALLET_ORIGIN].filter(Boolean),
         emitHeaders: true,
         coepMode,
         // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP/COEP and

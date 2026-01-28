@@ -72,6 +72,13 @@ export interface UserPreferences {
   useNetwork: 'testnet' | 'mainnet';
   confirmationConfig: ConfirmationConfig;
   signerMode?: SignerMode;
+  /**
+   * Non-sensitive routing preference: when true, apps may choose an extension-hosted wallet origin
+   * instead of the web wallet origin.
+   *
+   * This is optional for backwards compatibility with existing IndexedDB records.
+   */
+  useExtensionWallet?: boolean;
   // User preferences can be extended here as needed
 }
 
@@ -591,6 +598,7 @@ export class PasskeyClientDBManager {
         useRelayer: false,
         useNetwork: 'testnet',
         confirmationConfig: DEFAULT_CONFIRMATION_CONFIG,
+        useExtensionWallet: false,
         // Default preferences can be set here
       },
       encryptedVrfKeypair: storeUserData.encryptedVrfKeypair,

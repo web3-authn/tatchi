@@ -93,6 +93,55 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
     expect(res.threw).toBe(true);
   });
 
+  test('create(): permissions-policy NotAllowedError triggers bridge (not treated as cancel)', async ({ page }) => {
+    const res = await page.evaluate(async ({ paths }) => {
+      try {
+        const { executeWebAuthnWithParentFallbacksSafari } = await import(paths.fallbacks);
+
+        const rpId = 'example.com';
+        const publicKey = {
+          rp: { id: rpId, name: 'Test' },
+          user: { id: new Uint8Array([1]), name: 'u', displayName: 'u' },
+          challenge: new Uint8Array([1])
+        };
+
+        const orig = navigator.credentials.create.bind(navigator.credentials);
+        (navigator.credentials as any).create = async () => {
+          const e = new Error(
+            "The 'publickey-credentials-create' feature is not enabled in this document. " +
+            "In order to enable this feature in an iframe, you must pass the allowed origins list to the iframe's allow attribute."
+          );
+          (e as any).name = 'NotAllowedError';
+          throw e;
+        };
+
+        let bridgeCalls = 0;
+        const bridgedCredential = { bridged: true, kind: 'create' };
+        const bridgeClient = {
+          request: async () => {
+            bridgeCalls += 1;
+            return { ok: true, credential: bridgedCredential };
+          }
+        };
+
+        const result = await executeWebAuthnWithParentFallbacksSafari('create', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
+        // restore
+        (navigator.credentials as any).create = orig;
+        return { success: true, bridgeCalls, result };
+      } catch (err: any) {
+        return { success: false, error: err?.message || String(err) };
+      }
+    }, { paths: IMPORT_PATHS });
+
+    if (!res.success) {
+      test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`);
+      return;
+    }
+
+    expect(res.bridgeCalls).toBe(1);
+    expect(res.result).toEqual({ bridged: true, kind: 'create' });
+  });
+
   test('get(): bridge RP-ID/ROR failure → SecurityError (not cancellation)', async ({ page }) => {
     const res = await page.evaluate(async ({ paths }) => {
       try {

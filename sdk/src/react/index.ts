@@ -58,6 +58,10 @@ export type {
   LoginState,
   LoginResult,
   RegistrationResult,
+  ExtensionMigrationOptions,
+  ExtensionMigrationResult,
+  ExtensionMigrationState,
+  ExtensionMigrationEvent,
   // SSE Events
   RegistrationSSEEvent,
   LoginSSEvent,
@@ -88,6 +92,8 @@ export { useDeviceLinking } from './hooks/useDeviceLinking';
 export type { UseDeviceLinkingOptions, UseDeviceLinkingReturn } from './hooks/useDeviceLinking';
 export { useQRFileUpload } from './hooks/useQRFileUpload';
 export type { UseQRFileUploadOptions, UseQRFileUploadReturn } from './hooks/useQRFileUpload';
+export { useExtensionMigration } from './hooks/useExtensionMigration';
+export type { UseExtensionMigrationOptions, UseExtensionMigrationReturn } from './hooks/useExtensionMigration';
 export { usePostfixPosition } from './components/PasskeyAuthMenu/ui/usePostfixPosition';
 export type { UsePostfixPositionOptions, UsePostfixPositionReturn } from './components/PasskeyAuthMenu/ui/usePostfixPosition';
 export { TxExecutionStatus } from '../core/types/actions';
@@ -144,6 +150,10 @@ export {
   EmailRecoveryPhase,
   EmailRecoveryStatus
 } from '../core/types/sdkSentEvents';
+export {
+  ExtensionMigrationStep,
+  ExtensionMigrationStatus,
+} from '../core/types/extensionMigration';
 
 // === PROFILE BUTTON TYPES ===
 export { PROFILE_MENU_ITEM_IDS } from './components/AccountMenuButton/types';
@@ -160,6 +170,7 @@ export type {
   ProfileRelayerToggleSectionProps,
   ProfileStateRefs,
   DeviceLinkingScannerParams,
+  ExtensionMigrationParams,
   ToggleColorProps,
   ProfileSettingsMenuItemId,
   HighlightedProfileMenuItem,

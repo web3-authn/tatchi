@@ -2,6 +2,7 @@ import { html, css } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import { dispatchLitCancel } from '../lit-events';
 import { ensureExternalStyles } from '../css/css-loader';
+import { waitForNextPaint } from '../common/nextPaint';
 
 export type DrawerTheme = 'dark' | 'light';
 
@@ -124,7 +125,7 @@ export class DrawerElement extends LitElementWithProps {
     if (this._stylesReady) return true;
     if (!this._stylesAwaiting) {
       const settle = Promise.all(this._stylePromises)
-        .then(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+        .then(() => waitForNextPaint());
       this._stylesAwaiting = settle.then(() => { this._stylesReady = true; this.requestUpdate(); });
     }
     return false;

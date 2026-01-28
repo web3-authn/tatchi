@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Tatchi Wallet (Dev)",
+  "version": "0.0.1",
+  "description": "Dev harness extension that hosts the Tatchi wallet service page for iframe embedding.",
+  "action": {
+    "default_title": "Tatchi"
+  },
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": [
+    "storage",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://example.localhost/*",
+      "https://pta-m4.local/*",
+      "http://localhost:5174/*"
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "wallet-service.html",
+        "wallet-popup.html",
+        "wallet-confirm.html",
+        "sdk/*",
+        "sdk/workers/*"
+      ],
+      "matches": [
+        "https://example.localhost/*",
+        "https://pta-m4.local/*",
+        "http://localhost:5174/*"
+      ]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

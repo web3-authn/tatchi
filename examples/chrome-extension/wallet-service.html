@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Web3Authn Wallet Service</title>
+    <!-- Surface styles are external so strict CSP can keep style-src 'self' -->
+    <link rel="stylesheet" href="/sdk/wallet-service.css" />
+    <!-- Prefetch component styles so they are warmed without triggering preload warnings -->
+    <link rel="prefetch" as="style" href="/sdk/drawer.css" />
+    <link rel="prefetch" as="style" href="/sdk/tx-tree.css" />
+    <link rel="prefetch" as="style" href="/sdk/halo-border.css" />
+    <link rel="prefetch" as="style" href="/sdk/passkey-halo-loading.css" />
+    <!-- Component theme CSS: shared tokens + component-scoped tokens -->
+    <link rel="stylesheet" href="/sdk/w3a-components.css" />
+    <link rel="stylesheet" href="/sdk/drawer.css" />
+    <link rel="stylesheet" href="/sdk/tx-tree.css" />
+    <link rel="stylesheet" href="/sdk/tx-confirmer.css" />
+    <!-- Minimal shims some ESM bundles expect (externalized to enable strict CSP) -->
+    <script src="/sdk/wallet-shims.js"></script>
+    <!-- Hint the browser to fetch the host script earlier -->
+    <link rel="modulepreload" href="/sdk/wallet-iframe-host.js" crossorigin>
+  </head>
+  <body>
+    <!-- Load the wallet host directly from the bundled SDK assets. -->
+    <script type="module" src="/sdk/wallet-iframe-host.js"></script>
+  </body>
+</html>
+

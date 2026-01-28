@@ -5,6 +5,7 @@ import DrawerElement from '../Drawer';
 // We no longer map full color sets from DARK_THEME/LIGHT_THEME here.
 import { dispatchLitCancel, dispatchLitCopy } from '../lit-events';
 import { ensureExternalStyles } from '../css/css-loader';
+import { waitForNextPaint } from '../common/nextPaint';
 
 export type ExportViewerTheme = 'dark' | 'light';
 export type ExportViewerVariant = 'drawer' | 'modal';
@@ -79,7 +80,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     if (this._stylesReady) return true;
     if (!this._stylesAwaiting) {
       const settle = Promise.all(this._stylePromises)
-        .then(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+        .then(() => waitForNextPaint());
       this._stylesAwaiting = settle.then(() => { this._stylesReady = true; this.requestUpdate(); });
     }
     return false;

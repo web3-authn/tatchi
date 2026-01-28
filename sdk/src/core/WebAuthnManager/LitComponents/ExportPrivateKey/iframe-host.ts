@@ -9,6 +9,7 @@ import type { ExportViewerVariant, ExportViewerTheme } from './viewer';
 import { isObject, isString, isBoolean } from '@/utils/validation';
 import { dispatchLitCancel, dispatchLitConfirm, dispatchLitCopy } from '../lit-events';
 import { ensureExternalStyles } from '../css/css-loader';
+import { waitForNextPaint } from '../common/nextPaint';
 
 type MessageType =
   | 'READY'
@@ -97,7 +98,7 @@ export class IframeExportHost extends LitElementWithProps {
     if (this._stylesReady) return true;
     if (!this._stylesAwaiting) {
       const settle = Promise.all(this._stylePromises)
-        .then(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+        .then(() => waitForNextPaint());
       this._stylesAwaiting = settle.then(() => { this._stylesReady = true; this.requestUpdate(); });
     }
     return false;

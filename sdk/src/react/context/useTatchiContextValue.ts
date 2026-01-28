@@ -128,6 +128,18 @@ export function useTatchiContextValue(args: {
     return tatchi.stopDevice2LinkingFlow();
   }, [tatchi]);
 
+  const startExtensionMigration: TatchiContextType['startExtensionMigration'] = useCallback((args) => {
+    return tatchi.startExtensionMigration(args);
+  }, [tatchi]);
+
+  const cancelExtensionMigration: TatchiContextType['cancelExtensionMigration'] = useCallback((message) => {
+    tatchi.cancelExtensionMigration(message);
+  }, [tatchi]);
+
+  const getExtensionMigrationState: TatchiContextType['getExtensionMigrationState'] = useCallback(() => {
+    return tatchi.getExtensionMigrationState();
+  }, [tatchi]);
+
   const executeAction: TatchiContextType['executeAction'] = useCallback((args) => {
     return tatchi.executeAction({ ...args, options: { ...(args.options || {}) } });
   }, [tatchi]);
@@ -172,6 +184,9 @@ export function useTatchiContextValue(args: {
     syncAccount,
     startDevice2LinkingFlow,
     stopDevice2LinkingFlow,
+    startExtensionMigration,
+    cancelExtensionMigration,
+    getExtensionMigrationState,
     getLoginSession,
     refreshLoginState,
     loginState,
@@ -198,6 +213,9 @@ export function useTatchiContextValue(args: {
     syncAccount,
     startDevice2LinkingFlow,
     stopDevice2LinkingFlow,
+    startExtensionMigration,
+    cancelExtensionMigration,
+    getExtensionMigrationState,
     getLoginSession,
     refreshLoginState,
     loginState,

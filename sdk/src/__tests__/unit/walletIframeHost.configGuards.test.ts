@@ -11,14 +11,18 @@ test.describe('WalletIframe host config guardrails', () => {
         relayer: { url: 'https://relay.example' },
         iframeWallet: {
           walletOrigin: 'https://wallet.example.localhost',
+          extensionWalletOrigin: 'chrome-extension://abcd1234',
           walletServicePath: '/wallet-service',
+          extensionWalletServicePath: '/wallet-service.html',
           sdkBasePath: '/sdk',
           rpIdOverride: 'example.localhost',
         },
       });
 
       expect(sanitized.iframeWallet?.walletOrigin).toBe('');
+      expect(sanitized.iframeWallet?.extensionWalletOrigin).toBe('');
       expect(sanitized.iframeWallet?.walletServicePath).toBe('');
+      expect(sanitized.iframeWallet?.extensionWalletServicePath).toBe('');
       expect(sanitized.iframeWallet?.sdkBasePath).toBe('/sdk');
       expect(sanitized.iframeWallet?.rpIdOverride).toBe('example.localhost');
       expect(warnings.length).toBeGreaterThan(0);
@@ -27,11 +31,10 @@ test.describe('WalletIframe host config guardrails', () => {
     }
   });
 
-  test('assertWalletHostConfigsNoNestedIframeWallet throws when walletOrigin is set', async () => {
-    expect(() => assertWalletHostConfigsNoNestedIframeWallet({
-      relayer: { url: 'https://relay.example' },
-      iframeWallet: { walletOrigin: 'https://wallet.example.localhost' },
-    })).toThrow(/walletOrigin/);
-  });
+	  test('assertWalletHostConfigsNoNestedIframeWallet throws when walletOrigin is set', async () => {
+	    expect(() => assertWalletHostConfigsNoNestedIframeWallet({
+	      relayer: { url: 'https://relay.example' },
+	      iframeWallet: { walletOrigin: 'https://wallet.example.localhost', extensionWalletOrigin: 'chrome-extension://abcd1234' },
+	    })).toThrow(/walletOrigin/);
+	  });
 });
-

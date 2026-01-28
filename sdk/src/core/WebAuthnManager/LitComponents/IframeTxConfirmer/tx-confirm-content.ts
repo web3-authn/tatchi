@@ -8,6 +8,7 @@ import { fromTransactionInputsWasm } from '../../../types/actions';
 import TxTree from '../TxTree';
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
 import { ensureExternalStyles } from '../css/css-loader';
+import { waitForNextPaint } from '../common/nextPaint';
 import { W3A_TX_TREE_ID } from '../tags';
 import type { ThemeName } from '../confirm-ui-types';
 
@@ -126,9 +127,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
   protected shouldUpdate(_changed: PropertyValues): boolean {
     if (this._stylesReady) return true;
     if (!this._stylesAwaiting) {
-      const p = Promise.all(this._stylePromises).then(
-        () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
-      );
+      const p = Promise.all(this._stylePromises).then(() => waitForNextPaint());
       this._stylesAwaiting = p.then(() => { this._stylesReady = true; this.requestUpdate(); });
     }
     return false;

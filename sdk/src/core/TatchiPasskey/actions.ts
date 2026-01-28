@@ -280,14 +280,15 @@ export async function executeActionInternal({
   const actions = Array.isArray(actionArgs) ? actionArgs : [actionArgs];
 
   try {
-    // Pre-warm NonceManager with fresh transaction context data without blocking UI feedback
-    void context.webAuthnManager
-      .getNonceManager()
-      .getNonceBlockHashAndHeight(context.nearClient)
-      .catch((error) => {
+    // Pre-warm NonceManager with fresh transaction context data without blocking UI feedback.
+    // Only do this when the manager is already initialized; otherwise it will throw and log noise.
+    const nm = context.webAuthnManager.getNonceManager();
+    if (nm.nearAccountId && nm.nearPublicKeyStr) {
+      void nm.getNonceBlockHashAndHeight(context.nearClient).catch((error) => {
         console.warn('[executeAction]: Failed to pre-warm NonceManager:', error);
         // Continue execution - NonceManager will fall back to direct RPC calls if needed
       });
+    }
 
     const signedTxs = await signTransactionsWithActionsInternal({
       context,

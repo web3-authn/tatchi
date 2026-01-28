@@ -54,6 +54,11 @@ export const useProfileState = (options?: UseProfileStateOptions) => {
       );
       if (inQRScanner) return;
 
+      const inExtensionUpgradeModal = pathEls.some((el) =>
+        Array.from(el.classList ?? []).some((c) => c.startsWith('w3a-extension-upgrade-modal'))
+      );
+      if (inExtensionUpgradeModal) return;
+
       if (!isControlled) {
         setUncontrolledOpen(false);
       }

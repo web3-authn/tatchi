@@ -1,7 +1,12 @@
 import { ClientAuthenticatorData } from '../IndexedDBManager';
 import { base64UrlDecode } from '../../utils/encoders';
 import { outputAs32Bytes, VRFChallenge } from '../types/vrf-worker';
-import { serializeAuthenticationCredentialWithPRF, generateChaCha20Salt, generateEd25519Salt } from './credentialsHelpers';
+import {
+  serializeAuthenticationCredentialWithPRF,
+  generateChaCha20Salt,
+  generateEd25519Salt,
+  isSerializedRegistrationCredential,
+} from './credentialsHelpers';
 import type {
   WebAuthnAuthenticationCredential,
   WebAuthnRegistrationCredential
@@ -157,7 +162,7 @@ export class TouchIdPrompt {
     nearAccountId,
     challenge,
     deviceNumber,
-  }: RegisterCredentialsArgs): Promise<PublicKeyCredential> {
+  }: RegisterCredentialsArgs): Promise<PublicKeyCredential | WebAuthnRegistrationCredential> {
     // New controller per create() call
     this.abortController = new AbortController();
     this.removePageAbortHandlers = TouchIdPrompt.attachPageAbortHandlers(this.abortController);
@@ -167,7 +172,9 @@ export class TouchIdPrompt {
       challenge: outputAs32Bytes(challenge) as BufferSource,
       rp: {
         name: 'WebAuthn VRF Passkey',
-        id: rpId
+        // If rpId matches the current window.location.hostname (e.g. extension ID),
+        // omit it from the options object to avoid potential browser validation issues.
+        ...(rpId && rpId !== window?.location?.hostname ? { id: rpId } : {})
       },
       user: {
         id: new TextEncoder().encode(generateDeviceSpecificUserId(nearAccountId, deviceNumber)),
@@ -202,6 +209,9 @@ export class TouchIdPrompt {
         // Pass AbortSignal through when supported; Safari bridge path may ignore it.
         abortSignal: this.abortController.signal,
       });
+      if (isSerializedRegistrationCredential(result)) {
+        return result;
+      }
       return result as PublicKeyCredential;
     } finally {
       this.removePageAbortHandlers?.();
@@ -238,7 +248,9 @@ export class TouchIdPrompt {
     const rpId = this.getRpId();
     const publicKey: PublicKeyCredentialRequestOptions = {
       challenge: outputAs32Bytes(challenge) as BufferSource,
-      rpId,
+      // If rpId matches the current window.location.hostname (e.g. extension ID),
+      // omit it from the options object to avoid potential browser validation issues.
+      ...(rpId && rpId !== window?.location?.hostname ? { rpId } : {}),
       allowCredentials: allowCredentials.map((credential) => ({
         id: base64UrlDecode(credential.id) as BufferSource,
         type: 'public-key' as PublicKeyCredentialType,

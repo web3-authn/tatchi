@@ -5,6 +5,7 @@ import type { ClientAuthenticatorData } from '../../../../IndexedDBManager';
 import type { SessionVrfWorkerManager } from '../../';
 import type { KnownSecureConfirmRequest, SerializableCredential, TransactionSummary } from '../types';
 import type { ThemeName } from '../../../../types/tatchi';
+import type { WebAuthnRegistrationCredential } from '../../../../types/webauthn';
 
 export type NearContextResult = {
   transactionContext: TransactionContext | null;
@@ -42,7 +43,7 @@ export interface WebAuthnCollector {
     nearAccountId: string;
     challenge: VRFChallenge;
     deviceNumber?: number;
-  }): Promise<PublicKeyCredential>;
+  }): Promise<PublicKeyCredential | WebAuthnRegistrationCredential>;
 }
 
 export interface ConfirmUiRenderer {

@@ -13,7 +13,8 @@ import { setEmbeddedBase } from '../../core/sdkPaths';
 //   not from the host app origin.
 //
 // Requirements
-// - `config.iframeWallet.walletOrigin` points to the wallet site (e.g. https://web3authn.org)
+// - `config.iframeWallet.walletOrigin` points to the web wallet site (e.g. https://wallet.example.com)
+// - `config.iframeWallet.extensionWalletOrigin` (optional) points to the extension wallet origin (chrome-extension://...)
 // - `config.iframeWallet.sdkBasePath` (default '/sdk') is served on that wallet site
 // - `config.iframeWallet.walletServicePath` (default '/wallet-service') is reachable
 //
@@ -26,9 +27,26 @@ import { setEmbeddedBase } from '../../core/sdkPaths';
 // - `/wallet-service` may 308 → `/wallet-service/` on Pages; both are fine.
 export function usePreconnectWalletAssets(config: TatchiContextProviderProps['config']): void {
   // Derive stable primitives to avoid re-running the effect on object identity changes.
-  const walletOrigin = config?.iframeWallet?.walletOrigin as string | undefined;
-  const servicePath = config?.iframeWallet?.walletServicePath || '/wallet-service';
+  const webWalletOrigin = config?.iframeWallet?.walletOrigin as string | undefined;
+  const extensionWalletOrigin = config?.iframeWallet?.extensionWalletOrigin as string | undefined;
   const sdkBasePath = config?.iframeWallet?.sdkBasePath || '/sdk';
+  const preferExtension = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const v = window.localStorage?.getItem('w3a_use_extension_wallet');
+      const s = String(v || '').trim().toLowerCase();
+      return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+    } catch {
+      return false;
+    }
+  })();
+  const walletOrigin =
+    (preferExtension && extensionWalletOrigin)
+      ? extensionWalletOrigin
+      : (webWalletOrigin ?? extensionWalletOrigin);
+  const servicePath = walletOrigin?.startsWith('chrome-extension://')
+    ? (config?.iframeWallet?.extensionWalletServicePath || '/wallet-service.html')
+    : (config?.iframeWallet?.walletServicePath || '/wallet-service');
   const relayerUrl = config?.relayer?.url as string | undefined;
 
   React.useEffect(() => {
@@ -51,6 +69,15 @@ export function usePreconnectWalletAssets(config: TatchiContextProviderProps['co
           }
         }
       } catch {}
+      const isNetworkWallet = (() => {
+        try {
+          if (!walletOrigin) return false;
+          const p = new URL(walletOrigin, window.location.href).protocol;
+          return p === 'http:' || p === 'https:';
+        } catch {
+          return false;
+        }
+      })();
       const ensureLink = (rel: string, href?: string, attrs?: Record<string, string>) => {
         try {
           if (!href) return;
@@ -70,7 +97,7 @@ export function usePreconnectWalletAssets(config: TatchiContextProviderProps['co
         } catch {}
       };
 
-      if (walletOrigin) {
+      if (walletOrigin && isNetworkWallet) {
         // Reduce DNS/TLS handshake and fetch delays for the wallet origin
         ensureLink('dns-prefetch', walletOrigin);
         ensureLink('preconnect', walletOrigin, { crossorigin: '' });

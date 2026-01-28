@@ -23,6 +23,7 @@ import { createConfirmSession } from '../adapters/session';
 import { createConfirmTxFlowAdapters } from '../adapters/createAdapters';
 import { computeUiIntentDigestFromNep413 } from '../../../../digests/intentDigest';
 import type { ThemeName } from '../../../../types/tatchi';
+import { isChromeExtensionContext } from '../../../../ExtensionWallet';
 
 function getSigningAuthMode(request: SigningSecureConfirmRequest): SigningAuthMode {
   if (request.type === SecureConfirmationType.SIGN_TRANSACTION) {
@@ -127,11 +128,16 @@ export async function handleTransactionSigningFlow(
         await adapters.vrf.dispenseSessionKey({ sessionId: request.requestId, uses: usesNeeded });
       } catch (err: unknown) {
         const msg = String((toError(err))?.message || err || '');
+        const isExt = isChromeExtensionContext();
+        const friendly =
+          isExt
+            ? 'Extension signer is locked. Open the extension side panel and log in to unlock signing.'
+            : undefined;
         return session.confirmAndCloseModal({
           requestId: request.requestId,
           intentDigest: getIntentDigest(request),
           confirmed: false,
-          error: msg || 'Failed to dispense warm session key',
+          error: friendly || msg || 'Failed to dispense warm session key',
         });
       }
 
@@ -198,6 +204,16 @@ export async function handleTransactionSigningFlow(
         const payload = request.payload;
         contractId = payload.contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId;
         nearRpcUrl = payload.nearRpcUrl || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl;
+      }
+
+      // Extension wallet runs on a `chrome-extension://...` origin.
+      // The on-chain verifier is designed around web origins and can reject extension-scoped WebAuthn responses,
+      // which would block local signing even though the extension has the account key material locally.
+      // Skip contract verification gating in extension contexts and rely on the WebAuthn ceremony + local vault
+      // decryption to authenticate the user for local signing.
+      if (isChromeExtensionContext()) {
+        contractId = undefined;
+        nearRpcUrl = undefined;
       }
 
       await adapters.vrf.mintSessionKeysAndSendToSigner({

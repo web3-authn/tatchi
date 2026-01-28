@@ -16,6 +16,8 @@ export function sanitizeWalletHostConfigs(input: TatchiConfigsInput): TatchiConf
   const incoming = input.iframeWallet || {};
   const incomingWalletOrigin = incoming.walletOrigin;
   const incomingServicePath = (incoming as { walletServicePath?: unknown }).walletServicePath as string | undefined;
+  const incomingExtensionOrigin = (incoming as { extensionWalletOrigin?: unknown }).extensionWalletOrigin as string | undefined;
+  const incomingExtensionServicePath = (incoming as { extensionWalletServicePath?: unknown }).extensionWalletServicePath as string | undefined;
 
   if (incomingWalletOrigin) {
     console.warn(
@@ -29,6 +31,18 @@ export function sanitizeWalletHostConfigs(input: TatchiConfigsInput): TatchiConf
       incomingServicePath,
     );
   }
+  if (incomingExtensionOrigin) {
+    console.warn(
+      '[WalletIframeHost] Ignoring iframeWallet.extensionWalletOrigin inside wallet host (nested iframe clients are not supported).',
+      incomingExtensionOrigin,
+    );
+  }
+  if (incomingExtensionServicePath) {
+    console.warn(
+      '[WalletIframeHost] Ignoring iframeWallet.extensionWalletServicePath inside wallet host (nested iframe clients are not supported).',
+      incomingExtensionServicePath,
+    );
+  }
 
   // Use empty strings (not undefined) so any config-merging using `??` cannot
   // fall back to a default wallet origin/service path.
@@ -38,16 +52,18 @@ export function sanitizeWalletHostConfigs(input: TatchiConfigsInput): TatchiConf
       ...incoming,
       walletOrigin: '',
       walletServicePath: '',
+      extensionWalletOrigin: '',
+      extensionWalletServicePath: '',
     },
   };
 }
 
 export function assertWalletHostConfigsNoNestedIframeWallet(configs: TatchiConfigsInput): void {
-  const walletOrigin = configs.iframeWallet?.walletOrigin;
-  if (walletOrigin) {
+  const webOrigin = configs.iframeWallet?.walletOrigin;
+  const extensionOrigin = configs.iframeWallet?.extensionWalletOrigin;
+  if (webOrigin || extensionOrigin) {
     throw new Error(
-      `[WalletIframeHost] Invariant violated: iframeWallet.walletOrigin must be empty in wallet host mode (got "${walletOrigin}").`
+      `[WalletIframeHost] Invariant violated: iframeWallet wallet origins must be empty in wallet host mode (got walletOrigin="${webOrigin || ''}", extensionWalletOrigin="${extensionOrigin || ''}").`
     );
   }
 }
-

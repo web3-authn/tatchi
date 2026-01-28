@@ -144,14 +144,16 @@ export class WebAuthnManager {
       });
     }
 
-    // Best-effort: load persisted preferences unless we are in app-origin iframe mode,
-    // where the wallet origin owns persistence and the app should avoid IndexedDB.
-    const shouldAvoidAppOriginIndexedDB =
-      !!tatchiPasskeyConfigs.iframeWallet?.walletOrigin && !__isWalletIframeHostMode();
-    if (!shouldAvoidAppOriginIndexedDB) {
-      void this.userPreferencesManager.initFromIndexedDB().catch(() => undefined);
-    }
-  }
+	    // Best-effort: load persisted preferences unless we are in app-origin iframe mode,
+	    // where the wallet origin owns persistence and the app should avoid IndexedDB.
+	    const hasAnyWalletOrigin = !!(
+	      tatchiPasskeyConfigs.iframeWallet?.walletOrigin || tatchiPasskeyConfigs.iframeWallet?.extensionWalletOrigin
+	    );
+	    const shouldAvoidAppOriginIndexedDB = hasAnyWalletOrigin && !__isWalletIframeHostMode();
+	    if (!shouldAvoidAppOriginIndexedDB) {
+	      void this.userPreferencesManager.initFromIndexedDB().catch(() => undefined);
+	    }
+	  }
 
   /**
    * Public pre-warm hook to initialize signer workers ahead of time.
@@ -559,6 +561,13 @@ export class WebAuthnManager {
       if (!wrapKeySalt) {
         throw new Error(`Missing wrapKeySalt for account ${nearAccountId} device ${deviceNumber}`);
       }
+
+      // Ensure nonce manager is initialized for this account+key before attempting
+      // to fetch nonce/blockhash context for signing.
+      // Some flows (extension migration finalize) may run without an active login/VRF session.
+      try {
+        this.nonceManager.initializeUser(nearAccountId, keyMaterial.publicKey);
+      } catch {}
 
       // === STEP 1: Create MessagePort session for WrapKeySeed delivery ===
       const signerPort = await this.vrfWorkerManager.createSigningSessionChannel(sessionId);

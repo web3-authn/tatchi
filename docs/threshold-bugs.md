@@ -20,8 +20,8 @@ This is typically **not** “stale session state”. It is usually one of these:
   - a session “record” key (scope/expiry).
   `/authorize` decremented the counter first, then fetched the record. If the record read returned `null` (replica lag, partial write, transient outage, or simply different TTL rounding), the server responded `"threshold session expired or invalid"`.
 - **Ephemeral runtime state:** on Cloudflare Workers, any in-process `Map` state can disappear between requests (isolate restart / request routed to a different isolate). Any `in-memory` threshold stores can make cross-request flows fail.
-- **JWT TTL mismatch / missing standard claims:** if the threshold-session JWT does not include an `exp` aligned to the threshold session budget, clients can keep sending a token the relayer should treat as expired, which surfaces as `unauthorized`.
-- **Host JWT signing overriding `exp`:** `jsonwebtoken` can override payload `exp` when `expiresIn` is passed, unintentionally extending token lifetime beyond the threshold budget.
+- **JWT TTL mismatch / missing standard claims:** if the threshold-session JWT `exp` is not aligned to the threshold session budget, clients can keep sending a token the relayer should treat as expired, which surfaces as `unauthorized`.
+- **Host JWT signing not aligning expiry:** the relayer emits `thresholdExpiresAtMs` and `vrfSessionExp` (seconds) so the JWT signing hook can set `expiresIn` without needing a payload `exp` claim (avoids `jsonwebtoken` conflicts).
 
 ### Core Fixes
 #### Relayer: avoid KV record reads during `/authorize` (JWT-claim scoped sessions)
@@ -35,10 +35,12 @@ This is typically **not** “stale session state”. It is usually one of these:
 
 #### Relayer: make JWT `exp` match the threshold session expiry
 - The threshold-session token now includes standard JWT time claims:
-  - `exp = floor(thresholdExpiresAtMs / 1000)`
   - `iat = floor(now / 1000)`
-- `SessionService.verifyJwt()` now enforces standard `exp`/`nbf` when present (don’t rely on host `verifyToken` implementations to do it).
-- Integration note: if you use `jsonwebtoken` and pass `expiresIn`, it will override payload `exp`; ensure your `signToken` respects payload `exp` for these tokens.
+- The relayer provides the threshold-session expiry as:
+  - `thresholdExpiresAtMs` (milliseconds since epoch), and
+  - `vrfSessionExp = floor(thresholdExpiresAtMs / 1000)` (seconds since epoch)
+- `SessionService.verifyJwt()` enforces standard `exp`/`nbf` when present (don’t rely on host `verifyToken` implementations to do it).
+- Integration note: when using `jsonwebtoken`, compute `expiresIn` from `vrfSessionExp - iat` (or from `thresholdExpiresAtMs`) and do not supply a payload `exp` claim.
 
 #### Deployment: Cloudflare Workers must not use in-memory stores
 - Cloudflare Workers isolates are ephemeral; any in-process `Map` state can disappear between requests.

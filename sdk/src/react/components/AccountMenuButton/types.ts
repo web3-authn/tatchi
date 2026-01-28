@@ -2,6 +2,7 @@ import type { ToggleColorProps } from './Toggle';
 import type { DeviceLinkingSSEEvent, LinkDeviceResult } from '@/index';
 import type { ThemeName } from '@/core/WebAuthnManager/LitComponents/confirm-ui-types';
 import type { SignerMode } from '@/core/types/signer-worker';
+import type { ExtensionMigrationEvent, ExtensionMigrationOptions } from '@/core/types/extensionMigration';
 
 export interface ProfileDimensions {
   width: number;
@@ -18,6 +19,7 @@ export const PROFILE_MENU_ITEM_IDS = {
   EXPORT_KEYS: 'export-keys',
   SCAN_LINK_DEVICE: 'scan-link-device',
   LINKED_DEVICES: 'linked-devices',
+  UPGRADE_EXTENSION: 'upgrade-extension',
   TOGGLE_THEME: 'toggle-theme',
   TRANSACTION_SETTINGS: 'transaction-settings',
 } as const;
@@ -51,6 +53,12 @@ export interface DeviceLinkingScannerParams {
   fundingAmount?: string;
 }
 
+export interface ExtensionMigrationParams {
+  cleanupDefaults?: ExtensionMigrationOptions['cleanup'];
+  onEvent?: (event: ExtensionMigrationEvent) => void;
+  onError?: (error: Error) => void;
+}
+
 export interface AccountMenuButtonProps {
   nearAccountId: string;
   nearExplorerBaseUrl?: string;
@@ -59,6 +67,8 @@ export interface AccountMenuButtonProps {
   onLogout?: () => void;
   // QR Code Scanner parameters
   deviceLinkingScannerParams?: DeviceLinkingScannerParams;
+  // Extension migration parameters
+  extensionMigrationParams?: ExtensionMigrationParams;
   // styles
   toggleColors?: ToggleColorProps;
   style?: React.CSSProperties;

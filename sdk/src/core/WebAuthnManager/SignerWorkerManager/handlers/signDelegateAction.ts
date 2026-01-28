@@ -34,6 +34,7 @@ import { SignerWorkerManagerContext } from '..';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { generateSessionId } from '../sessionHandshake.js';
 import { ensureEd25519Prefix, toPublicKeyString } from './validation';
+import { isChromeExtensionContext } from '../../../ExtensionWallet';
 
 export async function signDelegateAction({
   ctx,
@@ -122,11 +123,18 @@ export async function signDelegateAction({
   // - relayer scope checks (/authorize expects signingPayload.delegate.publicKey == relayer key)
   ctx.nonceManager.initializeUser(toAccountId(nearAccountId), signingContext.signingNearPublicKeyStr);
 
+  // Extension local signing should never prompt TouchID per-transaction.
+  // The extension signer is locked/unlocked at login/logout (warm session owned by the VRF worker).
+  const signingAuthMode =
+    (!signingContext.threshold && isChromeExtensionContext())
+      ? 'warmSession'
+      : (signingContext.threshold && !signingContext.threshold.thresholdSessionJwt ? 'webauthn' : undefined);
+
   const confirmation = await vrfWorkerManager.confirmAndPrepareSigningSession({
     ctx,
     sessionId,
     kind: 'delegate',
-    ...(signingContext.threshold && !signingContext.threshold.thresholdSessionJwt ? { signingAuthMode: 'webauthn' } : {}),
+    ...(signingAuthMode ? { signingAuthMode } : {}),
     nearAccountId,
     delegate: {
       senderId: delegate.senderId || nearAccountId,

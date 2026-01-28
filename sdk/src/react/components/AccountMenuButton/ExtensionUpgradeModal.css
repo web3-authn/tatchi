@@ -1,0 +1,197 @@
+/* Extension Upgrade Modal Styles */
+
+.w3a-extension-upgrade-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--w3a-z-underlay-backdrop, calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-backdrop-offset, 2)));
+  background: oklch(0.2 0.01 240 / 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: backdrop-opacity 32ms ease-in;
+  will-change: opacity;
+}
+
+.w3a-extension-upgrade-modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 1.25rem;
+  min-width: 360px;
+  max-width: 520px;
+  background: var(--w3a-colors-colorBackground);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 2rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.w3a-extension-upgrade-modal-header {
+  display: grid;
+  gap: 4px;
+  padding-right: 2.5rem;
+}
+
+.w3a-extension-upgrade-modal-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--w3a-colors-textPrimary);
+  margin: 0;
+}
+
+.w3a-extension-upgrade-modal-subtitle {
+  font-size: 0.95rem;
+  color: var(--w3a-colors-textSecondary);
+  margin: 0;
+}
+
+.w3a-extension-upgrade-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--w3a-colors-textMuted);
+  cursor: pointer;
+  padding: 12px;
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.w3a-extension-upgrade-modal-close:hover {
+  color: var(--w3a-colors-textPrimary);
+  background: var(--w3a-colors-surface);
+}
+
+.w3a-extension-upgrade-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.w3a-extension-upgrade-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--w3a-colors-surface);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.w3a-extension-upgrade-step-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--w3a-colors-borderPrimary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--w3a-colors-borderPrimary), transparent 50%);
+}
+
+.w3a-extension-upgrade-step.is-active {
+  border-color: color-mix(in srgb, var(--w3a-colors-primary), transparent 45%);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+}
+
+.w3a-extension-upgrade-step.is-active .w3a-extension-upgrade-step-indicator {
+  background: var(--w3a-colors-primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--w3a-colors-primary), transparent 70%);
+}
+
+.w3a-extension-upgrade-step.is-complete {
+  border-color: color-mix(in srgb, var(--w3a-colors-success, #19a974), transparent 50%);
+}
+
+.w3a-extension-upgrade-step.is-complete .w3a-extension-upgrade-step-indicator {
+  background: var(--w3a-colors-success, #19a974);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--w3a-colors-success, #19a974), transparent 70%);
+}
+
+.w3a-extension-upgrade-step.is-error {
+  border-color: color-mix(in srgb, var(--w3a-colors-error), transparent 50%);
+}
+
+.w3a-extension-upgrade-step.is-error .w3a-extension-upgrade-step-indicator {
+  background: var(--w3a-colors-error);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--w3a-colors-error), transparent 70%);
+}
+
+.w3a-extension-upgrade-step-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--w3a-colors-textPrimary);
+}
+
+.w3a-extension-upgrade-message {
+  font-size: 0.9rem;
+  color: var(--w3a-colors-textSecondary);
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: var(--w3a-colors-surface);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+}
+
+.w3a-extension-upgrade-message.is-error {
+  color: var(--w3a-colors-error);
+  border-color: color-mix(in srgb, var(--w3a-colors-error), transparent 50%);
+}
+
+.w3a-extension-upgrade-cleanup {
+  display: grid;
+  gap: 8px;
+  padding: 0.75rem;
+  border-radius: 14px;
+  background: var(--w3a-colors-surface);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+}
+
+.w3a-extension-upgrade-cleanup-header {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--w3a-colors-textPrimary);
+}
+
+.w3a-extension-upgrade-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: var(--w3a-colors-textSecondary);
+}
+
+.w3a-extension-upgrade-checkbox input {
+  margin-top: 2px;
+}
+
+.w3a-extension-upgrade-confirm {
+  border-top: 1px dashed var(--w3a-colors-borderPrimary);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.w3a-extension-upgrade-checkbox.confirm {
+  color: var(--w3a-colors-textPrimary);
+  font-weight: 600;
+}
+
+.w3a-extension-upgrade-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .w3a-extension-upgrade-modal-content {
+    min-width: 0;
+    width: 92vw;
+    max-width: 92vw;
+  }
+}
+
+@keyframes backdrop-opacity {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

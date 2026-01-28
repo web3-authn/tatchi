@@ -5,6 +5,9 @@ import { createRequire } from 'node:module'
 
 export function addPreconnectLink(res: any, origin?: string) {
   if (!origin) return
+  // Only preconnect to network origins; schemes like `chrome-extension://` are not fetchable
+  // and may produce invalid Link headers in some environments.
+  if (!/^https?:\/\//i.test(origin)) return
   try {
     const link = `<${origin}>; rel=preconnect; crossorigin`
     const existing = res.getHeader?.('Link')

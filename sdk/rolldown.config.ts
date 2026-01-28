@@ -23,6 +23,27 @@ const defineNodeEnvPlugin = {
 const isProd = process.env.NODE_ENV === 'production';
 const prodPlugins = isProd ? [defineNodeEnvPlugin] : [];
 
+// Rolldown embedded bundles should not inline React CSS imports; styles are shipped as a separate CSS file.
+// This keeps embedded JS bundles CSP-friendly and avoids requiring CSS bundling support in Rolldown.
+const ignoreCssImportsPlugin = {
+  name: 'ignore-css-imports',
+  resolveId(source: string) {
+    if (source && source.endsWith('.css')) {
+      return `\0css:${source}`;
+    }
+    return null as any;
+  },
+  load(id: string) {
+    if (id && id.startsWith('\0css:')) {
+      return {
+        code: 'export default "";',
+        map: null as any,
+      };
+    }
+    return null as any;
+  },
+};
+
 const external = [
   // React dependencies
   'react',
@@ -725,6 +746,12 @@ const configs = [
       'w3a-tx-confirmer': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/tx-confirmer-wrapper.ts',
       // Wallet service host (headless)
       'wallet-iframe-host': 'src/core/WalletIframe/host/wallet-iframe-host.ts',
+      // Extension popup host (top-level WebAuthn ceremony for chrome-extension:// iframe limitations)
+      'wallet-popup-host': 'src/core/WalletIframe/host/chromeExtension/popup-host.ts',
+      // Extension confirm popup host (TxConfirmer UI rendered in a top-level extension surface)
+      'wallet-confirm-host': 'src/core/WalletIframe/host/chromeExtension/confirm-popup-host.ts',
+      // Extension side panel host (React settings UI)
+      'extension-sidepanel-host': 'src/core/WalletIframe/host/chromeExtension/extension-sidepanel-host.tsx',
       // Export viewer host + bootstrap
       'iframe-export-bootstrap': 'src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts',
     },
@@ -739,6 +766,7 @@ const configs = [
     },
     // Minification is controlled via CLI flags; no config option in current Rolldown types
     plugins: [
+      ignoreCssImportsPlugin,
       ...prodPlugins,
       emitWalletServiceStaticPlugin,
     ]

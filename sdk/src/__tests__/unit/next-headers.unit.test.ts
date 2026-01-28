@@ -13,6 +13,33 @@ test.describe('plugins/next headers', () => {
     expect(headers['Content-Security-Policy']).toBe(buildWalletCsp({ mode: 'strict', frameSrc: [wallet] }))
   })
 
+  test('tatchiNextHeaders supports multiple wallet origins (array or csv)', () => {
+    const webWallet = 'https://wallet.example.localhost'
+    const extensionWallet = 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+
+    const entriesArray = tatchiNextHeaders({
+      walletOrigin: [webWallet, extensionWallet],
+      cspMode: 'strict',
+      allowUnsafeEvalDev: false,
+      extraFrameSrc: [],
+      extraScriptSrc: [],
+    })
+    const headersArray = Object.fromEntries(entriesArray[0].headers.map(h => [h.key, h.value]))
+    expect(headersArray['Permissions-Policy']).toBe(buildPermissionsPolicy([webWallet, extensionWallet]))
+    expect(headersArray['Content-Security-Policy']).toBe(buildWalletCsp({ mode: 'strict', frameSrc: [webWallet, extensionWallet] }))
+
+    const entriesCsv = tatchiNextHeaders({
+      walletOrigin: `${webWallet}, ${extensionWallet}`,
+      cspMode: 'strict',
+      allowUnsafeEvalDev: false,
+      extraFrameSrc: [],
+      extraScriptSrc: [],
+    })
+    const headersCsv = Object.fromEntries(entriesCsv[0].headers.map(h => [h.key, h.value]))
+    expect(headersCsv['Permissions-Policy']).toBe(buildPermissionsPolicy([webWallet, extensionWallet]))
+    expect(headersCsv['Content-Security-Policy']).toBe(buildWalletCsp({ mode: 'strict', frameSrc: [webWallet, extensionWallet] }))
+  })
+
   test('tatchiNextHeaders compatible mode + unsafe-eval equals shared builders', () => {
     const wallet = 'https://wallet.example.localhost'
     const entries = tatchiNextHeaders({ walletOrigin: wallet, cspMode: 'compatible', allowUnsafeEvalDev: true, extraFrameSrc: [], extraScriptSrc: [] })
@@ -22,4 +49,3 @@ test.describe('plugins/next headers', () => {
     expect(headers['Content-Security-Policy']).toBe(buildWalletCsp({ mode: 'compatible', allowUnsafeEval: true, frameSrc: [wallet] }))
   })
 })
-

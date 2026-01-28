@@ -5,9 +5,17 @@ import { toOriginOrUndefined } from '../utils/validation'
 
 export type CspMode = 'strict' | 'compatible'
 
-export function buildPermissionsPolicy(walletOrigin?: string): string {
-  const o = toOriginOrUndefined(walletOrigin)
-  const part = (name: string) => `${name}=(self${o ? ` "${o}"` : ''})`
+export function buildPermissionsPolicy(walletOrigin?: string | string[]): string {
+  const raw = Array.isArray(walletOrigin)
+    ? walletOrigin
+    : (typeof walletOrigin === 'string' && walletOrigin.trim() ? [walletOrigin] : [])
+  const origins = Array.from(new Set(
+    raw
+      .map((v) => toOriginOrUndefined(v))
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+  ))
+  const allow = origins.map((o) => ` "${o}"`).join('')
+  const part = (name: string) => `${name}=(self${allow})`
   return [
     part('publickey-credentials-get'),
     part('publickey-credentials-create'),
