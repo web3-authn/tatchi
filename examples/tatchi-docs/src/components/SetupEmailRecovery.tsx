@@ -19,7 +19,7 @@ export const SetupEmailRecovery: React.FC = () => {
   const [onChainHashes, setOnChainHashes] = React.useState<string[]>([]);
 
   const refreshOnChainEmails = React.useCallback(async () => {
-    if (!tatchi || !nearAccountId || tatchi.configs.nearNetwork !== 'testnet') {
+    if (!tatchi || !nearAccountId) {
       setOnChainHashes([]);
       return;
     }

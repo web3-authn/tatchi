@@ -3,6 +3,9 @@ const env = import.meta.env as {
   VITE_NEAR_NETWORK?: string;
   VITE_NEAR_EXPLORER?: string;
   VITE_WEBAUTHN_CONTRACT_ID?: string;
+  VITE_EMAIL_RECOVERER_GLOBAL_CONTRACT?: string;
+  VITE_ZK_EMAIL_VERIFIER_CONTRACT?: string;
+  VITE_EMAIL_DKIM_VERIFIER_CONTRACT?: string;
 };
 
 export const NEAR_EXPLORER_BASE_URL = env.VITE_NEAR_EXPLORER;

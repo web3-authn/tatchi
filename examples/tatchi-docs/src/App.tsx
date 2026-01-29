@@ -23,6 +23,9 @@ export const App: React.FC = () => {
       VITE_WALLET_SERVICE_PATH: env.VITE_WALLET_SERVICE_PATH,
       VITE_SDK_BASE_PATH: env.VITE_SDK_BASE_PATH,
       VITE_RP_ID_BASE: env.VITE_RP_ID_BASE,
+      VITE_EMAIL_RECOVERER_GLOBAL_CONTRACT: env.VITE_EMAIL_RECOVERER_GLOBAL_CONTRACT,
+      VITE_ZK_EMAIL_VERIFIER_CONTRACT: env.VITE_ZK_EMAIL_VERIFIER_CONTRACT,
+      VITE_EMAIL_DKIM_VERIFIER_CONTRACT: env.VITE_EMAIL_DKIM_VERIFIER_CONTRACT,
     };
     console.info('[tatchi-docs] runtime env', out);
   }, []);
@@ -54,6 +57,11 @@ export const App: React.FC = () => {
         },
         relayer: {
           url: env.VITE_RELAYER_URL!,
+        },
+        emailRecoveryContracts: {
+          emailRecovererGlobalContract: env.VITE_EMAIL_RECOVERER_GLOBAL_CONTRACT,
+          zkEmailVerifierContract: env.VITE_ZK_EMAIL_VERIFIER_CONTRACT,
+          emailDkimVerifierContract: env.VITE_EMAIL_DKIM_VERIFIER_CONTRACT,
         },
         vrfWorkerConfigs: {
           shamir3pass: {
