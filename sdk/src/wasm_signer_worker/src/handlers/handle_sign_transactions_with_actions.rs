@@ -224,7 +224,7 @@ pub async fn handle_sign_transactions_with_actions(
     send_progress_message(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::TransactionSigningProgress,
-        "Decrypting private key and signing transactions...",
+        "Signing transactions...",
         Some(
             &ProgressData::new(4, 4)
                 .with_transaction_count(tx_batch_request.tx_signing_requests.len()),

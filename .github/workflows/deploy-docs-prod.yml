@@ -28,7 +28,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "pnpm"
 
       - name: Install Rust toolchain
@@ -78,4 +78,3 @@ jobs:
           wrangler pages deploy examples/tatchi-docs/dist/docs \
             --project-name "$CF_PAGES_PROJECT" \
             --branch main
-
