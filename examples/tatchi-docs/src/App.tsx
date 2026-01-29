@@ -10,6 +10,10 @@ import { useExportKeyCancelToast } from './hooks/useExportKeyCancelToast';
 export const App: React.FC = () => {
   const env = import.meta.env;
   const { theme, setTheme } = useVitepressTheme();
+  const nearNetwork = (env.VITE_NEAR_NETWORK || '').toLowerCase() === 'mainnet' ? 'mainnet' : 'testnet';
+  const nearRpcUrlDefault = nearNetwork === 'mainnet' ? 'https://rpc.fastnear.com' : 'https://test.rpc.fastnear.com';
+  const nearExplorerUrlDefault = nearNetwork === 'mainnet' ? 'https://nearblocks.io' : 'https://testnet.nearblocks.io';
+  const webAuthnContractIdDefault = nearNetwork === 'mainnet' ? 'w3a-v1.near' : 'w3a-v1.testnet';
 
   const VitepressStateSync: React.FC = () => {
     useBodyLoginStateBridge();
@@ -27,9 +31,10 @@ export const App: React.FC = () => {
           rpIdOverride: env.VITE_RP_ID_BASE,
           sdkBasePath: env.VITE_SDK_BASE_PATH,
         },
-        contractId: env.VITE_WEBAUTHN_CONTRACT_ID,
-        nearRpcUrl: env.VITE_NEAR_RPC_UR,
-        nearExplorerUrl: env.VITE_NEAR_EXPLORER,
+        nearNetwork,
+        contractId: env.VITE_WEBAUTHN_CONTRACT_ID || webAuthnContractIdDefault,
+        nearRpcUrl: env.VITE_NEAR_RPC_URL || nearRpcUrlDefault,
+        nearExplorerUrl: env.VITE_NEAR_EXPLORER || nearExplorerUrlDefault,
         // Demo default: use threshold signing, but fallback to local signer if unavailable
         signerMode: {
           mode: 'threshold-signer',
