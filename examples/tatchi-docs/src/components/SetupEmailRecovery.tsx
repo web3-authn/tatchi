@@ -39,17 +39,8 @@ export const SetupEmailRecovery: React.FC = () => {
     void refreshOnChainEmails();
   }, [refreshOnChainEmails]);
 
-  const ensureTestnet = () => {
-    if (tatchi.configs.nearNetwork !== 'testnet') {
-      toast.error('Email recovery demo is only available on testnet for now.');
-      return false;
-    }
-    return true;
-  };
-
   const handleSetRecoveryEmails = async () => {
     if (!tatchi || !nearAccountId) return;
-    if (!ensureTestnet()) return;
 
     const toastId = 'email-recovery-set-emails';
     setIsBusy(true);
