@@ -5,13 +5,8 @@ const env = import.meta.env as {
   VITE_WEBAUTHN_CONTRACT_ID?: string;
 };
 
-const isMainnet = (env.VITE_NEAR_NETWORK || '').toLowerCase() === 'mainnet';
-
-export const NEAR_EXPLORER_BASE_URL =
-  env.VITE_NEAR_EXPLORER || (isMainnet ? 'https://nearblocks.io' : 'https://testnet.nearblocks.io');
-
-export const WEBAUTHN_CONTRACT_ID =
-  env.VITE_WEBAUTHN_CONTRACT_ID || (isMainnet ? 'w3a-v1.near' : 'w3a-v1.testnet');
+export const NEAR_EXPLORER_BASE_URL = env.VITE_NEAR_EXPLORER;
+export const WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID;
 
 // Types for server responses (simplified, ensure they match your backend)
 export interface ServerRegistrationOptions {
