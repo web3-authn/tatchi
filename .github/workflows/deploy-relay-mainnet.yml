@@ -15,6 +15,8 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
       RECOVER_EMAIL_RECIPIENT: ${{ vars.RECOVER_EMAIL_RECIPIENT }}
+      NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
+      NETWORK_ID: ${{ vars.VITE_NEAR_NETWORK }}
       WORKER_NAME: w3a-relay-mainnet
       # Optional: Threshold signing (2p FROST; derived relayer share)
       THRESHOLD_ED25519_SHARE_MODE: derive
@@ -74,6 +76,12 @@ jobs:
           # which shows up in the Cloudflare dashboard as a variable named `NAME=value`.
           ARGS=(--var "RECOVER_EMAIL_RECIPIENT:${RECOVER_EMAIL_RECIPIENT}")
           ARGS+=(--var "THRESHOLD_ED25519_SHARE_MODE:${THRESHOLD_ED25519_SHARE_MODE}")
+          if [ -n "${NEAR_RPC_URL:-}" ]; then
+            ARGS+=(--var "NEAR_RPC_URL:${NEAR_RPC_URL}")
+          fi
+          if [ -n "${NETWORK_ID:-}" ]; then
+            ARGS+=(--var "NETWORK_ID:${NETWORK_ID}")
+          fi
 
           pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --config wrangler.toml --env mainnet "${ARGS[@]}"
 
