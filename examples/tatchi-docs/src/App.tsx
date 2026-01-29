@@ -12,22 +12,19 @@ export const App: React.FC = () => {
   const { theme, setTheme } = useVitepressTheme();
 
   React.useEffect(() => {
-    try {
-      const out = {
-        VITE_NEAR_NETWORK: env.VITE_NEAR_NETWORK,
-        VITE_WEBAUTHN_CONTRACT_ID: env.VITE_WEBAUTHN_CONTRACT_ID,
-        VITE_NEAR_RPC_URL: env.VITE_NEAR_RPC_URL,
-        VITE_NEAR_EXPLORER: env.VITE_NEAR_EXPLORER,
-        VITE_RELAYER_URL: env.VITE_RELAYER_URL,
-        VITE_RELAYER_ACCOUNT_ID: env.VITE_RELAYER_ACCOUNT_ID,
-        VITE_WALLET_ORIGIN: env.VITE_WALLET_ORIGIN,
-        VITE_WALLET_SERVICE_PATH: env.VITE_WALLET_SERVICE_PATH,
-        VITE_SDK_BASE_PATH: env.VITE_SDK_BASE_PATH,
-        VITE_RP_ID_BASE: env.VITE_RP_ID_BASE,
-      };
-      (window as any).__tatchi_docs_runtime_env__ = out;
-      console.info('[tatchi-docs] runtime env', out);
-    } catch {}
+    const out = {
+      VITE_NEAR_NETWORK: env.VITE_NEAR_NETWORK,
+      VITE_WEBAUTHN_CONTRACT_ID: env.VITE_WEBAUTHN_CONTRACT_ID,
+      VITE_NEAR_RPC_URL: env.VITE_NEAR_RPC_URL,
+      VITE_NEAR_EXPLORER: env.VITE_NEAR_EXPLORER,
+      VITE_RELAYER_URL: env.VITE_RELAYER_URL,
+      VITE_RELAYER_ACCOUNT_ID: env.VITE_RELAYER_ACCOUNT_ID,
+      VITE_WALLET_ORIGIN: env.VITE_WALLET_ORIGIN,
+      VITE_WALLET_SERVICE_PATH: env.VITE_WALLET_SERVICE_PATH,
+      VITE_SDK_BASE_PATH: env.VITE_SDK_BASE_PATH,
+      VITE_RP_ID_BASE: env.VITE_RP_ID_BASE,
+    };
+    console.info('[tatchi-docs] runtime env', out);
   }, []);
 
   const VitepressStateSync: React.FC = () => {

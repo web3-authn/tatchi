@@ -51,7 +51,7 @@ import type { SignerMode } from '../../../core/types/signer-worker';
  */
 const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
   nearAccountId: nearAccountIdProp,
-  nearExplorerBaseUrl = 'https://nearblocks.io',
+  nearExplorerBaseUrl: nearExplorerBaseUrlProp,
   username: usernameProp,
   hideUsername = false,
   onLogout: onLogout,
@@ -73,6 +73,7 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
   } = useTatchi();
 
   // Use props if provided, otherwise fall back to context
+  const nearExplorerBaseUrl = nearExplorerBaseUrlProp || tatchi.configs.nearExplorerUrl || 'https://nearblocks.io';
   const accountName = usernameProp || nearAccountIdProp?.split('.')?.[0] || loginState.nearAccountId?.split('.')?.[0] || 'User';
   const loggedInAccountId = loginState.nearAccountId;
   const nearAccountId = nearAccountIdProp || loggedInAccountId;

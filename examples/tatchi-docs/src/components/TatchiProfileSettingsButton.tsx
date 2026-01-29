@@ -111,7 +111,7 @@ export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonPr
       <div className="tatchi-profile-button-container" style={style}>
         <AccountMenuButton
           nearAccountId={loginState.nearAccountId!}
-          nearExplorerBaseUrl="https://testnet.nearblocks.io"
+          nearExplorerBaseUrl={tatchi.configs.nearExplorerUrl}
           hideUsername={isMobile}
           className={className}
           style={{

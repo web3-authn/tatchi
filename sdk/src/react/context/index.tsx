@@ -36,7 +36,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
   });
   const [walletIframeConnected, setWalletIframeConnected] = useState<boolean>(false);
 
-  const nearClient = useNearClient();
+  const nearClient = useNearClient(config?.nearRpcUrl);
   const tatchi = useMemo(() => getOrCreateTatchiManager(config, nearClient), [config, nearClient]);
 
   const walletIframeClientRef = useRef<WalletIframeRouter | null>(null);

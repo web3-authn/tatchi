@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 import { useNearClient } from '@tatchi-xyz/sdk/react';
+import { useTatchi } from '@tatchi-xyz/sdk/react/context';
 
 export interface GreetingResult {
   success: boolean;
@@ -16,7 +17,8 @@ interface SetGreetingHook {
 }
 
 export const useSetGreeting = (): SetGreetingHook => {
-  const nearClient = useNearClient();
+  const { tatchi } = useTatchi();
+  const nearClient = useNearClient(tatchi.configs.nearRpcUrl);
   const [onchainGreeting, setOnchainGreeting] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
