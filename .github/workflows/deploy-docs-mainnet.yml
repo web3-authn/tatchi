@@ -50,6 +50,33 @@ jobs:
       - name: Build SDK (sdk, production) for Vite builds
         run: pnpm build:sdk-prod
 
+      - name: Assert mainnet build vars
+        env:
+          VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
+          VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
+          VITE_WEBAUTHN_CONTRACT_ID: ${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
+          VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
+          VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
+          VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
+          VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
+          VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
+        run: |
+          set -euo pipefail
+          echo "VITE_RELAYER_URL=$VITE_RELAYER_URL"
+          echo "VITE_RELAYER_ACCOUNT_ID=$VITE_RELAYER_ACCOUNT_ID"
+          echo "VITE_NEAR_NETWORK=$VITE_NEAR_NETWORK"
+          echo "VITE_NEAR_RPC_URL=$VITE_NEAR_RPC_URL"
+          echo "VITE_NEAR_EXPLORER=$VITE_NEAR_EXPLORER"
+          echo "VITE_WALLET_ORIGIN=$VITE_WALLET_ORIGIN"
+          echo "VITE_RP_ID_BASE=$VITE_RP_ID_BASE"
+          echo "VITE_WEBAUTHN_CONTRACT_ID=$VITE_WEBAUTHN_CONTRACT_ID"
+          test -n "${VITE_RELAYER_URL:-}"
+          test -n "${VITE_RELAYER_ACCOUNT_ID:-}"
+          test -n "${VITE_NEAR_NETWORK:-}"
+          test "${VITE_NEAR_NETWORK}" = "mainnet"
+          test -n "${VITE_WALLET_ORIGIN:-}"
+          test -n "${VITE_RP_ID_BASE:-}"
+
       - name: Build site with VitePress
         env:
           VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
