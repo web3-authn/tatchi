@@ -90,6 +90,28 @@ THRESHOLD_ED25519_SHARE_MODE = "derived"
 name = "THRESHOLD_STORE"
 class_name = "ThresholdEd25519StoreDurableObject"
 
+# Mainnet worker (separate Worker name + mainnet NEAR config)
+[env.mainnet]
+name = "w3a-relay-mainnet"
+
+[env.mainnet.vars]
+RELAYER_ACCOUNT_ID = "w3a-relayer.near"
+NEAR_RPC_URL = "https://rpc.fastnear.com"
+NETWORK_ID = "mainnet"
+WEBAUTHN_CONTRACT_ID = "w3a-v1.near"
+ACCOUNT_INITIAL_BALANCE = "40000000000000000000000" # 0.04 NEAR
+CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
+RELAYER_URL = "https://relay-mainnet.tatchi.xyz"
+# Update EXPECTED_ORIGIN if you host mainnet docs elsewhere; leaving it set enables strict CORS allowlisting.
+EXPECTED_ORIGIN = "https://mainnet.tatchi.xyz"
+EXPECTED_WALLET_ORIGIN = "https://wallet-mainnet.web3authn.org"
+THRESHOLD_PREFIX = "tatchi:mainnet:w3a"
+THRESHOLD_ED25519_SHARE_MODE = "derived"
+
+[[env.mainnet.durable_objects.bindings]]
+name = "THRESHOLD_STORE"
+class_name = "ThresholdEd25519StoreDurableObject"
+
 # Optional: explicitly enable cron and rotation (defaults to disabled)
 # ENABLE_ROTATION = "0"
 
