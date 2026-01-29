@@ -77,6 +77,13 @@ jobs:
 
       - name: Deploy wallet iframe to Cloudflare Pages (staging)
         run: |
+          # Wrangler/undici rejects header values containing newlines; GitHub secrets can accidentally
+          # include a trailing newline if pasted from a file.
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\r\n')"
+            export CLOUDFLARE_API_TOKEN
+          fi
+
           wrangler pages deploy examples/vite/dist \
             --project-name "$CF_PAGES_PROJECT" \
             --branch dev
