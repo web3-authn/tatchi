@@ -10,10 +10,25 @@ import { useExportKeyCancelToast } from './hooks/useExportKeyCancelToast';
 export const App: React.FC = () => {
   const env = import.meta.env;
   const { theme, setTheme } = useVitepressTheme();
-  const nearNetwork = (env.VITE_NEAR_NETWORK || '').toLowerCase() === 'mainnet' ? 'mainnet' : 'testnet';
-  const nearRpcUrlDefault = nearNetwork === 'mainnet' ? 'https://rpc.fastnear.com' : 'https://test.rpc.fastnear.com';
-  const nearExplorerUrlDefault = nearNetwork === 'mainnet' ? 'https://nearblocks.io' : 'https://testnet.nearblocks.io';
-  const webAuthnContractIdDefault = nearNetwork === 'mainnet' ? 'w3a-v1.near' : 'w3a-v1.testnet';
+
+  React.useEffect(() => {
+    try {
+      const out = {
+        VITE_NEAR_NETWORK: env.VITE_NEAR_NETWORK,
+        VITE_WEBAUTHN_CONTRACT_ID: env.VITE_WEBAUTHN_CONTRACT_ID,
+        VITE_NEAR_RPC_URL: env.VITE_NEAR_RPC_URL,
+        VITE_NEAR_EXPLORER: env.VITE_NEAR_EXPLORER,
+        VITE_RELAYER_URL: env.VITE_RELAYER_URL,
+        VITE_RELAYER_ACCOUNT_ID: env.VITE_RELAYER_ACCOUNT_ID,
+        VITE_WALLET_ORIGIN: env.VITE_WALLET_ORIGIN,
+        VITE_WALLET_SERVICE_PATH: env.VITE_WALLET_SERVICE_PATH,
+        VITE_SDK_BASE_PATH: env.VITE_SDK_BASE_PATH,
+        VITE_RP_ID_BASE: env.VITE_RP_ID_BASE,
+      };
+      (window as any).__tatchi_docs_runtime_env__ = out;
+      console.info('[tatchi-docs] runtime env', out);
+    } catch {}
+  }, []);
 
   const VitepressStateSync: React.FC = () => {
     useBodyLoginStateBridge();
@@ -31,10 +46,10 @@ export const App: React.FC = () => {
           rpIdOverride: env.VITE_RP_ID_BASE,
           sdkBasePath: env.VITE_SDK_BASE_PATH,
         },
-        nearNetwork,
-        contractId: env.VITE_WEBAUTHN_CONTRACT_ID || webAuthnContractIdDefault,
-        nearRpcUrl: env.VITE_NEAR_RPC_URL || nearRpcUrlDefault,
-        nearExplorerUrl: env.VITE_NEAR_EXPLORER || nearExplorerUrlDefault,
+        nearNetwork: env.VITE_NEAR_NETWORK,
+        contractId: env.VITE_WEBAUTHN_CONTRACT_ID,
+        nearRpcUrl: env.VITE_NEAR_RPC_URL,
+        nearExplorerUrl: env.VITE_NEAR_EXPLORER,
         // Demo default: use threshold signing, but fallback to local signer if unavailable
         signerMode: {
           mode: 'threshold-signer',
