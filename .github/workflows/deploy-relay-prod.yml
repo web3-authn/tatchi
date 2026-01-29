@@ -18,7 +18,6 @@ jobs:
       WORKER_NAME: w3a-relay-prod
       # Optional: Threshold signing (2p FROST; derived relayer share)
       THRESHOLD_ED25519_SHARE_MODE: derive
-      THRESHOLD_ED25519_MASTER_SECRET_B64U: ${{ secrets.THRESHOLD_ED25519_MASTER_SECRET_B64U }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,12 +58,6 @@ jobs:
           if [ -z "${RECOVER_EMAIL_RECIPIENT:-}" ]; then
             echo "RECOVER_EMAIL_RECIPIENT env var is not set in this GitHub Environment" >&2
             exit 1
-          fi
-
-          # Optional: set/update secrets for threshold signing (persist across deploys).
-          if [ -n "${THRESHOLD_ED25519_MASTER_SECRET_B64U:-}" ]; then
-            printf '%s' "$THRESHOLD_ED25519_MASTER_SECRET_B64U" \
-              | pnpm -C examples/relay-cloudflare-worker exec wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --name "$WORKER_NAME"
           fi
 
           # Build worker vars (avoid setting empty strings).

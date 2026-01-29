@@ -18,7 +18,6 @@ jobs:
       WORKER_NAME: w3a-relay-mainnet
       # Optional: Threshold signing (2p FROST; derived relayer share)
       THRESHOLD_ED25519_SHARE_MODE: derive
-      THRESHOLD_ED25519_MASTER_SECRET_B64U: ${{ secrets.THRESHOLD_ED25519_MASTER_SECRET_B64U }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,15 +55,16 @@ jobs:
       - name: Deploy Cloudflare Worker (relay)
         run: |
           set -euo pipefail
+          # Wrangler/undici rejects header values containing newlines; GitHub secrets can accidentally
+          # include a trailing newline if pasted from a file.
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\r\n')"
+            export CLOUDFLARE_API_TOKEN
+          fi
+
           if [ -z "${RECOVER_EMAIL_RECIPIENT:-}" ]; then
             echo "RECOVER_EMAIL_RECIPIENT env var is not set in this GitHub Environment" >&2
             exit 1
-          fi
-
-          # Optional: set/update secrets for threshold signing (persist across deploys).
-          if [ -n "${THRESHOLD_ED25519_MASTER_SECRET_B64U:-}" ]; then
-            printf '%s' "$THRESHOLD_ED25519_MASTER_SECRET_B64U" \
-              | pnpm -C examples/relay-cloudflare-worker exec wrangler secret put THRESHOLD_ED25519_MASTER_SECRET_B64U --name "$WORKER_NAME"
           fi
 
           # Build worker vars (avoid setting empty strings).
@@ -83,6 +83,9 @@ jobs:
           CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: |
           set -euo pipefail
+          if [ -n "${CF_API_TOKEN:-}" ]; then
+            CF_API_TOKEN="$(printf '%s' "$CF_API_TOKEN" | tr -d '\r\n')"
+          fi
           if [ -z "${CF_ZONE_ID:-}" ]; then
             echo "CLOUDFLARE_ZONE_ID (GitHub Environment Secret) is required to configure Email Routing" >&2
             exit 1

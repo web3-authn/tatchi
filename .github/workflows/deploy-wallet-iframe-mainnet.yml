@@ -1,4 +1,4 @@
-name: deploy-docs-mainnet
+name: deploy-wallet-iframe-mainnet
 
 on:
   push:
@@ -6,14 +6,14 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  deploy-docs-mainnet:
+  deploy-wallet-iframe-mainnet:
     runs-on: ubuntu-latest
     environment:
       name: mainnet
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CF_PAGES_PROJECT: w3a-tatchi-docs-mainnet
+      CF_PAGES_PROJECT: w3a-wallet-iframe-mainnet
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,33 +47,35 @@ jobs:
       - name: Install deps (workspace)
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build SDK (sdk, production) for Vite builds
+      - name: Build SDK (sdk, production)
         run: pnpm build:sdk-prod
 
-      - name: Build site with VitePress
+      - name: Build wallet iframe (examples/vite)
         env:
+          VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
+          VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH || '/wallet-service' }}
+          VITE_SDK_BASE_PATH: ${{ vars.VITE_SDK_BASE_PATH || '/sdk' }}
+          VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
           VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
           VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
-          VITE_WEBAUTHN_CONTRACT_ID: ${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
           VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
           VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
           VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
-          VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
-          VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH || '/wallet-service' }}
-          VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
-          VITE_SDK_BASE_PATH: ${{ vars.VITE_SDK_BASE_PATH || '/sdk' }}
-        run: pnpm docs:build
+          VITE_WEBAUTHN_CONTRACT_ID: ${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
+        run: pnpm -C examples/vite build
 
-      - name: Copy SDK runtime assets into VitePress dist
+      - name: Copy SDK assets into Pages output
         run: |
-          mkdir -p examples/tatchi-docs/dist/docs/sdk examples/tatchi-docs/dist/docs/sdk/workers
-          cp -R sdk/dist/esm/sdk/* examples/tatchi-docs/dist/docs/sdk/ || true
-          cp -R sdk/dist/workers/* examples/tatchi-docs/dist/docs/sdk/workers/ || true
+          mkdir -p examples/vite/dist/sdk examples/vite/dist/sdk/workers
+          rsync -av --delete sdk/dist/esm/sdk/ examples/vite/dist/sdk/
+          if [ -d sdk/dist/workers ]; then
+            rsync -av --delete sdk/dist/workers/ examples/vite/dist/sdk/workers/
+          fi
 
       - name: Install Wrangler
         run: pnpm add -g wrangler@4
 
-      - name: Deploy VitePress site to Cloudflare Pages (mainnet)
+      - name: Deploy wallet iframe to Cloudflare Pages (mainnet)
         run: |
           # Wrangler/undici rejects header values containing newlines; GitHub secrets can accidentally
           # include a trailing newline if pasted from a file.
@@ -82,6 +84,6 @@ jobs:
             export CLOUDFLARE_API_TOKEN
           fi
 
-          wrangler pages deploy examples/tatchi-docs/dist/docs \
+          wrangler pages deploy examples/vite/dist \
             --project-name "$CF_PAGES_PROJECT" \
             --branch mainnet
