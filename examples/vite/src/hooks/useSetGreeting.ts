@@ -1,7 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
-import { useNearClient } from '@tatchi-xyz/sdk/react';
-import { useTatchi } from '@tatchi-xyz/sdk/react/context';
+import { useNearClient, useTatchi } from '@tatchi-xyz/sdk/react';
 
 export interface GreetingResult {
   success: boolean;
