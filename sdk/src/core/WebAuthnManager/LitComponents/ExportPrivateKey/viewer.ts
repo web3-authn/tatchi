@@ -22,15 +22,6 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     errorMessage: { type: String },
     showCloseButton: { type: Boolean, attribute: 'show-close-button' },
   } as const;
-
-  declare theme: ExportViewerTheme;
-  declare variant: ExportViewerVariant;
-  declare accountId?: string;
-  declare publicKey?: string;
-  declare privateKey?: string;
-  declare loading: boolean;
-  declare errorMessage?: string;
-  declare showCloseButton: boolean;
   private copiedPublic = false;
   private copiedPrivate = false;
   private copyTimers: { public?: number; private?: number } = {};
@@ -265,6 +256,17 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       </div>
     `;
   }
+}
+
+export interface ExportPrivateKeyViewer {
+  theme: ExportViewerTheme;
+  variant: ExportViewerVariant;
+  accountId?: string;
+  publicKey?: string;
+  privateKey?: string;
+  loading: boolean;
+  errorMessage?: string;
+  showCloseButton: boolean;
 }
 
 if (!customElements.get('w3a-export-key-viewer')) {

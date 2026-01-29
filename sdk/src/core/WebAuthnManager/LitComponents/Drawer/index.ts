@@ -31,15 +31,6 @@ export class DrawerElement extends LitElementWithProps {
     // Height is content-driven with an optional cap
   } as const;
 
-  declare open: boolean;
-  declare theme: DrawerTheme;
-  declare loading: boolean;
-  declare errorMessage?: string;
-  declare dragToClose: boolean;
-  declare showCloseButton: boolean;
-  declare height?: string;
-  declare overpullPx: number;
-
   // Drag state
   private isDragging = false;
   private pendingDrag = false;
@@ -849,6 +840,17 @@ export class DrawerElement extends LitElementWithProps {
       </section>
     `;
   }
+}
+
+export interface DrawerElement {
+  open: boolean;
+  theme: DrawerTheme;
+  loading: boolean;
+  errorMessage?: string;
+  dragToClose: boolean;
+  showCloseButton: boolean;
+  height?: string;
+  overpullPx: number;
 }
 
 import { W3A_DRAWER_ID } from '../tags';

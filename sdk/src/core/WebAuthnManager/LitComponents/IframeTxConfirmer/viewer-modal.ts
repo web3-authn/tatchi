@@ -75,7 +75,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   theme: ThemeName = 'dark';
   nearExplorerUrl?: string;
   intentDigest?: string;
-  declare nearAccountId: string;
   // When true, this element will NOT remove itself on confirm/cancel.
   // The host is responsible for sending a CLOSE_MODAL instruction.
   deferClose = false;
@@ -366,6 +365,10 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     this._resolveAndCleanup(confirmed);
   }
 
+}
+
+export interface ModalTxConfirmElement {
+  nearAccountId: string;
 }
 
 // Register the custom element

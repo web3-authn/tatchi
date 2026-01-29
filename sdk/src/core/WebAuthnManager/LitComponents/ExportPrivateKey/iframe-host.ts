@@ -55,14 +55,6 @@ export class IframeExportHost extends LitElementWithProps {
     errorMessage: { type: String },
   } as const;
 
-  declare theme: 'dark' | 'light';
-  declare variant: 'drawer' | 'modal';
-  declare accountId: string;
-  declare publicKey: string;
-  declare privateKey?: string;
-  declare loading: boolean;
-  declare errorMessage?: string;
-
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
   private messageHandler?: (event: MessageEvent) => void | Promise<void>;
   private iframeInitialized = false;
@@ -277,6 +269,16 @@ export class IframeExportHost extends LitElementWithProps {
       </div>
     `;
   }
+}
+
+export interface IframeExportHost {
+  theme: 'dark' | 'light';
+  variant: 'drawer' | 'modal';
+  accountId: string;
+  publicKey: string;
+  privateKey?: string;
+  loading: boolean;
+  errorMessage?: string;
 }
 
 // Strongly-typed element shape for 'w3a-export-viewer-iframe'

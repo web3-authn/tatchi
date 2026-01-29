@@ -25,21 +25,6 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
     iconContainerBackgroundColor: { type: String, attribute: 'icon-container-background-color' },
   } as const;
 
-  declare animated?: boolean;
-  declare theme?: HaloTheme;
-  declare ringGap?: number;
-  declare ringWidth?: number;
-  declare ringBorderRadius?: string;
-  declare ringBorderShadow?: string;
-  declare ringBackground?: string;
-  declare padding?: string;
-  declare innerPadding?: string;
-  declare innerBackground?: string;
-  declare height?: number;
-  declare width?: number;
-  declare iconContainerBorderRadius?: string;
-  declare iconContainerBackgroundColor?: string;
-
   // Static styles removed; external stylesheet is adopted for CSP compatibility
   private _stylesReady = false;
   private _stylePromises: Promise<void>[] = [];
@@ -136,6 +121,23 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
       </svg>
     `;
   }
+}
+
+export interface PasskeyHaloLoadingElement {
+  animated?: boolean;
+  theme?: HaloTheme;
+  ringGap?: number;
+  ringWidth?: number;
+  ringBorderRadius?: string;
+  ringBorderShadow?: string;
+  ringBackground?: string;
+  padding?: string;
+  innerPadding?: string;
+  innerBackground?: string;
+  height?: number;
+  width?: number;
+  iconContainerBorderRadius?: string;
+  iconContainerBackgroundColor?: string;
 }
 
 import { W3A_PASSKEY_HALO_LOADING_ID } from '../tags';

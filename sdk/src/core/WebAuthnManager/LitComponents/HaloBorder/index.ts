@@ -19,18 +19,6 @@ export class HaloBorderElement extends LitElementWithProps {
     innerBackground: { type: String, attribute: 'inner-background' },
   } as const;
 
-  declare animated?: boolean;
-  declare theme?: HaloTheme;
-  declare durationMs?: number;
-  declare ringGap?: number;
-  declare ringWidth?: number;
-  declare ringBorderRadius?: string;
-  declare ringBorderShadow?: string;
-  declare ringBackground?: string;
-  declare padding?: string;
-  declare innerPadding?: string;
-  declare innerBackground?: string;
-
   private _stylesReady = false;
   private _stylePromises: Promise<void>[] = [];
   private _stylesAwaiting: Promise<void> | null = null;
@@ -128,6 +116,20 @@ export class HaloBorderElement extends LitElementWithProps {
       </div>
     `;
   }
+}
+
+export interface HaloBorderElement {
+  animated?: boolean;
+  theme?: HaloTheme;
+  durationMs?: number;
+  ringGap?: number;
+  ringWidth?: number;
+  ringBorderRadius?: string;
+  ringBorderShadow?: string;
+  ringBackground?: string;
+  padding?: string;
+  innerPadding?: string;
+  innerBackground?: string;
 }
 
 import { W3A_HALO_BORDER_ID } from '../tags';

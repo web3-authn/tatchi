@@ -41,7 +41,7 @@ const createFakeDom = (): { document: FakeDocument; headChildren: FakeStyleEl[] 
 
 test.describe('CSP style manager', () => {
   test('constructable sheets rebuild base + dynamic css', async () => {
-    const globalAny = globalThis as typeof globalThis & { document?: FakeDocument; CSSStyleSheet?: unknown };
+    const globalAny = globalThis as { document?: Document; CSSStyleSheet?: typeof CSSStyleSheet | undefined };
     const prevDocument = globalAny.document;
     const prevSheet = globalAny.CSSStyleSheet;
     const baseCss = '.base{color:red;}';
@@ -54,8 +54,8 @@ test.describe('CSP style manager', () => {
       }
     }
 
-    globalAny.document = document;
-    globalAny.CSSStyleSheet = FakeSheet;
+    globalAny.document = document as unknown as Document;
+    globalAny.CSSStyleSheet = FakeSheet as unknown as typeof CSSStyleSheet;
 
     try {
       const manager = createCspStyleManager({
@@ -88,13 +88,13 @@ test.describe('CSP style manager', () => {
   });
 
   test('fallback path uses style elements for base and dynamic rules', async () => {
-    const globalAny = globalThis as typeof globalThis & { document?: FakeDocument; CSSStyleSheet?: unknown };
+    const globalAny = globalThis as { document?: Document; CSSStyleSheet?: typeof CSSStyleSheet | undefined };
     const prevDocument = globalAny.document;
     const prevSheet = globalAny.CSSStyleSheet;
     const baseCss = '.base{color:blue;}';
     const { document, headChildren } = createFakeDom();
 
-    globalAny.document = document;
+    globalAny.document = document as unknown as Document;
     globalAny.CSSStyleSheet = undefined;
 
     try {

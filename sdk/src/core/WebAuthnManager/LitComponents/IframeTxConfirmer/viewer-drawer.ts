@@ -34,22 +34,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     nearExplorerUrl: { type: String, attribute: 'near-explorer-url' },
   } as const;
 
-  declare nearAccountId: string;
-  declare txSigningRequests: TransactionInputWasm[];
-  declare vrfChallenge?: Partial<VRFChallenge>;
-  // Theme tokens now come from external CSS (tx-confirmer.css)
-  // style injection has been removed to satisfy strict CSP.
-  declare theme: ThemeName;
-  declare loading: boolean;
-  declare errorMessage?: string;
-  declare body: string;
-  declare title: string;
-  declare confirmText: string;
-  declare cancelText: string;
-  declare deferClose: boolean;
-  declare nearExplorerUrl?: string;
-  declare intentDigest?: string;
-
   // Keep essential custom elements from being tree-shaken
   private _ensureDrawerDefinition = DrawerElement;
   private _drawerEl: any | null = null;
@@ -302,6 +286,22 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       </w3a-drawer>
     `;
   }
+}
+
+export interface DrawerTxConfirmerElement {
+  nearAccountId: string;
+  txSigningRequests: TransactionInputWasm[];
+  vrfChallenge?: Partial<VRFChallenge>;
+  theme: ThemeName;
+  loading: boolean;
+  errorMessage?: string;
+  body: string;
+  title: string;
+  confirmText: string;
+  cancelText: string;
+  deferClose: boolean;
+  nearExplorerUrl?: string;
+  intentDigest?: string;
 }
 
 import { W3A_DRAWER_TX_CONFIRMER_ID } from '../tags';

@@ -7,9 +7,6 @@ export class PadlockIconElement extends LitElement {
     strokeWidth: { type: Number, attribute: 'stroke-width' },
   } as const;
 
-  declare size?: string;
-  declare strokeWidth?: number;
-
   // Static styles removed; external stylesheet is adopted for CSP compatibility
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
@@ -46,6 +43,11 @@ export class PadlockIconElement extends LitElement {
       </svg>
     `;
   }
+}
+
+export interface PadlockIconElement {
+  size?: string;
+  strokeWidth?: number;
 }
 
 try {

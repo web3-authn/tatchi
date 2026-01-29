@@ -64,21 +64,6 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
 
   static keepDefinitions = [ModalTxConfirmElement, DrawerTxConfirmerElement];
 
-  declare variant: Variant;
-  declare nearAccountId: string;
-  declare txSigningRequests: TransactionInputWasm[];
-  declare vrfChallenge?: Partial<VRFChallenge>;
-  declare theme: ThemeName;
-  declare loading: boolean;
-  declare errorMessage?: string;
-  declare intentDigest?: string;
-  declare body: string;
-  declare title: string;
-  declare confirmText: string;
-  declare cancelText: string;
-  declare deferClose: boolean;
-  declare nearExplorerUrl?: string;
-
   private readonly childRef: Ref<TxConfirmerVariantElement> = createRef();
   private redispatchingEvent = false;
   private currentChild: TxConfirmerVariantElement | null = null;
@@ -298,6 +283,23 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
 
     return computeUiIntentDigestFromTxs(txs);
   }
+}
+
+export interface TxConfirmerWrapperElement {
+  variant: Variant;
+  nearAccountId: string;
+  txSigningRequests: TransactionInputWasm[];
+  vrfChallenge?: Partial<VRFChallenge>;
+  theme: ThemeName;
+  loading: boolean;
+  errorMessage?: string;
+  intentDigest?: string;
+  body: string;
+  title: string;
+  confirmText: string;
+  cancelText: string;
+  deferClose: boolean;
+  nearExplorerUrl?: string;
 }
 
 if (!customElements.get(W3A_TX_CONFIRMER_ID)) {

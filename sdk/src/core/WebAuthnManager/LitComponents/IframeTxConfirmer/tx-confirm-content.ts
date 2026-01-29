@@ -42,20 +42,6 @@ export class TxConfirmContentElement extends LitElementWithProps {
     showShadow: { type: Boolean, attribute: 'show-shadow' },
   } as const;
 
-  declare nearAccountId: string;
-  declare txSigningRequests: TransactionInputWasm[];
-  declare intentDigest?: string;
-  declare vrfChallenge?: Partial<VRFChallenge>;
-  declare theme: ThemeName;
-  declare loading: boolean;
-  declare errorMessage?: string;
-  declare title: string;
-  declare confirmText: string;
-  declare cancelText: string;
-  declare tooltipWidth?: string | number;
-  declare nearExplorerUrl?: string;
-  declare showShadow: boolean;
-
   private _treeNode: any | null = null;
   // Keep essential custom elements from being tree-shaken
   private _ensureTreeDefinition = TxTree;
@@ -227,6 +213,22 @@ export class TxConfirmContentElement extends LitElementWithProps {
       </div>
     `;
   }
+}
+
+export interface TxConfirmContentElement {
+  nearAccountId: string;
+  txSigningRequests: TransactionInputWasm[];
+  intentDigest?: string;
+  vrfChallenge?: Partial<VRFChallenge>;
+  theme: ThemeName;
+  loading: boolean;
+  errorMessage?: string;
+  title: string;
+  confirmText: string;
+  cancelText: string;
+  tooltipWidth?: string | number;
+  nearExplorerUrl?: string;
+  showShadow: boolean;
 }
 
 import { W3A_TX_CONFIRM_CONTENT_ID } from '../tags';
