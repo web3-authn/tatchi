@@ -1,6 +1,6 @@
 // Shared facade for base theme tokens
 // Build tokens from palette.json using the pure factory in theme/base-styles.js
-import palette from '@/theme/palette.json';
+import palette from '@/theme/palette.json' with { type: 'json' };
 import { createThemeTokens } from '@/theme/base-styles.js';
 
 const built = createThemeTokens(palette);
