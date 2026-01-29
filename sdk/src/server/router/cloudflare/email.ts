@@ -146,7 +146,13 @@ export function createCloudflareEmailHandler(service: AuthService, opts: Cloudfl
 
       logger.info('[email] recovery submitted', { accountId: parsed.accountId });
     } catch (e: any) {
-      logger.error('[email] internal error', { message: e?.message || String(e) });
+      logger.error('[email] internal error', {
+        message: e?.message || String(e),
+        short: typeof e?.short === 'string' ? e.short : undefined,
+        kind: typeof e?.kind === 'string' ? e.kind : undefined,
+        operation: typeof e?.operation === 'string' ? e.operation : undefined,
+        details: e?.details,
+      });
       message.setReject('Email recovery relayer rejected email: internal error');
     }
   };

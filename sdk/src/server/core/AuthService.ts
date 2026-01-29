@@ -197,7 +197,7 @@ export class AuthService {
       relayerAccountId: this.config.relayerAccountId,
       relayerPrivateKey: this.config.relayerPrivateKey,
       networkId: this.config.networkId,
-      emailDkimVerifierContract: DEFAULT_EMAIL_RECOVERY_CONTRACTS.emailDkimVerifierContract,
+      emailDkimVerifierContract: this.config.emailDkimVerifierContract || DEFAULT_EMAIL_RECOVERY_CONTRACTS.emailDkimVerifierContract,
       nearClient: this.nearClient,
       logger: this.config.logger,
       ensureSignerAndRelayerAccount: () => this._ensureSignerAndRelayerAccount(),
@@ -216,6 +216,7 @@ export class AuthService {
     • nearRpcUrl: ${this.config.nearRpcUrl}
     • relayerAccountId: ${this.config.relayerAccountId}
     • webAuthnContractId: ${this.config.webAuthnContractId}
+    • emailDkimVerifierContract: ${this.config.emailDkimVerifierContract || DEFAULT_EMAIL_RECOVERY_CONTRACTS.emailDkimVerifierContract}
     • accountInitialBalance: ${this.config.accountInitialBalance} (${formatYoctoToNear(this.config.accountInitialBalance)} NEAR)
     • createAccountAndRegisterGas: ${this.config.createAccountAndRegisterGas} (${formatGasToTGas(this.config.createAccountAndRegisterGas)})
     ${this.config.shamir

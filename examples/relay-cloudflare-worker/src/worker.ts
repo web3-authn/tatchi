@@ -27,6 +27,7 @@ type Env = {
   NEAR_RPC_URL?: string;
   NETWORK_ID?: string;
   WEBAUTHN_CONTRACT_ID: string;
+  EMAIL_DKIM_VERIFIER_CONTRACT?: string;
   ACCOUNT_INITIAL_BALANCE?: string;
   CREATE_ACCOUNT_AND_REGISTER_GAS?: string;
   EXPECTED_ORIGIN?: string;
@@ -63,6 +64,7 @@ function getAuthService(env: Env): AuthService {
     webAuthnContractId: env.WEBAUTHN_CONTRACT_ID,
     nearRpcUrl: env.NEAR_RPC_URL,
     networkId: env.NETWORK_ID,
+    emailDkimVerifierContract: env.EMAIL_DKIM_VERIFIER_CONTRACT,
     accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE,
     createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS,
     signerWasm: {

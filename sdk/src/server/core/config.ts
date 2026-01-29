@@ -182,6 +182,7 @@ export function createAuthServiceConfig(input: AuthServiceConfigInput): AuthServ
       || AUTH_SERVICE_CONFIG_DEFAULTS.accountInitialBalance,
     createAccountAndRegisterGas: toTrimmedString(input.createAccountAndRegisterGas)
       || AUTH_SERVICE_CONFIG_DEFAULTS.createAccountAndRegisterGas,
+    emailDkimVerifierContract: toOptionalTrimmedString((input as any).emailDkimVerifierContract) || undefined,
     shamir: normalizeShamirConfig(input.shamir),
     signerWasm: input.signerWasm,
     thresholdEd25519KeyStore: normalizeThresholdEd25519KeyStoreConfig(input.thresholdEd25519KeyStore),

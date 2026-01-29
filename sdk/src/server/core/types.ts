@@ -8,6 +8,7 @@ import * as wasmModule from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import type { InitInput } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
 import type { ZkEmailProverClientOptions } from '../email-recovery/zkEmail';
 import type { Logger } from './logger';
+import type { EmailRecoveryContracts } from '../../core/types/tatchi';
 
 /**
  * WASM Bindgen generates a `free` method and a `[Symbol.dispose]` method on all structs.
@@ -247,6 +248,14 @@ export interface AuthServiceConfig {
   networkId: string;
   accountInitialBalance: string;
   createAccountAndRegisterGas: string;
+  /**
+   * Optional Email DKIM verifier contract used by the relayer to fetch the
+   * Outlayer encryption public key for encrypted email recovery.
+   *
+   * When omitted, defaults come from the SDK core defaults (typically testnet),
+   * so mainnet deployments should explicitly set this.
+   */
+  emailDkimVerifierContract?: EmailRecoveryContracts['emailDkimVerifierContract'];
   // grouped Shamir settings under `shamir`
   shamir?: ShamirConfig;
   signerWasm?: SignerWasmConfig;
@@ -289,6 +298,7 @@ export type AuthServiceConfigInput = Omit<
   | 'networkId'
   | 'accountInitialBalance'
   | 'createAccountAndRegisterGas'
+  | 'emailDkimVerifierContract'
   | 'shamir'
   | 'thresholdEd25519KeyStore'
   | 'zkEmailProver'
@@ -297,6 +307,7 @@ export type AuthServiceConfigInput = Omit<
   networkId?: string;
   accountInitialBalance?: string;
   createAccountAndRegisterGas?: string;
+  emailDkimVerifierContract?: string;
   shamir?: ShamirConfigInput;
   thresholdEd25519KeyStore?: ThresholdEd25519KeyStoreConfigInput;
   zkEmailProver?: ZkEmailProverConfigInput;

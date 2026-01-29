@@ -17,6 +17,7 @@ jobs:
       RECOVER_EMAIL_RECIPIENT: ${{ vars.RECOVER_EMAIL_RECIPIENT }}
       NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
       NETWORK_ID: ${{ vars.VITE_NEAR_NETWORK }}
+      EMAIL_DKIM_VERIFIER_CONTRACT: ${{ vars.VITE_EMAIL_DKIM_VERIFIER_CONTRACT }}
       WORKER_NAME: w3a-relay-mainnet
       # Optional: Threshold signing (2p FROST; derived relayer share)
       THRESHOLD_ED25519_SHARE_MODE: derive
@@ -81,6 +82,9 @@ jobs:
           fi
           if [ -n "${NETWORK_ID:-}" ]; then
             ARGS+=(--var "NETWORK_ID:${NETWORK_ID}")
+          fi
+          if [ -n "${EMAIL_DKIM_VERIFIER_CONTRACT:-}" ]; then
+            ARGS+=(--var "EMAIL_DKIM_VERIFIER_CONTRACT:${EMAIL_DKIM_VERIFIER_CONTRACT}")
           fi
 
           pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --config wrangler.toml --env mainnet "${ARGS[@]}"
