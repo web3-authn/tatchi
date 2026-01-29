@@ -1,80 +1,53 @@
-
 /**
  * Wallet Iframe Host - Host-Side Execution Layer
  *
  * This is the main service host that runs inside the wallet iframe. It receives
  * messages from the parent application and executes the actual TatchiPasskey
  * operations in a secure, isolated environment.
- *
- * Key Responsibilities:
- * - Message Handling: Receives and processes messages from parent via MessagePort
- * - TatchiPasskey Management: Creates and manages the real TatchiPasskey instance
- * - Operation Execution: Executes wallet operations (register, login, sign, etc.)
- * - Progress Broadcasting: Sends progress events back to parent during operations
- * - UI Component Management: Handles mounting/unmounting of Lit-based UI components
- * - Configuration Management: Applies configuration from parent to TatchiPasskey
- * - Error Handling: Converts errors to appropriate message format for parent
- *
- * Architecture:
- * - Uses MessagePort for bidirectional communication with parent
- * - Maintains TatchiPasskey instance with iframe-specific configuration
- * - Integrates with LitElemMounter for UI component management
- * - Handles request cancellation and cleanup
- *
- * Security Model:
- * - Runs in isolated iframe origin with proper WebAuthn permissions
- * - Prevents nested iframe mode to avoid security issues
- *
- * Message Protocol:
- * - Handles PM_* message types for TatchiPasskey operations
- * - Sends PROGRESS messages for real-time updates
- * - Sends PM_RESULT for successful completions
- * - Sends ERROR messages for failures
- * - Supports request cancellation via PM_CANCEL
  */
 import { bootstrapTransparentHost } from './bootstrap';
 
 import type {
   ParentToChildEnvelope,
-  ParentToChildType,
   ChildToParentEnvelope,
   ReadyPayload,
   PMSetConfigPayload,
   PreferencesChangedPayload,
+  WalletIframeCapabilities,
 } from '../shared/messages';
+import { WALLET_PROTOCOL_VERSION } from '../shared/messages';
 import { CONFIRM_UI_ELEMENT_SELECTORS } from '../../WebAuthnManager/LitComponents/tags';
-import { MinimalNearClient } from '../../NearClient';
 import { setupLitElemMounter } from './iframe-lit-elem-mounter';
 import type { TatchiConfigsInput } from '../../types/tatchi';
-import { isObject, isString } from '@/utils/validation';
+import { isObject } from '@/utils/validation';
 import { errorMessage } from '../../../utils/errors';
-import { TatchiPasskey } from '../../TatchiPasskey';
-import { __setWalletIframeHostMode } from '../host-mode';
 import type { ProgressPayload } from '../shared/messages';
 import { WalletIframeDomEvents } from '../events';
-import { assertWalletHostConfigsNoNestedIframeWallet, sanitizeWalletHostConfigs } from './config-guards';
-// handlers moved to dedicated module; host no longer imports per-call hook types
-import { createWalletIframeHandlers } from './wallet-iframe-handlers';
-import { setEmbeddedBase } from '../../sdkPaths';
-import { IndexedDBManager } from '../../IndexedDBManager';
+import { createWalletIframeHandlers, type HandledParentToChildType } from './wallet-iframe-handlers';
+import { applyWalletConfig, createHostContext, ensurePasskeyManager } from './context';
+import { addHostListeners, post as postPort, postToParent as postParent } from './messaging';
+import type { TatchiPasskey } from '../../TatchiPasskey';
 
-const PROTOCOL: ReadyPayload['protocolVersion'] = '1.0.0';
+const PROTOCOL: ReadyPayload['protocolVersion'] = WALLET_PROTOCOL_VERSION;
 
 // Early bootstrap (transparent surface, env shims, default asset base, telemetry)
 bootstrapTransparentHost();
 
-let parentOrigin: string | null = null;
-let port: MessagePort | null = null;
-let walletConfigs: TatchiConfigsInput | null = null;
-let nearClient: MinimalNearClient | null = null;
-let tatchiPasskey: TatchiPasskey | null = null;
-let prefsUnsubscribe: (() => void) | null = null;
+const ctx = createHostContext();
 
 // Track request-level cancellations
 const cancelledRequests = new Set<string>();
 function markCancelled(rid?: string) { if (rid) cancelledRequests.add(rid); }
 function isCancelled(rid?: string) { return !!rid && cancelledRequests.has(rid); }
 function clearCancelled(rid?: string) { if (rid) cancelledRequests.delete(rid); }
+
+function post(msg: ChildToParentEnvelope) {
+  postPort(ctx, msg);
+}
+
+function postToParent(message: unknown): void {
+  postParent(ctx, message);
+}
 
 function postProgress(requestId: string | undefined, payload: ProgressPayload): void {
   if (!requestId) return;
@@ -94,67 +67,52 @@ function respondIfCancelled(requestId: string | undefined): boolean {
   return true;
 }
 
-function applyHostTheme(theme?: string): void {
-  if (theme !== 'light' && theme !== 'dark') return;
-  try {
-    document.documentElement.setAttribute('data-w3a-theme', theme);
-  } catch {}
+function setupPreferencesBridge(): void {
+  const pm = ctx.tatchiPasskey as TatchiPasskey | null;
+  if (!pm) return;
+  const up = pm.userPreferences as unknown as {
+    getCurrentUserAccountId?: () => string | null | undefined;
+    getConfirmationConfig: () => PreferencesChangedPayload['confirmationConfig'];
+    getSignerMode: () => PreferencesChangedPayload['signerMode'];
+    onConfirmationConfigChange?: (cb: () => void) => (() => void) | void;
+    onSignerModeChange?: (cb: () => void) => (() => void) | void;
+  } | null;
+  if (!up) return;
+
+  ctx.prefsUnsubscribe?.();
+
+  const emitPreferencesChanged = () => {
+    const id = String(up.getCurrentUserAccountId?.() || '').trim();
+    const nearAccountId = id ? id : null;
+    post({
+      type: 'PREFERENCES_CHANGED',
+      payload: {
+        nearAccountId,
+        confirmationConfig: up.getConfirmationConfig(),
+        signerMode: up.getSignerMode(),
+        updatedAt: Date.now(),
+      } satisfies PreferencesChangedPayload,
+    });
+  };
+
+  const unsubCfg = up.onConfirmationConfigChange?.(() => emitPreferencesChanged()) || null;
+  const unsubSignerMode = up.onSignerModeChange?.(() => emitPreferencesChanged()) || null;
+  ctx.prefsUnsubscribe = () => {
+    try { unsubCfg?.(); } catch {}
+    try { unsubSignerMode?.(); } catch {}
+  };
+
+  Promise.resolve().then(() => emitPreferencesChanged()).catch(() => {});
 }
 
 function ensureTatchiPasskey(): void {
-  if (!walletConfigs || !walletConfigs.nearRpcUrl) {
-    throw new Error('Wallet service not configured. Call PM_SET_CONFIG first.');
-  }
-  if (!walletConfigs.contractId) {
-    throw new Error('Wallet service misconfigured: contractId is required.');
-  }
-  if (!nearClient) {
-    nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
-  }
-  if (!tatchiPasskey) {
-    const cfg = sanitizeWalletHostConfigs(walletConfigs);
-    assertWalletHostConfigsNoNestedIframeWallet(cfg);
-    // Mark runtime as wallet iframe host (internal flag)
-    __setWalletIframeHostMode(true);
-    tatchiPasskey = new TatchiPasskey(cfg, nearClient);
-    // Warm critical resources (Signer/VRF workers, IndexedDB) on the wallet origin.
-    // Non-blocking and safe to call without account context.
-	    const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
-	  if (pmAny?.warmCriticalResources) {
-	    void pmAny.warmCriticalResources().catch(() => {});
-	  }
-    applyHostTheme(tatchiPasskey.theme);
-	  const up = tatchiPasskey.userPreferences;
-
-    // Bridge wallet-host preferences to the parent app so app UI can mirror wallet host state.
-    prefsUnsubscribe?.();
-    const emitPreferencesChanged = () => {
-      const id = String(up.getCurrentUserAccountId?.() || '').trim();
-      const nearAccountId = id ? id : null;
-      post({
-        type: 'PREFERENCES_CHANGED',
-        payload: {
-          nearAccountId,
-          confirmationConfig: up.getConfirmationConfig(),
-          signerMode: up.getSignerMode(),
-          updatedAt: Date.now(),
-        } satisfies PreferencesChangedPayload,
-      });
-    };
-    const unsubCfg = up.onConfirmationConfigChange?.(() => emitPreferencesChanged()) || null;
-    const unsubSignerMode = up.onSignerModeChange?.(() => emitPreferencesChanged()) || null;
-    prefsUnsubscribe = () => {
-      try { unsubCfg?.(); } catch {}
-      try { unsubSignerMode?.(); } catch {}
-    };
-    // Emit a best-effort snapshot as soon as the host is ready.
-    Promise.resolve().then(() => emitPreferencesChanged()).catch(() => {});
-  }
+  const created = ensurePasskeyManager(ctx);
+  if (created) setupPreferencesBridge();
 }
 
 function getTatchiPasskey(): TatchiPasskey {
   ensureTatchiPasskey();
-  return tatchiPasskey!;
+  return ctx.tatchiPasskey as TatchiPasskey;
 }
 
 // Unified handler map wired with minimal deps from this host
@@ -166,49 +124,19 @@ const handlers = createWalletIframeHandlers({
   respondIfCancelled,
 });
 
-function post(msg: ChildToParentEnvelope) {
-  port?.postMessage(msg);
-}
-
-function postToParent(message: unknown): void {
-  const parentWindow = window.parent;
-  if (!parentWindow) return;
-  // If the first CONNECT arrived while this document still had an opaque
-  // ('null') origin, MessageEvent.origin can be the literal string 'null'.
-  // Do not lock onto that value; target '*' until a concrete origin is known.
-  const target = (parentOrigin && parentOrigin !== 'null') ? parentOrigin : '*';
-  parentWindow.postMessage(message, target);
-}
-
-/**
- * Gate whether we should adopt a transferred MessagePort for CONNECT.
- *
- * - Improves security by preventing a non-parent window from hijacking the MessagePort.
- * - Keeps the handshake robust: it tolerates early ‘null’ origins, supports retries,
- *   and binds adoption to the real parent.
- */
-function shouldAcceptConnectEvent(e: MessageEvent, hasAdoptedPort: boolean): boolean {
-  // Only accept CONNECT from our direct parent window and only once.
-  if (hasAdoptedPort) return false;
-  const src = (e as MessageEvent).source as Window | null;
-  if (src !== window.parent) return false;
-  return true;
-}
-
 // Lightweight cross-origin control channel for small embedded UI surfaces (e.g., tx button).
 // This channel uses window.postMessage directly (not MessagePort) so that a standalone
 // iframe can instruct this host to render a clickable control that performs WebAuthn
 // operations within the same browsing context (satisfying user activation requirements).
-(() => {
-  setupLitElemMounter({
-    ensureTatchiPasskey: ensureTatchiPasskey,
-    getTatchiPasskey: () => tatchiPasskey,
-    updateWalletConfigs: (patch) => {
-      walletConfigs = { ...walletConfigs, ...patch } as TatchiConfigsInput;
-    },
-    postToParent,
-  });
-})();
+setupLitElemMounter({
+  ensureTatchiPasskey: ensureTatchiPasskey,
+  getTatchiPasskey: () => ctx.tatchiPasskey,
+  updateWalletConfigs: (patch) => {
+    ctx.walletConfigs = { ...ctx.walletConfigs, ...patch } as TatchiConfigsInput;
+  },
+  getParentOrigin: () => ctx.parentOrigin,
+  postToParent,
+});
 
 /**
  * Main message handler for iframe communication
@@ -220,13 +148,84 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   if (!req || !isObject(req)) return;
   const requestId = req.requestId;
 
+  // Lightweight, side-effect free runtime capability probe for the embedding app.
+  if (req.type === 'PM_GET_CAPABILITIES') {
+    const isChromeExtension = (() => {
+      try {
+        if (window.location.protocol === 'chrome-extension:') return true;
+      } catch {}
+      try {
+        return typeof (globalThis as any)?.chrome?.runtime?.id === 'string';
+      } catch {
+        return false;
+      }
+    })();
+    const chromeExtensionId = (() => {
+      try {
+        const id = (globalThis as any)?.chrome?.runtime?.id;
+        return typeof id === 'string' && id.length > 0 ? id : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+    const webauthnClientCapabilities = await (async (): Promise<Record<string, boolean> | undefined> => {
+      try {
+        const pkc = (globalThis as any)?.PublicKeyCredential;
+        const fn = pkc?.getClientCapabilities;
+        if (typeof fn !== 'function') return undefined;
+        const res = await fn.call(pkc);
+        if (!res || typeof res !== 'object') return undefined;
+
+        const out: Record<string, boolean> = {};
+        for (const [key, value] of Object.entries(res as Record<string, unknown>)) {
+          if (typeof value === 'boolean') out[key] = value;
+        }
+        return Object.keys(out).length > 0 ? out : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+    const hasPrfExtension = (() => {
+      try {
+        const v = (webauthnClientCapabilities as Record<string, unknown> | undefined)?.['prf'];
+        return typeof v === 'boolean' ? v : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+    const capabilities: WalletIframeCapabilities = {
+      protocolVersion: PROTOCOL,
+      origin: (() => {
+        try { return window.location.origin || ''; } catch { return ''; }
+      })(),
+      href: (() => {
+        try { return window.location.href || ''; } catch { return ''; }
+      })(),
+      isSecureContext: (() => {
+        try { return !!window.isSecureContext; } catch { return false; }
+      })(),
+      userAgent: (() => {
+        try { return navigator.userAgent || ''; } catch { return ''; }
+      })(),
+      hasWebAuthn: (() => {
+        try { return !!navigator.credentials?.create && !!navigator.credentials?.get; } catch { return false; }
+      })(),
+      webauthnClientCapabilities,
+      hasPrfExtension,
+      isChromeExtension,
+      chromeExtensionId,
+    };
+    post({ type: 'PM_RESULT', requestId, payload: { ok: true, result: capabilities } });
+    return;
+  }
+
   // Handle ping/pong for connection health checks
   if (req.type === 'PING') {
     // Initialize TatchiPasskey and prewarm workers on wallet origin (non-blocking)
-    if (walletConfigs?.nearRpcUrl && walletConfigs?.contractId) {
+    if (ctx.walletConfigs?.nearRpcUrl && ctx.walletConfigs?.contractId) {
       Promise.resolve().then(() => {
         ensureTatchiPasskey();
-        const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
+        const pmAny = ctx.tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
         if (pmAny?.warmCriticalResources) return pmAny.warmCriticalResources();
       }).catch(() => {});
     }
@@ -237,57 +236,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   // Handle configuration updates from parent
   if (req.type === 'PM_SET_CONFIG') {
     const payload = req.payload as PMSetConfigPayload;
-    walletConfigs = {
-      nearRpcUrl: payload?.nearRpcUrl || walletConfigs?.nearRpcUrl || '',
-      nearNetwork: payload?.nearNetwork || walletConfigs?.nearNetwork || 'testnet',
-      contractId: payload?.contractId || walletConfigs?.contractId || '',
-      nearExplorerUrl: payload?.nearExplorerUrl || walletConfigs?.nearExplorerUrl,
-      signerMode: payload?.signerMode || walletConfigs?.signerMode,
-      relayer: payload?.relayer || walletConfigs?.relayer,
-      authenticatorOptions: payload?.authenticatorOptions || walletConfigs?.authenticatorOptions,
-      vrfWorkerConfigs: payload?.vrfWorkerConfigs || walletConfigs?.vrfWorkerConfigs,
-      emailRecoveryContracts: payload?.emailRecoveryContracts || walletConfigs?.emailRecoveryContracts,
-	      iframeWallet: sanitizeWalletHostConfigs({
-	        ...(walletConfigs || ({} as TatchiConfigsInput)),
-	        iframeWallet: {
-	          ...(walletConfigs?.iframeWallet || {}),
-	          rpIdOverride: payload?.rpIdOverride || walletConfigs?.iframeWallet?.rpIdOverride,
-	        },
-      }).iframeWallet,
-    } as TatchiConfigsInput;
-
-    // Configure SDK embedded asset base for Lit modal/embedded components
-    const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
-    // Default to serving embedded assets from this wallet origin under /sdk/
-    const safeOrigin = window.location.origin || window.location.href;
-    const defaultRoot = (() => {
-      try {
-        const base = new URL('/sdk/', safeOrigin).toString();
-        return base.endsWith('/') ? base : base + '/';
-      } catch {
-        return '/sdk/';
-      }
-    })();
-
-    let resolvedBase = defaultRoot;
-    const assetsBaseUrlCandidate = isString(assetsBaseUrl) ? assetsBaseUrl : undefined;
-    if (assetsBaseUrlCandidate !== undefined) {
-      try {
-        const u = new URL(assetsBaseUrlCandidate, safeOrigin);
-        // Only honor provided assetsBaseUrl if it matches this wallet origin to avoid CORS
-        if (u.origin === safeOrigin) {
-          const norm = u.toString().endsWith('/') ? u.toString() : (u.toString() + '/');
-          resolvedBase = norm;
-        }
-      } catch {}
-    }
-    setEmbeddedBase(resolvedBase);
-    nearClient = null; tatchiPasskey = null;
-    // Forward UI registry to iframe-lit-elem-mounter if provided
-    const uiRegistry = payload?.uiRegistry;
-    if (uiRegistry && isObject(uiRegistry)) {
-      window.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: uiRegistry }, '*');
-    }
+    applyWalletConfig(ctx, payload);
     post({ type: 'PONG', requestId });
     return;
   }
@@ -306,7 +255,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     }
     // Also cancel any device linking flow
     ensureTatchiPasskey();
-    await tatchiPasskey!.stopDevice2LinkingFlow();
+    await (ctx.tatchiPasskey as TatchiPasskey).stopDevice2LinkingFlow();
     if (rid) {
       // Immediately emit a terminal cancellation for the original request.
       // Handlers may also emit their own CANCELLED error; router tolerates duplicates.
@@ -319,7 +268,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   try {
     // Widen handler type for dynamic dispatch. HandlerMap is strongly typed at creation,
     // but when indexing with a runtime key, TS cannot correlate the specific envelope type.
-    const handler = handlers[req.type as ParentToChildType] as unknown as (r: ParentToChildEnvelope) => Promise<void>;
+    const handler = handlers[req.type as HandledParentToChildType] as unknown as (r: ParentToChildEnvelope) => Promise<void>;
     if (handler) {
       await handler(req);
     }
@@ -328,28 +277,6 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   }
 }
 
-function adoptPort(p: MessagePort) {
-  port = p;
-  port.onmessage = (ev) => onPortMessage(ev as MessageEvent<ParentToChildEnvelope>);
-  port.start?.();
-  post({ type: 'READY', payload: { protocolVersion: PROTOCOL } });
-}
-
-function onWindowMessage(e: MessageEvent) {
-  const { data, ports } = e;
-  if (!data || !isObject(data)) return;
-  if ((data as { type?: unknown }).type === 'CONNECT' && ports && ports[0]) {
-    if (!shouldAcceptConnectEvent(e, !!port)) return;
-    if (typeof e.origin === 'string' && e.origin.length && e.origin !== 'null') {
-      parentOrigin = e.origin;
-      // Scope the wallet's "last user" app-state pointer to this parent origin to
-      // prevent cross-app overwrites on the shared wallet origin IndexedDB.
-      try { IndexedDBManager.clientDB.setLastUserScope(parentOrigin); } catch {}
-    }
-    adoptPort(ports[0]);
-  }
-}
-
-window.addEventListener('message', onWindowMessage);
+addHostListeners(ctx, onPortMessage, PROTOCOL);
 
 export {};

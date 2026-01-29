@@ -19,9 +19,11 @@ import type { ConfirmationBehavior, ConfirmationConfig } from '../../types/signe
 import type { SignerMode } from '../../types/signer-worker';
 
 export type WalletProtocolVersion = '1.0.0';
+export const WALLET_PROTOCOL_VERSION: WalletProtocolVersion = '1.0.0';
 
 export type ParentToChildType =
   | 'PING'
+  | 'PM_GET_CAPABILITIES'
   | 'PM_SET_CONFIG'
   | 'PM_CANCEL'
   // TatchiPasskey API surface
@@ -88,6 +90,19 @@ export interface RpcEnvelope<T extends string = string, P = unknown> {
 
 export interface ReadyPayload {
   protocolVersion: WalletProtocolVersion;
+}
+
+export interface WalletIframeCapabilities {
+  protocolVersion: WalletProtocolVersion;
+  origin: string;
+  href: string;
+  isSecureContext: boolean;
+  userAgent: string;
+  hasWebAuthn: boolean;
+  webauthnClientCapabilities?: Record<string, boolean>;
+  hasPrfExtension?: boolean;
+  isChromeExtension?: boolean;
+  chromeExtensionId?: string;
 }
 
 export interface PreferencesChangedPayload {
@@ -316,6 +331,7 @@ export interface ErrorPayload {
 
 export type ParentToChildEnvelope =
   | RpcEnvelope<'PING'>
+  | RpcEnvelope<'PM_GET_CAPABILITIES'>
   | RpcEnvelope<'PM_SET_CONFIG', PMSetConfigPayload>
   | RpcEnvelope<'PM_CANCEL', PMCancelPayload>
   | RpcEnvelope<'PM_REGISTER', PMRegisterPayload>

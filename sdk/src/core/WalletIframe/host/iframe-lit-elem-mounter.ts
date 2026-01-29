@@ -41,7 +41,7 @@ import { uiBuiltinRegistry, type PmActionName, type WalletUIRegistry } from './i
 import { errorMessage } from '../../../utils/errors';
 import { isObject, isString, toTrimmedString } from '@/utils/validation';
 import { type SignerMode, coerceSignerMode } from '../../types/signer-worker';
-import { ensureHostBaseStyles, markContainer, setContainerAnchored } from './mounter-styles';
+import { ensureHostBaseStyles, markElement, setContainerAnchored, clearContainerAnchored } from './mounter-styles';
 
 export type EnsureTatchiPasskey = () => void;
 export type GetPasskeyManager = () => TatchiPasskey | TatchiPasskeyIframe | null; // Avoid tight coupling to class type
@@ -118,20 +118,46 @@ type UiEventBinding = NonNullable<UiComponentDef['eventBindings']>[number];
 
 type ViewportRect = { top: number; left: number; width: number; height: number };
 
+type MountedEntry =
+  | { kind: 'element'; element: UiElement }
+  | { kind: 'container'; container: HTMLElement; element: UiElement; containerId: string };
+
+export type LitElemMounterHandle = {
+  handleMessage: (evt: MessageEvent<WalletUiInboundMessage>) => void;
+  dispose: () => void;
+};
+
 type SetupLitElemMounterOptions = {
   ensureTatchiPasskey: EnsureTatchiPasskey;
   getTatchiPasskey: GetPasskeyManager;
   updateWalletConfigs: UpdateWalletConfigs;
   postToParent: (message: WalletUiOutboundMessage) => void;
+  /**
+   * Optional getter for the embedding parent origin.
+   * When provided, inbound UI-control messages are scoped to that origin once known.
+   */
+  getParentOrigin?: () => string | null;
+  /**
+   * Optional message target for inbound UI-control events (defaults to window).
+   */
+  messageTarget?: EventTarget;
+  /**
+   * Attach a global message listener (default true). When false, callers can
+   * use the returned handleMessage directly.
+   */
+  attachListener?: boolean;
 };
 
-export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
+export function setupLitElemMounter(opts: SetupLitElemMounterOptions): LitElemMounterHandle {
   const { ensureTatchiPasskey, getTatchiPasskey, updateWalletConfigs } = opts;
+  const getParentOrigin = opts.getParentOrigin || (() => null);
+  const messageTarget = opts.messageTarget || window;
+  const attachListener = opts.attachListener !== false;
 
   // Generic registry for mountable components
   let uiRegistry: WalletUIRegistry = { ...uiBuiltinRegistry };
   let uidCounter = 0;
-  const mountedById = new Map<string, HTMLElement>();
+  const mountedById = new Map<string, MountedEntry>();
 
   // Ensure global host styles via stylesheet (no inline style attributes)
   ensureHostBaseStyles();
@@ -266,10 +292,9 @@ export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
     rect: ViewportRect,
     anchorMode: 'iframe' | 'viewport',
     root: HTMLElement
-  ): HTMLElement => {
+  ): MountedEntry => {
     const container = document.createElement('div');
-    markContainer(container);
-    setContainerAnchored(container, rect, anchorMode);
+    const containerId = setContainerAnchored(container, rect, anchorMode);
     container.appendChild(el);
     container.addEventListener('pointerenter', () => {
       opts.postToParent({ type: 'WALLET_UI_ANCHOR_ENTER', payload: { id } });
@@ -278,7 +303,7 @@ export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
       opts.postToParent({ type: 'WALLET_UI_ANCHOR_LEAVE', payload: { id } });
     });
     root.appendChild(container);
-    return container;
+    return { kind: 'container', container, element: el, containerId };
   };
 
   const runPmAction = async <T extends PmActionName>(
@@ -322,7 +347,7 @@ export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
       return id;
     }
     const el = document.createElement(def.tag) as UiElement;
-    el.style.display = 'inline-block';
+    markElement(el);
     applyProps(el, props);
 
     wireEventBindings(el, def, componentKey, id);
@@ -333,43 +358,41 @@ export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
     const rect = coerceViewportRect(rawProps.viewportRect);
     const anchorMode = resolveAnchorMode(rawProps);
     const root = pickRoot(resolveTargetSelector(payload, rawProps));
-    const mountedNode = rect ? mountAnchored(el, id, rect, anchorMode, root) : (root.appendChild(el), el);
-    mountedById.set(id, mountedNode);
+    const mountedEntry = rect
+      ? mountAnchored(el, id, rect, anchorMode, root)
+      : (root.appendChild(el), { kind: 'element', element: el } as MountedEntry);
+    mountedById.set(id, mountedEntry);
     return id;
   };
 
   const updateUiComponent = (payload: WalletUiUpdatePayload) => {
-    const node = mountedById.get(payload.id);
-    if (!node) return false;
+    const entry = mountedById.get(payload.id);
+    if (!entry) return false;
     const props: UiProps = payload?.props || {};
 
-    // If node is a fixed-position container (viewportRect anchoring), update its rect
-    const isContainer = ((node as HTMLElement).dataset?.w3aContainer === '1') && (node as HTMLElement).firstElementChild;
-    if (isContainer) {
-      const container = node as HTMLElement;
+    if (entry.kind === 'container') {
       const rect = coerceViewportRect(props.viewportRect);
       const anchorMode = props.anchorMode === 'iframe' ? 'iframe' : 'viewport';
       if (rect) {
-        setContainerAnchored(container, rect, anchorMode === 'iframe' ? 'iframe' : 'viewport');
+        setContainerAnchored(entry.container, rect, anchorMode);
       }
-      // Update child element props (mode, label, disabled, etc.)
-      const child = container.firstElementChild as UiElement | null;
-      if (child) {
-        applyProps(child, props);
-      }
+      applyProps(entry.element, props);
       return true;
     }
 
-    // Otherwise node is the custom element itself
-    const el = node as UiElement;
-    applyProps(el, props);
+    applyProps(entry.element, props);
     return true;
   };
 
   const unmountUiComponent = (payload: WalletUiUnmountPayload) => {
-    const el = mountedById.get(payload.id);
-    if (!el) return false;
-    el.remove();
+    const entry = mountedById.get(payload.id);
+    if (!entry) return false;
+    if (entry.kind === 'container') {
+      clearContainerAnchored(entry.containerId);
+      entry.container.remove();
+    } else {
+      entry.element.remove();
+    }
     mountedById.delete(payload.id);
     return true;
   };
@@ -395,7 +418,22 @@ export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
     },
   };
 
-  window.addEventListener('message', (evt: MessageEvent<WalletUiInboundMessage>) => {
+  const handleMessage = (evt: MessageEvent<WalletUiInboundMessage>) => {
+    // Security: only accept control messages from ourselves (internal wiring)
+    // or from the direct embedding parent window. This prevents unrelated windows
+    // from driving UI mounts/updates in the wallet origin.
+    try {
+      const src = evt.source as Window | null;
+      if (src !== window && src !== window.parent) return;
+      if (src === window.parent) {
+        const expected = getParentOrigin();
+        if (expected && expected !== 'null' && evt.origin !== expected) return;
+        // Opaque ('null') origins are not acceptable for parent-driven UI control.
+        if (!expected && evt.origin === 'null') return;
+      }
+    } catch {
+      return;
+    }
     const data = evt?.data;
     if (!data || !isObject(data) || !('type' in data)) return;
     const message = data as WalletUiInboundMessage;
@@ -418,5 +456,18 @@ export function setupLitElemMounter(opts: SetupLitElemMounterOptions) {
       default:
         break;
     }
-  });
+  };
+
+  if (attachListener) {
+    messageTarget.addEventListener('message', handleMessage as EventListener);
+  }
+
+  return {
+    handleMessage,
+    dispose: () => {
+      if (attachListener) {
+        messageTarget.removeEventListener('message', handleMessage as EventListener);
+      }
+    },
+  };
 }

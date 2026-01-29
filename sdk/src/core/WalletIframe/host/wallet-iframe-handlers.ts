@@ -3,7 +3,6 @@ import type {
   ParentToChildType,
   ChildToParentEnvelope,
   ProgressPayload,
-  PMSignAndSendTxsPayload,
   PMExecuteActionPayload,
   PMStartEmailRecoveryPayload,
   PMFinalizeEmailRecoveryPayload,
@@ -34,11 +33,12 @@ import type {
 import type { ConfirmationConfig } from '../../types/signer-worker';
 import { toAccountId } from '../../types/accountIds';
 import { SignedTransaction } from '../../NearClient';
-import { isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, PlainSignedTransactionLike } from '@/utils/validation';
+import { isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx } from '@/utils/validation';
 import type { ActionArgs } from '../../types';
 
-type Req<T extends ParentToChildType> = Extract<ParentToChildEnvelope, { type: T }>;
-type HandlerMap = { [K in ParentToChildType]: (req: Extract<ParentToChildEnvelope, { type: K }>) => Promise<void> };
+export type HandledParentToChildType = Exclude<ParentToChildType, 'PING' | 'PM_GET_CAPABILITIES' | 'PM_SET_CONFIG' | 'PM_CANCEL'>;
+type Req<T extends HandledParentToChildType> = Extract<ParentToChildEnvelope, { type: T }>;
+type HandlerMap = { [K in HandledParentToChildType]: (req: Extract<ParentToChildEnvelope, { type: K }>) => Promise<void> };
 
 export interface HandlerDeps {
   getTatchiPasskey(): TatchiPasskey;
@@ -57,141 +57,144 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     respondIfCancelled,
   } = deps;
 
-  return {
+  const respondOk = (req: ParentToChildEnvelope, result?: unknown) => {
+    const payload = result === undefined ? { ok: true } : { ok: true, result };
+    post({ type: 'PM_RESULT', requestId: req.requestId, payload });
+  };
+
+  const withProgress = <T extends Record<string, unknown> | undefined>(
+    req: ParentToChildEnvelope,
+    options?: T,
+  ): T & { onEvent: (ev: ProgressPayload) => void } => {
+    return {
+      ...(options || {}) as Record<string, unknown>,
+      onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+    } as T & { onEvent: (ev: ProgressPayload) => void };
+  };
+
+  const run = async <T>(
+    req: ParentToChildEnvelope,
+    fn: () => Promise<T>,
+    opts?: { respond?: boolean }
+  ) => {
+    if (respondIfCancelled(req.requestId)) return;
+    const result = await fn();
+    if (respondIfCancelled(req.requestId)) return;
+    if (opts?.respond === false) return;
+    respondOk(req, result);
+  };
+
+  const handlers = {
     PM_LOGIN: async (req: Req<'PM_LOGIN'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, options } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.loginAndCreateSession(nearAccountId, {
-        ...options,
-        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
-      } as LoginHooksOptions);
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      await run(req, async () => {
+        return await pm.loginAndCreateSession(nearAccountId, withProgress(req, options) as LoginHooksOptions);
+      });
     },
 
     PM_LOGOUT: async (req: Req<'PM_LOGOUT'>) => {
       const pm = getTatchiPasskey();
       await pm.logoutAndClearSession();
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+      respondOk(req);
     },
 
     PM_GET_LOGIN_SESSION: async (req: Req<'PM_GET_LOGIN_SESSION'>) => {
       const pm = getTatchiPasskey();
       const result: LoginSession = await pm.getLoginSession(req.payload?.nearAccountId);
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      respondOk(req, result);
     },
 
     PM_REGISTER: async (req: Req<'PM_REGISTER'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, options, confirmationConfig } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-
-      const onEvent = (ev: ProgressPayload) => postProgress(req.requestId, ev);
-      const hooksOptions = { ...options, onEvent } as RegistrationHooksOptions;
-
-      const result: RegistrationResult = !confirmationConfig
-        ? await pm.registerPasskey(nearAccountId, hooksOptions)
-        : await pm.registerPasskeyInternal(nearAccountId, hooksOptions,
-            confirmationConfig as unknown as ConfirmationConfig);
-
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      await run(req, async () => {
+        const hooksOptions = withProgress(req, options) as RegistrationHooksOptions;
+        const result: RegistrationResult = !confirmationConfig
+          ? await pm.registerPasskey(nearAccountId, hooksOptions)
+          : await pm.registerPasskeyInternal(
+              nearAccountId,
+              hooksOptions,
+              confirmationConfig as unknown as ConfirmationConfig,
+            );
+        return result;
+      });
     },
 
     PM_ENROLL_THRESHOLD_ED25519_KEY: async (req: Req<'PM_ENROLL_THRESHOLD_ED25519_KEY'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, options } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-
-      const result = await pm.enrollThresholdEd25519Key(nearAccountId, options);
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      await run(req, async () => {
+        return await pm.enrollThresholdEd25519Key(nearAccountId, options);
+      });
     },
 
     PM_ROTATE_THRESHOLD_ED25519_KEY: async (req: Req<'PM_ROTATE_THRESHOLD_ED25519_KEY'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, options } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-
-      const result = await pm.rotateThresholdEd25519Key(nearAccountId, options);
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      await run(req, async () => {
+        return await pm.rotateThresholdEd25519Key(nearAccountId, options);
+      });
     },
 
     PM_SIGN_TXS_WITH_ACTIONS: async (req: Req<'PM_SIGN_TXS_WITH_ACTIONS'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, transactions, options } = req.payload!;
-
-      const results = await pm.signTransactionsWithActions({
-        nearAccountId,
-        transactions: transactions,
-        options: {
-          ...(options || {}),
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-        } as SignTransactionHooksOptions,
+      await run(req, async () => {
+        return await pm.signTransactionsWithActions({
+          nearAccountId,
+          transactions: transactions,
+          options: withProgress(req, options) as SignTransactionHooksOptions,
+        });
       });
-
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result: results } });
     },
 
     PM_SIGN_AND_SEND_TXS: async (req: Req<'PM_SIGN_AND_SEND_TXS'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, transactions, options } = req.payload || {};
-
-      const results = await pm.signAndSendTransactions({
-        nearAccountId: nearAccountId as string,
-        transactions: transactions || [],
-        options: {
-          ...options,
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
-        } as SignAndSendTransactionHooksOptions,
+      await run(req, async () => {
+        return await pm.signAndSendTransactions({
+          nearAccountId: nearAccountId as string,
+          transactions: transactions || [],
+          options: withProgress(req, options) as SignAndSendTransactionHooksOptions,
+        });
       });
-
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result: results } });
     },
 
     PM_LINK_DEVICE_WITH_SCANNED_QR_DATA: async (req: Req<'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA'>) => {
       const pm = getTatchiPasskey();
       const { qrData, fundingAmount, options } = req.payload || {};
-      if (respondIfCancelled(req.requestId)) return;
-
-      const result = await pm.linkDeviceWithScannedQRData(qrData as DeviceLinkingQRData, {
-        fundingAmount: fundingAmount as string,
-        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-        confirmationConfig: options?.confirmationConfig,
-        confirmerText: options?.confirmerText,
-      } as ScanAndLinkDeviceOptionsDevice1);
-
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      await run(req, async () => {
+        return await pm.linkDeviceWithScannedQRData(qrData as DeviceLinkingQRData, {
+          fundingAmount: fundingAmount as string,
+          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+          confirmationConfig: options?.confirmationConfig,
+          confirmerText: options?.confirmerText,
+        } as ScanAndLinkDeviceOptionsDevice1);
+      });
     },
 
     PM_START_DEVICE2_LINKING_FLOW: async (req: Req<'PM_START_DEVICE2_LINKING_FLOW'>) => {
       const pm = getTatchiPasskey();
-      if (respondIfCancelled(req.requestId)) return;
-
-      const { ui, cameraId, options } = req.payload || {};
-      const { qrData, qrCodeDataURL } = await pm.startDevice2LinkingFlow({
-        ui,
-        cameraId,
-        options: {
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-          confirmationConfig: options?.confirmationConfig,
-          confirmerText: options?.confirmerText,
-        },
+      await run(req, async () => {
+        const { ui, cameraId, options } = req.payload || {};
+        const { qrData, qrCodeDataURL } = await pm.startDevice2LinkingFlow({
+          ui,
+          cameraId,
+          options: {
+            onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+            confirmationConfig: options?.confirmationConfig,
+            confirmerText: options?.confirmerText,
+          },
+        });
+        return { flowId: req.requestId, qrData, qrCodeDataURL };
       });
-
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result: { flowId: req.requestId, qrData, qrCodeDataURL } } });
     },
 
     PM_STOP_DEVICE2_LINKING_FLOW: async (req: Req<'PM_STOP_DEVICE2_LINKING_FLOW'>) => {
       const pm = getTatchiPasskey();
       try { await pm.stopDevice2LinkingFlow(); } catch (err) { console.error(err) }
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+      respondOk(req);
     },
 
     PM_SEND_TRANSACTION: async (req: Req<'PM_SEND_TRANSACTION'>) => {
@@ -207,62 +210,49 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
           // If conversion fails, pass through original value
         }
       }
-      const result = await pm.sendTransaction({
-        signedTransaction: st as SignedTransaction,
-        options: {
-          ...(options || {}),
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
-        } as SendTransactionHooksOptions,
+      await run(req, async () => {
+        return await pm.sendTransaction({
+          signedTransaction: st as SignedTransaction,
+          options: withProgress(req, options) as SendTransactionHooksOptions,
+        });
       });
-
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
     PM_EXECUTE_ACTION: async (req: Req<'PM_EXECUTE_ACTION'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, receiverId, actionArgs, options } = (req.payload || ({} as Partial<PMExecuteActionPayload>));
-      const result = await pm.executeAction({
-        nearAccountId: nearAccountId as string,
-        receiverId: receiverId as string,
-        actionArgs: (actionArgs as ActionArgs | ActionArgs[])!,
-        options: {
-          ...(options || {}),
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
-        } as ActionHooksOptions,
+      await run(req, async () => {
+        return await pm.executeAction({
+          nearAccountId: nearAccountId as string,
+          receiverId: receiverId as string,
+          actionArgs: (actionArgs as ActionArgs | ActionArgs[])!,
+          options: withProgress(req, options) as ActionHooksOptions,
+        });
       });
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
     PM_SIGN_DELEGATE_ACTION: async (req: Req<'PM_SIGN_DELEGATE_ACTION'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, delegate, options } = req.payload!;
-      const result = await pm.signDelegateAction({
-        nearAccountId: nearAccountId,
-        delegate,
-        options: {
-          ...(options || {}),
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-        } as DelegateActionHooksOptions,
+      await run(req, async () => {
+        return await pm.signDelegateAction({
+          nearAccountId: nearAccountId,
+          delegate,
+          options: withProgress(req, options) as DelegateActionHooksOptions,
+        });
       });
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
     PM_SIGN_NEP413: async (req: Req<'PM_SIGN_NEP413'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, params, options } = req.payload!;
-      const result = await pm.signNEP413Message({
-        nearAccountId,
-        params,
-        options: {
-          ...options,
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
-        } as SignNEP413HooksOptions,
+      await run(req, async () => {
+        return await pm.signNEP413Message({
+          nearAccountId,
+          params,
+          options: withProgress(req, options) as SignNEP413HooksOptions,
+        });
       });
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
 
     PM_EXPORT_NEAR_KEYPAIR_UI: async (req: Req<'PM_EXPORT_NEAR_KEYPAIR_UI'>) => {
@@ -282,74 +272,67 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
             postToParent?.({ type: WALLET_UI_CLOSED });
           });
       }
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+      respondOk(req);
     },
 
     PM_GET_RECENT_LOGINS: async (req: Req<'PM_GET_RECENT_LOGINS'>) => {
       const pm = getTatchiPasskey();
       const result = await pm.getRecentLogins();
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      respondOk(req, result);
     },
 
     PM_PREFETCH_BLOCKHEIGHT: async (req: Req<'PM_PREFETCH_BLOCKHEIGHT'>) => {
       const pm = getTatchiPasskey();
       await pm.prefetchBlockheight().catch(() => undefined);
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+      respondOk(req);
     },
 
     PM_SET_DERIVED_ADDRESS: async (req: Req<'PM_SET_DERIVED_ADDRESS'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, args } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-      await pm.setDerivedAddress(nearAccountId, args);
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+      await run(req, async () => {
+        await pm.setDerivedAddress(nearAccountId, args);
+        return undefined;
+      });
     },
 
     PM_GET_DERIVED_ADDRESS_RECORD: async (req: Req<'PM_GET_DERIVED_ADDRESS_RECORD'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, args } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.getDerivedAddressRecord(nearAccountId, args);
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      await run(req, async () => {
+        return await pm.getDerivedAddressRecord(nearAccountId, args);
+      });
     },
 
     PM_GET_DERIVED_ADDRESS: async (req: Req<'PM_GET_DERIVED_ADDRESS'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, args } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.getDerivedAddress(nearAccountId, args);
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      await run(req, async () => {
+        return await pm.getDerivedAddress(nearAccountId, args);
+      });
     },
 
     PM_GET_RECOVERY_EMAILS: async (req: Req<'PM_GET_RECOVERY_EMAILS'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.getRecoveryEmails(nearAccountId);
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      await run(req, async () => {
+        return await pm.getRecoveryEmails(nearAccountId);
+      });
     },
 
     PM_SET_RECOVERY_EMAILS: async (req: Req<'PM_SET_RECOVERY_EMAILS'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, recoveryEmails, options } = req.payload!;
-      if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.setRecoveryEmails(nearAccountId, recoveryEmails, {
-        ...(options || {}),
-        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-      } as ActionHooksOptions);
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      await run(req, async () => {
+        return await pm.setRecoveryEmails(nearAccountId, recoveryEmails, withProgress(req, options) as ActionHooksOptions);
+      });
     },
 
     PM_SET_CONFIRM_BEHAVIOR: async (req: Req<'PM_SET_CONFIRM_BEHAVIOR'>) => {
       const pm = getTatchiPasskey();
       const { behavior } = req.payload!;
       pm.setConfirmBehavior(behavior);
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+      respondOk(req);
     },
 
     PM_SET_CONFIRMATION_CONFIG: async (req: Req<'PM_SET_CONFIRMATION_CONFIG'>) => {
@@ -367,13 +350,13 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       }
       const base: ConfirmationConfig = pm.getConfirmationConfig();
       pm.setConfirmationConfig({ ...base, ...patch });
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+      respondOk(req);
     },
 
     PM_GET_CONFIRMATION_CONFIG: async (req: Req<'PM_GET_CONFIRMATION_CONFIG'>) => {
       const pm = getTatchiPasskey();
       const result = pm.getConfirmationConfig();
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      respondOk(req, result);
     },
 
     PM_SET_SIGNER_MODE: async (req: Req<'PM_SET_SIGNER_MODE'>) => {
@@ -382,13 +365,13 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       try {
         pm.setSignerMode(signerMode);
       } catch {}
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+      respondOk(req);
     },
 
     PM_GET_SIGNER_MODE: async (req: Req<'PM_GET_SIGNER_MODE'>) => {
       const pm = getTatchiPasskey();
       const result = pm.getSignerMode();
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      respondOk(req, result);
     },
 
     PM_SET_THEME: async (req: Req<'PM_SET_THEME'>) => {
@@ -400,7 +383,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
           document.documentElement.setAttribute('data-w3a-theme', theme);
         }
       } catch {}
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+      respondOk(req);
     },
 
     PM_HAS_PASSKEY: async (req: Req<'PM_HAS_PASSKEY'>) => {
@@ -414,66 +397,61 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         await web.getAuthenticatorsByUser(toAccountId(nearAccountId)).catch(() => undefined);
       }
       const result = await pm.hasPasskeyCredential(toAccountId(nearAccountId));
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      respondOk(req, result);
     },
 
     PM_VIEW_ACCESS_KEYS: async (req: Req<'PM_VIEW_ACCESS_KEYS'>) => {
       const pm = getTatchiPasskey();
       const { accountId } = req.payload!;
       const result = await pm.viewAccessKeyList(accountId);
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      respondOk(req, result);
     },
 
     PM_DELETE_DEVICE_KEY: async (req: Req<'PM_DELETE_DEVICE_KEY'>) => {
       const pm = getTatchiPasskey();
       const { accountId, publicKeyToDelete, options } = req.payload!;
-      const result = await pm.deleteDeviceKey(accountId, publicKeyToDelete, {
-        ...(options || {}),
-        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-      } as ActionHooksOptions);
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+      await run(req, async () => {
+        return await pm.deleteDeviceKey(accountId, publicKeyToDelete, withProgress(req, options) as ActionHooksOptions);
+      });
     },
 
     PM_SYNC_ACCOUNT_FLOW: async (req: Req<'PM_SYNC_ACCOUNT_FLOW'>) => {
       const pm = getTatchiPasskey();
       const { accountId } = (req.payload || {});
-      if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.syncAccount({
-        accountId,
-        options: { onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev) } as SyncAccountHooksOptions,
+      await run(req, async () => {
+        return await pm.syncAccount({
+          accountId,
+          options: withProgress(req, undefined) as SyncAccountHooksOptions,
+        });
       });
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
     PM_START_EMAIL_RECOVERY: async (req: Req<'PM_START_EMAIL_RECOVERY'>) => {
       const pm = getTatchiPasskey();
       const { accountId, options } = (req.payload as PMStartEmailRecoveryPayload);
-      if (respondIfCancelled(req.requestId)) return;
-      const result = await pm.startEmailRecovery({
-        accountId,
-        options: {
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
-          confirmerText: options?.confirmerText,
-          confirmationConfig: options?.confirmationConfig,
-        },
+      await run(req, async () => {
+        return await pm.startEmailRecovery({
+          accountId,
+          options: {
+            onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+            confirmerText: options?.confirmerText,
+            confirmationConfig: options?.confirmationConfig,
+          },
+        });
       });
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
     PM_FINALIZE_EMAIL_RECOVERY: async (req: Req<'PM_FINALIZE_EMAIL_RECOVERY'>) => {
       const pm = getTatchiPasskey();
       const { accountId, nearPublicKey } = (req.payload as PMFinalizeEmailRecoveryPayload);
-      if (respondIfCancelled(req.requestId)) return;
-      await pm.finalizeEmailRecovery({
-        accountId,
-        nearPublicKey,
-        options: {
-          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
-        },
+      await run(req, async () => {
+        await pm.finalizeEmailRecovery({
+          accountId,
+          nearPublicKey,
+          options: {
+            onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+          },
+        });
+        return undefined;
       });
-      if (respondIfCancelled(req.requestId)) return;
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
     PM_STOP_EMAIL_RECOVERY: async (req: Req<'PM_STOP_EMAIL_RECOVERY'>) => {
@@ -485,7 +463,8 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
           await maybeCancel.call(pm, { accountId, nearPublicKey });
         }
       } catch {}
-      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+      respondOk(req);
     },
-  } as unknown as HandlerMap;
+  } satisfies HandlerMap;
+  return handlers;
 }

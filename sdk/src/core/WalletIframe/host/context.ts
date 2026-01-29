@@ -4,9 +4,11 @@ import { __setWalletIframeHostMode } from '../host-mode';
 import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import type { TatchiConfigsInput } from '../../types/tatchi';
 import type { PMSetConfigPayload } from '../shared/messages';
-import { isString } from '@/utils/validation';
+import { isObject, isString } from '@/utils/validation';
 import { setEmbeddedBase } from '../../sdkPaths';
+import { ensureTrailingSlash } from '../shared/runtime';
 import { assertWalletHostConfigsNoNestedIframeWallet, sanitizeWalletHostConfigs } from './config-guards';
+import type { WalletUIRegistry } from './iframe-lit-element-registry';
 
 export interface HostContext {
   parentOrigin: string | null;
@@ -15,7 +17,14 @@ export interface HostContext {
   nearClient: MinimalNearClient | null;
   tatchiPasskey: TatchiPasskey | TatchiPasskeyIframe | null;
   onWindowMessage?: (e: MessageEvent) => void;
+  prefsUnsubscribe?: (() => void) | null;
 }
+
+export type WalletHostConfigResult = {
+  configs: TatchiConfigsInput;
+  embeddedAssetsBase: string;
+  uiRegistry?: WalletUIRegistry;
+};
 
 export function createHostContext(): HostContext {
   return {
@@ -25,10 +34,11 @@ export function createHostContext(): HostContext {
     nearClient: null,
     tatchiPasskey: null,
     onWindowMessage: undefined,
+    prefsUnsubscribe: null,
   };
 }
 
-export function ensurePasskeyManager(ctx: HostContext): void {
+export function ensurePasskeyManager(ctx: HostContext): boolean {
   const { walletConfigs } = ctx;
   if (!walletConfigs || !walletConfigs.nearRpcUrl) {
     throw new Error('Wallet service not configured. Call PM_SET_CONFIG first.');
@@ -49,7 +59,9 @@ export function ensurePasskeyManager(ctx: HostContext): void {
       if (pmAny?.warmCriticalResources) void pmAny.warmCriticalResources();
     } catch {}
     updateThemeBridge(ctx);
+    return true;
   }
+  return false;
 }
 
 export function updateThemeBridge(ctx: HostContext): void {
@@ -63,60 +75,77 @@ export function updateThemeBridge(ctx: HostContext): void {
   } catch {}
 }
 
-export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload): void {
-  const prev = ctx.walletConfigs || ({} as TatchiConfigsInput);
+export function mergeWalletHostConfig(
+  prev: TatchiConfigsInput | null,
+  payload: PMSetConfigPayload,
+  location: { origin: string; href: string },
+): WalletHostConfigResult {
+  const existing = prev || ({} as TatchiConfigsInput);
   const base = {
-    nearRpcUrl: payload?.nearRpcUrl || prev.nearRpcUrl || '',
-    nearNetwork: payload?.nearNetwork || prev.nearNetwork || 'testnet',
-    contractId: payload?.contractId || prev.contractId || '',
-    nearExplorerUrl: payload?.nearExplorerUrl || prev.nearExplorerUrl,
-    signerMode: payload?.signerMode || prev.signerMode,
-    relayer: payload?.relayer || prev.relayer,
-    authenticatorOptions: payload?.authenticatorOptions || prev.authenticatorOptions,
-    vrfWorkerConfigs: payload?.vrfWorkerConfigs || prev.vrfWorkerConfigs,
-    emailRecoveryContracts: payload?.emailRecoveryContracts || prev.emailRecoveryContracts,
+    nearRpcUrl: payload?.nearRpcUrl || existing.nearRpcUrl || '',
+    nearNetwork: payload?.nearNetwork || existing.nearNetwork || 'testnet',
+    contractId: payload?.contractId || existing.contractId || '',
+    nearExplorerUrl: payload?.nearExplorerUrl || existing.nearExplorerUrl,
+    signerMode: payload?.signerMode || existing.signerMode,
+    relayer: payload?.relayer || existing.relayer,
+    authenticatorOptions: payload?.authenticatorOptions || existing.authenticatorOptions,
+    vrfWorkerConfigs: payload?.vrfWorkerConfigs || existing.vrfWorkerConfigs,
+    emailRecoveryContracts: payload?.emailRecoveryContracts || existing.emailRecoveryContracts,
     iframeWallet: {
-      ...(prev.iframeWallet || {}),
-      rpIdOverride: payload?.rpIdOverride || prev.iframeWallet?.rpIdOverride,
+      ...(existing.iframeWallet || {}),
+      rpIdOverride: payload?.rpIdOverride || existing.iframeWallet?.rpIdOverride,
     },
   } as TatchiConfigsInput;
-  ctx.walletConfigs = sanitizeWalletHostConfigs(base);
 
-  // Configure SDK embedded asset base for Lit modal/embedded components
-  try {
-    const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
-    const safeOrigin = window.location.origin || window.location.href;
-    const defaultRoot = (() => {
-      try {
-        const base = new URL('/sdk/', safeOrigin).toString();
-        return base.endsWith('/') ? base : base + '/';
-      } catch {
-        return '/sdk/';
-      }
-    })();
-    let resolvedBase = defaultRoot;
-    const assetsBaseUrlCandidate = isString(assetsBaseUrl) ? assetsBaseUrl : undefined;
-    if (assetsBaseUrlCandidate !== undefined) {
-      try {
-        const u = new URL(assetsBaseUrlCandidate, safeOrigin);
-        if (u.origin === safeOrigin) {
-          const norm = u.toString().endsWith('/') ? u.toString() : u.toString() + '/';
-          resolvedBase = norm;
-        }
-      } catch {}
+  const configs = sanitizeWalletHostConfigs(base);
+
+  const safeOrigin = location.origin || location.href;
+  const defaultRoot = (() => {
+    try {
+      return ensureTrailingSlash(new URL('/sdk/', safeOrigin).toString());
+    } catch {
+      return '/sdk/';
     }
-    setEmbeddedBase(resolvedBase);
-  } catch {}
+  })();
+
+  let resolvedBase = defaultRoot;
+  const assetsBaseUrlCandidate = isString(payload?.assetsBaseUrl) ? payload?.assetsBaseUrl : undefined;
+  if (assetsBaseUrlCandidate !== undefined) {
+    try {
+      const u = new URL(assetsBaseUrlCandidate, safeOrigin);
+      if (u.origin === safeOrigin) {
+        resolvedBase = ensureTrailingSlash(u.toString());
+      }
+    } catch {}
+  }
+
+  const uiRegistry = isObject(payload?.uiRegistry) ? (payload?.uiRegistry as WalletUIRegistry) : undefined;
+
+  return { configs, embeddedAssetsBase: resolvedBase, uiRegistry };
+}
+
+export function applyWalletConfig(
+  ctx: HostContext,
+  payload: PMSetConfigPayload,
+  location?: { origin: string; href: string },
+): WalletHostConfigResult {
+  const origin = location?.origin ?? window.location.origin ?? '';
+  const href = location?.href ?? window.location.href ?? '';
+  const merged = mergeWalletHostConfig(ctx.walletConfigs, payload, { origin, href });
+  ctx.walletConfigs = merged.configs;
+
+  setEmbeddedBase(merged.embeddedAssetsBase);
 
   // Reset instances so they re-initialize with new config lazily
+  ctx.prefsUnsubscribe?.();
+  ctx.prefsUnsubscribe = null;
   ctx.nearClient = null;
   ctx.tatchiPasskey = null;
 
   // Forward UI registry to iframe-lit-elem-mounter if provided
-  try {
-    const uiRegistry = payload?.uiRegistry;
-    if (uiRegistry && typeof uiRegistry === 'object') {
-      window.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: uiRegistry }, '*');
-    }
-  } catch {}
+  if (merged.uiRegistry) {
+    try { window.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: merged.uiRegistry }, '*'); } catch {}
+  }
+
+  return merged;
 }

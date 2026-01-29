@@ -1,6 +1,7 @@
 import { getEmbeddedBase, setEmbeddedBase } from '../../sdkPaths';
 import { ensureKnownW3aElement } from '../../WebAuthnManager/LitComponents/ensure-defined';
 import { scheduleOfflineExportSwPriming } from '../../OfflineExport/priming';
+import { getNodeEnv, isDevHost } from '../shared/runtime';
 
 interface GlobalThis {
  global?: unknown;
@@ -92,15 +93,7 @@ export function ensureTransparentSurface(): void {
  * definitions for known elements via ensureKnownW3aElement().
  */
 function setupDevUnupgradedObserver(): void {
-  const isDev = (() => {
-    const env = (globalThis as any)?.process?.env?.NODE_ENV;
-    if (env && env !== 'production') return true;
-    const h = window.location.hostname || '';
-    if (/localhost|127\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)|\.local(?:host)?$/i.test(h)) {
-      return true;
-    }
-    return false;
-  })();
+  const isDev = isDevHost(window.location.hostname || '', getNodeEnv());
   if (!isDev) return;
 
   const pending = new WeakMap<Element, number>();
