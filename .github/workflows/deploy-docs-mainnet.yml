@@ -60,7 +60,8 @@ jobs:
           VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
           VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
           VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
-          VITE_RECOVER_EMAIL_RECIPIENT: ${{ vars.RECOVER_EMAIL_RECIPIENT }}
+          # Prefer frontend-specific var when set, but allow using the same env var as the relay deploy.
+          VITE_RECOVER_EMAIL_RECIPIENT: ${{ vars.VITE_RECOVER_EMAIL_RECIPIENT || vars.RECOVER_EMAIL_RECIPIENT }}
           VITE_EMAIL_RECOVERER_GLOBAL_CONTRACT: ${{ vars.VITE_EMAIL_RECOVERER_GLOBAL_CONTRACT }}
           VITE_ZK_EMAIL_VERIFIER_CONTRACT: ${{ vars.VITE_ZK_EMAIL_VERIFIER_CONTRACT }}
           VITE_EMAIL_DKIM_VERIFIER_CONTRACT: ${{ vars.VITE_EMAIL_DKIM_VERIFIER_CONTRACT }}
@@ -98,7 +99,8 @@ jobs:
           VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH || '/wallet-service' }}
           VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
           VITE_SDK_BASE_PATH: ${{ vars.VITE_SDK_BASE_PATH || '/sdk' }}
-          VITE_RECOVER_EMAIL_RECIPIENT: ${{ vars.RECOVER_EMAIL_RECIPIENT }}
+          # Prefer frontend-specific var when set, but allow using the same env var as the relay deploy.
+          VITE_RECOVER_EMAIL_RECIPIENT: ${{ vars.VITE_RECOVER_EMAIL_RECIPIENT || vars.RECOVER_EMAIL_RECIPIENT }}
           VITE_EMAIL_RECOVERER_GLOBAL_CONTRACT: ${{ vars.VITE_EMAIL_RECOVERER_GLOBAL_CONTRACT }}
           VITE_ZK_EMAIL_VERIFIER_CONTRACT: ${{ vars.VITE_ZK_EMAIL_VERIFIER_CONTRACT }}
           VITE_EMAIL_DKIM_VERIFIER_CONTRACT: ${{ vars.VITE_EMAIL_DKIM_VERIFIER_CONTRACT }}
