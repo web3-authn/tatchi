@@ -2,10 +2,6 @@
 
 Passkey wallet SDK for NEAR Protocol. An embedded wallet powered by VRF WebAuthn, cross-origin iframe isolation, and WASM-based cryptography.
 
-Featuring:
-- **Core SDK**: Framework-agnostic JavaScript/TypeScript library
-- **React Components**: Drop-in components and hooks for React applications
-- **Plugins**: plugins to setup the right headers for Vite, Next.js, etc
 
 ## Installation
 
