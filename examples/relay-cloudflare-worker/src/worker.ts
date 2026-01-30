@@ -135,6 +135,15 @@ export default {
    */
   async email(message: CfEmailMessage, env: Env, ctx: Ctx): Promise<void> {
     const authService = getAuthService(env);
+    try {
+      console.info('[relay][email] env', {
+        NETWORK_ID: env.NETWORK_ID,
+        NEAR_RPC_URL: env.NEAR_RPC_URL,
+        WEBAUTHN_CONTRACT_ID: env.WEBAUTHN_CONTRACT_ID,
+        EMAIL_DKIM_VERIFIER_CONTRACT: env.EMAIL_DKIM_VERIFIER_CONTRACT,
+        RELAYER_ACCOUNT_ID: env.RELAYER_ACCOUNT_ID,
+      });
+    } catch {}
     const handler = createCloudflareEmailHandler(authService, {
       expectedRecipient: env.RECOVER_EMAIL_RECIPIENT,
       verbose: true,
