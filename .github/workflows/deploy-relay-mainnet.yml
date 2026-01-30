@@ -17,8 +17,7 @@ jobs:
       RECOVER_EMAIL_RECIPIENT: ${{ vars.VITE_RECOVER_EMAIL_RECIPIENT }}
       NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
       NETWORK_ID: ${{ vars.VITE_NEAR_NETWORK }}
-      # Relay worker env var (NOT a frontend-only Vite var); allow either naming convention in GitHub Environments.
-      EMAIL_DKIM_VERIFIER_CONTRACT: ${{ vars.EMAIL_DKIM_VERIFIER_CONTRACT || vars.VITE_EMAIL_DKIM_VERIFIER_CONTRACT }}
+      EMAIL_DKIM_VERIFIER_CONTRACT: ${{ vars.VITE_EMAIL_DKIM_VERIFIER_CONTRACT }}
       WORKER_NAME: w3a-relay-mainnet
       # Optional: Threshold signing (2p FROST; derived relayer share)
       THRESHOLD_ED25519_SHARE_MODE: derive
