@@ -30,17 +30,6 @@ pnpm examples:vite
 - Tests: `pnpm -C sdk test`
 - Type check: `pnpm -C sdk run type-check`
 
-## Architecture
-
-- Wallet iframe / origin isolation: `sdk/docs/implementation/wallet-iframe-architecture.md`
-- Security model: `examples/tatchi-docs/src/docs/concepts/security-model.md`
-- VRF + WebAuthn: `examples/tatchi-docs/src/docs/concepts/vrf-webauthn.md`
-- Relay deployment: `examples/tatchi-docs/src/docs/guides/relay-server-deployment.md`
-
 ## Release
 
 See `docs/deployment/release.md`.
-
-## License
-
-MIT (see `LICENSE`).
