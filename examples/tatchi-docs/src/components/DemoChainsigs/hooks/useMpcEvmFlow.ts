@@ -5,7 +5,7 @@ import type { TransactionSerializableEIP1559 } from 'viem';
 import { useTatchi, ActionPhase, ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
 import { createEvmAdapter, deriveEvmAddress } from './helpers/adapters';
 // no direct RSVSignature use here; types handled in helpers
-import { NEAR_EXPLORER_BASE_URL } from '../../../types';
+import { buildNearExplorerTxUrl } from '../../../types';
 import {
   Hex,
   ensure0x,
@@ -157,8 +157,9 @@ export function useMpcEvmFlow() {
       const txIdErc20 = extractNearTransactionId(result);
       if (txIdErc20) {
         const showLink = !!args.toastExplorerLink;
-        const description = showLink && NEAR_EXPLORER_BASE_URL
-          ? renderExplorerLink(`${NEAR_EXPLORER_BASE_URL}/transactions/${txIdErc20}`)
+        const url = showLink ? buildNearExplorerTxUrl(tatchi?.configs?.nearExplorerUrl, txIdErc20) : null;
+        const description = url
+          ? renderExplorerLink(url)
           : '' as any;
         toast.success(`NEAR tx: ${txIdErc20}`, { id: 'chainsig:erc20:near', description });
       }
@@ -301,8 +302,9 @@ export function useMpcEvmFlow() {
       const txId = extractNearTransactionId(result);
       if (txId) {
         const showLink = !!args.toastExplorerLink;
-        const description = showLink && NEAR_EXPLORER_BASE_URL
-          ? renderExplorerLink(`${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`)
+        const url = showLink ? buildNearExplorerTxUrl(tatchi?.configs?.nearExplorerUrl, txId) : null;
+        const description = url
+          ? renderExplorerLink(url)
           : '' as any;
         toast.success(`NEAR tx: ${txId}`, { id: 'chainsig:near', description });
       }

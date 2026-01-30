@@ -1,5 +1,4 @@
 import { useRef, useState, useEffect } from 'react';
-import { WEBAUTHN_CONTRACT_ID } from '../types';
 import { useNearClient, useTatchi } from '@tatchi-xyz/sdk/react';
 
 export interface GreetingResult {
@@ -38,8 +37,14 @@ export const useSetGreeting = (): SetGreetingHook => {
     setError(null);
 
     try {
+      const contractId = tatchi.configs.contractId;
+      if (!contractId) {
+        const msg = 'Missing contractId in Tatchi configs';
+        setError(msg);
+        return { success: false, error: msg };
+      }
       const result = await nearClient.view<string>({
-        account: WEBAUTHN_CONTRACT_ID,
+        account: contractId,
         method: 'get_greeting',
         args: {}
       });

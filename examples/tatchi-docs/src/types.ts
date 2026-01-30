@@ -1,16 +1,13 @@
+function stripTrailingSlashes(value: string): string {
+  return String(value ?? '').replace(/\/+$/, '');
+}
 
-const env = import.meta.env as {
-  VITE_NEAR_NETWORK?: string;
-  VITE_NEAR_EXPLORER?: string;
-  VITE_WEBAUTHN_CONTRACT_ID?: string;
-  VITE_RECOVER_EMAIL_RECIPIENT?: string;
-  VITE_EMAIL_RECOVERER_GLOBAL_CONTRACT?: string;
-  VITE_ZK_EMAIL_VERIFIER_CONTRACT?: string;
-  VITE_EMAIL_DKIM_VERIFIER_CONTRACT?: string;
-};
-
-export const NEAR_EXPLORER_BASE_URL = env.VITE_NEAR_EXPLORER;
-export const WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID;
+export function buildNearExplorerTxUrl(explorerBaseUrl: string | undefined | null, txId: string): string | null {
+  const base = stripTrailingSlashes(String(explorerBaseUrl || '').trim());
+  const id = String(txId || '').trim();
+  if (!base || !id) return null;
+  return `${base}/transactions/${id}`;
+}
 
 // Types for server responses (simplified, ensure they match your backend)
 export interface ServerRegistrationOptions {
@@ -31,8 +28,6 @@ export interface ServerAuthenticationOptions {
   userVerification?: UserVerificationRequirement;
   timeout?: number;
 }
-
-// === SHARED TYPES ===
 
 export interface LastTxDetails {
   id: string;

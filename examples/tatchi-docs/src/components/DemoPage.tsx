@@ -13,7 +13,7 @@ import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
 import { LoadingButton } from './LoadingButton';
 import Refresh from './icons/Refresh';
 import { useSetGreeting } from '../hooks/useSetGreeting';
-import { WEBAUTHN_CONTRACT_ID, NEAR_EXPLORER_BASE_URL } from '../types';
+import { buildNearExplorerTxUrl } from '../types';
 import './DemoPage.css';
 
 
@@ -128,12 +128,17 @@ export const DemoPage: React.FC = () => {
     if (!canExecuteGreeting(greetingInput, isLoggedIn, nearAccountId)) return;
     // Build the greeting action using the shared helper
     const actionToExecute: FunctionCallAction = createGreetingAction(greetingInput) as FunctionCallAction;
+    const contractId = tatchi.configs.contractId;
+    if (!contractId) {
+      toast.error('Contract ID is not configured: VITE_WEBAUTHN_CONTRACT_ID', { id: 'greeting' });
+      return;
+    }
 
     setTxLoading(true);
     try {
       await tatchi.executeAction({
       nearAccountId: nearAccountId!,
-      receiverId: WEBAUTHN_CONTRACT_ID,
+      receiverId: contractId,
       actionArgs: actionToExecute,
       options: {
         onEvent: (event) => {
@@ -160,13 +165,15 @@ export const DemoPage: React.FC = () => {
           const txId = result?.transactionId;
           const isSuccess = success && result?.success !== false;
           if (isSuccess && txId) {
-            const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+            const txLink = buildNearExplorerTxUrl(tatchi?.configs?.nearExplorerUrl, txId);
             toast.success('Greeting updated on-chain', {
-              description: (
-                <a href={txLink} target="_blank" rel="noopener noreferrer">
-                  View transaction on NearBlocks
-                </a>
-              ),
+              ...(txLink ? {
+                description: (
+                  <a href={txLink} target="_blank" rel="noopener noreferrer">
+                    View transaction on NearBlocks
+                  </a>
+                ),
+              } : {}),
             });
             setGreetingInput('');
             // Refresh the greeting after success
@@ -200,11 +207,18 @@ export const DemoPage: React.FC = () => {
       }
 
       const delegateAction = createGreetingAction(greetingInput, { postfix: 'Delegate' });
+      const contractId = tatchi.configs.contractId;
+      if (!contractId) {
+        toast.error('Contract ID is not configured: VITE_WEBAUTHN_CONTRACT_ID', {
+          id: 'delegate-greeting',
+        });
+        return;
+      }
       const result = await tatchi.signDelegateAction({
         nearAccountId: nearAccountId!,
         delegate: {
           senderId: nearAccountId!,
-          receiverId: WEBAUTHN_CONTRACT_ID,
+          receiverId: contractId,
           actions: [delegateAction],
           // Demo-only nonce / maxBlockHeight; real apps should use
           // chain context and replay protection from their relayer.
@@ -270,13 +284,15 @@ export const DemoPage: React.FC = () => {
 
       const txId = relayResult.relayerTxHash;
       if (txId) {
-        const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+        const txLink = buildNearExplorerTxUrl(tatchi?.configs?.nearExplorerUrl, txId);
         toast.success('Delegate executed via relayer', {
-          description: (
-            <a href={txLink} target="_blank" rel="noopener noreferrer">
-              View transaction on NearBlocks
-            </a>
-          ),
+          ...(txLink ? {
+            description: (
+              <a href={txLink} target="_blank" rel="noopener noreferrer">
+                View transaction on NearBlocks
+              </a>
+            ),
+          } : {}),
           id: 'delegate-greeting',
         });
       } else {

@@ -6,7 +6,7 @@ import { TxExecutionStatus, useTatchi } from '@tatchi-xyz/sdk/react';
 import type { ActionResult } from '@tatchi-xyz/sdk/react';
 import { LoadingButton } from './LoadingButton';
 import EmailRecoveryFields from './EmailRecoveryFields';
-import { NEAR_EXPLORER_BASE_URL } from '../types';
+import { buildNearExplorerTxUrl } from '../types';
 
 export const SetupEmailRecovery: React.FC = () => {
   const {
@@ -60,13 +60,15 @@ export const SetupEmailRecovery: React.FC = () => {
             const txId = actionResult?.transactionId;
 
             if (success && txId) {
-              const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+              const txLink = buildNearExplorerTxUrl(tatchi?.configs?.nearExplorerUrl, txId);
               toast.success('Recovery emails updated', {
-                description: (
-                  <a href={txLink} target="_blank" rel="noopener noreferrer">
-                    View transaction on NearBlocks
-                  </a>
-                ),
+                ...(txLink ? {
+                  description: (
+                    <a href={txLink} target="_blank" rel="noopener noreferrer">
+                      View transaction on NearBlocks
+                    </a>
+                  ),
+                } : {}),
               });
             } else if (success) {
               toast.success('Recovery emails updated');
