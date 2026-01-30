@@ -58,7 +58,7 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
   emailRecoveryContracts: {
     emailRecovererGlobalContract: 'w3a-email-recoverer-v1.testnet',
     zkEmailVerifierContract: 'zk-email-verifier-v1.testnet',
-    emailDkimVerifierContract: 'email-dkim-verifier-v1.testnet',
+    emailDkimVerifierContract: 'w3a-email-dkim-verifier-v1.testnet',
   },
   // Configure iframeWallet in application code to point at your dedicated wallet origin when available.
   iframeWallet: {

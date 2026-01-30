@@ -85,11 +85,6 @@ function getAuthService(env: Env): AuthService {
       graceShamirKeysFile: '', // Do not use FS on Workers
       moduleOrPath: shamirWasmModule, // Pass WASM module for Cloudflare Workers
     },
-    // optional
-    zkEmailProver: {
-      ZK_EMAIL_PROVER_BASE_URL: env.ZK_EMAIL_PROVER_BASE_URL,
-      ZK_EMAIL_PROVER_TIMEOUT_MS: env.ZK_EMAIL_PROVER_TIMEOUT_MS,
-    },
   });
 }
 
