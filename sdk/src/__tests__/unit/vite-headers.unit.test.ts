@@ -5,7 +5,7 @@ import { buildPermissionsPolicy, buildWalletCsp } from '../../plugins/headers'
 test.describe('plugins/vite header helpers', () => {
   test('computeDevPermissionsPolicy matches shared builder', () => {
     const wallet = 'https://wallet.example.localhost'
-    expect(computeDevPermissionsPolicy(wallet)).toBe(buildPermissionsPolicy(wallet))
+    expect(computeDevPermissionsPolicy([wallet])).toBe(buildPermissionsPolicy([wallet]))
     expect(computeDevPermissionsPolicy(undefined)).toBe(buildPermissionsPolicy(undefined))
   })
 
@@ -14,4 +14,3 @@ test.describe('plugins/vite header helpers', () => {
     expect(computeDevWalletCsp('compatible')).toBe(buildWalletCsp({ mode: 'compatible' }))
   })
 })
-

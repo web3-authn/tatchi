@@ -16,8 +16,13 @@ import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
 // Caddy proxies wallet.example.localhost → localhost:5175.
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost'
+  // `loadEnv()` only reads from `.env*` files; it does not include `process.env`.
+  // Merge them so Playwright/webServer env injection (and other runtime env) is honored.
+  const env = { ...process.env, ...loadEnv(mode, process.cwd(), '') } as Record<string, string | undefined>
+  const walletOrigins = (env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost')
+    .split(/[,\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
   const walletServicePath = env.VITE_WALLET_SERVICE_PATH || '/wallet-service'
   const sdkBasePath = env.VITE_SDK_BASE_PATH || '/sdk'
   // Keep COEP behavior aligned with the app dev server.
@@ -42,7 +47,7 @@ export default defineConfig(({ mode }) => {
       allowedHosts: ['wallet.example.localhost', 'pta-m4.local'],
     },
     plugins: [
-      tatchiWallet({ walletOrigin, walletServicePath, sdkBasePath, enableDebugRoutes: true, emitHeaders: true, coepMode }),
+      tatchiWallet({ walletOrigins, walletServicePath, sdkBasePath, enableDebugRoutes: true, emitHeaders: true, coepMode }),
     ],
     cacheDir: 'node_modules/.vite-wallet',
     // Use cacheDir to avoid lock contention with vite.config.ts (app-server).

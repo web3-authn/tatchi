@@ -3,21 +3,37 @@ import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
 
-export function addPreconnectLink(res: any, origin?: string) {
-  if (!origin) return
+export function addPreconnectLink(res: any, walletOrigins?: string[]) {
+  if (!Array.isArray(walletOrigins) || walletOrigins.length === 0) return
+  const links: string[] = []
+  const seen = new Set<string>()
+  for (const origin of walletOrigins) {
+    const value = (origin || '').trim()
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    links.push(`<${value}>; rel=preconnect; crossorigin`)
+  }
+  if (links.length === 0) return
   try {
-    const link = `<${origin}>; rel=preconnect; crossorigin`
     const existing = res.getHeader?.('Link')
     if (!existing) {
-      res.setHeader?.('Link', link)
+      res.setHeader?.('Link', links.join(', '))
       return
     }
     if (typeof existing === 'string') {
-      if (!existing.includes(link)) res.setHeader?.('Link', existing + ', ' + link)
+      let out = existing
+      for (const link of links) {
+        if (!out.includes(link)) out = out + ', ' + link
+      }
+      res.setHeader?.('Link', out)
       return
     }
     if (Array.isArray(existing)) {
-      if (!existing.includes(link)) res.setHeader?.('Link', [...existing, link])
+      const out = [...existing]
+      for (const link of links) {
+        if (!out.includes(link)) out.push(link)
+      }
+      res.setHeader?.('Link', out)
     }
   } catch {}
 }

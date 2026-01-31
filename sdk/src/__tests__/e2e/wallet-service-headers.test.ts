@@ -2,7 +2,10 @@ import { test, expect } from '@playwright/test'
 import { buildPermissionsPolicy, buildWalletCsp } from '../../plugins/headers'
 
 test('wallet-service headers are present and consistent', async ({ request }) => {
-  const walletOrigin = process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost'
+  const walletOrigins = (process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost')
+    .split(/[,\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
 
   const res = await request.get('/wallet-service')
   expect(res.ok()).toBeTruthy()
@@ -15,11 +18,10 @@ test('wallet-service headers are present and consistent', async ({ request }) =>
   const coep = headers['cross-origin-embedder-policy']
   const corp = headers['cross-origin-resource-policy']
 
-  expect(pp).toBe(buildPermissionsPolicy(walletOrigin))
+  expect(pp).toBe(buildPermissionsPolicy(walletOrigins))
   // Dev server defaults to strict CSP for wallet route
   expect(csp).toBe(buildWalletCsp({ mode: 'strict' }))
   expect(coop).toBe('unsafe-none')
   expect(coep).toBe('require-corp')
   expect(corp).toBe('cross-origin')
 })
-

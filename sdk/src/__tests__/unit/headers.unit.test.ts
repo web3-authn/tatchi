@@ -4,12 +4,23 @@ import { buildPermissionsPolicy, buildWalletCsp, type CspMode } from '../../plug
 test.describe('plugins/headers builders', () => {
   test('buildPermissionsPolicy with origin', () => {
     const origin = 'https://wallet.example.localhost';
-    const pp = buildPermissionsPolicy(origin);
+    const pp = buildPermissionsPolicy([origin]);
     expect(pp).toBe(
       'publickey-credentials-get=(self "https://wallet.example.localhost"), ' +
       'publickey-credentials-create=(self "https://wallet.example.localhost"), ' +
       'clipboard-read=(self "https://wallet.example.localhost"), ' +
       'clipboard-write=(self "https://wallet.example.localhost")'
+    );
+  });
+
+  test('buildPermissionsPolicy with multiple origins', () => {
+    const origins = ['https://wallet.example.localhost', 'https://wallet.example.com'];
+    const pp = buildPermissionsPolicy(origins);
+    expect(pp).toBe(
+      'publickey-credentials-get=(self "https://wallet.example.localhost" "https://wallet.example.com"), ' +
+      'publickey-credentials-create=(self "https://wallet.example.localhost" "https://wallet.example.com"), ' +
+      'clipboard-read=(self "https://wallet.example.localhost" "https://wallet.example.com"), ' +
+      'clipboard-write=(self "https://wallet.example.localhost" "https://wallet.example.com")'
     );
   });
 
@@ -95,4 +106,3 @@ test.describe('plugins/headers builders', () => {
     );
   });
 });
-

@@ -23,6 +23,7 @@ export default defineConfig(({ mode }) => {
   if (env.VITE_WEBAUTHN_CONTRACT_ID) process.env.VITE_WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID
   if (env.VITE_NEAR_RPC_URL) process.env.VITE_NEAR_RPC_URL = env.VITE_NEAR_RPC_URL
   if (env.VITE_ROR_METHOD) process.env.VITE_ROR_METHOD = env.VITE_ROR_METHOD
+  const walletOrigins = (env.VITE_WALLET_ORIGIN || '').split(/[,\s]+/).map((v) => v.trim()).filter(Boolean)
   return {
     clearScreen: false,
     logLevel: 'info',
@@ -56,11 +57,11 @@ export default defineConfig(({ mode }) => {
         enableDebugRoutes: true,
         sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
-        walletOrigin: env.VITE_WALLET_ORIGIN,
+        walletOrigins,
         emitHeaders: true,
         coepMode,
         // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP/COEP and
-        // a Permissions-Policy delegating WebAuthn to the wallet origin.
+        // a Permissions-Policy delegating WebAuthn to the wallet origins.
         // If your CI already writes a _headers file, this plugin will no-op.
       }),
     ],

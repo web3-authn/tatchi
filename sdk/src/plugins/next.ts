@@ -15,21 +15,21 @@ export type NextHeader = { key: string; value: string }
 export type NextHeaderEntry = { source: string; headers: NextHeader[] }
 
 export function tatchiNextHeaders(opts: {
-  walletOrigin: string
+  walletOrigins?: string[]
   cspMode?: CspMode
   extraFrameSrc?: string[]
-  /** Optional allowlist for script-src (e.g., wallet origin for modulepreload in dev) */
+  /** Optional allowlist for script-src (e.g., wallet origins for modulepreload in dev) */
   extraScriptSrc?: string[]
   allowUnsafeEvalDev?: boolean
   compatibleInDev?: boolean
 }): NextHeaderEntry[] {
-  const wallet = opts.walletOrigin
-  const permissions = buildPermissionsPolicy(wallet)
+  const walletOrigins = (opts.walletOrigins || []).filter(Boolean)
+  const permissions = buildPermissionsPolicy(walletOrigins)
   const isDev = process.env.NODE_ENV !== 'production'
   const mode: CspMode = opts.cspMode ?? (isDev && (opts.compatibleInDev ?? true) ? 'compatible' : 'strict')
   const allowUnsafeEval = isDev && (opts.allowUnsafeEvalDev ?? true)
   const csp = buildWalletCsp({
-    frameSrc: [wallet, ...(opts.extraFrameSrc || [])],
+    frameSrc: [...walletOrigins, ...(opts.extraFrameSrc || [])],
     scriptSrcAllowlist: [...(opts.extraScriptSrc || [])],
     mode,
     allowUnsafeEval,
@@ -48,7 +48,7 @@ export function tatchiNextHeaders(opts: {
  * emitHeaders has no effect for Next.js; kept for parity with Vite wrappers.
  */
 export function tatchiNextApp(opts: {
-  walletOrigin: string
+  walletOrigins?: string[]
   emitHeaders?: boolean
   cspMode?: CspMode
   extraFrameSrc?: string[]
@@ -72,13 +72,13 @@ export function tatchiNextApp(opts: {
 }
 
 /**
- * Convenience wrapper for Next.js wallet origin.
+ * Convenience wrapper for Next.js wallet origins.
  * Same behavior as tatchiNextApp — Next.js does not serve the SDK/wallet HTML; this
  * helper only sets headers via headers() so the wallet host can be prepped if you
  * proxy wallet routes through Next in dev.
  */
 export function tatchiNextWallet(opts: {
-  walletOrigin: string
+  walletOrigins?: string[]
   emitHeaders?: boolean
   cspMode?: CspMode
   extraFrameSrc?: string[]

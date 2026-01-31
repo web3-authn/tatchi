@@ -5,6 +5,10 @@ import { tatchiApp } from '@tatchi-xyz/sdk/plugins/vite'
 // App-only dev server. Wallet server runs separately via wallet.vite.config.ts.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const walletOrigins = (env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost')
+    .split(/[,\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
 
   return {
     server: {
@@ -14,7 +18,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       tatchiApp({
-        walletOrigin: env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost',
+        walletOrigins,
         emitHeaders: true // At build-time: emit _headers when emitHeaders=true
       }),
     ],

@@ -319,7 +319,7 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
     const pp = serviceResp.headers()['permissions-policy'];
     const coep = serviceResp.headers()['cross-origin-embedder-policy'];
     const corp = serviceResp.headers()['cross-origin-resource-policy'];
-    expect(pp).toBe(buildPermissionsPolicy(walletOrigin));
+    expect(pp).toBe(buildPermissionsPolicy([walletOrigin]));
     expect(coep).toBe('require-corp');
     expect(corp).toBe('cross-origin');
   });

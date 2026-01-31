@@ -10,6 +10,10 @@ import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const walletOrigins = (env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost')
+    .split(/[,\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
   return {
     server: {
       port: 5174,
@@ -17,7 +21,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       tatchiWallet({
-        walletOrigin: env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost',
+        walletOrigins,
         walletServicePath: '/wallet-service',
         sdkBasePath: '/sdk',
         emitHeaders: true

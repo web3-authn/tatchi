@@ -50,7 +50,7 @@ test.describe('plugins/vite wallet CORP defaults', () => {
     const outDir = path.join(tmp, 'dist')
 
     const plugin = tatchiBuildHeaders({
-      walletOrigin: 'https://wallet.example.localhost',
+      walletOrigins: ['https://wallet.example.localhost'],
       coepMode: 'off',
     })
 
@@ -62,4 +62,3 @@ test.describe('plugins/vite wallet CORP defaults', () => {
     expect(content).toContain('Cross-Origin-Resource-Policy: cross-origin')
   })
 })
-

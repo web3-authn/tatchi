@@ -19,6 +19,7 @@ pnpm examples:vite
 - `pnpm examples:vite` uses Caddy for local HTTPS + custom hosts (`brew install caddy`; first run may prompt for trust via `caddy trust`) and spins up a wallet server as well.
 - Relay server: `pnpm run server` (reachable at `https://relay-server.localhost`, proxies `http://localhost:3000`)
 - Docs site (VitePress): `pnpm run docs:dev`
+- Vite/Next header helpers read `VITE_WALLET_ORIGIN` (comma/space-separated) to build multi-origin `Permissions-Policy` headers.
 
 ## Repo development
 

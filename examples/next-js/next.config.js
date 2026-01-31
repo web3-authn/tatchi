@@ -19,16 +19,16 @@ const baseConfig = {
  *   origin in script-src for development.
  * - In production, you should keep CSP strict (no 'unsafe-eval', no inline styles, include "style-src-attr 'none'").
  */
-const walletOrigin = process.env.NEXT_PUBLIC_WALLET_ORIGIN || 'https://wallet.example.localhost'
+const walletOrigins = [process.env.NEXT_PUBLIC_WALLET_ORIGIN || 'https://wallet.example.localhost']
 
 const isDev = process.env.NODE_ENV !== 'production'
 const nextConfig = tatchiNextApp({
-  walletOrigin,
+  walletOrigins,
   cspMode: isDev ? 'compatible' : 'strict',
   allowUnsafeEvalDev: true,
   compatibleInDev: true,
   // Allow wallet origin in script-src for dev cross-origin modulepreload
-  extraScriptSrc: isDev ? [walletOrigin] : [],
+  extraScriptSrc: isDev ? walletOrigins : [],
 })(baseConfig)
 
 export default nextConfig

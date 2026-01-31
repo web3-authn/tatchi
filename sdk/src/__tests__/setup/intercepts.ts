@@ -412,7 +412,7 @@ export async function installWalletSdkCorsShim(
         'cross-origin-opener-policy': 'unsafe-none',
         'cross-origin-embedder-policy': 'require-corp',
         'cross-origin-resource-policy': 'cross-origin',
-        'permissions-policy': buildPermissionsPolicy(walletOrigin),
+        'permissions-policy': buildPermissionsPolicy([walletOrigin]),
         'content-security-policy': buildWalletCsp({ mode: 'strict' }),
       };
       await route.fulfill({ status: fetched.status(), headers, body });

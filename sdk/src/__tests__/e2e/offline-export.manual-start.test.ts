@@ -2,7 +2,11 @@ import { test, expect } from '@playwright/test'
 import { installWalletSdkCorsShim } from '../setup/cross-origin-headers'
 
 test('offline-export requires manual click to start', async ({ page }) => {
-  const walletOrigin = process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost'
+  const walletOrigins = (process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost')
+    .split(/[,\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
+  const walletOrigin = walletOrigins[0] || 'https://wallet.example.localhost'
   await installWalletSdkCorsShim(page, { walletOrigin, logStyle: 'silent', mirror: true })
 
   await page.goto(`${walletOrigin}/offline-export/`)

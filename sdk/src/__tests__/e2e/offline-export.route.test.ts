@@ -2,7 +2,11 @@ import { test, expect } from '@playwright/test'
 import { installWalletSdkCorsShim } from '../setup/cross-origin-headers'
 
 test('offline-export opens offline with no fetch/xhr', async ({ page }) => {
-  const walletOrigin = process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost'
+  const walletOrigins = (process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost')
+    .split(/[,\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
+  const walletOrigin = walletOrigins[0] || 'https://wallet.example.localhost'
 
   // Mirror wallet-origin requests to app origin in dev to serve HTML and assets
   await installWalletSdkCorsShim(page, { walletOrigin, logStyle: 'silent', mirror: true })

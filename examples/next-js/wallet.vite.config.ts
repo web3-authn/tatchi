@@ -8,7 +8,7 @@
 import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default () => {
-  const walletOrigin = process.env.NEXT_PUBLIC_WALLET_ORIGIN || 'https://wallet.example.localhost'
+  const walletOrigins = [process.env.NEXT_PUBLIC_WALLET_ORIGIN || 'https://wallet.example.localhost']
   const hmrHost = 'wallet.example.localhost'
 
   return {
@@ -23,7 +23,7 @@ export default () => {
       tatchiWallet({
         sdkBasePath: '/sdk',
         walletServicePath: '/wallet-service',
-        walletOrigin,
+        walletOrigins,
         emitHeaders: true,
       }),
     ],

@@ -10,7 +10,10 @@ import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost'
+  const walletOrigins = (env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost')
+    .split(/[,\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
   const walletServicePath = env.VITE_WALLET_SERVICE_PATH || '/wallet-service'
   const sdkBasePath = env.VITE_SDK_BASE_PATH || '/sdk'
 
@@ -21,9 +24,8 @@ export default defineConfig(({ mode }) => {
       allowedHosts: ['wallet.example.localhost', 'pta-m4.local'],
     },
     plugins: [
-      tatchiWallet({ walletOrigin, walletServicePath, sdkBasePath, emitHeaders: true }),
+      tatchiWallet({ walletOrigins, walletServicePath, sdkBasePath, emitHeaders: true }),
     ],
     cacheDir: 'node_modules/.vite-wallet', // avoid lock contention with vite.config.ts
   }
 })
-
