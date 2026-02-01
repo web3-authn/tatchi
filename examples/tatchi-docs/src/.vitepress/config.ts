@@ -353,7 +353,7 @@ export default defineConfig({
         enableDebugRoutes: true,
         sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
-        walletOrigin: env.VITE_WALLET_ORIGIN,
+        walletOrigins: (env.VITE_WALLET_ORIGIN || '').split(/[,\s]+/).map((v) => v.trim()).filter(Boolean),
         emitHeaders: true,
         coepMode,
       }),

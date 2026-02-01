@@ -166,7 +166,7 @@ The manifest endpoint is implemented on the relay server and should be exposed o
 1) Example site
 - Use `examples/vite` (with Tatchi Vite plugins):
 - `tatchiDev(...)` for dev routing of `/wallet-service` and `/sdk`.
-- `tatchiBuildHeaders({ walletOrigin })` to emit `_headers` (COOP/COEP + Permissions‑Policy) and write `wallet-service/index.html` if missing.
+- `tatchiBuildHeaders({ walletOrigins })` to emit `_headers` (COOP/COEP + Permissions‑Policy) and write `wallet-service/index.html` if missing.
 - Wallet service page:
   - The SDK Vite build plugin (`tatchiBuildHeaders`) emits `dist/wallet-service/index.html` automatically if your app does not provide one. It loads `${VITE_SDK_BASE_PATH||'/sdk'}/wallet-iframe-host.js`.
   - To customize, add `public/wallet-service/index.html`; the plugin will not overwrite existing files.
@@ -256,7 +256,7 @@ Configuration
 - App response headers (Pages)
   - Delegate WebAuthn to the wallet origin:
     `Permissions-Policy: publickey-credentials-get=(self "https://wallet.web3authn.org"), publickey-credentials-create=(self "https://wallet.web3authn.org")`
-  - You can generate a `_headers` at build time via the SDK’s `tatchiBuildHeaders({ walletOrigin })` helper or write one manually in the dist.
+  - You can generate a `_headers` at build time via the SDK’s `tatchiBuildHeaders({ walletOrigins })` helper or write one manually in the dist.
 
 Troubleshooting
 - Module script “text/html” (strict MIME)

@@ -164,7 +164,9 @@ The SDK's Vite plugin automatically configures the Permissions-Policy header and
 import { tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 plugins: [
-  tatchiBuildHeaders({ walletOrigin: process.env.VITE_WALLET_ORIGIN })
+  tatchiBuildHeaders({
+    walletOrigins: (process.env.VITE_WALLET_ORIGIN || '').split(/[,\s]+/).map((v) => v.trim()).filter(Boolean)
+  })
 ]
 ```
 

@@ -125,8 +125,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     // Emits headers that enable the cross‑origin wallet integration in dev/build
-    tatchiAppServer({ walletOrigin: process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.com' }),
-    tatchiBuildHeaders({ walletOrigin: process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.com' }),
+    tatchiAppServer({ walletOrigins: [process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.com'] }),
+    tatchiBuildHeaders({ walletOrigins: [process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.com'] }),
   ],
 }))
 ```

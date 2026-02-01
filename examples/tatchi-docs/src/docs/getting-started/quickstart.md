@@ -55,8 +55,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      tatchiAppServer({ walletOrigin }),
-      tatchiBuildHeaders({ walletOrigin }),
+      tatchiAppServer({ walletOrigins: [walletOrigin] }),
+      tatchiBuildHeaders({ walletOrigins: [walletOrigin] }),
     ],
   }
 })

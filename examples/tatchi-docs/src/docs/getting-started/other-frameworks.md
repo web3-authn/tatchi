@@ -102,8 +102,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
-      tatchiAppServer({ walletOrigin }),
-      tatchiBuildHeaders({ walletOrigin }),
+      tatchiAppServer({ walletOrigins: [walletOrigin] }),
+      tatchiBuildHeaders({ walletOrigins: [walletOrigin] }),
     ],
   }
 })
@@ -150,8 +150,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       svelte(),
-      tatchiAppServer({ walletOrigin }),
-      tatchiBuildHeaders({ walletOrigin }),
+      tatchiAppServer({ walletOrigins: [walletOrigin] }),
+      tatchiBuildHeaders({ walletOrigins: [walletOrigin] }),
     ],
   }
 })
@@ -177,7 +177,7 @@ app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
   res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-  res.setHeader('Permissions-Policy', buildPermissionsPolicy(walletOrigin))
+  res.setHeader('Permissions-Policy', buildPermissionsPolicy([walletOrigin]))
   next()
 })
 
@@ -226,11 +226,11 @@ await tatchi.registerPasskey('user.testnet', {
 ## Plugin Reference
 
 **Vite-based frameworks** (React, Vue, Svelte):
-- `tatchiAppServer({ walletOrigin })` - Dev server with proper headers
-- `tatchiBuildHeaders({ walletOrigin })` - Emit `_headers` file for production (Cloudflare/Netlify)
+- `tatchiAppServer({ walletOrigins })` - Dev server with proper headers
+- `tatchiBuildHeaders({ walletOrigins })` - Emit `_headers` file for production (Cloudflare/Netlify)
 
 **Next.js**:
-- `tatchiNextApp({ walletOrigin, cspMode, ... })` - Wraps Next config with headers
+- `tatchiNextApp({ walletOrigins, cspMode, ... })` - Wraps Next config with headers
 
 **Manual/Express**:
 - Import `buildPermissionsPolicy`, `buildWalletCsp` from `@tatchi-xyz/sdk/plugins/headers`

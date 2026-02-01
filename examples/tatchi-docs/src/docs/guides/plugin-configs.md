@@ -46,11 +46,12 @@ import { tatchiApp } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const walletOrigins = (env.VITE_WALLET_ORIGIN || '').split(/[,\s]+/).map((v) => v.trim()).filter(Boolean)
   return {
     plugins: [
       react(),
       tatchiApp({
-        walletOrigin: env.VITE_WALLET_ORIGIN,
+        walletOrigins,
         emitHeaders: true, // build: writes `_headers` into outDir
       }),
     ],
@@ -68,10 +69,11 @@ import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const walletOrigins = (env.VITE_WALLET_ORIGIN || '').split(/[,\s]+/).map((v) => v.trim()).filter(Boolean)
   return {
     plugins: [
       tatchiWallet({
-        walletOrigin: env.VITE_WALLET_ORIGIN,
+        walletOrigins,
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
         sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
         emitHeaders: true, // build: writes `_headers` into outDir
@@ -91,7 +93,7 @@ Self-hosting a wallet origin also means **that wallet build is only valid on the
 
 ### Options (Vite)
 
-- `walletOrigin?: string` – used to build `Permissions-Policy`
+- `walletOrigins?: string[]` – used to build `Permissions-Policy`
 - `walletServicePath?: string` – wallet HTML route (default `/wallet-service`)
 - `sdkBasePath?: string` – base path for SDK assets (default `/sdk`)
 - `emitHeaders?: boolean` – build: write `_headers` for static hosts (Cloudflare Pages / Netlify-style)
@@ -102,10 +104,10 @@ Self-hosting a wallet origin also means **that wallet build is only valid on the
 
 Use these when you need more control than the wrappers:
 
-- `tatchiHeaders({ walletOrigin, walletServicePath, sdkBasePath, devCSP, coepMode })`: headers middleware (no asset serving)
+- `tatchiHeaders({ walletOrigins, walletServicePath, sdkBasePath, devCSP, coepMode })`: headers middleware (no asset serving)
 - `tatchiServeSdk({ sdkBasePath, sdkDistRoot, enableDebugRoutes, coepMode })`: serve `/sdk/*` assets
 - `tatchiWalletService({ walletServicePath, sdkBasePath, coepMode })`: serve wallet HTML (`/wallet-service`)
-- `tatchiBuildHeaders({ walletOrigin, coepMode, cors? })`: build-only `_headers` emitter
+- `tatchiBuildHeaders({ walletOrigins, coepMode, cors? })`: build-only `_headers` emitter
 
 ## COEP/CORP note
 

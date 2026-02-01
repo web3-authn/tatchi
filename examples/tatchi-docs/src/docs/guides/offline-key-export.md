@@ -71,7 +71,7 @@ import { tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig({
   plugins: [
-    tatchiBuildHeaders({ walletOrigin: 'https://wallet.example.com' })
+    tatchiBuildHeaders({ walletOrigins: ['https://wallet.example.com'] })
   ]
 })
 ```

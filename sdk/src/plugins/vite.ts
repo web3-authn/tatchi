@@ -119,7 +119,19 @@ function tryFile(...candidates: string[]): string | undefined {
   return undefined
 }
 
-// RPC helpers are provided by plugin-utils to share logic across frameworks.
+// Dev convenience: allow Vite's cacheDir so `/@fs/.../deps/*.js` dynamic imports can load under `server.fs.strict`.
+function ensureViteCacheDirAllowed(server: any): void {
+  const config = server?.config
+  const cacheDir = config?.cacheDir
+  const fsConfig = config?.server?.fs
+  const allow = fsConfig?.allow
+  if (!cacheDir || fsConfig?.strict === false || !Array.isArray(allow)) return
+
+  const absCacheDir = path.resolve(String(cacheDir))
+  if (!allow.some((p: any) => path.resolve(String(p)) === absCacheDir)) {
+    allow.push(absCacheDir)
+  }
+}
 
 // Shared assets emitted/served for the wallet service bootstrap.
 const WALLET_SHIM_SOURCE = "window.global ||= window; window.process ||= { env: {} };\n"
@@ -176,6 +188,8 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
+      ensureViteCacheDirAllowed(server)
+
       // Mount Offline Export dev routes once here (includes app module + chunks)
       addOfflineExportDevRoutes(server, {
         sdkDistRoot,
@@ -272,6 +286,8 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
+      ensureViteCacheDirAllowed(server)
+
       server.middlewares.use((req: any, res: any, next: any) => {
         if (!req.url) return next()
         const url = req.url.split('?')[0]
@@ -313,6 +329,8 @@ export function tatchiWasmMime(): VitePlugin {
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
+      ensureViteCacheDirAllowed(server)
+
       server.middlewares.use((req: any, res: any, next: any) => {
         if (!req.url) return next()
         const url = req.url.split('?')[0]
@@ -356,6 +374,7 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
+      ensureViteCacheDirAllowed(server)
 
       console.log('[tatchi] headers enabled', {
         walletServicePath,
@@ -469,6 +488,8 @@ function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
+      ensureViteCacheDirAllowed(server)
+
       // Always add WASM MIME + SDK server
       sdkPlugin.configureServer?.(server)
       wasmMimePlugin.configureServer?.(server)

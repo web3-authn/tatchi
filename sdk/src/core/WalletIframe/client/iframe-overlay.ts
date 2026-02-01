@@ -64,9 +64,9 @@ export class IframeOverlay {
 
     // Delegate WebAuthn + clipboard capabilities to the wallet origin frame
     try {
-      iframe.setAttribute('allow', this.buildAllowAttr(this.walletOrigin));
+      iframe.setAttribute('allow', this.buildAllowAttr());
     } catch {
-      iframe.setAttribute('allow', "publickey-credentials-get 'self'; publickey-credentials-create 'self'; clipboard-read; clipboard-write");
+      iframe.setAttribute('allow', 'publickey-credentials-get; publickey-credentials-create; clipboard-read; clipboard-write');
     }
 
     // Track load state to guard against races where we post before content is listening
@@ -161,7 +161,7 @@ export class IframeOverlay {
     }
   }
 
-  private buildAllowAttr(walletOrigin: string): string {
-    return `publickey-credentials-get 'self' ${walletOrigin}; publickey-credentials-create 'self' ${walletOrigin}; clipboard-read; clipboard-write`;
+  private buildAllowAttr(): string {
+    return 'publickey-credentials-get; publickey-credentials-create; clipboard-read; clipboard-write';
   }
 }
