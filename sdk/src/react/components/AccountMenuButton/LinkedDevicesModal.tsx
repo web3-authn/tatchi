@@ -186,7 +186,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   };
 
   return (
-    <Theme>
+    <Theme tag="div" theme={theme}>
       <div className={`w3a-access-keys-modal-backdrop theme-${theme}`}
         onClick={handleBackdropClick}
         onMouseDown={(e) => e.stopPropagation()}
