@@ -3,6 +3,29 @@ import { DeviceLinkingError, DeviceLinkingErrorCode } from '../core/types/linkDe
 import { validateDeviceLinkingQRData } from '../core/TatchiPasskey/scanDevice';
 import { DeviceLinkingSSEEvent } from '@/core/types/sdkSentEvents';
 
+type JsQrFn = (data: Uint8ClampedArray, width: number, height: number, options?: any) => { data: string } | null;
+
+let jsQrFnPromise: Promise<JsQrFn> | null = null;
+
+async function getJsQrFn(): Promise<JsQrFn> {
+  if (jsQrFnPromise) return jsQrFnPromise;
+  jsQrFnPromise = (async () => {
+    const mod: any = await import('jsqr');
+    const candidates = [
+      mod,
+      mod?.default,
+      mod?.jsQR,
+      mod?.default?.default,
+      mod?.default?.jsQR,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'function') return candidate as JsQrFn;
+    }
+    throw new Error('Invalid jsqr module shape: expected a function export');
+  })();
+  return jsQrFnPromise;
+}
+
 // ===========================
 // TYPES AND INTERFACES
 // ===========================
@@ -292,7 +315,7 @@ export class ScanQRCodeFlow {
   }
 
   private async scanQRFromImageData(imageData: ImageData): Promise<string | null> {
-    const { default: jsQR } = await import('jsqr');
+    const jsQR = await getJsQrFn();
     const code = jsQR(imageData.data, imageData.width, imageData.height, {
       inversionAttempts: "dontInvert"
     });
@@ -461,7 +484,7 @@ export function detectCameraFacingMode(stream: MediaStream): boolean {
 // ===========================
 
 async function scanQRFromImageData(imageData: ImageData): Promise<string | null> {
-  const { default: jsQR } = await import('jsqr');
+  const jsQR = await getJsQrFn();
   const code = jsQR(imageData.data, imageData.width, imageData.height, {
     inversionAttempts: "dontInvert"
   });

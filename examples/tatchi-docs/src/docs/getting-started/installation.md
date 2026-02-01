@@ -21,6 +21,25 @@ yarn add @tatchi-xyz/sdk
 :::
 
 
+## Install optional QR deps
+
+If you use device linking (QR scanner) or QR code display, install these optional peer dependencies:
+
+::: code-group
+```bash [pnpm]
+pnpm add jsqr qrcode
+```
+
+```bash [npm]
+npm i jsqr qrcode
+```
+
+```bash [yarn]
+yarn add jsqr qrcode
+```
+:::
+
+
 ## Configure Vite
 
 Install framework packages. We'll be using Vite. If you're using another framework, checkout the [other frameworks](./other-frameworks.md) section.
