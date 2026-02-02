@@ -13,7 +13,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 fn threshold_signer_not_implemented_error() -> String {
-    "threshold-signer requires relayer FROST endpoints and threshold key material (client share + relayer share). Use signerMode='local-signer' for now. See docs/threshold-ed25519-near-spec.md."
+    "threshold-signer requires relayer FROST endpoints and threshold key material (client share + relayer share). See docs/threshold-ed25519.md."
         .to_string()
 }
 

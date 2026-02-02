@@ -1,10 +1,19 @@
-name: publish-sdk-r2
+# Builds `sdk/dist`, generates a sha256 manifest, signs it with cosign (keyless),
+# and uploads artifacts to Cloudflare R2.
+#
+# Default publish prefixes:
+# - main + tags: releases/<sha>
+# - dev:         releases-dev/<sha>
+#
+# If a v* tag points at the published commit, also publish a tag alias at:
+# - releases/<tag>
+name: Publish SDK artifacts to R2
 
 on:
   workflow_dispatch:
     inputs:
       prefix:
-        description: "R2 prefix override (auto | releases | releases-dev | custom)"
+        description: "R2 base prefix. auto => releases (main/tags) or releases-dev (dev). Uploads to <prefix>/<sha>."
         required: false
         default: "auto"
   workflow_run:
@@ -13,7 +22,9 @@ on:
 
 jobs:
   publish-sdk-r2:
+    name: Publish SDK dist to R2
     runs-on: ubuntu-latest
+    # Allow manual publishing, or auto-publish after a successful CI run on push to main/dev/tags.
     if: >-
       ${{
         github.event_name == 'workflow_dispatch' ||
@@ -29,19 +40,22 @@ jobs:
         )
       }}
     environment:
+      # Use staging secrets for dev; production otherwise.
       name: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == 'dev') && 'staging' || (github.ref_name == 'dev') && 'staging' || 'production' }}
     permissions:
       contents: read
       id-token: write # for cosign keyless signing
     env:
+      # For workflow_run, publish the exact commit SHA that CI validated.
       PUBLISH_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       PUBLISH_REF_NAME: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+      # Cloudflare R2 is S3-compatible; the AWS CLI reads these values.
       R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
       AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
     steps:
-      - name: Checkout
+      - name: Checkout repo at publish SHA
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -58,39 +72,39 @@ jobs:
           node-version: "22"
           cache: "pnpm"
 
-      - name: Install deps (workspace)
+      - name: Install dependencies (workspace)
         run: pnpm install --no-frozen-lockfile
 
-      - name: Install Rust toolchain
+      - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Add wasm target
+      - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack
         run: |
           curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
-      - name: Setup Bun
+      - name: Setup Bun (for worker bundling)
         uses: oven-sh/setup-bun@v2
 
-      - name: Build SDK (sdk, production)
+      - name: Build SDK (production)
         run: pnpm build:sdk-prod
 
       # For workflow_dispatch runs, execute the same test suite as CI before publishing.
-      - name: Install Playwright (Chromium + system deps)
+      - name: Install Playwright (manual runs only)
         if: github.event_name == 'workflow_dispatch'
         run: pnpm -C sdk exec playwright install --with-deps chromium
 
-      - name: Type-check SDK
+      - name: Type-check SDK (manual runs only)
         if: github.event_name == 'workflow_dispatch'
         run: pnpm -C sdk type-check
 
-      - name: Assert generated palette CSS
+      - name: Assert generated palette CSS (manual runs only)
         if: github.event_name == 'workflow_dispatch'
         run: node sdk/scripts/assert-palette-css.mjs
 
-      - name: Run wallet-iframe tests
+      - name: Run wallet-iframe tests (manual runs only)
         if: github.event_name == 'workflow_dispatch'
         env:
           USE_RELAY_SERVER: '1'
@@ -98,25 +112,25 @@ jobs:
           VITE_WALLET_DEV_CSP: 'strict'
         run: pnpm -C sdk test:wallet-iframe
 
-      - name: Run lit-components tests
+      - name: Run lit-components tests (manual runs only)
         if: github.event_name == 'workflow_dispatch'
         env:
           NO_CADDY: '1'
           VITE_WALLET_DEV_CSP: 'strict'
         run: pnpm -C sdk test:lit-components
 
-      - name: Run unit tests
+      - name: Run unit tests (manual runs only)
         if: github.event_name == 'workflow_dispatch'
         env:
           NO_CADDY: '1'
           VITE_WALLET_DEV_CSP: 'strict'
         run: pnpm -C sdk test:unit
 
-      - name: Run relayer (server) tests
+      - name: Run relayer (server) tests (manual runs only)
         if: github.event_name == 'workflow_dispatch'
         run: pnpm -C sdk test:relayer
 
-      - name: Validate R2 secrets are present
+      - name: Validate R2 endpoint/bucket/credentials
         run: |
           set -eu
           test -n "${R2_ENDPOINT:-}" || (echo "R2_ENDPOINT is not set" >&2; exit 1)
@@ -124,7 +138,7 @@ jobs:
           test -n "${AWS_ACCESS_KEY_ID:-}" || (echo "R2_ACCESS_KEY_ID is not set" >&2; exit 1)
           test -n "${AWS_SECRET_ACCESS_KEY:-}" || (echo "R2_SECRET_ACCESS_KEY is not set" >&2; exit 1)
 
-      - name: Generate sha256 manifest (sorted)
+      - name: Generate manifest.sha256 (sorted)
         run: |
           cd sdk/dist
           find . -type f \
@@ -132,7 +146,7 @@ jobs:
             ! -name "manifest.sig" \
             -exec sha256sum {} + | sort > manifest.sha256
 
-      - name: Convert manifest to JSON
+      - name: Write manifest.json (from sha256 list)
         run: |
           cd sdk/dist
           python3 - <<'PY'
@@ -157,12 +171,12 @@ jobs:
           cd sdk/dist
           cosign sign-blob --yes --output-signature manifest.sig manifest.json
 
-      - name: Install AWS CLI (via pip)
+      - name: Install AWS CLI (for R2 upload)
         run: |
           python3 -m pip install --user awscli
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Publish to Cloudflare R2 (by commit SHA)
+      - name: Publish sdk/dist to Cloudflare R2 (<prefix>/<sha>)
         run: |
           set -euxo pipefail
 
@@ -193,7 +207,7 @@ jobs:
               --metadata-directive REPLACE
           done
 
-      - name: Optionally publish tag aliases (v*)
+      - name: Optionally publish tag aliases (releases/v*)
         run: |
           set -euxo pipefail
           TAGS="$(git tag --points-at "${PUBLISH_SHA}" | grep -E '^v' || true)"
