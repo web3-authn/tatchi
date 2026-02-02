@@ -1,6 +1,6 @@
 # Tatchi Passkey Embedded Wallet SDK
 
-Monorepo for (`@tatchi-xyz/sdk`)[https://tatchi.xyz/]: an embedded passkey wallet SDK for NEAR.
+Monorepo for [`@tatchi-xyz/sdk`](https://tatchi.xyz): an embedded passkey wallet SDK for NEAR.
 
 ## Installation
 
