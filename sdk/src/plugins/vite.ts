@@ -41,6 +41,8 @@ export type Web3AuthnDevOptions = {
   walletOrigins?: string[]
   setDevHeaders?: boolean
   enableDebugRoutes?: boolean
+  /** See DevHeadersOptions.coopMode */
+  coopMode?: 'off' | 'same-origin' | 'same-origin-allow-popups'
   /**
    * Controls Cross-Origin-Embedder-Policy (COEP) behavior in dev.
    * - 'off' (default): do not emit COEP/CORP on app pages.
@@ -69,6 +71,18 @@ export type DevHeadersOptions = {
   walletOrigins?: string[]
   walletServicePath?: string
   sdkBasePath?: string
+  /**
+   * Controls Cross-Origin-Opener-Policy (COOP) behavior.
+   *
+   * COOP can break popup-based third-party wallet flows by severing `window.opener`
+   * when set to `same-origin`. Prefer `same-origin-allow-popups` if you need COOP
+   * but still rely on popups.
+   *
+   * - 'off': do not emit COOP on app routes (wallet HTML routes still use `unsafe-none`)
+   * - 'same-origin': strict isolation (may break other wallets)
+   * - 'same-origin-allow-popups': more compatible with popup flows
+   */
+  coopMode?: 'off' | 'same-origin' | 'same-origin-allow-popups'
   /**
    * Optional dev-time CSP for the wallet service route.
    *  - 'strict': no inline scripts/styles (mirrors production defaults)
@@ -103,6 +117,16 @@ function parseWalletOriginsEnv(value: unknown): string[] | undefined {
   const parts = raw.split(/[,\s]+/).map((v) => v.trim()).filter(Boolean)
   const origins = normalizeWalletOrigins(parts)
   return origins.length ? origins : undefined
+}
+
+function resolveCoopMode(explicit?: 'off' | 'same-origin' | 'same-origin-allow-popups'): 'off' | 'same-origin' | 'same-origin-allow-popups' {
+  if (explicit === 'off' || explicit === 'same-origin' || explicit === 'same-origin-allow-popups') return explicit
+  const raw = String((globalThis as any)?.process?.env?.VITE_COOP_MODE || '').trim().toLowerCase()
+  if (raw === 'off' || raw === '0' || raw === 'false' || raw === 'none') return 'off'
+  if (raw === 'same-origin-allow-popups' || raw === 'allow-popups') return 'same-origin-allow-popups'
+  if (raw === 'same-origin' || raw === 'strict' || raw === '1') return 'same-origin'
+  // Default off to avoid breaking popup-based third-party wallet flows.
+  return 'off'
 }
 
 /**
@@ -358,6 +382,7 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   const sdkBasePath = toBasePath(opts.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
   const devCSPMode = (opts.devCSP ?? (process.env.VITE_WALLET_DEV_CSP as 'strict' | 'compatible' | undefined))
   const coepMode = resolveCoepMode(opts.coepMode)
+  const coopMode = resolveCoopMode(opts.coopMode)
 
   // Build headers via shared helpers to avoid drift.
   const permissionsPolicy = buildPermissionsPolicy(walletOrigins)
@@ -387,7 +412,11 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = (req.url || '').split('?')[0] || ''
         const isWalletRoute = url === walletServicePath || url === `${walletServicePath}/` || url === `${walletServicePath}//`
-        res.setHeader('Cross-Origin-Opener-Policy', isWalletRoute ? 'unsafe-none' : 'same-origin')
+        if (isWalletRoute) {
+          res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none')
+        } else if (coopMode !== 'off') {
+          res.setHeader('Cross-Origin-Opener-Policy', coopMode)
+        }
         if (coepMode !== 'off') {
           res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
@@ -472,6 +501,7 @@ function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
   const enableDebugRoutes = options.enableDebugRoutes === true
   const sdkDistRoot = resolveSdkDistRoot(options.sdkDistRoot)
   const coepMode = resolveCoepMode(options.coepMode)
+  const coopMode = options.coopMode
 
   // Build the sub-plugins to keep logic small and testable
   const sdkPlugin = tatchiServeSdk({ sdkBasePath, sdkDistRoot, enableDebugRoutes, coepMode })
@@ -480,7 +510,7 @@ function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
   // Flip wallet CSP to strict by default in dev. Consumers can override via
   // VITE_WALLET_DEV_CSP or by composing tatchiHeaders directly.
   const headersPlugin = setDevHeaders
-    ? tatchiHeaders({ walletOrigins, walletServicePath, sdkBasePath, devCSP: 'strict', coepMode })
+    ? tatchiHeaders({ walletOrigins, walletServicePath, sdkBasePath, devCSP: 'strict', coepMode, coopMode })
     : undefined
 
   return {
@@ -513,13 +543,19 @@ function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
  * Where it runs: build for either the app or a static wallet host (not used in dev).
  * Notes: no-ops if `_headers` already exists in `outDir` (to avoid overriding platform config).
  */
-export function tatchiBuildHeaders(opts: { walletOrigins?: string[], cors?: { accessControlAllowOrigin?: string }, coepMode?: 'strict' | 'off' } = {}): VitePlugin {
+export function tatchiBuildHeaders(opts: {
+  walletOrigins?: string[],
+  cors?: { accessControlAllowOrigin?: string },
+  coepMode?: 'strict' | 'off',
+  coopMode?: 'off' | 'same-origin' | 'same-origin-allow-popups',
+} = {}): VitePlugin {
   const walletOrigins = normalizeWalletOrigins(
     opts.walletOrigins ?? parseWalletOriginsEnv(process.env.VITE_WALLET_ORIGIN)
   )
   const walletServicePath = toBasePath(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
   const sdkBasePath = toBasePath(process.env.VITE_SDK_BASE_PATH, '/sdk')
   const coepMode = resolveCoepMode(opts.coepMode)
+  const coopMode = resolveCoopMode(opts.coopMode)
 
   // Build headers via shared helpers to avoid drift between frameworks
   const permissionsPolicy = buildPermissionsPolicy(walletOrigins)
@@ -546,7 +582,7 @@ export function tatchiBuildHeaders(opts: { walletOrigins?: string[], cors?: { ac
           // Strict CSP is emitted only for wallet HTML routes; not for app pages.
           const contentLines: string[] = [
             '/*',
-            '  Cross-Origin-Opener-Policy: same-origin',
+            ...(coopMode === 'off' ? [] : [`  Cross-Origin-Opener-Policy: ${coopMode}`]),
             ...(coepMode === 'off'
               ? []
               : [
@@ -681,7 +717,7 @@ export function tatchiAppServer(options: Omit<Web3AuthnDevOptions, 'mode'> = {})
  * Build-time (build): when `emitHeaders` is true, writes a Cloudflare Pages/Netlify
  * `_headers` file into Vite's `outDir` via tatchiBuildHeaders, scoping strict CSP to
  * wallet HTML routes only.
- *   - Emits: `COOP: same-origin`, `Permissions-Policy: …`, and (when `coepMode === 'strict'`) `COEP: require-corp` + `CORP: cross-origin`.
+ *   - Emits: `COOP` (defaults to `same-origin-allow-popups`), `Permissions-Policy: …`, and (when `coepMode === 'strict'`) `COEP: require-corp` + `CORP: cross-origin`.
  *   - No-op if a `_headers` file already exists in `outDir` (avoids clobbering CI/platform rules).
  *
  * Notes
@@ -696,7 +732,9 @@ export function tatchiApp(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHea
   )
   const app = tatchiAppServer(devOpts)
   // Build-time emission is opt-in and will no-op if `_headers` already exists.
-  const hdr = emitHeaders ? tatchiBuildHeaders({ walletOrigins, coepMode: devOpts.coepMode }) : undefined
+  const hdr = emitHeaders
+    ? tatchiBuildHeaders({ walletOrigins, coepMode: devOpts.coepMode, coopMode: devOpts.coopMode })
+    : undefined
   return [app, hdr].filter(Boolean) as any[]
 }
 
@@ -708,7 +746,7 @@ export function tatchiApp(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHea
  * Build-time (build): when `emitHeaders` is true, writes a Cloudflare Pages/Netlify
  * `_headers` file into Vite's `outDir` via tatchiBuildHeaders, scoping strict CSP to
  * wallet HTML routes only.
- *   - Emits: `COOP: same-origin` (wallet HTML routes use `unsafe-none`), `Permissions-Policy: …`, and (when `coepMode === 'strict'`) `COEP: require-corp` + `CORP: cross-origin`.
+ *   - Emits: `COOP` on app routes (defaults to `same-origin-allow-popups`; wallet HTML routes use `unsafe-none`), `Permissions-Policy: …`, and (when `coepMode === 'strict'`) `COEP: require-corp` + `CORP: cross-origin`.
  *   - No-op if a `_headers` file already exists in `outDir` (avoids clobbering CI/platform rules).
  *
  * Notes
@@ -722,6 +760,8 @@ export function tatchiWallet(options: Omit<Web3AuthnDevOptions, 'mode'> & { emit
   )
   const wallet = tatchiWalletServer(devOpts)
   // Build-time emission is opt-in and will no-op if `_headers` already exists.
-  const hdr = emitHeaders ? tatchiBuildHeaders({ walletOrigins, coepMode: devOpts.coepMode }) : undefined
+  const hdr = emitHeaders
+    ? tatchiBuildHeaders({ walletOrigins, coepMode: devOpts.coepMode, coopMode: devOpts.coopMode })
+    : undefined
   return [wallet, hdr].filter(Boolean) as any[]
 }

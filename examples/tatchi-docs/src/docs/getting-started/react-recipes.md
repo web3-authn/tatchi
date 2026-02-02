@@ -32,6 +32,12 @@ function Root() {
 
 `PasskeyAuthMenu` is a ready‑made registration/login/account-sync menu that wires into the passkey flows exposed by `useTatchi`.
 
+### Conditional passkey UI (idea)
+
+If we want the browser to show passkeys as autofill suggestions (so users can pick which passkey to sign in with), we can use WebAuthn “conditional mediation” (`mediation: 'conditional'`) together with a username field annotated with `autocomplete="username webauthn"`. This is browser/OS UI (we can’t enumerate passkeys in JS to render our own picker).
+
+Implementation notes and repo-specific constraints (PRF salt/account discovery) are captured in `docs/conditional-webauthn.md`.
+
 ```tsx
 import {
   useTatchi,
