@@ -17,20 +17,6 @@ This document is a reference for the **implemented** 2‑party threshold Ed25519
 
 It also describes the key architectural constraints (VRF binding, key material storage, and relayer authorization) that keep the signing surfaces consistent across local and threshold modes.
 
-> Status: the repo implements **local** and **threshold (2p FROST) Ed25519 signing** behind `signerMode`.
->
-> Implementation summary:
-> - VRF input derivation includes a required 32-byte `intent_digest_32` end-to-end (SDK → VRF worker → contract).
-> - IndexedDB v3 vault uses a tagged `KeyMaterial` union (`local_near_sk_v3`, `threshold_ed25519_2p_v1`) with no v2 fallback.
-> - Signer worker signing handlers route through a backend abstraction and accept `signerMode` for tx/delegate/NEP‑413; threshold backend is implemented (FROST client coordinator) and relayer endpoints (`/threshold-ed25519/keygen`, `/authorize`, `/sign/init`, `/sign/finalize`) exist with **optional Redis/Upstash persistence** (default in-memory; still not production-hardened).
-> - Stateless relayer mode is implemented: the relayer signing share can be deterministically derived from `THRESHOLD_ED25519_MASTER_SECRET_B64U` + client-provided public binding data (see “Threshold Relayer Server — Deterministic Relayer Share + Minimal State” below).
-> - Threshold enrollment is “activatable” on-chain: the relayer returns threshold enrollment details, and the client submits `AddKey(thresholdPublicKey)` itself. During `registerPasskey(signerMode="threshold-signer")`, the SDK performs this AddKey immediately after registration using the in-memory registration credential (no extra TouchID prompt).
-> - Session-style threshold signing is implemented: `loginAndCreateSession()` mints `POST /threshold-ed25519/session` (JWT/cookie), and subsequent threshold signing uses the session token to call `/threshold-ed25519/authorize` without requiring WebAuthn per signature (fallbacks to per-signature WebAuthn when the token is missing/invalid).
-
-> Scope note: this implementation prioritizes a **clean v3 refactor**. Backwards compatibility (old vault entries, old APIs, seamless upgrades) is explicitly **not** a goal; assume a breaking change and **re-registration** (no automatic v2→v3 migration).
-
----
-
 ## Threshold Relayer Server — Deterministic Relayer Share + Minimal State
 
 This section describes the **implemented** threshold Ed25519 relayer setup where the relayer can run with minimal long-lived state by deterministically deriving its signing share.
@@ -112,74 +98,6 @@ Refactor the current **2-party threshold Ed25519 (FROST)** implementation so tha
 
 This is a refactor plan, not an immediate migration to 3+ parties.
 
-### Terminology
-- **Party**: an independent trust domain holding a key share (e.g., client + relayer are 2 parties today).
-- **Instance**: a horizontally scaled copy of the same relayer party (same trust domain).
-- **Relayer fleet**: a set of relayer servers we operate (optionally across multiple clouds/regions).
-- **Logical relayer participant**: the *single* external threshold participant representing the relayer fleet (still “the relayer” from the client’s POV).
-- **Relayer cosigner**: an internal relayer node holding a *share of the logical relayer participant’s* secret material (t-of-n internally).
-
-Important: “serverless/cluster safe” and “3+ parties” are related but distinct.
-- The current “derived relayer share” approach can make the relayer **stateless across instances**, but it does **not** automatically create additional independent parties.
-- In our model, the external cryptographic signer set remains **2-party** (client + logical relayer), because the client share must remain deterministically derived from passkey PRF (account recovery requirement).
-- “3P+” resilience comes from splitting the **relayer** side internally across the relayer fleet (internal t-of-n cosigning), while the client still talks to a single logical relayer participant.
-- Cosigners are an internal implementation detail: running **1 relay** (no downstream cosigners) vs **2+ relays** (coordinator + cosigners) should be seamless for the client as long as the logical relayer share (and therefore the 2-party group public key) stays stable.
-
-### Non-goals (for this refactor)
-- Implementing 3+ party signing end-to-end right now.
-- Implementing a full DKG/proactive-refresh protocol right now.
-- Changing the user-facing SDK API semantics (beyond adding optional fields/types needed for future expansion).
-- Migration tooling & legacy support (we are aiming for a clean switch to the new system).
-
-### Current state (2P)
-High level:
-- Client WASM signer worker holds the client share and coordinates FROST.
-- Relayer holds the server share and participates in `/sign/init` + `/sign/finalize`.
-- Authorization can be either:
-  - per-signature WebAuthn/VRF evidence, or
-  - session-style authorization (JWT/cookie) minted at login.
-- Relayer share can be:
-  - persisted (`kv`), or
-  - derived statelessly from a relayer master secret (`derived` / `auto`).
-
-Key references:
-- Threshold signing reference: see this document (“Threshold Ed25519 (NEAR) — Consolidated”).
-- Derived-share relayer notes: see this document (“Threshold Relayer Server — Deterministic Relayer Share + Minimal State”).
-- Signer worker threshold module: `sdk/src/wasm_signer_worker/src/threshold/*`
-- Relayer threshold service: `sdk/src/server/core/ThresholdService/*`
-
-## Goals
-
-- Optimize for a clean refactor (breaking changes acceptable).
-- Add a **second signing backend** (threshold/MPC via relayer) with minimal surface-area changes.
-- Preserve worker isolation: **no signing secrets in the main thread**.
-- In threshold mode, enable **deterministic client-share recovery** from `PRF.first` so wiping local storage does not force on-chain re-keying.
-- Continue to support:
-  - NEAR `SignedTransaction` signing
-  - NEP‑461 `SignedDelegate` signing + relayer broadcasting
-  - NEP‑413 message signing
-- Make key storage/versioning explicit (v3 is a clean break).
-
-## Non-goals
-
-- Writing a new threshold Ed25519 protocol from scratch. Use a well-reviewed library/protocol.
-- General N‑of‑M threshold signing (start with 2‑of‑2: client + relayer).
-- Replacing NEAR Chain Signatures (on-chain MPC) for other chains (see `docs/chainsigs-docs.md`).
-
----
-
-## Terminology
-
-- **Local signer**: current implementation. Client derives a full Ed25519 key and signs locally.
-- **Threshold signer**: implemented. Client+relayer jointly produce Ed25519 signatures.
-- **Vault entry**: the persistent per-device key material stored in IndexedDB (currently encrypted NEAR private key).
-- **Session**: a VRF/WebAuthn-backed short-lived authorization window used to gate signing.
-- **Intent digest (`intentDigest` / `intent_digest_32`)**: a 32-byte digest of the *user-approved intent* that is cryptographically bound into the VRF input derivation (and required by the on-chain verifier). In the SDK it is base64url-encoded as `intentDigest`; on-chain it is `Option<Vec<u8>>` (`Some(32 bytes)`).
-- **Signing digest (`signing_digest_32`)**: the exact 32-byte hash input that Ed25519 signs (e.g., NEAR tx hash, delegate hash, NEP‑413 hash). This is what the threshold protocol must co-sign.
-- **Client share (threshold mode)**: the client-held secret scalar used for threshold signing; in v3 we derive it deterministically from `PRF.first`.
-- **Relayer master secret (optional hardening)**: a relayer-wide secret used to deterministically derive the relayer signing share (enables stateless relayer deployments; see “Deterministic relayer share”).
-
----
 
 ## Current architecture (v2, implemented today)
 
@@ -407,9 +325,9 @@ This doc assumes Option A unless stated otherwise.
 
 ---
 
-## Rust libraries (recommended)
+## Rust libraries
 
-### Primary: ZcashFoundation FROST (`frost-ed25519`)
+### Primary: FROST (`frost-ed25519`)
 
 Use `frost-ed25519` from https://github.com/ZcashFoundation/frost.
 
@@ -431,41 +349,16 @@ curve25519-dalek = { version = "=4.1.3", features = ["rand_core"] }
 getrandom = { version = "0.2", features = ["js"] }
 ```
 
-### Alternative: `givre` (FROST-based TSS)
-
-`givre` (https://github.com/LFDT-Lockness/givre) is a viable alternative:
-- Explicitly targets **wasm/no_std** and supports `ciphersuite-ed25519`.
-- Offers an opinionated DKG option via `cggmp21-keygen` (UC-secure), and an interactive `round_based` flow (`full-signing`).
-
-Tradeoffs vs ZF FROST:
-- Tracks an IETF draft and (per README) does not yet support identifiable abort.
-- Less deployment history and no published audit noted in the README.
-
-Recommendation: start with **ZF FROST** unless we have a specific need for `givre`’s CGGMP21/DKG integration or no_std footprint.
-
-Example `Cargo.toml` (wasm worker):
-
-```toml
-givre = { version = "0.2", default-features = false, features = ["ciphersuite-ed25519", "serde"] }
-rand_core = "0.6"
-getrandom = { version = "0.2", features = ["js"] }
-```
-
----
 
 ## Session-style threshold signing (JWT/Cookie)
 
 This mode makes **`threshold-signer` session-capable** (similar to local signing), so the user can sign multiple transactions after a single WebAuthn prompt.
-
-### Why this is needed
 
 - **VRF warm sessions** (“`warmSession`” in confirmTxFlow) dispense `WrapKeySeed` to the signer worker without a new WebAuthn ceremony.
 - Threshold signing currently requires `/threshold-ed25519/authorize` to provide **fresh `vrf_data` + `webauthn_authentication`** so the relayer can call `verify_authentication_response` on-chain.
 - Warm sessions intentionally omit those fields, so per-request WebAuthn authorization is incompatible with warm sessions.
 
 The fix is to add a second authorization mechanism: a **relayer-issued threshold auth session**.
-
-### What changes (and what doesn’t)
 
 - Still **2-round FROST per signature** (`commitments → signature shares`). A “session” does not change the threshold protocol.
 - What becomes sessionized is **relayer authorization**: after one verified WebAuthn+VRF, the relayer issues a short-lived token that can authorize multiple signatures.
@@ -525,36 +418,6 @@ Then for each signature:
 - Relayer recomputes `intent_digest_32` + `signing_digest_32` server-side from `signingPayload` and rejects mismatches.
 - Relayer decrements `remainingUses` (server-side) and rejects when exhausted/expired.
 
-### Contract changes (v4)
-
-Threshold sessions require contract v4 support.
-
-- Keep `intent_digest_32` reserved for NEAR tx/delegate/NEP‑413 intent.
-- Add a second VRF‑bound field: `session_policy_digest_32` (optional, 32 bytes).
-- Bump VRF input derivation version (new domain separator) so the contract can bind both digests.
-
-Even with contract changes, TTL/uses are still enforced by the relayer (KV + token). The contract cannot enforce session usage at signature time because signatures are produced off‑chain; the value of `session_policy_digest_32` is that the relayer’s session policy is cryptographically bound to the user’s WebAuthn ceremony without overloading `intent_digest_32`.
-
-### Contract v4 behavior (`session_policy_digest_32`)
-
-- `VRFVerificationData` includes `session_policy_digest_32: Option<Vec<u8>>` (when present: exactly 32 bytes) and accepts both `sessionPolicyDigest32` (camelCase) and `session_policy_digest_32` (snake_case).
-- VRF input derivation uses a v4 domain separator and appends `session_policy_digest_32` when present:
-
-```text
-vrf_input_data = sha256(
-  "web3_authn_challenge_v4" ||
-  user_id ||
-  lowercase(rp_id) ||
-  block_height(u64 LE) ||
-  block_hash(32 bytes) ||
-  intent_digest_32(32 bytes) ||
-  session_policy_digest_32(32 bytes if present)
-)
-```
-
-- The SDK/VRF worker plumbs `sessionPolicyDigest32?: string` (base64url 32 bytes) into the contract call for session minting; per-tx flows omit it.
-
----
 
 ## Relayer API
 
