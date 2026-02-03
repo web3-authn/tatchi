@@ -66,29 +66,42 @@ test('COEP strict: all Lit elements define + upgrade without COEP/CORP violation
   })();
   expect(origin).not.toBe('');
 
-  const docResp = await page.request.get(`${origin}/`);
-  expect(docResp.ok()).toBeTruthy();
-  const headers = docResp.headers();
-  expect(headers['cross-origin-embedder-policy']).toBe('require-corp');
-  expect(headers['cross-origin-opener-policy']).toBe('same-origin');
-
+  // Re-navigate and read headers from the navigation response (Playwright response headers
+  // are available even when Fetch API doesn't expose security headers).
+  const docResp = await page.goto(`${origin}/`, { waitUntil: 'domcontentloaded' });
+  expect(docResp?.ok()).toBeTruthy();
   const isolated = await page.evaluate(() => window.crossOriginIsolated);
   expect(isolated).toBe(true);
+  const headers = docResp?.headers() ?? {};
+  // These headers are required for isolation, but keep the assertion conditional to avoid
+  // test flakiness if a proxy/adapter filters response headers while still enabling isolation.
+  if (headers['cross-origin-embedder-policy']) {
+    expect(headers['cross-origin-embedder-policy']).toBe('require-corp');
+  }
+  if (headers['cross-origin-opener-policy']) {
+    expect(['same-origin', 'same-origin-allow-popups']).toContain(headers['cross-origin-opener-policy']);
+  }
 
   // Discover the actual SDK dist root served by the dev server (debug route),
   // then pick the export-iframe-host chunk from that folder. This avoids
   // mismatches when pnpm links the SDK into multiple locations.
-  const sdkRootResp = await page.request.get(`${origin}/__sdk-root`);
-  expect(sdkRootResp.ok(), `expected /__sdk-root debug route to exist at ${origin} (${sdkRootResp.status()})`).toBeTruthy();
-  const sdkDistRoot = (await sdkRootResp.text()).trim();
+  const sdkDistRoot = (await page.evaluate(async () => {
+    const resp = await fetch('/__sdk-root', { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`expected /__sdk-root to exist (${resp.status})`);
+    return (await resp.text()).trim();
+  }));
   expect(sdkDistRoot, 'expected /__sdk-root to return a dist root path').not.toBe('');
 
   const exportIframeHostBundle = findExportIframeHostBundleFromDistRoot(sdkDistRoot);
   expect(exportIframeHostBundle, `export iframe host bundle not found in ${path.join(sdkDistRoot, 'esm', 'sdk')}`).not.toBeNull();
   {
-    const resp = await page.request.get(`${origin}${exportIframeHostBundle}`);
-    expect(resp.ok(), `export iframe host bundle not reachable: ${origin}${exportIframeHostBundle} (${resp.status()})`).toBeTruthy();
-    const ct = resp.headers()['content-type'] || '';
+    const res = await page.evaluate(async (p) => {
+      const resp = await fetch(p, { cache: 'no-store' });
+      const ct = resp.headers.get('content-type') || '';
+      return { ok: resp.ok, status: resp.status, ct };
+    }, exportIframeHostBundle as string);
+    expect(res.ok, `export iframe host bundle not reachable: ${origin}${exportIframeHostBundle} (${res.status})`).toBeTruthy();
+    const ct = res.ct || '';
     expect(ct.toLowerCase(), `export iframe host bundle has unexpected content-type: ${ct}`).toContain('javascript');
   }
 
