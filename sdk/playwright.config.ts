@@ -19,6 +19,12 @@ if (process.env.VITE_COEP_MODE == null) {
   process.env.VITE_COEP_MODE = 'strict';
 }
 
+// COOP is required for crossOriginIsolated (used by COEP strict tests). Keep it explicit in tests.
+// Production default is intentionally more permissive.
+if (process.env.VITE_COOP_MODE == null) {
+  process.env.VITE_COOP_MODE = 'same-origin';
+}
+
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
@@ -30,6 +36,7 @@ const BASE_URL = NO_CADDY ? 'http://localhost:5174' : 'https://example.localhost
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const EXAMPLES_VITE_DIR = path.resolve(path.join(__dirname, '../examples/vite'));
+const WEB_SERVER_URL = `http://localhost:5174/@fs${EXAMPLES_VITE_DIR.replace(/\\/g, '/')}/index.html`;
 
 export default defineConfig({
   testDir: './src/__tests__',
@@ -76,13 +83,16 @@ export default defineConfig({
     command: USE_RELAY_SERVER
       ? 'node ./src/__tests__/scripts/start-servers.mjs'
       : (NO_CADDY ? `pnpm -C ${EXAMPLES_VITE_DIR} run dev:ci` : `pnpm -C ${EXAMPLES_VITE_DIR} dev`),
-    url: 'http://localhost:5174',
+    // Ensure we only reuse the expected Vite server for this repo. A generic `/` check is too
+    // permissive because many dev servers (and Vite SPAs) return 200 for arbitrary routes.
+    url: WEB_SERVER_URL,
     reuseExistingServer: true,
     timeout: 60000, // Allow time for relay health check + build
     // Propagate strict CSP to the dev server process.
     env: {
       VITE_WALLET_DEV_CSP: process.env.VITE_WALLET_DEV_CSP ?? 'strict',
       VITE_COEP_MODE: process.env.VITE_COEP_MODE ?? 'strict',
+      VITE_COOP_MODE: process.env.VITE_COOP_MODE ?? 'same-origin',
     },
   },
 });
