@@ -8,7 +8,6 @@
     "examples:vite": "pnpm -C examples/vite dev",
     "examples:vite-iphone": "pnpm -C examples/vite dev:iphone",
     "examples:vue": "pnpm -C examples/vue dev",
-    "examples:svelte": "pnpm -C examples/svelte dev",
     "examples:next-js": "pnpm -C examples/next-js dev",
     "examples:docs": "pnpm -C examples/tatchi-docs gen:home-snippets && concurrently --kill-others --names app,docs \"pnpm -C examples/tatchi-docs dev\" \"pnpm docs:dev\"",
     "server": "EXPECTED_ORIGIN=https://example.localhost EXPECTED_WALLET_ORIGIN=https://wallet.example.localhost pnpm -C examples/relay-server dev",
