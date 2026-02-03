@@ -15,7 +15,7 @@ test.describe('Wallet iframe handshake', () => {
     });
     // Use a blank document so the example app doesn't mount its own TatchiPasskeyProvider,
     // which would race the test harness router and produce noisy iframe-handshake warnings.
-    await page.goto('about:blank');
+    await page.goto('/test-blank.html');
   });
 
   test.afterEach(async ({ page }) => {
