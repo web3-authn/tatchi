@@ -101,6 +101,33 @@ This is exactly why `SyncAccountFlow.discover()` does not reuse the discovery cr
   - Providing credential IDs (from IndexedDB or server-side account data) can narrow the picker to “this account’s passkeys”.
 - Browser support varies; always feature-detect and fall back to normal `navigator.credentials.get()` (modal) flows.
 
+## Plan
+
+The plan is to use Conditional UI as a *browser-managed passkey picker* (not a passkey list we render ourselves) and to integrate it into `PasskeyAuthMenu` without changing the existing login fallback behavior.
+
+### Phase 1: UX wiring (no protocol changes)
+
+- Add `autocomplete="username webauthn"` to the login username input so browsers can offer passkey autofill.
+- When Login mode is active (and/or on focus), start a pending conditional request:
+  - Feature-detect `PublicKeyCredential.isConditionalMediationAvailable?.()`
+  - If supported, call `navigator.credentials.get({ mediation: 'conditional', ... })` and keep it pending until the user picks a passkey.
+  - Use an `AbortController` so mode switches / username edits cancel and restart cleanly.
+- When the conditional request resolves, proceed with the normal login flow and ensure we **reuse the credential** to avoid double prompts.
+
+Acceptance criteria:
+- If multiple passkeys exist, the browser shows a chooser and the user can pick one.
+- If conditional UI isn’t supported, Login works as it does today (modal prompt when needed).
+- No “Wallet iframe window missing” or other noisy logs introduced by the new flow.
+
+### Phase 2: Reduce double-prompt risk (API refactor)
+
+- Split login into “collect WebAuthn assertion” and “finish login” so `PasskeyAuthMenu` can start conditional WebAuthn early and pass the resulting `PublicKeyCredential` into the SDK.
+- Keep existing public APIs working; the refactor should be additive (new optional `credential`/“pre-collected assertion” inputs).
+
+### Phase 3 (optional): cross-account selection
+
+If we want “pick any passkey, infer account, then login” in a single click, we likely need to revisit PRF salt derivation (today it depends on `nearAccountId`). Without that, cross-account selection is feasible but will remain a 2-prompt flow (discover → login).
+
 ## TODO
 
 [ ] Add `autocomplete="username webauthn"` to the `PasskeyAuthMenu` login input (and keep existing behavior as fallback).
