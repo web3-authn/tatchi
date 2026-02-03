@@ -314,21 +314,3 @@ This ensures:
 ### Phase 6 – Hardening
 - Status: in progress.
 
-### Remaining TODOs
-- Broaden replay-prevention tests and relay hardening for Shamir 3-pass.
-- Keep high-friction UX and auditing for explicit recovery/PRF.second use.
-- Run partial-compromise simulations and assess logs/telemetry/vault exfiltration risk.
-
----
-
-# 11. Final Summary
-
-This hybrid system provides:
-
-- **Best-case:** secure 2-of-2 Shamir reconstruction
-- **Worst-case:** fully self-custodial PRF.second backup
-- **Freshness:** VRF-WebAuthn gated sessions
-- **Isolation:** dual workers + sealed messaging
-- **Resilience:** robust to semi-compromised wallet origin
-
-It combines real cryptographic strength with practical recovery options, making it a production‑ready design for WebAuthn‑secured wallets.
