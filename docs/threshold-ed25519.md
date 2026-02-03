@@ -1,5 +1,5 @@
 
-# Threshold Ed25519 (NEAR) — Consolidated
+# Threshold Ed25519 (NEAR)
 
 This document consolidates:
 - Threshold Ed25519 reference and API notes (formerly `docs/threshold-ed25519-near-spec.md`)
