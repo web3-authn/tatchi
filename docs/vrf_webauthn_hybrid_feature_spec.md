@@ -32,7 +32,7 @@ This results in:
 
 # 2. Rationale
 
-## 2.1 Why VRF-WebAuthn?
+## 2.1 VRF-WebAuthn
 VRF-WebAuthn binds biometric WebAuthn authentication to **chain-state freshness**:
 
 - Challenge = H(VRF(block_height, block_hash, nonce))
@@ -43,14 +43,14 @@ VRF-WebAuthn binds biometric WebAuthn authentication to **chain-state freshness*
 
 VRF becomes the *session key*, PRF.first becomes the *unlock factor*.
 
-## 2.2 Why Shamir 3-Pass?
+## 2.2 Shamir 3-Pass
 Shamir 3-pass gives **real 2-of-2 security**:
 
 - Device alone cannot reconstruct `vrf_sk`.
 - Relay alone cannot reconstruct `vrf_sk`.
 - Both sides participate only in ephemeral, one-time reconstruction per session.
 
-## 2.3 Why PRF.second Backup?
+## 2.3 PRF.second Backup
 PRF.second:
 
 - Is only revealed during WebAuthn **registration**
@@ -266,8 +266,6 @@ This ensures:
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
----
-
 # 9. Security Benefits (Semi-Compromised Wallet Origin)
 
 ### ✔ PRF.first leak ≠ VRF_sk leak
@@ -281,36 +279,4 @@ This ensures:
 ### ✔ MessageChannel-only flow for WrapKeySeed reduces blast radius of origin-level telemetry/console leaks
 ### ✔ Wallet lives in a cross-origin iframe; the dApp origin never sees vault contents, workers, or WrapKeySeed/near_sk
 ### ✔ PRF.second use is restricted to registration, backup VRF recovery, device linking, and explicit recovery flows — not routine logins/transactions
-
-
-# 10. Implementation Plan
-
-### Phase 1 – Vault Format Upgrade
-- Status: complete (v2 vaults with wrapKeySalt and encrypted deterministic NEAR keys).
-
-### Phase 2 – Shamir 3-Pass Integration
-- Status: available and used where configured (auto-login after link/recovery tries Shamir first).
-
-### Phase 3 – PRF.second Recovery
-- Status: implemented for registration, device linking, and email recovery (PRF.second only used at registration/explicit recovery).
-
-### Phase 4 – Worker Updates
-- Status: complete.
-  - VRF worker owns SecureConfirm + PRF handling; main thread zeroizes.
-  - VRF → Signer uses MessageChannel (WrapKeySeed + wrapKeySalt only); no ports exposed to dApp.
-  - Signer worker no longer exposes the deprecated `registration_transaction` path; combined derive+sign helper removed.
-
-### Phase 5 – Signing Integration
-- Status: complete for tx flows (confirmTxFlow + canonical intent digest).
-- Device2/email recovery: registration signing runs via `signDevice2RegistrationWithStoredKey` after key swap (single passkey prompt, deterministic key on-chain before signing).
-
-### Implementation invariants (post-refactor)
-- SecureConfirm/confirmTxFlow are VRF-owned; signer externs for confirmation were removed.
-- PRF/`vrf_sk` stay VRF-side; signer receives only `WrapKeySeed + wrapKeySalt` via the internal MessageChannel.
-- VRF worker rejects forbidden payload fields (e.g., `near_sk`) at the boundary; tests cover this guard.
-- ConfirmTxFlow envelopes for signing/registration/link omit PRF/WrapKeySeed entirely; secrets stay off the main thread and dApp surface.
-- wasm exports align with the split: VRF exposes SecureConfirm bridge + WrapKeySeed derivation; signer exports only signing/decrypt routines.
-
-### Phase 6 – Hardening
-- Status: in progress.
 
