@@ -143,6 +143,53 @@ function tryFile(...candidates: string[]): string | undefined {
   return undefined
 }
 
+const HASHED_ASSET_RE = /^(?<prefix>.+)-[^/]+(?<ext>\.m?js(?:\.map)?|\.cjs(?:\.map)?|\.css(?:\.map)?)$/;
+
+function findHashedAssetFallback(rel: string, roots: string[]): string | undefined {
+  const baseName = path.posix.basename(rel);
+  const match = HASHED_ASSET_RE.exec(baseName);
+  if (!match?.groups) return undefined;
+
+  const prefix = String(match.groups.prefix || '').trim();
+  const ext = String(match.groups.ext || '').trim();
+  if (!prefix || !ext) return undefined;
+
+  const relDirPosix = path.posix.dirname(rel);
+  const relDirFs = relDirPosix === '.' ? '' : relDirPosix.split('/').join(path.sep);
+
+  for (const root of roots) {
+    const dirPath = path.join(root, relDirFs);
+    let entries: fs.Dirent[] = [];
+    try {
+      entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    let best: { filePath: string; mtimeMs: number } | undefined;
+
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      if (!entry.name.startsWith(`${prefix}-`) || !entry.name.endsWith(ext)) continue;
+      const filePath = path.join(dirPath, entry.name);
+      let mtimeMs = 0;
+      try {
+        mtimeMs = fs.statSync(filePath).mtimeMs;
+      } catch {
+        continue;
+      }
+
+      if (!best || mtimeMs > best.mtimeMs) {
+        best = { filePath, mtimeMs };
+      }
+    }
+
+    if (best) return best.filePath;
+  }
+
+  return undefined;
+}
+
 // Dev convenience: allow Vite's cacheDir so `/@fs/.../deps/*.js` dynamic imports can load under `server.fs.strict`.
 function ensureViteCacheDirAllowed(server: any): void {
   const config = server?.config
@@ -265,12 +312,18 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
         if (!matchBase) return next()
 
         const rel = url.slice((matchBase + '/').length)
+        const roots = [
+          path.join(sdkDistRoot, 'esm', 'sdk'),
+          path.join(sdkDistRoot),
+          path.join(sdkDistRoot, 'esm'),
+        ]
         // Try dist/esm/sdk first (canonical), then common fallbacks
-        const candidate = tryFile(
-          path.join(sdkDistRoot, 'esm', 'sdk', rel),
-          path.join(sdkDistRoot, rel),
-          path.join(sdkDistRoot, 'esm', rel)
+        const directCandidate = tryFile(
+          path.join(roots[0], rel),
+          path.join(roots[1], rel),
+          path.join(roots[2], rel),
         )
+        const candidate = directCandidate || findHashedAssetFallback(rel, roots)
 
         if (!candidate) {
           res.statusCode = 404
@@ -279,6 +332,12 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           return
         }
 
+        // Prevent stale module graphs in dev: non-hashed entrypoints (and their dynamic imports)
+        // can otherwise stick in browser cache across rapid rebuilds.
+        res.setHeader('Cache-Control', 'no-store')
+        if (!directCandidate && candidate) {
+          res.setHeader('X-Tatchi-Sdk-Asset-Fallback', 'hashed-prefix')
+        }
         setContentType(res, candidate)
         // SDK assets need COEP headers to work in wallet iframe with COEP enabled
         applyCoepCorpIfNeeded(res, coepMode)

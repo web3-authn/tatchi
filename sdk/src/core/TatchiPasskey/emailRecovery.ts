@@ -612,10 +612,27 @@ export class EmailRecoveryFlow {
 
   private buildMailtoUrlInternal(rec: PendingEmailRecovery): string {
     const { mailtoAddress } = this.getConfig();
-    const to = encodeURIComponent(mailtoAddress);
+    const to = this.normalizeMailtoRecipients(mailtoAddress);
+    if (!to) {
+      throw new Error('Email recovery mailbox is not configured. Set relayer.emailRecovery.mailtoAddress.');
+    }
     const subject = encodeURIComponent(`recover-${rec.requestId} ${rec.accountId} ${rec.nearPublicKey}`);
     const body = encodeURIComponent(`Recovering account ${rec.accountId} with a new passkey.`);
     return `mailto:${to}?subject=${subject}&body=${body}`;
+  }
+
+  private normalizeMailtoRecipients(rawMailtoAddress: string): string {
+    const normalized = String(rawMailtoAddress || '').trim();
+    if (!normalized) return '';
+
+    const withoutQuery = normalized.split('?')[0] || '';
+    const withoutLeadingScheme = withoutQuery.replace(/^mailto:\s*/i, '');
+    const recipients = withoutLeadingScheme
+      .split(',')
+      .map((part) => part.replace(/^mailto:\s*/i, '').trim())
+      .filter((part) => part.length > 0);
+    if (recipients.length === 0) return '';
+    return recipients.map((recipient) => encodeURI(recipient)).join(',');
   }
 
   private async buildMailtoUrlAndUpdateStatus(rec: PendingEmailRecovery): Promise<string> {

@@ -89,6 +89,9 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
   const resolvedShamirRelayServerUrl = overrideShamirRelayServerUrl !== undefined
     ? toTrimmedString(overrideShamirRelayServerUrl) ?? ''
     : toTrimmedString(defaults.vrfWorkerConfigs?.shamir3pass?.relayServerUrl) || relayServerUrlDefault;
+  const resolvedMailtoAddress = toTrimmedString(overrides.relayer?.emailRecovery?.mailtoAddress)
+    || toTrimmedString(defaults.relayer?.emailRecovery?.mailtoAddress)
+    || 'recover@web3authn.org';
   const signerMode = coerceSignerMode(overrides.signerMode, defaults.signerMode);
   const merged: TatchiConfigs = {
     nearRpcUrl: overrides.nearRpcUrl ?? defaults.nearRpcUrl,
@@ -115,8 +118,8 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
           ?? defaults.relayer?.emailRecovery?.maxPollingDurationMs,
         pendingTtlMs: overrides.relayer?.emailRecovery?.pendingTtlMs
           ?? defaults.relayer?.emailRecovery?.pendingTtlMs,
-        mailtoAddress: overrides.relayer?.emailRecovery?.mailtoAddress
-          ?? defaults.relayer?.emailRecovery?.mailtoAddress,
+        // Treat empty-string env expansions as unset and fall back to defaults.
+        mailtoAddress: resolvedMailtoAddress,
       },
     },
     authenticatorOptions: overrides.authenticatorOptions ?? defaults.authenticatorOptions,

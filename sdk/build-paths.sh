@@ -18,6 +18,8 @@ SOURCE_WASM_VRF="src/wasm_vrf_worker"
 
 # Critical directories for build freshness checking
 CRITICAL_DIRS=(
+    "src/react"
+    "src/plugins"
     "src/core"
     "src/wasm_signer_worker"
     "src/wasm_vrf_worker"

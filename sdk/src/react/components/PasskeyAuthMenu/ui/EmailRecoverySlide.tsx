@@ -23,7 +23,7 @@ type EmailRecoveryAccountInfo = {
   emailsCount: number;
 };
 
-type MailtoUiState = 'ready' | 'opening';
+type DraftUiState = 'ready' | 'opening';
 
 type RecoveryEmailRecord = Awaited<ReturnType<TatchiPasskey['getRecoveryEmails']>>[number];
 
@@ -31,7 +31,72 @@ type ExplorerToast = { url: string; accountId?: string; transactionHash?: string
 
 const DEFAULT_NEAR_EXPLORER_URL = 'https://testnet.nearblocks.io';
 const ACCOUNT_INFO_DEBOUNCE_MS = 350;
-const MAILTO_REENABLE_MS = 2_000;
+const DRAFT_OPEN_REENABLE_MS = 1_200;
+const GMAIL_POPUP_NAME = 'tatchi-email-recovery-gmail-draft';
+const GMAIL_POPUP_WIDTH = 860;
+const GMAIL_POPUP_HEIGHT = 760;
+
+function normalizeMailtoUrl(rawMailtoUrl: string): string {
+  const normalized = String(rawMailtoUrl || '').trim();
+  if (!normalized) return '';
+  if (/^mailto:/i.test(normalized)) return normalized;
+  return `mailto:${normalized.replace(/^mailto:\s*/i, '')}`;
+}
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function buildGmailComposeUrlFromMailto(rawMailtoUrl: string): string | null {
+  const mailtoUrl = normalizeMailtoUrl(rawMailtoUrl);
+  if (!mailtoUrl) return null;
+
+  const withoutScheme = mailtoUrl.replace(/^mailto:/i, '');
+  const queryStart = withoutScheme.indexOf('?');
+  const toPart = queryStart >= 0 ? withoutScheme.slice(0, queryStart) : withoutScheme;
+  const queryPart = queryStart >= 0 ? withoutScheme.slice(queryStart + 1) : '';
+
+  const to = safeDecodeURIComponent(toPart).trim();
+  const params = new URLSearchParams(queryPart);
+  const subject = safeDecodeURIComponent(params.get('subject') || '').trim();
+  const body = safeDecodeURIComponent(params.get('body') || '').trim();
+
+  const gmailUrl = new URL('https://mail.google.com/mail/');
+  gmailUrl.searchParams.set('view', 'cm');
+  gmailUrl.searchParams.set('fs', '1');
+  if (to) gmailUrl.searchParams.set('to', to);
+  if (subject) gmailUrl.searchParams.set('su', subject);
+  if (body) gmailUrl.searchParams.set('body', body);
+
+  return gmailUrl.toString();
+}
+
+function getGmailPopupFeatures(): string {
+  if (typeof window === 'undefined') {
+    return `popup=yes,width=${GMAIL_POPUP_WIDTH},height=${GMAIL_POPUP_HEIGHT},resizable=yes,scrollbars=yes`;
+  }
+
+  const screenLeft = typeof window.screenLeft === 'number' ? window.screenLeft : window.screenX;
+  const screenTop = typeof window.screenTop === 'number' ? window.screenTop : window.screenY;
+  const viewportWidth = window.outerWidth || window.innerWidth || GMAIL_POPUP_WIDTH;
+  const viewportHeight = window.outerHeight || window.innerHeight || GMAIL_POPUP_HEIGHT;
+  const left = Math.max(0, Math.round(screenLeft + (viewportWidth - GMAIL_POPUP_WIDTH) / 2));
+  const top = Math.max(0, Math.round(screenTop + (viewportHeight - GMAIL_POPUP_HEIGHT) / 2));
+
+  return [
+    'popup=yes',
+    `width=${GMAIL_POPUP_WIDTH}`,
+    `height=${GMAIL_POPUP_HEIGHT}`,
+    `left=${left}`,
+    `top=${top}`,
+    'resizable=yes',
+    'scrollbars=yes',
+  ].join(',');
+}
 
 function getExplorerBaseUrl(tatchiPasskey: TatchiPasskey): string {
   return String(tatchiPasskey.configs?.nearExplorerUrl || DEFAULT_NEAR_EXPLORER_URL).replace(/\/$/, '');
@@ -197,27 +262,31 @@ function RecoveryEmailsSummary(props: {
 function EmailRecoveryActions(props: {
   isBusy: boolean;
   pendingMailtoUrl: string | null;
-  mailtoUiState: MailtoUiState;
+  draftUiState: DraftUiState;
   startDisabled: boolean;
   accountInfoLoading: boolean;
   noRecoveryEmailsConfigured: boolean;
   showRestart: boolean;
   onStart: () => void;
-  onOpenDraft: (mailtoUrl: string) => void;
+  onOpenGmailDraft: () => void;
+  onOpenDefaultEmailApp: () => void;
   onRestart: () => void;
 }) {
   const {
     isBusy,
     pendingMailtoUrl,
-    mailtoUiState,
+    draftUiState,
     startDisabled,
     accountInfoLoading,
     noRecoveryEmailsConfigured,
     showRestart,
     onStart,
-    onOpenDraft,
+    onOpenGmailDraft,
+    onOpenDefaultEmailApp,
     onRestart,
   } = props;
+  const pendingMailtoHref = normalizeMailtoUrl(pendingMailtoUrl || '');
+  const pendingWebmailHref = buildGmailComposeUrlFromMailto(pendingMailtoUrl || '');
 
   return (
     <div className="w3a-email-recovery-actions">
@@ -236,16 +305,30 @@ function EmailRecoveryActions(props: {
       )}
 
       {pendingMailtoUrl && (
-        <button
-          type="button"
-          onClick={() => onOpenDraft(pendingMailtoUrl)}
-          className="w3a-link-device-btn w3a-link-device-btn-primary"
-          disabled={mailtoUiState === 'opening'}
-          aria-busy={mailtoUiState === 'opening'}
-        >
-          {mailtoUiState === 'opening' && <span className="w3a-spinner" aria-hidden="true" />}
-          {mailtoUiState === 'opening' ? 'Opening email…' : 'Open recovery email draft'}
-        </button>
+        <>
+          {!!pendingMailtoHref && (
+            <button
+              type="button"
+              onClick={onOpenDefaultEmailApp}
+              className="w3a-link-device-btn w3a-link-device-btn-primary"
+              disabled={draftUiState === 'opening'}
+              aria-busy={draftUiState === 'opening'}
+            >
+              {draftUiState === 'opening' && <span className="w3a-spinner" aria-hidden="true" />}
+              {draftUiState === 'opening' ? 'Opening email app…' : 'Open recovery email draft'}
+            </button>
+          )}
+          {pendingWebmailHref && (
+            <button
+              type="button"
+              onClick={onOpenGmailDraft}
+              className="w3a-link-device-btn"
+              disabled={draftUiState === 'opening'}
+            >
+              Open Gmail recovery draft
+            </button>
+          )}
+        </>
       )}
 
       {showRestart && (
@@ -299,16 +382,17 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
 }) => {
 
   const mountedRef = React.useRef(true);
-  const mailtoAttemptTimerRef = React.useRef<number | null>(null);
+  const draftOpenTimerRef = React.useRef<number | null>(null);
+  const draftPopupRef = React.useRef<Window | null>(null);
   const cancelRequestedRef = React.useRef(false);
 
   React.useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      if (mailtoAttemptTimerRef.current != null) {
-        window.clearTimeout(mailtoAttemptTimerRef.current);
-        mailtoAttemptTimerRef.current = null;
+      if (draftOpenTimerRef.current != null) {
+        window.clearTimeout(draftOpenTimerRef.current);
+        draftOpenTimerRef.current = null;
       }
     };
   }, []);
@@ -326,7 +410,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
   const [accountIdInput, setAccountIdInput] = React.useState('');
   const [pendingMailtoUrl, setPendingMailtoUrl] = React.useState<string | null>(null);
   const [pendingNearPublicKey, setPendingNearPublicKey] = React.useState<string | null>(null);
-  const [mailtoUiState, setMailtoUiState] = React.useState<MailtoUiState>('ready');
+  const [draftUiState, setDraftUiState] = React.useState<DraftUiState>('ready');
   const [statusText, setStatusText] = React.useState<string | null>(null);
   const [pollingElapsedMs, setPollingElapsedMs] = React.useState<number | null>(null);
   const [errorText, setErrorText] = React.useState<string | null>(null);
@@ -352,7 +436,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
   React.useEffect(() => {
     setPendingMailtoUrl(null);
     setPendingNearPublicKey(null);
-    setMailtoUiState('ready');
+    setDraftUiState('ready');
     cancelRequestedRef.current = false;
     setStatusText(null);
     setPollingElapsedMs(null);
@@ -362,9 +446,9 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
     setAccountInfoError(null);
     setLocalRecoveryEmails([]);
     setExplorerToast(null);
-    if (mailtoAttemptTimerRef.current != null) {
-      window.clearTimeout(mailtoAttemptTimerRef.current);
-      mailtoAttemptTimerRef.current = null;
+    if (draftOpenTimerRef.current != null) {
+      window.clearTimeout(draftOpenTimerRef.current);
+      draftOpenTimerRef.current = null;
     }
   }, [accountId]);
 
@@ -412,77 +496,116 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
     [safeSet, tatchiPasskey],
   );
 
-  const launchMailto = React.useCallback((rawMailtoUrl: string) => {
-    const url = String(rawMailtoUrl || '').trim();
-    if (!url) return;
-
-    if (typeof window !== 'undefined') {
-      try {
-        window.location.href = url;
-      } catch {}
+  const clearDraftOpenTimer = React.useCallback(() => {
+    if (draftOpenTimerRef.current != null) {
+      window.clearTimeout(draftOpenTimerRef.current);
+      draftOpenTimerRef.current = null;
     }
   }, []);
 
-  const attemptOpenMailtoFromUserGesture = React.useCallback(
-    (rawMailtoUrl: string) => {
-      const url = String(rawMailtoUrl || '').trim();
-      if (!url) return;
+  const scheduleDraftUiReset = React.useCallback(() => {
+    clearDraftOpenTimer();
+    draftOpenTimerRef.current = window.setTimeout(() => {
+      safeSet(setDraftUiState, prev => (prev === 'opening' ? 'ready' : prev));
+      draftOpenTimerRef.current = null;
+    }, DRAFT_OPEN_REENABLE_MS);
+  }, [clearDraftOpenTimer, safeSet]);
 
-      safeSet(setMailtoUiState, 'opening');
+  const openGmailDraftPopup = React.useCallback((gmailDraftUrl: string, existingPopup?: Window | null): boolean => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const popup =
+        existingPopup && !existingPopup.closed
+          ? existingPopup
+          : window.open('about:blank', GMAIL_POPUP_NAME, getGmailPopupFeatures());
+      if (!popup || popup.closed) return false;
+      draftPopupRef.current = popup;
+      popup.location.href = gmailDraftUrl;
+      try {
+        popup.focus();
+      } catch {
+        // Ignore focus failures (browser policy).
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
 
-      if (mailtoAttemptTimerRef.current != null) {
-        window.clearTimeout(mailtoAttemptTimerRef.current);
+  const openGmailDraftPreferPopup = React.useCallback(
+    (gmailDraftUrl: string, options?: { existingPopup?: Window | null; fallbackToNewTab?: boolean }): 'popup' | 'tab' | 'blocked' => {
+      const openedPopup = openGmailDraftPopup(gmailDraftUrl, options?.existingPopup);
+      if (openedPopup) return 'popup';
+
+      if (options?.fallbackToNewTab && typeof window !== 'undefined') {
+        try {
+          const tab = window.open(gmailDraftUrl, '_blank', 'noopener,noreferrer');
+          if (tab && !tab.closed) {
+            try {
+              tab.focus();
+            } catch {
+              // Ignore focus failures (browser policy).
+            }
+            return 'tab';
+          }
+        } catch {
+          // Fall through to blocked.
+        }
       }
 
-      // If the browser never blurs/hides (i.e. mailto blocked or cancelled), re-enable so users can retry.
-      mailtoAttemptTimerRef.current = window.setTimeout(() => {
-        safeSet(setMailtoUiState, prev => (prev === 'opening' ? 'ready' : prev));
-        mailtoAttemptTimerRef.current = null;
-      }, MAILTO_REENABLE_MS);
-
-      launchMailto(url);
+      return 'blocked';
     },
-    [launchMailto, safeSet],
+    [openGmailDraftPopup],
   );
 
-  const attemptOpenMailtoAuto = React.useCallback(
-    (rawMailtoUrl: string) => {
-      const url = String(rawMailtoUrl || '').trim();
-      if (!url) return;
-      // Best-effort only: do not change `mailtoUiState` so users can immediately click the CTA.
-      launchMailto(url);
-    },
-    [launchMailto],
-  );
+  const openDefaultEmailApp = React.useCallback((mailtoHref: string): boolean => {
+    if (typeof window === 'undefined') return false;
+    try {
+      window.location.assign(mailtoHref);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
 
-  React.useEffect(() => {
-    if (mailtoUiState !== 'opening') return;
-    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  const handleOpenGmailDraft = React.useCallback(() => {
+    const gmailDraftUrl = buildGmailComposeUrlFromMailto(pendingMailtoUrl || '');
+    if (!gmailDraftUrl) {
+      safeSet(setErrorText, 'Failed to prepare Gmail recovery draft URL. Restart email recovery and try again.');
+      return;
+    }
 
-    // Heuristic signals that the mail client likely opened. Treat as a hint only:
-    // re-enable immediately so the CTA remains retryable even if this is a false-positive.
-    const markMaybeOpened = () => {
-      safeSet(setMailtoUiState, 'ready');
-      if (mailtoAttemptTimerRef.current != null) {
-        window.clearTimeout(mailtoAttemptTimerRef.current);
-        mailtoAttemptTimerRef.current = null;
-      }
-    };
+    safeSet(setErrorText, null);
+    safeSet(setDraftUiState, 'opening');
+    const openResult = openGmailDraftPreferPopup(gmailDraftUrl, {
+      existingPopup: draftPopupRef.current,
+      fallbackToNewTab: true,
+    });
+    if (openResult === 'blocked') {
+      safeSet(setDraftUiState, 'ready');
+      safeSet(setErrorText, 'Popup/new tab was blocked. Allow popups for this site and click again.');
+      return;
+    }
+    scheduleDraftUiReset();
+  }, [openGmailDraftPreferPopup, pendingMailtoUrl, safeSet, scheduleDraftUiReset]);
 
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') markMaybeOpened();
-    };
+  const handleOpenDefaultEmailApp = React.useCallback(() => {
+    const pendingMailtoHref = normalizeMailtoUrl(pendingMailtoUrl || '');
+    if (!pendingMailtoHref) {
+      safeSet(setErrorText, 'Failed to prepare default email app draft URL. Restart email recovery and try again.');
+      return;
+    }
 
-    window.addEventListener('blur', markMaybeOpened);
-    window.addEventListener('pagehide', markMaybeOpened);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-
-    return () => {
-      window.removeEventListener('blur', markMaybeOpened);
-      window.removeEventListener('pagehide', markMaybeOpened);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, [mailtoUiState, safeSet]);
+    safeSet(setErrorText, null);
+    safeSet(setDraftUiState, 'opening');
+    const opened = openDefaultEmailApp(pendingMailtoHref);
+    if (!opened) {
+      safeSet(setDraftUiState, 'ready');
+      safeSet(setErrorText, 'Failed to open default email app. Click “Open Gmail recovery draft” instead.');
+      return;
+    }
+    scheduleDraftUiReset();
+  }, [openDefaultEmailApp, pendingMailtoUrl, safeSet, scheduleDraftUiReset]);
 
   React.useEffect(() => {
     const normalized = (accountIdInput || '').trim();
@@ -558,6 +681,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
       return;
     }
 
+    clearDraftOpenTimer();
     safeSet(setIsBusy, true);
     cancelRequestedRef.current = false;
     safeSet(setErrorText, null);
@@ -566,7 +690,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
     safeSet(setPollingElapsedMs, null);
     safeSet(setPendingMailtoUrl, null);
     safeSet(setPendingNearPublicKey, null);
-    safeSet(setMailtoUiState, 'ready');
+    safeSet(setDraftUiState, 'ready');
 
     let didForwardError = false;
     try {
@@ -585,13 +709,25 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
 
       safeSet(setPendingMailtoUrl, result.mailtoUrl);
       safeSet(setPendingNearPublicKey, result.nearPublicKey);
+
+      const pendingMailtoHref = normalizeMailtoUrl(result.mailtoUrl);
+      let autoDraftOpenMode: 'mailto' | 'blocked' = 'blocked';
+      if (pendingMailtoHref) {
+        safeSet(setDraftUiState, 'opening');
+        if (openDefaultEmailApp(pendingMailtoHref)) {
+          autoDraftOpenMode = 'mailto';
+          scheduleDraftUiReset();
+        } else {
+          safeSet(setDraftUiState, 'ready');
+        }
+      }
+
       safeSet(
         setStatusText,
-        'Recovery email draft ready. If it didn’t open automatically, click “Open recovery email draft”. Waiting for verification…'
+        autoDraftOpenMode === 'mailto'
+          ? 'Recovery email draft opened in your default email app. Send the email. Waiting for verification…'
+          : 'Recovery email draft ready. Click “Open recovery email draft”. If needed, use “Open Gmail recovery draft”. Waiting for verification…'
       );
-
-      // Best-effort open. If blocked/cancelled, the CTA remains immediately clickable for a user-gesture retry.
-      attemptOpenMailtoAuto(result.mailtoUrl);
 
       // Start polling immediately after attempting to open the email prompt.
       const finalizePromise = tatchiPasskey.finalizeEmailRecovery({
@@ -644,7 +780,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
         loginOk ? 'Email recovery completed on this device.' : 'Email recovery completed. Please log in on this device.'
       );
       safeSet(setPendingMailtoUrl, null);
-      safeSet(setMailtoUiState, 'ready');
+      safeSet(setDraftUiState, 'ready');
       safeSet(setPollingElapsedMs, null);
     } catch (err: unknown) {
       if (cancelRequestedRef.current) {
@@ -653,7 +789,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
         safeSet(setPollingElapsedMs, null);
         safeSet(setPendingMailtoUrl, null);
         safeSet(setPendingNearPublicKey, null);
-        safeSet(setMailtoUiState, 'ready');
+        safeSet(setDraftUiState, 'ready');
         safeSet(setCanRestart, false);
         return;
       }
@@ -673,11 +809,13 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
     accountInfo,
     accountInfoError,
     accountInfoLoading,
-    attemptOpenMailtoAuto,
+    clearDraftOpenTimer,
     emailRecoveryOptions,
     onEvent,
+    openDefaultEmailApp,
     refreshLoginState,
     safeSet,
+    scheduleDraftUiReset,
     showExplorerToast,
     showExplorerTxToast,
     tatchiPasskey,
@@ -701,7 +839,7 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
       safeSet(setPollingElapsedMs, null);
       safeSet(setPendingMailtoUrl, null);
       safeSet(setPendingNearPublicKey, null);
-      safeSet(setMailtoUiState, 'ready');
+      safeSet(setDraftUiState, 'ready');
       safeSet(setCanRestart, false);
     } finally {
       cancelRequestedRef.current = false;
@@ -745,13 +883,14 @@ export const EmailRecoverySlide: React.FC<EmailRecoverySlideProps> = ({
       <EmailRecoveryActions
         isBusy={isBusy}
         pendingMailtoUrl={pendingMailtoUrl}
-        mailtoUiState={mailtoUiState}
+        draftUiState={draftUiState}
         startDisabled={startDisabled}
         accountInfoLoading={accountInfoLoading}
         noRecoveryEmailsConfigured={noRecoveryEmailsConfigured}
         showRestart={showRestart}
         onStart={handleStart}
-        onOpenDraft={attemptOpenMailtoFromUserGesture}
+        onOpenGmailDraft={handleOpenGmailDraft}
+        onOpenDefaultEmailApp={handleOpenDefaultEmailApp}
         onRestart={handleRestart}
       />
       <EmailRecoveryStatusPanel
