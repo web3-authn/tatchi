@@ -9,7 +9,7 @@ import {
 } from '../types';
 import {
   parseAndValidateRegistrationCredentialConfirmationPayload,
-  type RegistrationCredentialConfirmationPayload,
+  type RegistrationCredentialConfirmationDecisionPayload,
 } from '../../../SignerWorkerManager/handlers/validation';
 
 export async function requestRegistrationCredentialConfirmation({
@@ -28,7 +28,7 @@ export async function requestRegistrationCredentialConfirmation({
   contractId: string,
   nearRpcUrl: string,
   confirmationConfig?: Partial<ConfirmationConfig>,
-}): Promise<RegistrationCredentialConfirmationPayload> {
+}): Promise<RegistrationCredentialConfirmationDecisionPayload> {
 
   // Ensure required fields are present; JSON.stringify drops undefined causing Rust parse failure
   const resolvedContractId = contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId;

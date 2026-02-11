@@ -18,7 +18,7 @@ export const toPublicKeyString = (pk: DelegateActionInput['publicKey']): string 
 
 // Strongly typed payload expected from the WASM → JS boundary
 export interface RegistrationCredentialConfirmationPayload {
-  confirmed: boolean;
+  confirmed: true;
   requestId: string;
   intentDigest: string;
   credential: WebAuthnRegistrationCredential; // serialized PublicKeyCredential (no methods)
@@ -26,6 +26,20 @@ export interface RegistrationCredentialConfirmationPayload {
   transactionContext?: TransactionContext;
   error?: string;
 }
+
+export interface RejectedRegistrationCredentialConfirmationPayload {
+  confirmed: false;
+  requestId: string;
+  intentDigest: string;
+  credential?: WebAuthnRegistrationCredential;
+  vrfChallenge?: VRFChallenge;
+  transactionContext?: TransactionContext;
+  error?: string;
+}
+
+export type RegistrationCredentialConfirmationDecisionPayload =
+  | RegistrationCredentialConfirmationPayload
+  | RejectedRegistrationCredentialConfirmationPayload;
 
 function validateTransactionContextMaybe(input: unknown): TransactionContext | undefined {
   if (input == null) return undefined;
@@ -140,7 +154,7 @@ function validateVrfChallengeMaybe(input: unknown): VRFChallenge | undefined {
 
 export function parseAndValidateRegistrationCredentialConfirmationPayload(
   payload: unknown,
-): RegistrationCredentialConfirmationPayload {
+): RegistrationCredentialConfirmationDecisionPayload {
 
   if (!isObject(payload)) {
     throw new Error('Invalid response payload: expected object');
@@ -170,17 +184,18 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
   const normalizedIntentDigest =
     intentDigest == null ? '' : assertString(intentDigest, 'intentDigest');
 
+  const normalizedConfirmed = !!confirmed;
   const normalizedCredential =
     credential != null ? validateCredentialMaybe(credential) : undefined;
 
-  if (!normalizedCredential) {
+  if (normalizedConfirmed && !normalizedCredential) {
     throw new Error('Missing registration credential');
   }
 
   const normalizedVrfChallenge =
     vrfChallenge != null ? validateVrfChallengeMaybe(vrfChallenge) : undefined;
 
-  if (!normalizedVrfChallenge) {
+  if (normalizedConfirmed && !normalizedVrfChallenge) {
     throw new Error('Missing VRF Challenge');
   }
 
@@ -190,12 +205,24 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(
   const normalizedError =
     error == null ? undefined : assertString(error, 'error');
 
+  if (!normalizedConfirmed) {
+    return {
+      confirmed: false,
+      requestId: normalizedRequestId,
+      intentDigest: normalizedIntentDigest,
+      credential: normalizedCredential,
+      vrfChallenge: normalizedVrfChallenge,
+      transactionContext: normalizedTransactionContext,
+      error: normalizedError,
+    };
+  }
+
   return {
-    confirmed: !!confirmed,
+    confirmed: true,
     requestId: normalizedRequestId,
     intentDigest: normalizedIntentDigest,
-    credential: normalizedCredential,
-    vrfChallenge: normalizedVrfChallenge,
+    credential: normalizedCredential as WebAuthnRegistrationCredential,
+    vrfChallenge: normalizedVrfChallenge as VRFChallenge,
     transactionContext: normalizedTransactionContext,
     error: normalizedError,
   };
