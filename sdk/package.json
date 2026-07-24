@@ -186,7 +186,7 @@
     "typescript",
     "sdk"
   ],
-  "author": "web3authn.org",
+  "author": "Peita Lin",
   "license": "MIT",
   "repository": {
     "type": "git",

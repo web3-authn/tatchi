@@ -181,8 +181,8 @@ If you want cookie-based sessions (`credentials: 'include'`), you must use an
 explicit allowlist (not `Access-Control-Allow-Origin: *`).
 
 Example mapping:
-- staging: `EXPECTED_ORIGIN=https://staging.tatchi.xyz`, `EXPECTED_WALLET_ORIGIN=https://wallet-staging.web3authn.org`
-- prod: `EXPECTED_ORIGIN=https://tatchi.xyz`, `EXPECTED_WALLET_ORIGIN=https://wallet.web3authn.org`
+- staging: `EXPECTED_ORIGIN=https://staging.tatchi.xyz`, `EXPECTED_WALLET_ORIGIN=https://wallet-staging.tatchi.xyz`
+- prod: `EXPECTED_ORIGIN=https://tatchi.xyz`, `EXPECTED_WALLET_ORIGIN=https://wallet.tatchi.xyz`
 
 ## Local testing tips
 

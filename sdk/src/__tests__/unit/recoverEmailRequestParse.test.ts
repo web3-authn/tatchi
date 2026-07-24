@@ -5,7 +5,7 @@ test.describe('parseRecoverEmailRequest', () => {
   test('parses accountId from Subject header and explicitMode from headers', async () => {
     const body = {
       from: 'sender@example.com',
-      to: 'recover@web3authn.org',
+      to: 'recover@tatchi.xyz',
       headers: {
         Subject: 'recover-ABC123 bob.testnet ed25519:somepk',
       },
@@ -27,7 +27,7 @@ test.describe('parseRecoverEmailRequest', () => {
   test('prefers explicitMode from JSON body over request headers', async () => {
     const body = {
       from: 'sender@example.com',
-      to: 'recover@web3authn.org',
+      to: 'recover@tatchi.xyz',
       headers: {
         Subject: 'recover-ABC123 bob.testnet ed25519:somepk',
       },
@@ -48,7 +48,7 @@ test.describe('parseRecoverEmailRequest', () => {
   test('returns missing_email when raw email blob is absent', async () => {
     const body = {
       from: 'sender@example.com',
-      to: 'recover@web3authn.org',
+      to: 'recover@tatchi.xyz',
       headers: {
         Subject: 'recover-ABC123 bob.testnet ed25519:somepk',
       },

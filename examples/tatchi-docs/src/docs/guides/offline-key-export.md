@@ -9,7 +9,7 @@ You can export private keys while completely offline. The SDK includes a service
 
 ## Why Offline Export?
 
-WebAuthn relies on the wallet origin being reachable online. So if there is a DNS outage and the domain (e.g web3authn.org) goes down, users would be unable to access their wallet.
+WebAuthn relies on the wallet origin being reachable online. So if there is a DNS outage and the domain (e.g tatchi.xyz) goes down, users would be unable to access their wallet.
 
 ::: tip This is a WebAuthn constraint:
 "WebAuthn ties credentials to a specific domain name (the RP ID). If the browser can't reach the DNS server to verify the domain or resolve it to the correct IP, the authentication process cannot be completed."
@@ -25,7 +25,7 @@ Once users visit the wallet and register while online, the offline service worke
 2. Navigate to `https://wallet.example.com/offline-export/` (or the wallet host’s `/offline-export/`) while offline. NOTE: that the it's `/offline-export/` with the trailing slash `/`.
 3. The service worker will serve the app from cache and it can read the encrypted key material from IndexedDB and perform the export locally.
 
-In that scenario, whether DNS for web3authn.org still resolves or the host is "down" on the network is irrelevant: the browser never needs to reach the server.
+In that scenario, whether DNS for tatchi.xyz still resolves or the host is "down" on the network is irrelevant: the browser never needs to reach the server.
 
 ::: warning
 The user must not clear site data (cookies/storage/caches for that origin).

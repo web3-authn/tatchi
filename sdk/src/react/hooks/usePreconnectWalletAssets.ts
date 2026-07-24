@@ -13,7 +13,7 @@ import { setEmbeddedBase } from '../../core/sdkPaths';
 //   not from the host app origin.
 //
 // Requirements
-// - `config.iframeWallet.walletOrigin` points to the wallet site (e.g. https://web3authn.org)
+// - `config.iframeWallet.walletOrigin` points to the wallet site (e.g. https://wallet.tatchi.xyz)
 // - `config.iframeWallet.sdkBasePath` (default '/sdk') is served on that wallet site
 // - `config.iframeWallet.walletServicePath` (default '/wallet-service') is reachable
 //

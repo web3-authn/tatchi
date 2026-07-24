@@ -24,8 +24,8 @@ Use different Cloudflare resources for staging vs production so `dev` deployment
   - `w3a-tatchi-docs-staging`
   - `w3a-tatchi-docs-prod`
 - Wallet iframe (Cloudflare Pages project)
-  - `w3a-wallet-iframe-staging` → `wallet-staging.web3authn.org`
-  - `w3a-wallet-iframe-prod` → `wallet.web3authn.org`
+  - `w3a-wallet-iframe-staging` → `wallet-staging.tatchi.xyz`
+  - `w3a-wallet-iframe-prod` → `wallet.tatchi.xyz`
 
 ## Target workflow files
 
@@ -38,8 +38,8 @@ Use different Cloudflare resources for staging vs production so `dev` deployment
    - 3a. `deploy-docs-staging.yml`: only on `dev` branch, GitHub Environment `staging`.
    - 3b. `deploy-docs-prod.yml`: only on `main` branch, GitHub Environment `production`.
 4. Deploy wallet iframe (`examples/vite`) to Cloudflare Pages
-   - 4a. `deploy-wallet-iframe-staging.yml`: only on `dev` branch, GitHub Environment `staging` → `w3a-wallet-iframe-staging` (`wallet-staging.web3authn.org`).
-   - 4b. `deploy-wallet-iframe-prod.yml`: only on `main` branch, GitHub Environment `production` → `w3a-wallet-iframe-prod` (`wallet.web3authn.org`).
+   - 4a. `deploy-wallet-iframe-staging.yml`: only on `dev` branch, GitHub Environment `staging` → `w3a-wallet-iframe-staging` (`wallet-staging.tatchi.xyz`).
+   - 4b. `deploy-wallet-iframe-prod.yml`: only on `main` branch, GitHub Environment `production` → `w3a-wallet-iframe-prod` (`wallet.tatchi.xyz`).
 5. Publish SDK artifacts to Cloudflare R2
    - `publish-sdk-r2.yml`: dedicated workflow (manual trigger + `ci` workflow_run trigger).
 

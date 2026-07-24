@@ -150,7 +150,7 @@ async function main() {
   // 4) Send raw email to relay /recover-email
   const body = {
     from: 'sender@example.com',
-    to: 'recover@web3authn.org',
+    to: 'recover@tatchi.xyz',
     headers: {},
     raw: rawEmail,
     rawSize: rawEmail.length,

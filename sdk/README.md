@@ -49,7 +49,7 @@ function App() {
         nearNetwork: 'testnet',
         contractId: 'w3a-v1.testnet',
         iframeWallet: {
-          walletOrigin: 'https://wallet.web3authn.org',
+          walletOrigin: 'https://wallet.tatchi.xyz',
         },
         relayer: {
           url: 'https://relay-server.example.com',
@@ -111,7 +111,7 @@ interface TatchiPasskeyConfig {
 
   // Wallet iframe settings (recommended)
   iframeWallet?: {
-    walletOrigin: string           // e.g., 'https://wallet.web3authn.org'
+    walletOrigin: string           // e.g., 'https://wallet.tatchi.xyz'
     walletServicePath?: string     // Default: '/wallet-service'
     rpIdOverride?: string          // Optional: Credential scope override
   }
@@ -127,14 +127,14 @@ interface TatchiPasskeyConfig {
 
 ## Wallet Iframe Architecture
 
-The SDK isolates all sensitive operations in a cross-origin iframe (e.g., `wallet.web3authn.org`). Your app communicates via secure MessageChannel, but can never access keys directly.
+The SDK isolates all sensitive operations in a cross-origin iframe (e.g., `wallet.tatchi.xyz`). Your app communicates via secure MessageChannel, but can never access keys directly.
 
 ### Configuration
 
 **Recommended** (dedicated wallet origin):
 ```tsx
 iframeWallet: {
-  walletOrigin: 'https://wallet.web3authn.org',
+  walletOrigin: 'https://wallet.tatchi.xyz',
   walletServicePath: '/wallet-service',
 }
 ```

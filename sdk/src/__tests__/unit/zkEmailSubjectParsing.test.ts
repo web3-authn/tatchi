@@ -67,7 +67,7 @@ test.describe('zk-email subject parsing with request_id', () => {
 
         const payload = {
           from: 'alice@example.com',
-          to: 'recover@web3authn.org',
+          to: 'recover@tatchi.xyz',
           headers: {
             subject: 'recover-ABC123 bob.testnet ed25519:edpkDummyKey',
             from: 'alice@example.com',

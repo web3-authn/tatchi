@@ -212,7 +212,7 @@ test.describe('relayer router (cloudflare) – P0', () => {
       origin: 'https://example.localhost',
       body: {
         from: 'sender@example.com',
-        to: 'recover@web3authn.org',
+        to: 'recover@tatchi.xyz',
         headers: { Subject: 'recover-ABC123 bob.testnet ed25519:pk' },
         raw: 'Subject: recover-ABC123 bob.testnet ed25519:pk\r\n\r\nzk-email',
         rawSize: 1,

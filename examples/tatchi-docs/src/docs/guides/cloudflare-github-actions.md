@@ -19,8 +19,8 @@ This repo uses separate workflows per deployable:
 
 ### Cloudflare Pages/Workers mappings
 
-- `w3a-wallet-iframe-prod` → `wallet.web3authn.org`
-- `w3a-wallet-iframe-staging` → `wallet-staging.web3authn.org`
+- `w3a-wallet-iframe-prod` → `wallet.tatchi.xyz`
+- `w3a-wallet-iframe-staging` → `wallet-staging.tatchi.xyz`
 - `w3a-tatchi-docs-prod` → `tatchi.xyz`
 - `w3a-tatchi-docs-staging` → `staging.tatchi.xyz`
 - `w3a-relay-prod` → `relay.tatchi.xyz`
@@ -168,8 +168,8 @@ This avoids “Preview” deployments for staging when you push to `dev`.
 Set these as **Environment variables** (not secrets) in `staging` / `production`:
 
 - `VITE_WALLET_ORIGIN`
-  - staging: `https://wallet-staging.web3authn.org`
-  - production: `https://wallet.web3authn.org`
+  - staging: `https://wallet-staging.tatchi.xyz`
+  - production: `https://wallet.tatchi.xyz`
 - `VITE_RELAYER_URL`
   - staging: `https://relay-staging.tatchi.xyz`
   - production: `https://relay.tatchi.xyz`

@@ -19,7 +19,7 @@ This document describes a full implementation plan for an **email‑based accoun
     - their NEAR `accountId` (e.g. `alice.testnet`), and
     - a recovery email address previously registered for zk‑email recovery.
 - **Contract + relayer setup**
-  - Sending an email to the configured recovery address (e.g. `recover@web3authn.org`) with:
+  - Sending an email to the configured recovery address (e.g. `recover@tatchi.xyz`) with:
     - `Subject: recover-<request_id> <accountId> ed25519:<new_public_key>`
     causes the zk‑email pipeline to:
       - verify DKIM + zk proof,

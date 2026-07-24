@@ -10,7 +10,7 @@ Tatchi wallets use the WebAuthn **PRF extension** on every flow: `PRF.first` gat
 
 The SDK supports two strategies:
 
-**Option A: Wallet-scoped (`rpId = wallet domain`)** - One passkey reused across many apps. The wallet and app origins differ (e.g., app at `app.example.com` embedding wallet at `web3authn.org` with `rpId = "web3authn.org"`). This is the default mode, as it requires less setup.
+**Option A: Wallet-scoped (`rpId = wallet domain`)** - One passkey reused across many apps. The wallet and app origins differ (e.g., app at `app.example.com` embedding wallet at `tatchi.xyz` with `rpId = "tatchi.xyz"`). This is the default mode, as it requires less setup.
 
 **Option B: App-scoped (`rpId = app base domain`)** - Credentials bound to your product's domain, working across subdomains. The app and wallet share a base domain (e.g., wallet at `wallet.example.com`, app at `app.example.com`, with `rpId = "example.com"`). Choose this for single-product deployments. This requires contract deployment and configuration.
 
@@ -30,13 +30,13 @@ Use the wallet domain as `rpId`:
 <PasskeyProvider
   config={{
     iframeWallet: {
-      walletOrigin: 'https://wallet.web3authn.org',
-      rpIdOverride: 'wallet.web3authn.org',  // ← Wallet-scoped
+      walletOrigin: 'https://wallet.tatchi.xyz',
+      rpIdOverride: 'wallet.tatchi.xyz',  // ← Wallet-scoped
     }
   }}
 >
 ```
-The app's embedded wallet iframe calls WebAuthn with `rpId = "wallet.web3authn.org"`.
+The app's embedded wallet iframe calls WebAuthn with `rpId = "wallet.tatchi.xyz"`.
 
 Any app that embeds this iframe can reuse the same Passkey credential, as long as it delegates WebAuthn via Permissions-Policy.
 
@@ -70,7 +70,7 @@ No allowlist needed! Any site can embed the wallet. Security relies on:
 {
   "origins": [
     "https://wallet.tatchi.com",
-    "https://web3authn.org",
+    "https://tatchi.xyz",
     "https://example.your-app.com"
   ]
 }
@@ -144,8 +144,8 @@ To move the wallet host without losing passkeys, keep `rpId` stable:
 
 ```tsx
 iframeWallet: {
-  walletOrigin: 'https://wallet.web3authn.org',  // New host
-  rpIdOverride: 'web3authn.org',              // Old rpId (unchanged)
+  walletOrigin: 'https://wallet.tatchi.xyz',  // New host
+  rpIdOverride: 'tatchi.xyz',              // Old rpId (unchanged)
 }
 ```
 
@@ -172,7 +172,7 @@ Update ROR manifest on the rpId domain to include the new host, delegate WebAuth
 
 **Fix:**
 
-1. Add header: `Permissions-Policy: publickey-credentials-get=(self "https://wallet.web3authn.org")`
+1. Add header: `Permissions-Policy: publickey-credentials-get=(self "https://wallet.tatchi.xyz")`
 2. Ensure iframe has: `allow="publickey-credentials-get; publickey-credentials-create"`
 3. Check the SDK's Vite plugin is enabled
 :::

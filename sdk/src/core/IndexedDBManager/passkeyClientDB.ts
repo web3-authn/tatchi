@@ -214,7 +214,7 @@ export class PasskeyClientDBManager {
    * Scope the `lastUserAccountId` app-state pointer to a particular parent/app origin.
    *
    * Context:
-   * - The wallet iframe runs on a shared origin (e.g. `wallet.web3authn.org`) across many apps.
+   * - The wallet iframe runs on a shared origin (e.g. `wallet.tatchi.xyz`) across many apps.
    * - IndexedDB on that origin is shared, so a single global `lastUserAccountId` key can be
    *   overwritten by another app and cause cross-app session/key mismatches.
    *

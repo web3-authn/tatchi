@@ -12,7 +12,7 @@ test.describe('buildConfigsFromEnv emailRecovery.mailtoAddress normalization', (
       },
     });
 
-    expect(cfg.relayer.emailRecovery.mailtoAddress).toBe('recover@web3authn.org');
+    expect(cfg.relayer.emailRecovery.mailtoAddress).toBe('recover@tatchi.xyz');
   });
 
   test('trims mailtoAddress override', async () => {

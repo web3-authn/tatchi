@@ -8,12 +8,12 @@ This document maps what gets deployed, to which GitHub Environments, with which 
   - Staging deployments from `dev` (Cloudflare resources use `*-staging` names)
   - Relay Worker + Email Routing (staging)
   - Docs Pages project (staging)
-  - Wallet iframe Pages project (wallet-staging.web3authn.org)
+  - Wallet iframe Pages project (wallet-staging.tatchi.xyz)
 - production
   - Production deployments from `main` (Cloudflare resources use `*-prod` names)
   - Relay Worker + Email Routing (prod)
   - Docs Pages project (prod)
-  - Wallet iframe Pages project (wallet.web3authn.org)
+  - Wallet iframe Pages project (wallet.tatchi.xyz)
 
 ## Workflows → Deployments
 
@@ -54,20 +54,20 @@ This document maps what gets deployed, to which GitHub Environments, with which 
 - .github/workflows/deploy-wallet-iframe-staging.yml
   - Triggers: push to `dev`, manual dispatch
   - Environment: `staging`
-  - What: Build `examples/vite` wallet iframe and deploy to Cloudflare Pages project `w3a-wallet-iframe-staging` (wallet-staging.web3authn.org)
+  - What: Build `examples/vite` wallet iframe and deploy to Cloudflare Pages project `w3a-wallet-iframe-staging` (wallet-staging.tatchi.xyz)
 
 - .github/workflows/deploy-wallet-iframe-prod.yml
   - Triggers: push to `main`, manual dispatch
   - Environment: `production`
-  - What: Build `examples/vite` wallet iframe and deploy to Cloudflare Pages project `w3a-wallet-iframe-prod` (wallet.web3authn.org)
+  - What: Build `examples/vite` wallet iframe and deploy to Cloudflare Pages project `w3a-wallet-iframe-prod` (wallet.tatchi.xyz)
 
 ## Environment Vars (vars) by Environment
 
 - staging / production
   - `VITE_WALLET_ORIGIN`
-    - staging: `https://wallet-staging.web3authn.org`
-    - production: `https://wallet.web3authn.org`
-  - `VITE_RP_ID_BASE` (typically `web3authn.org` for wallet-scoped credentials)
+    - staging: `https://wallet-staging.tatchi.xyz`
+    - production: `https://wallet.tatchi.xyz`
+  - `VITE_RP_ID_BASE` (typically `tatchi.xyz` for wallet-scoped credentials)
   - Optional (SDK defaults): `VITE_WALLET_SERVICE_PATH` (defaults to `/wallet-service`), `VITE_SDK_BASE_PATH` (defaults to `/sdk`)
   - `VITE_RELAYER_URL`, `VITE_RELAYER_ACCOUNT_ID`
     - production: `https://relay.tatchi.xyz`
@@ -101,8 +101,8 @@ This document maps what gets deployed, to which GitHub Environments, with which 
 ## Cloudflare Pages Mappings
 
 Cloudflare pages/workers mappings are as follows:
-- `w3a-wallet-iframe-prod` -> `wallet.web3authn.org`
-- `w3a-wallet-iframe-staging` -> `wallet-staging.web3authn.org`
+- `w3a-wallet-iframe-prod` -> `wallet.tatchi.xyz`
+- `w3a-wallet-iframe-staging` -> `wallet-staging.tatchi.xyz`
 - `w3a-tatchi-docs-prod` -> `tatchi.xyz`
 - `w3a-tatchi-docs-staging` -> `staging.tatchi.xyz`
 - `w3a-relay-prod` -> `relay.tatchi.xyz`

@@ -41,7 +41,7 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
       // Expire pending recovery records after 30 minutes.
       pendingTtlMs: 30 * 60 * 1000,
       // Default recovery mailbox for examples / docs.
-      mailtoAddress: 'recover@web3authn.org',
+      mailtoAddress: 'recover@tatchi.xyz',
     },
   },
   vrfWorkerConfigs: {
@@ -91,7 +91,7 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
     : toTrimmedString(defaults.vrfWorkerConfigs?.shamir3pass?.relayServerUrl) || relayServerUrlDefault;
   const resolvedMailtoAddress = toTrimmedString(overrides.relayer?.emailRecovery?.mailtoAddress)
     || toTrimmedString(defaults.relayer?.emailRecovery?.mailtoAddress)
-    || 'recover@web3authn.org';
+    || 'recover@tatchi.xyz';
   const signerMode = coerceSignerMode(overrides.signerMode, defaults.signerMode);
   const merged: TatchiConfigs = {
     nearRpcUrl: overrides.nearRpcUrl ?? defaults.nearRpcUrl,
