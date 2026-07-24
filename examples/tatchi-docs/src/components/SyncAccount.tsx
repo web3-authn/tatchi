@@ -1,40 +1,17 @@
 import React from 'react'
-import { useTatchi, AuthMenuMode, PROFILE_MENU_ITEM_IDS } from '@tatchi-xyz/sdk/react'
+import { useTatchi, PROFILE_MENU_ITEM_IDS } from '@tatchi-xyz/sdk/react'
 import { toast } from 'sonner'
-import { friendlyWebAuthnMessage } from '../utils/strings'
 import { LoadingButton } from './LoadingButton';
 import { GlassBorder } from './GlassBorder'
 import { BrowserWithQR } from './icons/BrowserWithQR'
 import { IPhoneQRScanner } from './icons/IPhoneQRScanner'
-import { useCarousel } from './Carousel2/CarouselProvider'
-import { useAuthMenuControl } from '../contexts/AuthMenuControl'
 import { useProfileMenuControl } from '../contexts/ProfileMenuControl'
 import './SyncAccount.css'
 import { SetupEmailRecovery } from './SetupEmailRecovery';
 
 export function SyncAccount() {
-  const { loginState, logout } = useTatchi()
-  const [busy, setBusy] = React.useState(false)
-  const carousel = useCarousel()
-  const authMenuControl = useAuthMenuControl()
+  const { loginState } = useTatchi()
   const { requestHighlight: requestProfileHighlight } = useProfileMenuControl()
-
-  const onSync = async () => {
-    setBusy(true)
-    try {
-      // Ensure we are logged out, then navigate to the Login slide
-      try { await logout(); } catch {}
-      carousel.goTo(0)
-      // Switch the PasskeyAuthMenu to the Sync segment on mount
-      authMenuControl.setAndRemount(AuthMenuMode.Sync)
-      toast.success('Switched to account sync')
-    } catch (err) {
-      // Best-effort UX; show friendly error if anything goes wrong
-      toast.error(friendlyWebAuthnMessage(err))
-    } finally {
-      setBusy(false)
-    }
-  }
 
   const onLinkDevice = React.useCallback(() => {
     if (!loginState.isLoggedIn) {
@@ -55,30 +32,6 @@ export function SyncAccount() {
         </div>
 
         <SetupEmailRecovery />
-
-        <div style={{
-          marginTop: '2rem',
-          paddingTop: '2rem',
-          borderTop: '1px solid var(--fe-border)'
-        }}>
-          <h2 className="demo-title">Recover Passkey Account</h2>
-          <div className="action-text">
-            Sync accounts on any device where your passkeys are synced,
-            such as iCloud Keychain or Google Password Manager.
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <LoadingButton
-              onClick={onSync}
-              loading={busy}
-              loadingText="Syncing..."
-              variant="primary"
-              size="medium"
-              style={{ width: 200 }}
-            >
-              Start Sync
-            </LoadingButton>
-          </div>
-        </div>
 
         <div style={{
           marginTop: '2rem',
